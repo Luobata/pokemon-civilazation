@@ -1,0 +1,23 @@
+{
+  "name": "pokemon-civilization",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && tsc --noEmit -p tsconfig.core.json && vite build",
+    "lint": "eslint src tests *.ts *.js",
+    "test": "vitest",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@playwright/test": "1.64.1",
+    "@types/node": "25.9.9",
+    "eslint": "10.13.0",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.72.1",
+    "vite": "8.3.5",
+    "vitest": "4.1.12"
+  }
+}

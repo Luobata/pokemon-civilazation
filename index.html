@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="data:," />
+    <title>宝可梦 · 文明 — 地图</title>
+  </head>
+  <body>
+    <main>
+      <header>
+        <p class="eyebrow">宝可梦 × 文明 <span>M0 · 地图原型</span></p>
+        <h1>一片新的原野</h1>
+        <p id="map-info" role="status">正在生成地图…</p>
+      </header>
+      <figure>
+        <canvas id="map" aria-label="六角格地图，显示七种群系及四个文明的出生点"></canvas>
+        <figcaption><span>1—4 · 文明出生点</span><span>小地图 · 24 × 16</span></figcaption>
+      </figure>
+      <ul id="legend" aria-label="群系图例"></ul>
+    </main>
+    <script type="module" src="/src/browser/main.ts"></script>
+  </body>
+</html>
