@@ -1,5 +1,5 @@
 import { isMapUnit } from './model.ts';
-import { cityYield, workCandidates } from './city.ts';
+import { cityYield, workCandidates, workRadius } from './city.ts';
 import { CONTENT, unitDefinition } from '../content/units.ts';
 import type { Content, UnitIdentity } from '../content/units.ts';
 import { hexDistance, hexToIndex, indexToHex } from './hex.ts';
@@ -24,13 +24,29 @@ export function visibleTiles(state: GameState, playerId: number, content: Conten
     sources.some(source => hexDistance(source.position, indexToHex(index, state.map)) <= source.radius) ? [index] : []));
 }
 
+// D39: territory is the union of civilization city radii, not exclusive worked-tile ownership.
+function territoryOwners(state: GameState): number[][] {
+  const owners = state.map.tiles.map(() => [] as number[]);
+  for (const city of Object.values(state.cities)) {
+    if (city.ownerId === null) continue;
+    const radius = workRadius(city);
+    for (let q = city.position.q - radius; q <= city.position.q + radius; q++) for (let r = city.position.r - radius; r <= city.position.r + radius; r++) {
+      if (hexDistance(city.position, { q, r }) > radius) continue;
+      const index = hexToIndex({ q, r }, state.map);
+      if (index !== null && !owners[index].includes(city.ownerId)) owners[index].push(city.ownerId);
+    }
+  }
+  return owners.map(ids => ids.sort((a, b) => a - b));
+}
+
 // Called only on the new authoritative state, never as a side effect of observe.
 export function refreshKnowledge(state: GameState, content: Content = CONTENT): void {
+  const territory = territoryOwners(state);
   for (const playerId of state.turnOrder) {
     const visible = visibleTiles(state, playerId, content);
     const knowledge = state.knowledge[playerId];
     knowledge.exploredTileIds = [...new Set([...knowledge.exploredTileIds, ...visible])].sort((a, b) => a - b);
-    for (const tile of visible) knowledge.rememberedTiles[tile] = { biomeId: state.map.tiles[tile] };
+    for (const tile of visible) knowledge.rememberedTiles[tile] = { biomeId: state.map.tiles[tile], territoryOwnerIds: [...territory[tile]] };
     for (const [id, known] of Object.entries(knowledge.lastKnownUnits)) {
       const tile = hexToIndex(known.position, state.map)!;
       const current = state.units[Number(id)];
@@ -62,12 +78,14 @@ function projectDiplomacy(pair: Diplomacy, playerId: number): Diplomacy {
 export function observe(state: GameState, playerId: number, content: Content = CONTENT): PlayerView {
   const visible = visibleTiles(state, playerId, content);
   const knowledge = JSON.parse(JSON.stringify(state.knowledge[playerId])) as KnowledgeState;
+  const territory = territoryOwners(state);
   const copyUnit = (unit: MapUnit): MapUnit => ({ ...JSON.parse(JSON.stringify(unit)),
     wildHome: unit.ownerId === playerId ? unit.wildHome && { ...unit.wildHome } : null });
   return {
     playerId, seed: state.setup.seed, round: state.round, activePlayerId: state.activePlayerId, commandSeq: state.commandSeq,
     map: { width: state.map.width, height: state.map.height,
       tiles: state.map.tiles.map((biome, i) => visible.has(i) ? biome : knowledge.rememberedTiles[i]?.biomeId ?? null) },
+    territoryOwnerIds: territory.map((ids, i) => visible.has(i) ? [...ids] : knowledge.rememberedTiles[i]?.territoryOwnerIds?.slice() ?? null),
     combat: {
       units: Object.fromEntries(Object.values(state.units).filter(isMapUnit).filter(unit => visible.has(hexToIndex(unit.position, state.map)!))
         .map(unit => [unit.id, { typeResearch: unit.ownerId !== null && state.players[unit.ownerId].research.unlockedIds.includes('typeResearch') }])),

@@ -66,7 +66,7 @@ export type EconomyEvent = { playerId: number } & (
 export type LastKnownUnit = UnitIdentity & { ownerId: number | null; position: Hex; lastSeenRound: number };
 export type KnowledgeState = {
   exploredTileIds: number[];
-  rememberedTiles: Record<number, { biomeId: BiomeId }>;
+  rememberedTiles: Record<number, { biomeId: BiomeId; territoryOwnerIds?: number[] }>;
   lastKnownUnits: Record<number, LastKnownUnit>;
   lastKnownCities: Record<number, { ownerId: number | null; position: Hex; lastSeenRound: number; headquartersOf?: number | null }>;
 };
@@ -84,6 +84,8 @@ export type GameState = {
 export type PlayerView = {
   playerId: number; seed: number; round: number; activePlayerId: number; commandSeq: number;
   map: GridSize & { tiles: (BiomeId | null)[] };
+  /** Per tile: sorted civilization IDs, [] observed unclaimed, null ownership never observed. */
+  territoryOwnerIds: (number[] | null)[];
   visibleTileIds: number[]; knowledge: KnowledgeState;
   units: MapUnit[]; recoveringUnits: RecoveringUnit[]; cities: CitySummary[];
   combat: { units: Record<number, { typeResearch: boolean }>; cities: Record<number, { hp: number; counterAttack: number }> };

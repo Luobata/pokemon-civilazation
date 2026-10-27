@@ -15,9 +15,10 @@ test('undiscovered city three tiles away: old candidate guessed valid, new plann
   const view = observe(state, 0), position = { q: 6, r: 2 };
   expect(knownCities(view).every(city => hexDistance(city.position, position) >= 4)).toBe(true); // previous implementation
   expect(isCitySite(view, position)).toBe(false); expect(planNext(view).action.type).not.toBe('FoundCity');
-  const unchanged = structuredClone(view); state.cities[2].position = { q: 12, r: 2 };
+  // Moving the city can now visibly change territory (D39); hidden HP still must not affect the view.
+  const unchanged = structuredClone(view); state.cities[2].hp = 99;
   expect(observe(state, 0)).toEqual(unchanged); expect(planNext(observe(state, 0))).toEqual(planNext(view));
-  state.cities[2].position = { q: 9, r: 2 }; pokemon(state, 11, 'pidgeot', 0, 6, 3); refreshKnowledge(state);
+  pokemon(state, 11, 'pidgeot', 0, 6, 3); refreshKnowledge(state);
   expect(knownCities(observe(state, 0)).some(city => city.id === 2)).toBe(true);
   expect(isCitySite(observe(state, 0), position)).toBe(false);
   const remembered = observe(state, 0); remembered.cities = remembered.cities.filter(city => city.id !== 2);

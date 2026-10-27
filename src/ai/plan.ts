@@ -22,7 +22,10 @@ export function knownCombatCount(view: PlayerView, ownerId: number): number {
 export function canCaptureByPersonality(view: PlayerView, target: MapUnit, query: RuleQueries = RULE_QUERIES): boolean {
   if (target.kind !== 'pokemon' || target.ownerId !== null) return false;
   if (view.economy.player.personality === 'expansion') return target.hp * 2 < query.content.species[target.speciesId].maxHp;
-  if (view.economy.player.personality === 'conservative') return view.economy.cities.some(city => hexDistance(city.position, target.position) <= workRadius(city));
+  if (view.economy.player.personality === 'conservative') {
+    const tile = hexToIndex(target.position, view.map);
+    return tile !== null && (view.territoryOwnerIds[tile]?.includes(view.playerId) ?? false);
+  }
   return true;
 }
 export function canProduceSettler(view: PlayerView): boolean {
@@ -119,7 +122,9 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES): C
         }
         const preview = query.attack(view, unit.id, { kind: 'unit', id: target.id }, content);
         if (preview.ok && preview.damage.min > 0 && (target.ownerId === null || player.personality !== 'conservative' || canSiege(view, target.ownerId)
-          || cities.some(city => hexDistance(city.position, target.position) <= workRadius(city)))) add({ type: 'Attack', unitId: unit.id, target: { kind: 'unit', id: target.id } }, 'military',
+          || cities.some(city => hexDistance(city.position, target.position) <= workRadius(city)))) add({ type: 'Attack', unitId: unit.id, target: { kind: 'unit', id: target.id } },
+          // Wild-target weakening competes with capture; it is neither military training nor civilization defense.
+          target.ownerId === null && player.personality !== 'expansion' ? 'capture' : 'military',
           preview.damage.min - preview.counter.damage + (target.ownerId !== null ? 200 : 0), unit.id, target.id);
       }
       for (const city of view.cities) if (city.ownerId !== actorId && canSiege(view, city.ownerId)) {
@@ -161,6 +166,9 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES): C
   }
   add({ type: 'EndTurn' }, 'end');
   const priority = PRIORITIES[player.personality];
-  const selected = [...candidates.values()].flat().sort((a, b) => priority.indexOf(a.goal) - priority.indexOf(b.goal) || b.benefit - a.benefit || stable(a, b))[0];
+  const selected = [...candidates.values()].flat().sort((a, b) => priority.indexOf(a.goal) - priority.indexOf(b.goal)
+    // Buying the missing ball is preparation and costs no unit action; do it before weakening the target.
+    || (a.goal === 'capture' && b.goal === 'capture' ? Number(b.action.type === 'BuyBall') - Number(a.action.type === 'BuyBall') : 0)
+    || b.benefit - a.benefit || stable(a, b))[0];
   return result(selected.action);
 }
