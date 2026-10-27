@@ -6,9 +6,9 @@ import type { Content } from '../content/units.ts';
 import type { TechId } from '../content/economy.ts';
 import { hexDistance, hexToIndex } from './hex.ts';
 import { isMapUnit } from './model.ts';
-import type { CombatAction, CombatEvent, CombatTarget, GameState, MapUnit, StepResult } from './model.ts';
+import type { CombatAction, CombatEvent, CombatTarget, GameState, MapUnit, StepResult, KnockdownRecord, KnockdownCombatant } from './model.ts';
 import { assignNewWorkers, cleanWork } from './city.ts';
-import { captureProbability } from './combat-math.ts';
+import { captureProbability, effectiveness } from './combat-math.ts';
 import { randomBelow } from './rng.ts';
 import { registerSpecies } from './unit.ts';
 import { visibleTiles } from './vision.ts';
@@ -59,8 +59,11 @@ function knockedDown(state: GameState, unit: MapUnit, sourceOwner: number | null
   state.units[unit.id] = { ...unit, location: 'recovering', position: null, cityId: city.id, roundsLeft, hp: 1, actionLeft: 0 };
   events.push({ type: 'UnitRecovering', playerId: unit.ownerId, unitId: unit.id, cityId: city.id, roundsLeft });
 }
+function combatant(unit: MapUnit, content: Content): KnockdownCombatant {
+  return { id: unit.id, ownerId: unit.ownerId, kind: unit.kind, typeId: unit.kind === 'pokemon' ? content.species[unit.speciesId].typeId : null };
+}
 function unitStrike(state: GameState, attacker: MapUnit, defender: MapUnit, counter: boolean,
-  wildPhase: boolean, content: Content, events: CombatEvent[]): number {
+  wildPhase: boolean, content: Content, events: CombatEvent[], knockdowns: KnockdownRecord[]): number {
   if (attacker.kind !== 'pokemon') return 0;
   const d = defender.kind === 'pokemon' ? content.species[defender.speciesId] : null;
   const roll = counter ? 100 : 85 + randomBelow(state.rng, 16);
@@ -69,7 +72,11 @@ function unitStrike(state: GameState, attacker: MapUnit, defender: MapUnit, coun
   attacker.enraged = false;
   defender.hp = Math.max(0, defender.hp - hit);
   experience(state, attacker, (hit > 0 ? 10 : 0) + (defender.hp === 0 && d ? 40 * d.stage : 0));
-  if (defender.hp === 0) knockedDown(state, defender, attacker.ownerId, wildPhase, events);
+  if (defender.hp === 0) {
+    knockdowns.push({ source: combatant(attacker, content), target: combatant(defender, content), counter,
+      effectiveness: d ? effectiveness(content.species[attacker.speciesId].typeId, d.typeId, d.immunities, hasTech(state, attacker.ownerId, 'typeResearch')) : 100 });
+    knockedDown(state, defender, attacker.ownerId, wildPhase, events);
+  }
   return hit;
 }
 // Executes one validated battle, also used by neutral guards at stage 6.
@@ -79,15 +86,16 @@ export function resolveAttack(state: GameState, unitId: number, target: CombatTa
   const defender = target.kind === 'unit' ? state.units[target.id] : state.cities[target.id];
   if (!defender.position) throw new Error('Expected deployed target');
   const positions = [{ ...attacker.position }, { ...defender.position }], events: CombatEvent[] = [];
+  const knockdowns: KnockdownRecord[] = [];
   attacker.actionLeft = 0;
   let hit: number;
   let counterDamage = 0, capturedCity = false;
   if (target.kind === 'unit') {
     const defendingUnit = state.units[target.id] as MapUnit;
-    hit = unitStrike(state, attacker, defendingUnit, false, wildPhase, content, events);
+    hit = unitStrike(state, attacker, defendingUnit, false, wildPhase, content, events, knockdowns);
     if (state.units[defendingUnit.id] && isMapUnit(state.units[defendingUnit.id]) && defendingUnit.kind === 'pokemon'
       && hexDistance(attacker.position, defendingUnit.position) <= content.species[defendingUnit.speciesId].range) {
-      counterDamage = unitStrike(state, defendingUnit, attacker, true, wildPhase, content, events);
+      counterDamage = unitStrike(state, defendingUnit, attacker, true, wildPhase, content, events, knockdowns);
     }
   } else {
     const city = state.cities[target.id];
@@ -114,12 +122,15 @@ export function resolveAttack(state: GameState, unitId: number, target: CombatTa
       counterDamage = cityCounterDamage(attack, attacker, state.map.tiles[hexToIndex(city.position, state.map)!],
         state.map.tiles[hexToIndex(attacker.position, state.map)!], content);
       attacker.hp = Math.max(0, attacker.hp - counterDamage);
-      if (attacker.hp === 0) knockedDown(state, attacker, city.ownerId, wildPhase, events);
+      if (attacker.hp === 0) {
+        knockdowns.push({ source: { id: city.id, ownerId: city.ownerId, kind: 'city', typeId: null }, target: combatant(attacker, content), effectiveness: 100, counter: true });
+        knockedDown(state, attacker, city.ownerId, wildPhase, events);
+      }
     }
   }
   const knockedDownUnitIds = [unitId, ...(target.kind === 'unit' ? [target.id] : [])]
     .filter(id => !state.units[id] || !isMapUnit(state.units[id]));
-  events.unshift({ type: 'BattleResolved', attackerId: unitId, target: { ...target }, positions, damage: hit, counterDamage, capturedCity, knockedDownUnitIds });
+  events.unshift({ type: 'BattleResolved', attackerId: unitId, target: { ...target }, positions, damage: hit, counterDamage, capturedCity, knockedDownUnitIds, knockdowns });
   return events;
 }
 export function applyCombatAction(state: GameState, actor: number, action: CombatAction, content: Content = CONTENT): CombatEvent[] {

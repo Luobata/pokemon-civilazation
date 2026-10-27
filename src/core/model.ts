@@ -1,3 +1,4 @@
+import type { TypeId } from '../content/species.ts';
 import type { BallId, BuildingId, TechId, Yield } from '../content/economy.ts';
 import type { StarterId, SpeciesId, UnitIdentity } from '../content/units.ts';
 import type { BiomeId } from '../content/rules.ts';
@@ -95,10 +96,12 @@ export type CombatTarget = { kind: 'unit' | 'city'; id: number };
 export type CombatAction = { type: 'Attack'; unitId: number; target: CombatTarget }
   | { type: 'Capture'; unitId: number; targetUnitId: number; ballId: BallId }
   | { type: 'Evolve'; unitId: number; intoSpeciesId: SpeciesId };
+export type KnockdownCombatant = { id: number; ownerId: number | null; kind: 'pokemon' | 'logistics' | 'city'; typeId: TypeId | null };
+export type KnockdownRecord = { source: KnockdownCombatant; target: KnockdownCombatant; effectiveness: number; counter: boolean };
 export type CombatEvent =
   | { type: 'CivilizationEliminated'; eliminatedPlayerId: number }
   | { type: 'GameEnded'; outcome: GameOutcome }
-  | { type: 'BattleResolved'; attackerId: number; target: CombatTarget; positions: Hex[]; damage: number; counterDamage: number; capturedCity: boolean; knockedDownUnitIds: number[] }
+  | { type: 'BattleResolved'; attackerId: number; target: CombatTarget; positions: Hex[]; damage: number; counterDamage: number; capturedCity: boolean; knockedDownUnitIds: number[]; knockdowns?: KnockdownRecord[] }
   | { type: 'Captured'; playerId: number; unitId: number; targetUnitId: number; success: boolean; probability: number }
   | { type: 'Evolved'; playerId: number; unitId: number; speciesId: SpeciesId }
   | { type: 'UnitRecovering'; playerId: number; unitId: number; cityId: number; roundsLeft: number }
