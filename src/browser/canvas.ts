@@ -2,6 +2,7 @@ import type { BiomeId } from '../content/rules.ts';
 import type { UnitIdentity } from '../content/units.ts';
 import { speciesDisplay } from '../content/species.ts';
 import { hexToIndex, indexToHex } from '../core/hex.ts';
+import type { Hex } from '../core/hex.ts';
 import type { PlayerView } from '../core/model.ts';
 import { HEX_RADIUS, hexToWorld, toScreen } from './camera.ts';
 import type { Camera, Point } from './camera.ts';
@@ -17,9 +18,14 @@ export const BIOME_DISPLAY: Record<BiomeId, { label: string; color: string; symb
 };
 const FACTIONS = ['#2C6E63', '#963F38', '#62508F', '#87550D'];
 export type AnimationPose = { unit: UnitIdentity & { id: number; ownerId: number | null }; position: Point };
+export type MapEffect = { kind: 'battle'; position: Hex; damage: number; counterDamage: number; progress: number }
+  | { kind: 'capture'; position: Hex; success: boolean; progress: number }
+  | { kind: 'evolve'; position: Hex; progress: number };
 
 export function drawMap(canvas: HTMLCanvasElement, view: PlayerView, camera: Camera,
-  selected: number | null, reachable: readonly number[], pose?: AnimationPose, cursorIndex?: number | null): void {
+  selected: number | null, reachable: readonly number[], pose?: AnimationPose, cursorIndex?: number | null,
+  effect?: MapEffect, actionMode: 'attack' | 'capture' | null = null,
+  actionTargets: readonly number[] = [], pendingTargetIndex?: number | null): void {
   const context = canvas.getContext('2d');
   if (!context) throw new Error('当前浏览器不支持 Canvas 2D。');
   const width = canvas.clientWidth, height = canvas.clientHeight;
@@ -93,13 +99,12 @@ export function drawMap(canvas: HTMLCanvasElement, view: PlayerView, camera: Cam
     ownerBadge(city.ownerId, p, size);
   }
 
-  function unitMark(unit: AnimationPose['unit'], point: Point, actionLeft?: number) {
+  function unitMark(unit: AnimationPose['unit'], point: Point, actionLeft?: number, enraged = false) {
     if (!onscreen(point)) return;
     const size = Math.max(24, Math.min(36, radius * 1.45));
-    const color = ownerColor(unit.ownerId);
     context!.beginPath();
     context!.roundRect(point.x - size / 2, point.y - size / 2, size, size, size * .24);
-    context!.fillStyle = color;
+    context!.fillStyle = ownerColor(unit.ownerId);
     context!.fill();
     context!.strokeStyle = actionLeft === 0 ? '#AEB4A5' : '#FFFDF7';
     context!.lineWidth = 2;
@@ -108,10 +113,17 @@ export function drawMap(canvas: HTMLCanvasElement, view: PlayerView, camera: Cam
     centeredText(abbreviation, point, '#FFFDF7', size * .42);
     ownerBadge(unit.ownerId, point, size);
     if (actionLeft === 0) centeredText('✓', { x: point.x - size * .32, y: point.y + size * .34 }, '#FFFDF7', size * .35);
+    if (enraged) {
+      context!.beginPath();
+      context!.arc(point.x - size * .38, point.y - size * .35, size * .2, 0, Math.PI * 2);
+      context!.fillStyle = '#9B3833';
+      context!.fill();
+      centeredText('!', { x: point.x - size * .38, y: point.y - size * .35 }, '#FFFDF7', size * .35);
+    }
   }
   // Only the authorized PlayerView supplies entities; hidden live units never enter a draw call.
   for (const unit of view.units) if (unit.id !== pose?.unit.id) {
-    unitMark(unit, centers[hexToIndex(unit.position, view.map)!], unit.actionLeft);
+    unitMark(unit, centers[hexToIndex(unit.position, view.map)!], unit.actionLeft, unit.enraged);
   }
   if (pose) unitMark(pose.unit, toScreen(pose.position, camera));
 
@@ -127,6 +139,20 @@ export function drawMap(canvas: HTMLCanvasElement, view: PlayerView, camera: Cam
     context.arc(p.x, p.y, Math.max(2, radius * .1), 0, Math.PI * 2);
     context.fillStyle = '#174E48';
     context.fill();
+  }
+
+  for (const index of actionTargets) if (visible.has(index) && onscreen(centers[index])) {
+    const p = centers[index];
+    polygon(p);
+    context.fillStyle = actionMode === 'capture' ? '#85500030' : '#9B383333';
+    context.fill();
+    context.setLineDash([4, 3]);
+    context.strokeStyle = index === pendingTargetIndex ? '#FFFDF7' : actionMode === 'capture' ? '#C18412' : '#D77D75';
+    context.lineWidth = index === pendingTargetIndex ? 3 : 2;
+    context.stroke();
+    context.setLineDash([]);
+    centeredText(actionMode === 'capture' ? '球' : '×', { x: p.x - radius * .45, y: p.y + radius * .4 },
+      actionMode === 'capture' ? '#855000' : '#9B3833', radius * .38);
   }
 
   for (const [i, biome] of view.map.tiles.entries()) if (biome && !visible.has(i) && onscreen(centers[i])) {
@@ -174,5 +200,37 @@ export function drawMap(canvas: HTMLCanvasElement, view: PlayerView, camera: Cam
     context.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
     context.fillStyle = '#7C4DFF';
     context.fill();
+  }
+
+  if (effect) {
+    const index = hexToIndex(effect.position, view.map)!, p = centers[index];
+    if (onscreen(p)) {
+      if (effect.kind === 'battle') {
+        if (effect.progress < .5) {
+          polygon(p);
+          context.fillStyle = `rgb(255 253 247 / ${45 - effect.progress * 60}%)`;
+          context.fill();
+        }
+        centeredText(`−${effect.damage}`, { x: p.x, y: p.y - radius * (.7 + effect.progress * .5) }, '#F4E0DB', radius * .65);
+        if (effect.counterDamage) centeredText(`反击 −${effect.counterDamage}`, { x: p.x, y: p.y - radius * .15 }, '#FFFDF7', radius * .35);
+      } else if (effect.kind === 'capture') {
+        const offset = effect.progress < .45 ? (1 - effect.progress / .45) * radius * 1.5 : 0;
+        context.beginPath();
+        context.arc(p.x, p.y - offset, radius * .32, 0, Math.PI * 2);
+        context.fillStyle = '#9B3833';
+        context.fill();
+        context.strokeStyle = '#FFFDF7';
+        context.lineWidth = 2;
+        context.stroke();
+        centeredText(effect.progress < .45 ? '球' : effect.success ? '成功' : '失败', { x: p.x, y: p.y - offset - radius }, '#FFFDF7', radius * .42);
+      } else {
+        context.beginPath();
+        context.arc(p.x, p.y, radius * (.55 + effect.progress * .45), 0, Math.PI * 2);
+        context.strokeStyle = '#F0B73F';
+        context.lineWidth = 3 * (1 - effect.progress) + 1;
+        context.stroke();
+        centeredText('进化', { x: p.x, y: p.y - radius }, '#F0B73F', radius * .48);
+      }
+    }
   }
 }

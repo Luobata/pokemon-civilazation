@@ -1,14 +1,18 @@
 import { renderEconomyPanel } from './economy-panel.ts';
+import { renderUnitPanel } from './unit-panel.ts';
+import type { ActionMode, PendingTarget } from './unit-panel.ts';
 import type { Command } from '../core/model.ts';
 import '../styles.css';
 import { GameSession } from '../app/session.ts';
 import { CONTENT, unitDefinition } from '../content/units.ts';
 import type { StarterId } from '../content/units.ts';
+import type { BallId } from '../content/economy.ts';
+import { speciesDisplay } from '../content/species.ts';
 import { hexToIndex, indexToHex } from '../core/hex.ts';
 import { reachablePaths } from '../core/movement.ts';
-import type { PlayerView, VisibleEvent } from '../core/model.ts';
+import type { VisibleEvent } from '../core/model.ts';
 import { BIOME_DISPLAY, drawMap } from './canvas.ts';
-import type { AnimationPose } from './canvas.ts';
+import type { AnimationPose, MapEffect } from './canvas.ts';
 import { fitCamera, hexToWorld, toWorld, worldToHex, zoomAt } from './camera.ts';
 import type { Camera, Point } from './camera.ts';
 
@@ -16,32 +20,46 @@ const canvas = document.querySelector<HTMLCanvasElement>('#map')!;
 const info = document.querySelector<HTMLElement>('#map-info')!;
 const debug = document.querySelector<HTMLElement>('#debug')!;
 const selection = document.querySelector<HTMLElement>('#selection')!;
+const actionNotice = document.querySelector<HTMLElement>('#action-notice')!;
 const animate = document.querySelector<HTMLInputElement>('#animate')!;
 const god = document.querySelector<HTMLInputElement>('#god')!;
 const starter = document.querySelector<HTMLSelectElement>('#starter')!;
 const sequence = document.querySelector<HTMLInputElement>('#sequence')!;
 const endTurn = document.querySelector<HTMLButtonElement>('#end-turn')!;
+type MovedPayload = Extract<VisibleEvent['payload'], { type: 'Moved' }>;
+type BattlePayload = Extract<VisibleEvent['payload'], { type: 'BattleResolved' }>;
+type CapturePayload = Extract<VisibleEvent['payload'], { type: 'Captured' }>;
+type EvolvePayload = Extract<VisibleEvent['payload'], { type: 'Evolved' }>;
+type Active = { kind: 'move'; payload: MovedPayload; started: number }
+  | { kind: 'battle'; payload: BattlePayload; started: number }
+  | { kind: 'capture'; payload: CapturePayload; started: number }
+  | { kind: 'evolve'; payload: EvolvePayload; started: number };
 export let session: GameSession;
 export let camera: Camera = { x: 0, y: 0, zoom: 1 };
 let selected: number | null = null;
 let selectedCity: number | null = null;
 let keyboardIndex: number | null = null;
-let active: { payload: Extract<VisibleEvent['payload'], { type: 'Moved' }>; started: number } | null = null;
+let actionMode: ActionMode = null;
+let pendingTarget: PendingTarget | null = null;
+let selectedBall: BallId = 'pokeBall';
+let active: Active | null = null;
 let frameRequested = false;
 let notice = '';
 const busy = () => active !== null || session.presentationQueue.length > 0;
 
-function renderUnitPanel(view: PlayerView) {
-  const root = document.querySelector<HTMLElement>('#unit-panel')!;
-  const unit = view.units.find(unit => unit.id === selected && unit.ownerId === view.playerId);
-  if (!unit) { root.innerHTML = ''; return; }
-  const definition = unitDefinition(unit, CONTENT);
-  const kind = unit.kind === 'pokemon' ? '宝可梦' : '后勤单位';
-  root.innerHTML = `<div class="unit-card"><div class="unit-head"><div class="unit-portrait">${definition.name.slice(0, 1)}</div><div><strong>${definition.name}</strong><small>${kind} · 文明 ${view.playerId + 1}</small></div><span class="unit-ap ${unit.actionLeft ? '' : 'spent'}">行动点 ${unit.actionLeft}</span></div>
-    <div class="unit-details"><div class="unit-detail"><small>经验</small><strong>${unit.xp}</strong></div><div class="unit-detail"><small>移动</small><strong>${definition.move}</strong></div><div class="unit-detail"><small>视野</small><strong>${definition.vision}</strong></div></div>
-    <p class="unit-note">${unit.kind === 'logistics' ? '在合法位置使用城市面板的“开拓队建城”。' : '选择高亮格移动；行动结果由现有命令结算。'}</p></div>`;
+function duration(item: Active) {
+  if (item.kind === 'move') return Math.max(1, item.payload.path.length - 1) * 180;
+  if (item.kind === 'battle' || item.kind === 'capture') return 600;
+  return 450;
 }
-
+function summary(payload: VisibleEvent['payload']) {
+  switch (payload.type) {
+    case 'BattleResolved': return `攻击结算：造成 ${payload.damage} 伤害${payload.counterDamage ? `，反击 ${payload.counterDamage}` : ''}${payload.knockedDownUnitIds.length ? '，有单位击坠/休养' : ''}。`;
+    case 'Captured': return payload.success ? `捕捉成功（${payload.probability}%）。` : `捕捉失败（${payload.probability}%），目标激怒。`;
+    case 'Evolved': return `进化完成：${speciesDisplay(payload.speciesId).name}。`;
+    default: return '';
+  }
+}
 function controls() {
   const view = session.getView();
   const { player } = view.economy;
@@ -59,9 +77,18 @@ function controls() {
   document.querySelector('#hud-upkeep')!.innerHTML = `−${upkeep} <span class="delta negative">金币</span>`;
   const unit = view.units.find(unit => unit.id === selected);
   selection.textContent = unit ? `${unitDefinition(unit, CONTENT).name} · 行动点 ${unit.actionLeft} · 点击高亮格移动` : '点选己方单位；拖动地图平移，滚轮缩放。';
+  actionNotice.textContent = notice || (actionMode === 'attack' ? '攻击模式：选择红色虚线目标，再确认攻击。'
+    : actionMode === 'capture' ? '捕捉模式：选择野生宝可梦，再确认捕捉。' : '');
+  actionNotice.classList.toggle('is-error', notice.includes('拒绝') || notice.includes('失败'));
   debug.textContent = `seed=${view.seed} round=${view.round} activePlayer=${view.activePlayerId} commandSeq=${view.commandSeq}\n最近拒绝：${session.lastRejected ? JSON.stringify(session.lastRejected) : '无'}${notice ? '\n' + notice : ''}`;
   sequence.max = String(session.exportLog().commands.length);
-  renderUnitPanel(view);
+  renderUnitPanel(view, selected, actionMode, pendingTarget, selectedBall, busy(), {
+    mode: mode => { actionMode = mode; pendingTarget = null; notice = ''; controls(); requestFrame(); },
+    confirm: confirmAction,
+    cancel: () => { actionMode = null; pendingTarget = null; notice = ''; controls(); requestFrame(); },
+    evolve: evolveSelected,
+    ball: ballId => { selectedBall = ballId; },
+  });
   renderEconomyPanel(view, selectedCity, selected, issue, id => { selectedCity = id; controls(); }, busy());
   if (busy()) for (const element of document.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLSelectElement>('#economy button, #economy input, #economy select')) element.disabled = true;
   for (const element of document.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLSelectElement>('#controls button, #controls input, #controls select, #dev-drawer button, #dev-drawer input, #skip')) {
@@ -73,42 +100,87 @@ function controls() {
 function issue(action: Command['action']) {
   if (busy()) return;
   const result = session.issue(action);
-  if (result.ok && action.type === 'FoundCity') { selected = null; selectedCity = session.getView().economy.cities.at(-1)!.id; }
+  if (!result.ok) notice = `${action.type} 被拒绝：${result.reason}`;
+  else {
+    notice = '';
+    if (action.type === 'Attack' || action.type === 'Capture') { actionMode = null; pendingTarget = null; }
+    if (action.type === 'FoundCity') { selected = null; selectedCity = session.getView().economy.cities.at(-1)!.id; }
+  }
   controls(); requestFrame();
+}
+function confirmAction() {
+  if (selected === null || !pendingTarget) return;
+  if (actionMode === 'attack') issue({ type: 'Attack', unitId: selected, target: { kind: pendingTarget.kind, id: pendingTarget.id } });
+  else if (actionMode === 'capture') issue({ type: 'Capture', unitId: selected, targetUnitId: pendingTarget.id, ballId: selectedBall });
+}
+function evolveSelected() {
+  const view = session.getView(), unit = view.units.find(unit => unit.id === selected && unit.kind === 'pokemon');
+  const evolution = unit?.kind === 'pokemon' ? CONTENT.species[unit.speciesId].evolution : null;
+  if (unit && evolution) issue({ type: 'Evolve', unitId: unit.id, intoSpeciesId: evolution.speciesId });
 }
 function requestFrame() {
   if (!frameRequested) { frameRequested = true; requestAnimationFrame(frame); }
 }
+function finishPresentations() {
+  const payloads = [...(active ? [active.payload] : []), ...session.presentationQueue.map(event => event.payload)];
+  const text = payloads.map(summary).filter(Boolean).at(-1);
+  if (text) notice = text;
+  active = null;
+  session.skipAnimations();
+}
 function frame(now: number) {
   frameRequested = false;
-  if (!animate.checked) { active = null; session.skipAnimations(); }
-  if (active && now - active.started >= Math.max(1, active.payload.path.length - 1) * 180) active = null;
+  if (!animate.checked) finishPresentations();
+  if (active && now - active.started >= duration(active)) {
+    notice = summary(active.payload) || notice;
+    active = null;
+  }
   while (!active && session.presentationQueue.length) {
     const event = session.presentationQueue.shift()!;
-    if (event.payload.type === 'Moved') active = { payload: event.payload, started: now };
+    if (event.payload.type === 'Moved') active = { kind: 'move', payload: event.payload, started: now };
+    else if (event.payload.type === 'BattleResolved') active = { kind: 'battle', payload: event.payload, started: now };
+    else if (event.payload.type === 'Captured') active = { kind: 'capture', payload: event.payload, started: now };
+    else if (event.payload.type === 'Evolved') active = { kind: 'evolve', payload: event.payload, started: now };
   }
-  let pose: AnimationPose | undefined;
-  if (active) {
+  let pose: AnimationPose | undefined, effect: MapEffect | undefined;
+  if (active?.kind === 'move') {
     const path = active.payload.path;
     const progress = Math.min(path.length - 1, (now - active.started) / 180);
     const index = Math.floor(progress), fraction = progress - index;
     const a = hexToWorld(path[index]), b = hexToWorld(path[Math.min(index + 1, path.length - 1)]);
     pose = { unit: active.payload.unit, position: { x: a.x + (b.x - a.x) * fraction, y: a.y + (b.y - a.y) * fraction } };
+  } else if (active) {
+    const progress = Math.min(1, (now - active.started) / duration(active));
+    if (active.kind === 'battle') effect = { kind: 'battle', position: active.payload.positions[1], damage: active.payload.damage, counterDamage: active.payload.counterDamage, progress };
+    else if (active.kind === 'capture') {
+      const payload = active.payload;
+      const target = session.getView().units.find(unit => unit.id === payload.targetUnitId);
+      if (target) effect = { kind: 'capture', position: target.position, success: payload.success, progress };
+    } else {
+      const payload = active.payload;
+      const unit = session.getView().units.find(unit => unit.id === payload.unitId);
+      if (unit) effect = { kind: 'evolve', position: unit.position, progress };
+    }
   }
   const view = session.getView();
   const paths = selected === null ? {} : reachablePaths(view, selected);
+  const targets = actionMode === 'attack'
+    ? [...view.units.filter(unit => unit.ownerId !== view.playerId).map(unit => hexToIndex(unit.position, view.map)!),
+      ...view.cities.filter(city => city.ownerId !== view.playerId).map(city => hexToIndex(city.position, view.map)!)]
+    : actionMode === 'capture' ? view.units.filter(unit => unit.ownerId === null).map(unit => hexToIndex(unit.position, view.map)!) : [];
   drawMap(canvas, import.meta.env.DEV && god.checked ? session.getDebugView() : view,
-    camera, selected, Object.keys(paths).map(Number), pose, keyboardIndex);
+    camera, selected, Object.keys(paths).map(Number), pose, keyboardIndex, effect, actionMode, targets, pendingTarget?.index);
   if (busy()) requestFrame(); else controls();
 }
-function skip() { active = null; session.skipAnimations(); controls(); requestFrame(); }
+function skip() { finishPresentations(); controls(); requestFrame(); }
 function fit() { camera = fitCamera(session.getView().map, canvas.clientWidth, canvas.clientHeight); requestFrame(); }
+function resetAction() { actionMode = null; pendingTarget = null; }
 function newGame() {
   try {
     session = new GameSession({ seed: Number(new URLSearchParams(location.search).get('seed') ?? '12345'), width: 24, height: 16,
       players: [{ id: 0, controller: 'human', starterId: starter.value as StarterId },
         { id: 1, controller: 'ai' }, { id: 2, controller: 'ai' }, { id: 3, controller: 'ai' }] });
-    active = null; selected = null; selectedCity = null; keyboardIndex = null; notice = ''; sequence.value = '0';
+    active = null; selected = null; selectedCity = null; keyboardIndex = null; resetAction(); notice = ''; sequence.value = '0';
     canvas.hidden = false;
     fit();
     controls();
@@ -122,7 +194,16 @@ function activateIndex(index: number | null) {
   if (busy()) return;
   const view = session.getView();
   keyboardIndex = index;
-  if (index === null) { selected = null; controls(); requestFrame(); return; }
+  if (index === null) { selected = null; resetAction(); controls(); requestFrame(); return; }
+  if (actionMode && selected !== null) {
+    const unit = view.units.find(unit => hexToIndex(unit.position, view.map) === index);
+    const city = view.cities.find(city => hexToIndex(city.position, view.map) === index);
+    if (actionMode === 'attack' && unit && unit.ownerId !== view.playerId) pendingTarget = { kind: 'unit', id: unit.id, index };
+    else if (actionMode === 'attack' && city && city.ownerId !== view.playerId) pendingTarget = { kind: 'city', id: city.id, index };
+    else if (actionMode === 'capture' && unit?.ownerId === null) pendingTarget = { kind: 'unit', id: unit.id, index };
+    else { pendingTarget = null; notice = '该目标不适用；请选择高亮目标。'; }
+    controls(); requestFrame(); return;
+  }
   const hex = indexToHex(index, view.map);
   const own = view.units.find(unit => unit.ownerId === view.playerId && hexToIndex(unit.position, view.map) === index);
   const ownCity = view.cities.find(city => city.ownerId === view.playerId && hexToIndex(city.position, view.map) === index);
@@ -180,7 +261,7 @@ canvas.addEventListener('keydown', event => {
     keyboardIndex = hexToIndex(directions[event.key], view.map) ?? fallback;
     requestFrame();
   } else if (event.key === 'Enter') { event.preventDefault(); activateIndex(fallback); }
-  else if (event.key === 'Escape') { event.preventDefault(); selected = null; keyboardIndex = null; controls(); requestFrame(); }
+  else if (event.key === 'Escape') { event.preventDefault(); selected = null; keyboardIndex = null; resetAction(); controls(); requestFrame(); }
   else if (event.key === '+' || event.key === '=' || event.key === '-') {
     event.preventDefault();
     zoomAt(camera, { x: canvas.clientWidth / 2, y: canvas.clientHeight / 2 }, event.key === '-' ? .9 : 1.1);
@@ -197,15 +278,15 @@ document.querySelector('#export')!.addEventListener('click', () => {
   link.click(); URL.revokeObjectURL(url);
 });
 document.querySelector('#replay')!.addEventListener('click', () => {
-  try { session.replayTo(Number(sequence.value)); selected = null; keyboardIndex = null; notice = ''; skip(); }
+  try { session.replayTo(Number(sequence.value)); selected = null; keyboardIndex = null; resetAction(); notice = ''; skip(); }
   catch (error) { notice = error instanceof Error ? error.message : String(error); controls(); }
 });
 document.querySelector('#resume')!.addEventListener('click', () => {
-  session.resumeFromReplay(); selected = null; keyboardIndex = null; controls(); requestFrame();
+  session.resumeFromReplay(); selected = null; keyboardIndex = null; resetAction(); controls(); requestFrame();
 });
 const saveKey = 'pokemon-civilization-save';
 function load(text: string) {
-  session.load(text); active = null; selected = null; selectedCity = null; keyboardIndex = null; notice = '读档完成';
+  session.load(text); active = null; selected = null; selectedCity = null; keyboardIndex = null; resetAction(); notice = '读档完成';
   fit(); skip();
 }
 function storageAction(action: () => void) {
