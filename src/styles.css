@@ -25,3 +25,13 @@ button, select { padding: 5px 9px; }
 #sequence { width: 65px; }
 #selection, #debug { font-size: 12px; }
 #debug { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+#economy { border-top: 1px solid #d1d7c8; padding-top: 12px; font-size: 13px; }
+#economy p { margin: 10px 0; }
+#economy button, #economy select { margin: 3px; }
+.city-columns { display: flex; flex-wrap: wrap; gap: 24px; }
+.city-columns > div { flex: 1; min-width: 280px; }
+.work-list { max-height: 210px; overflow: auto; }
+.work-list table { width: 100%; text-align: left; }
+#ball-quantity { width: 60px; }
+#import-save { max-width: 210px; }

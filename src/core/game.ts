@@ -1,3 +1,5 @@
+import type { TechId } from '../content/economy.ts';
+import { assignNewWorkers, createCity } from './city.ts';
 import { CONTENT, STARTER_IDS } from '../content/units.ts';
 import type { Content, StarterId } from '../content/units.ts';
 import { generateMap } from './map.ts';
@@ -17,7 +19,7 @@ export function createGame(setup: GameSetup, content: Content = CONTENT): GameSt
   }
   const generated = generateMap({ ...setup, playerCount: setup.players.length });
   const state: GameState = {
-    schemaVersion: 1, rulesVersion: 'm1-v1', contentVersion: content.version,
+    schemaVersion: 2, rulesVersion: 'm2-v1', contentVersion: content.version,
     setup: JSON.parse(JSON.stringify(setup)) as GameSetup,
     map: { width: generated.width, height: generated.height, tiles: generated.tiles },
     rng: generated.rng, nextEntityId: 1, commandSeq: 0, round: 1,
@@ -27,21 +29,24 @@ export function createGame(setup: GameSetup, content: Content = CONTENT): GameSt
   // Reserve all city/settler tiles before placing starters in any outer ring.
   for (const [i, player] of setup.players.entries()) {
     const starterId: StarterId = player.controller === 'human' ? player.starterId : STARTER_IDS[randomBelow(state.rng, STARTER_IDS.length)];
-    state.players[player.id] = { ...player, starterId };
+    state.players[player.id] = { ...player, starterId, gold: 50, ballInventory: { pokeBall: 0, greatBall: 0 },
+      registeredSpeciesIds: [starterId], research: { techId: null, reserve: 0, unlockedIds: [],
+        progressByTech: Object.fromEntries(Object.keys(content.techs).map(id => [id, 0])) as Record<TechId, number> } };
     state.knowledge[player.id] = emptyKnowledge();
     const position = indexToHex(generated.starts[i].tileIndex, state.map);
     const cityId = state.nextEntityId++;
-    state.cities[cityId] = { id: cityId, ownerId: player.id, position: { ...position } };
+    state.cities[cityId] = createCity(cityId, player.id, position, true);
     const settlerId = state.nextEntityId++;
-    state.units[settlerId] = { kind: 'logistics', role: 'settler', id: settlerId, ownerId: player.id, position, actionLeft: 1 };
+    state.units[settlerId] = { kind: 'logistics', role: 'settler', id: settlerId, ownerId: player.id, position, actionLeft: 1, xp: 0 };
   }
   for (const player of setup.players) {
     const city = Object.values(state.cities).find(city => city.ownerId === player.id)!;
     const unit = { kind: 'pokemon' as const, speciesId: state.players[player.id].starterId };
     const position = initialUnitPosition(state, city.position, unit, content);
     const id = state.nextEntityId++;
-    state.units[id] = { ...unit, id, ownerId: player.id, position, actionLeft: 1 };
+    state.units[id] = { ...unit, id, ownerId: player.id, position, actionLeft: 1, xp: 0 };
   }
+  for (const city of Object.values(state.cities)) assignNewWorkers(state, city, city.population, content);
   refreshKnowledge(state, content);
   return state;
 }

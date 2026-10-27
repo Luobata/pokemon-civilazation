@@ -1,3 +1,4 @@
+import { createCity } from '../../src/core/city.ts';
 import { describe, expect, test } from 'vitest';
 import { CONTENT, STARTER_IDS } from '../../src/content/units.ts';
 import type { StarterId } from '../../src/content/units.ts';
@@ -20,7 +21,7 @@ function fixture(speciesId: StarterId = 'bulbasaur'): GameState {
   const state = createGame(setup);
   state.map = { width: 12, height: 9, tiles: Array(108).fill('grassland') };
   state.turnOrder = [0, 1]; state.cities = {};
-  state.units = { 1: { id: 1, kind: 'pokemon', speciesId, ownerId: 0, position: at(2), actionLeft: 1 } };
+  state.units = { 1: { id: 1, kind: 'pokemon', speciesId, ownerId: 0, position: at(2), actionLeft: 1, xp: 0 } };
   state.knowledge = { 0: emptyKnowledge(), 1: emptyKnowledge() };
   refreshKnowledge(state);
   return state;
@@ -29,7 +30,7 @@ function move(state: GameState, to: Hex, unitId = 1) {
   return step(state, { actorId: 0, expectedSeq: state.commandSeq, action: { type: 'Move', unitId, to } });
 }
 function blocker(state: GameState, ownerId: number, q: number) {
-  state.units[2] = { id: 2, kind: 'logistics', role: 'settler', ownerId, position: at(q), actionLeft: 1 };
+  state.units[2] = { id: 2, kind: 'logistics', role: 'settler', ownerId, position: at(q), actionLeft: 1, xp: 0 };
   refreshKnowledge(state);
 }
 function rejectUnchanged(state: GameState, command: Command, reason: string) {
@@ -106,7 +107,7 @@ describe('atomic Move', () => {
     expect(move(state, at(5)).ok).toBe(true);
   });
   test('B2 own city can be entered, traversed and stopped on; other city blocks', () => {
-    const state = fixture(); state.cities[2] = { id: 2, ownerId: 0, position: at(3) }; refreshKnowledge(state);
+    const state = fixture(); state.cities[2] = createCity(2, 0, at(3)); refreshKnowledge(state);
     expect(move(state, at(3)).ok).toBe(true);
     const through = move(state, at(4)); expect(through.ok && through.events[0].payload).toMatchObject({ path: [at(2), at(3), at(4)] });
     state.map.tiles.fill('mountain'); refreshKnowledge(state); expect(move(state, at(4)).ok).toBe(false);
@@ -127,7 +128,7 @@ describe('atomic Move', () => {
     expect(move(state, at(3), 2)).toEqual(move(state, at(3), 999));
   });
   test('settler has a two-point budget through the same movement pipeline', () => {
-    const state = fixture(); state.units[1] = { kind: 'logistics', role: 'settler', id: 1, ownerId: 0, position: at(2), actionLeft: 1 };
+    const state = fixture(); state.units[1] = { kind: 'logistics', role: 'settler', id: 1, ownerId: 0, position: at(2), actionLeft: 1, xp: 0 };
     state.knowledge[0].rememberedTiles[hexToIndex(at(5), state.map)!] = { biomeId: 'grassland' };
     expect(move(state, at(4)).ok).toBe(true); expect(move(state, at(5)).ok).toBe(false);
   });
@@ -145,14 +146,14 @@ test('EndTurn advances players; only a complete round refreshes AP', () => {
   const end = step(next.state, { actorId: 1, expectedSeq: 1, action: { type: 'EndTurn' } });
   expect(end.ok).toBe(true); if (!end.ok) return;
   expect(end.state.activePlayerId).toBe(0); expect(end.state.round).toBe(2); expect(end.state.units[1].actionLeft).toBe(1);
-  expect(end.events.map(e => e.payload.type)).toEqual(['RoundEnded', 'TurnChanged']);
+  expect(end.events.slice(-2).map(e => e.payload.type)).toEqual(['RoundEnded', 'TurnChanged']);
 });
 
 describe('vision and historical knowledge', () => {
   test('unit radius 2, mountain +1, city radius 2', () => {
     const state = fixture(); expect(visibleTiles(state, 0).size).toBe(19);
     state.map.tiles[hexToIndex(at(2), state.map)!] = 'mountain'; expect(visibleTiles(state, 0).size).toBe(37);
-    state.units = {}; state.cities[1] = { id: 1, ownerId: 0, position: at(2) };
+    state.units = {}; state.cities[1] = createCity(1, 0, at(2));
     expect(visibleTiles(state, 0).size).toBe(19);
   });
   test('visible, remembered, unknown terrain and observation isolation', () => {
@@ -167,7 +168,7 @@ describe('vision and historical knowledge', () => {
   test.each(['pokemon', 'logistics'] as const)('%s memory stays historical, clears on visible empty tile or removed entity', kind => {
     const state = fixture();
     const identity = kind === 'pokemon' ? { kind, speciesId: 'squirtle' as const } : { kind, role: 'settler' as const };
-    state.units[2] = { ...identity, id: 2, ownerId: 1, position: at(3), actionLeft: 1 } as UnitState;
+    state.units[2] = { ...identity, id: 2, ownerId: 1, position: at(3), actionLeft: 1, xp: 0 } as UnitState;
     refreshKnowledge(state); const memory = structuredClone(state.knowledge[0].lastKnownUnits[2]);
     expect(memory).toMatchObject(identity); if (kind === 'logistics') expect(memory).not.toHaveProperty('speciesId');
     state.units[1].position = at(7); state.units[2].position = at(4); state.round = 2; refreshKnowledge(state);
@@ -180,7 +181,7 @@ describe('vision and historical knowledge', () => {
   });
   test('projection retains before-only visibility and splits a hidden middle', () => {
     const before = fixture(); before.units[1].position = at(0);
-    before.units[2] = { kind: 'pokemon', speciesId: 'squirtle', id: 2, ownerId: 1, position: at(0), actionLeft: 1 };
+    before.units[2] = { kind: 'pokemon', speciesId: 'squirtle', id: 2, ownerId: 1, position: at(0), actionLeft: 1, xp: 0 };
     const after = structuredClone(before); after.units[1].position = at(8); after.units[2].position = at(8);
     const events = projectEvents(before, after, [{ seq: 1, index: 0, payload: {
       type: 'Moved', unitId: 2, path: Array.from({ length: 9 }, (_, q) => at(q)),

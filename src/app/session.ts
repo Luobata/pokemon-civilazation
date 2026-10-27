@@ -1,3 +1,4 @@
+import { deserializeSave, serializeSave } from './save.ts';
 import { CONTENT } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
 import { createGame } from '../core/game.ts';
@@ -6,14 +7,14 @@ import { observe, projectEvents } from '../core/vision.ts';
 import { step } from '../core/step.ts';
 import { canonicalSerialize } from '../core/snapshot.ts';
 
-export type CommandLog = { version: 1; schemaVersion: 1; rulesVersion: 'm1-v1'; contentVersion: string; setup: GameSetup; commands: Command[] };
+export type CommandLog = { version: 1; schemaVersion: 2; rulesVersion: 'm2-v1'; contentVersion: string; setup: GameSetup; commands: Command[] };
 
 export function replay(log: CommandLog, through = log.commands.length, checkpoint?: GameState, content: Content = CONTENT): GameState {
-  if (log.version !== 1 || log.schemaVersion !== 1 || log.rulesVersion !== 'm1-v1' || log.contentVersion !== content.version
+  if (log.version !== 1 || log.schemaVersion !== 2 || log.rulesVersion !== 'm2-v1' || log.contentVersion !== content.version
     || !Number.isInteger(through) || through < 0 || through > log.commands.length) throw new Error('Unsupported log or replay sequence.');
   let state = checkpoint ? JSON.parse(JSON.stringify(checkpoint)) as GameState : createGame(log.setup, content);
   if (state.commandSeq > through || canonicalSerialize(state.setup) !== canonicalSerialize(log.setup)
-    || state.contentVersion !== log.contentVersion || state.rulesVersion !== 'm1-v1') throw new Error('Checkpoint does not match this log.');
+    || state.contentVersion !== log.contentVersion || state.rulesVersion !== 'm2-v1') throw new Error('Checkpoint does not match this log.');
   for (const command of log.commands.slice(state.commandSeq, through)) {
     const result = step(state, command, content);
     if (!result.ok) throw new Error(`Replay rejected at ${state.commandSeq}: ${result.reason}`);
@@ -25,13 +26,12 @@ export function replay(log: CommandLog, through = log.commands.length, checkpoin
 export class GameSession {
   private state: GameState;
   private commands: Command[] = [];
-  readonly playerId: number;
+  get playerId(): number { return this.state.setup.players.find(player => player.controller === 'human')!.id; }
   presentationQueue: VisibleEvent[] = [];
   lastRejected: { command: Command; reason: string } | null = null;
 
   constructor(setup: GameSetup, private readonly content: Content = CONTENT) {
     this.state = createGame(setup, content);
-    this.playerId = setup.players.find(player => player.controller === 'human')!.id;
     this.endComputerTurns();
   }
   getState(): GameState { return JSON.parse(JSON.stringify(this.state)) as GameState; }
@@ -43,7 +43,7 @@ export class GameSession {
       units: Object.values(state.units), cities: Object.values(state.cities) };
   }
   exportLog(): CommandLog {
-    return { version: 1, schemaVersion: 1, rulesVersion: 'm1-v1', contentVersion: this.content.version, setup: this.getState().setup,
+    return { version: 1, schemaVersion: 2, rulesVersion: 'm2-v1', contentVersion: this.content.version, setup: this.getState().setup,
       commands: JSON.parse(JSON.stringify(this.commands)) as Command[] };
   }
   issue(action: Command['action']): StepResult {
@@ -72,6 +72,14 @@ export class GameSession {
     while (this.state.players[this.state.activePlayerId].controller === 'ai') {
       this.apply({ actorId: this.state.activePlayerId, expectedSeq: this.state.commandSeq, action: { type: 'EndTurn' } });
     }
+  }
+  save(): string { return serializeSave(this.getState(), this.exportLog()); }
+  load(text: string): void {
+    const save = deserializeSave(text, this.content);
+    this.state = save.state;
+    this.commands = save.log.commands;
+    this.presentationQueue = [];
+    this.lastRejected = null;
   }
   skipAnimations(): void { this.presentationQueue = []; }
   replayTo(sequence: number): void {

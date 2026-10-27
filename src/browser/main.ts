@@ -1,3 +1,5 @@
+import { renderEconomyPanel } from './economy-panel.ts';
+import type { Command } from '../core/model.ts';
 import '../styles.css';
 import { GameSession } from '../app/session.ts';
 import { CONTENT, unitDefinition } from '../content/units.ts';
@@ -21,6 +23,7 @@ const sequence = document.querySelector<HTMLInputElement>('#sequence')!;
 export let session: GameSession;
 export let camera: Camera = { x: 0, y: 0, zoom: 1 };
 let selected: number | null = null;
+let selectedCity: number | null = null;
 let active: { payload: Extract<VisibleEvent['payload'], { type: 'Moved' }>; started: number } | null = null;
 let frameRequested = false;
 let notice = '';
@@ -32,9 +35,17 @@ function controls() {
   selection.textContent = unit ? `${unitDefinition(unit, CONTENT).name} · 行动点 ${unit.actionLeft} · 点击高亮格移动` : '点选己方单位；拖动地图平移，滚轮缩放。';
   debug.textContent = `seed=${view.seed} round=${view.round} activePlayer=${view.activePlayerId} commandSeq=${view.commandSeq}\n最近拒绝：${session.lastRejected ? JSON.stringify(session.lastRejected) : '无'}${notice ? '\n' + notice : ''}`;
   sequence.max = String(session.exportLog().commands.length);
+  renderEconomyPanel(view, selectedCity, selected, issue, id => { selectedCity = id; controls(); }, busy());
+  if (busy()) for (const element of document.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLSelectElement>('#economy button, #economy input, #economy select')) element.disabled = true;
   for (const element of document.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLSelectElement>('#controls button, #controls input, #controls select')) {
     element.disabled = element.id === 'skip' ? !busy() : busy();
   }
+}
+function issue(action: Command['action']) {
+  if (busy()) return;
+  const result = session.issue(action);
+  if (result.ok && action.type === 'FoundCity') { selected = null; selectedCity = session.getView().economy.cities.at(-1)!.id; }
+  controls(); requestFrame();
 }
 function requestFrame() {
   if (!frameRequested) { frameRequested = true; requestAnimationFrame(frame); }
@@ -67,7 +78,7 @@ function newGame() {
     session = new GameSession({ seed: Number(new URLSearchParams(location.search).get('seed') ?? '12345'), width: 24, height: 16,
       players: [{ id: 0, controller: 'human', starterId: starter.value as StarterId },
         { id: 1, controller: 'ai' }, { id: 2, controller: 'ai' }, { id: 3, controller: 'ai' }] });
-    active = null; selected = null; notice = ''; sequence.value = '0';
+    active = null; selected = null; selectedCity = null; notice = ''; sequence.value = '0';
     canvas.hidden = false;
     camera = fitCamera(session.getView().map, canvas.clientWidth, canvas.clientHeight);
     controls(); requestFrame();
@@ -105,9 +116,11 @@ canvas.addEventListener('pointerup', event => {
   const hex = worldToHex(toWorld(localPoint(event), camera));
   const index = hexToIndex(hex, view.map);
   const own = view.units.find(unit => unit.ownerId === view.playerId && hexToIndex(unit.position, view.map) === index);
+  const ownCity = view.cities.find(city => city.ownerId === view.playerId && hexToIndex(city.position, view.map) === index);
+  if (ownCity) selectedCity = ownCity.id;
   if (own) selected = own.id;
   else if (selected !== null && index !== null && reachablePaths(view, selected)[index]) {
-    session.issue({ type: 'Move', unitId: selected, to: hex });
+    issue({ type: 'Move', unitId: selected, to: hex });
   } else selected = null;
   controls(); requestFrame();
 });
@@ -116,7 +129,7 @@ canvas.addEventListener('wheel', event => {
 }, { passive: false });
 document.querySelector('#end-turn')!.addEventListener('click', () => {
   if (busy()) return;
-  session.issue({ type: 'EndTurn' }); controls(); requestFrame();
+  issue({ type: 'EndTurn' });
 });
 document.querySelector('#skip')!.addEventListener('click', skip);
 document.querySelector('#new-game')!.addEventListener('click', newGame);
@@ -134,6 +147,32 @@ document.querySelector('#replay')!.addEventListener('click', () => {
 });
 document.querySelector('#resume')!.addEventListener('click', () => {
   session.resumeFromReplay(); selected = null; controls(); requestFrame();
+});
+const saveKey = 'pokemon-civilization-save';
+function load(text: string) {
+  session.load(text); active = null; selected = null; selectedCity = null; notice = '读档完成';
+  camera = fitCamera(session.getView().map, canvas.clientWidth, canvas.clientHeight); skip();
+}
+function storageAction(action: () => void) {
+  try { action(); } catch (error) { notice = error instanceof Error ? error.message : String(error); }
+  controls();
+}
+document.querySelector('#save-game')!.addEventListener('click', () => storageAction(() => {
+  localStorage.setItem(saveKey, session.save()); notice = '已保存到此浏览器';
+}));
+document.querySelector('#load-game')!.addEventListener('click', () => storageAction(() => {
+  const text = localStorage.getItem(saveKey); if (!text) throw new Error('此浏览器暂无存档'); load(text);
+}));
+document.querySelector('#export-save')!.addEventListener('click', () => {
+  const url = URL.createObjectURL(new Blob([session.save()], { type: 'application/json' }));
+  const link = document.createElement('a'); link.href = url; link.download = 'pokemon-save.json'; link.click(); URL.revokeObjectURL(url);
+});
+document.querySelector<HTMLInputElement>('#import-save')!.addEventListener('change', async event => {
+  const input = event.target as HTMLInputElement, file = input.files?.[0];
+  if (!file) return;
+  try { const text = await file.text(); if (!busy()) storageAction(() => load(text)); }
+  catch (error) { notice = String(error); controls(); }
+  input.value = '';
 });
 god.addEventListener('change', skip);
 if (!import.meta.env.DEV) document.querySelector<HTMLElement>('#god-label')!.hidden = true;

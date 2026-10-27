@@ -1,3 +1,4 @@
+import { cityYield, workCandidates } from './city.ts';
 import { CONTENT, unitDefinition } from '../content/units.ts';
 import type { Content, UnitIdentity } from '../content/units.ts';
 import { hexDistance, hexToIndex, indexToHex } from './hex.ts';
@@ -60,7 +61,11 @@ export function observe(state: GameState, playerId: number, content: Content = C
     visibleTileIds: [...visible], knowledge,
     units: Object.values(state.units).filter(unit => visible.has(hexToIndex(unit.position, state.map)!)).map(copyUnit),
     cities: Object.values(state.cities).filter(city => visible.has(hexToIndex(city.position, state.map)!))
-      .map(city => ({ ...city, position: { ...city.position } })),
+      .map(city => ({ id: city.id, ownerId: city.ownerId, position: { ...city.position } })),
+    economy: { player: JSON.parse(JSON.stringify(state.players[playerId])),
+      cities: Object.values(state.cities).filter(city => city.ownerId === playerId).map(city => ({
+        ...JSON.parse(JSON.stringify(city)), yields: cityYield(state, city, content), availableTileIds: workCandidates(state, city, content),
+      })) },
   };
 }
 
@@ -69,8 +74,9 @@ export function projectEvents(before: GameState, after: GameState, events: reado
   const visible = new Set([...visibleTiles(before, playerId, content), ...visibleTiles(after, playerId, content)]);
   const projected: VisibleEvent[] = [];
   for (const event of events) {
+    if ('playerId' in event.payload && event.payload.playerId !== playerId) continue;
     if (event.payload.type !== 'Moved') {
-      projected.push({ seq: event.seq, payload: { ...event.payload } });
+      projected.push({ seq: event.seq, payload: JSON.parse(JSON.stringify(event.payload)) });
       continue;
     }
     const unit = before.units[event.payload.unitId];

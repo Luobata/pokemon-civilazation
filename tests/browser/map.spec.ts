@@ -74,7 +74,7 @@ for (const seed of [12345, 0]) {
     if (seed === 12345) {
       const current = await movePoints(page);
       await page.mouse.click(current.from.x, current.from.y);
-      await page.screenshot({ path: '/Users/bytedance/.local/state/gsb-local/pokemon-civilazation/reports/m1-play.png', fullPage: true });
+      await page.screenshot({ path: '/Users/bytedance/.local/state/gsb-local/pokemon-civilazation/reports/m2-play.png', fullPage: true });
       await page.locator('#new-game').click();
       const visibility = await page.evaluate(async () => {
         const mainPath = '/src/browser/main.ts'; const { session } = await import(mainPath);
@@ -83,7 +83,7 @@ for (const seed of [12345, 0]) {
       expect(visibility.view.map.tiles).toContain(null);
       expect(visibility.view.units.every((unit: { ownerId: number }) => unit.ownerId === 0)).toBe(true);
       expect(visibility.debug.units).toHaveLength(8);
-      await page.screenshot({ path: '/Users/bytedance/.local/state/gsb-local/pokemon-civilazation/reports/m1-fog.png', fullPage: true });
+      await page.screenshot({ path: '/Users/bytedance/.local/state/gsb-local/pokemon-civilazation/reports/m2-fog.png', fullPage: true });
     }
     expect(errors).toEqual([]);
   });

@@ -9,7 +9,7 @@
   <body>
     <main>
       <header>
-        <p class="eyebrow">宝可梦 × 文明 <span>M1 · 命令与玩家视角</span></p>
+        <p class="eyebrow">宝可梦 × 文明 <span>M2 · 城市经济与存档</span></p>
         <h1>一片新的原野</h1>
         <p id="map-info" role="status">正在生成地图…</p>
       </header>
@@ -24,6 +24,8 @@
         <button id="export">导出命令 JSON</button>
         <label>重放序号 <input id="sequence" type="number" min="0" value="0" /></label>
         <button id="replay">重放</button><button id="resume">从此处继续</button>
+        <button id="save-game">保存</button><button id="load-game">读档</button><button id="export-save">导出存档 JSON</button>
+        <label>导入存档 <input id="import-save" type="file" accept="application/json,.json"></label>
       </section>
       <p id="selection"></p>
       <figure>
@@ -31,6 +33,7 @@
         <figcaption><span>草 / 火 / 水 · 宝可梦　拓 · 开拓队　方框 · 城市</span><span>小地图 · 24 × 16</span></figcaption>
       </figure>
       <pre id="debug" aria-label="调试状态"></pre>
+      <section id="economy" aria-label="城市与经济"></section>
       <ul id="legend" aria-label="群系图例"></ul>
     </main>
     <script type="module" src="/src/browser/main.ts"></script>
