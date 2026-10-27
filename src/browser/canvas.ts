@@ -1,19 +1,25 @@
 import type { BiomeId } from '../content/rules.ts';
 import type { UnitIdentity } from '../content/units.ts';
+import { speciesDisplay } from '../content/species.ts';
 import { hexToIndex, indexToHex } from '../core/hex.ts';
 import type { PlayerView } from '../core/model.ts';
 import { HEX_RADIUS, hexToWorld, toScreen } from './camera.ts';
 import type { Camera, Point } from './camera.ts';
 
-export const BIOME_DISPLAY: Record<BiomeId, { label: string; color: string }> = {
-  grassland: { label: '草原', color: '#a5b87a' }, forest: { label: '森林', color: '#4e7961' },
-  mountain: { label: '山地', color: '#8b8980' }, ocean: { label: '海洋', color: '#7facbb' },
-  desert: { label: '荒漠', color: '#dbbe81' }, snow: { label: '雪原', color: '#dae4df' },
-  volcano: { label: '火山', color: '#b4644c' },
+export const BIOME_DISPLAY: Record<BiomeId, { label: string; color: string; symbol: string }> = {
+  grassland: { label: '草原', color: '#91AC72', symbol: '≈' },
+  forest: { label: '森林', color: '#49735A', symbol: '♠' },
+  mountain: { label: '山地', color: '#8A8981', symbol: '⋀⋀' },
+  ocean: { label: '海洋', color: '#6FA5B8', symbol: '≈' },
+  desert: { label: '荒漠', color: '#D3B574', symbol: '∿' },
+  snow: { label: '雪原', color: '#D9E5E3', symbol: '✣' },
+  volcano: { label: '火山', color: '#B76049', symbol: '⋀' },
 };
-export type AnimationPose = { unit: UnitIdentity & { id: number; ownerId: number }; position: Point };
+const FACTIONS = ['#2C6E63', '#963F38', '#62508F', '#87550D'];
+export type AnimationPose = { unit: UnitIdentity & { id: number; ownerId: number | null }; position: Point };
+
 export function drawMap(canvas: HTMLCanvasElement, view: PlayerView, camera: Camera,
-  selected: number | null, reachable: readonly number[], pose?: AnimationPose): void {
+  selected: number | null, reachable: readonly number[], pose?: AnimationPose, cursorIndex?: number | null): void {
   const context = canvas.getContext('2d');
   if (!context) throw new Error('当前浏览器不支持 Canvas 2D。');
   const width = canvas.clientWidth, height = canvas.clientHeight;
@@ -34,46 +40,139 @@ export function drawMap(canvas: HTMLCanvasElement, view: PlayerView, camera: Cam
     }
     context!.closePath();
   }
+  function centeredText(text: string, p: Point, color: string, size: number) {
+    context!.fillStyle = color;
+    context!.font = `650 ${Math.max(9, size)}px system-ui, sans-serif`;
+    context!.textAlign = 'center';
+    context!.textBaseline = 'middle';
+    context!.fillText(text, p.x, p.y);
+  }
+  function ownerColor(ownerId: number | null) {
+    return ownerId === null ? '#855000' : FACTIONS[ownerId] ?? '#5F6E66';
+  }
+  function ownerBadge(ownerId: number | null, p: Point, size: number) {
+    const badge = Math.max(13, size * .42), x = p.x + size * .32, y = p.y - size * .38;
+    context!.beginPath();
+    context!.arc(x, y, badge / 2, 0, Math.PI * 2);
+    context!.fillStyle = ownerColor(ownerId);
+    context!.fill();
+    context!.strokeStyle = '#FFFDF7';
+    context!.lineWidth = 1;
+    context!.stroke();
+    centeredText(ownerId === null ? '爪' : String(ownerId + 1), { x, y: y + .3 }, '#FFFDF7', badge * .65);
+  }
   const visible = new Set(view.visibleTileIds);
+
   for (const [i, biome] of view.map.tiles.entries()) {
     if (!onscreen(centers[i])) continue;
     polygon(centers[i]);
-    context.fillStyle = biome ? BIOME_DISPLAY[biome].color : '#111a17';
+    context.fillStyle = biome ? BIOME_DISPLAY[biome].color : '#101815';
     context.fill();
-    context.strokeStyle = '#f5f1e444'; context.lineWidth = 0.7; context.stroke();
+    context.strokeStyle = '#FFFDF73D';
+    context.lineWidth = .7;
+    context.stroke();
+    if (biome && radius >= 12) {
+      const p = centers[i];
+      centeredText(BIOME_DISPLAY[biome].symbol, { x: p.x + radius * .42, y: p.y - radius * .38 },
+        biome === 'forest' ? '#FFFDF752' : '#1D2B2638', radius * .38);
+    }
   }
+
   for (const city of view.cities) {
     const p = centers[hexToIndex(city.position, view.map)!];
     if (!onscreen(p)) continue;
-    context.strokeStyle = '#fff9e9'; context.lineWidth = 3;
-    context.strokeRect(p.x - radius * .62, p.y - radius * .62, radius * 1.24, radius * 1.24);
+    const size = Math.max(20, Math.min(30, radius * 1.25));
+    context.fillStyle = ownerColor(city.ownerId);
+    context.strokeStyle = '#FFFDF7';
+    context.lineWidth = 2;
+    context.beginPath();
+    context.roundRect(p.x - size / 2, p.y - size / 2, size, size, 4);
+    context.fill();
+    context.stroke();
+    centeredText('营', p, '#FFFDF7', size * .48);
+    ownerBadge(city.ownerId, p, size);
   }
+
   function unitMark(unit: AnimationPose['unit'], point: Point, actionLeft?: number) {
     if (!onscreen(point)) return;
-    context!.beginPath(); context!.arc(point.x, point.y, radius * .48, 0, Math.PI * 2);
-    context!.fillStyle = unit.ownerId === view.playerId ? '#233d32' : '#8a3e38'; context!.fill();
-    context!.strokeStyle = actionLeft === 0 ? '#aeb4a5' : '#fff9e9'; context!.lineWidth = 2; context!.stroke();
-    context!.font = `bold ${Math.max(9, radius * .55)}px system-ui`;
-    context!.textAlign = 'center'; context!.textBaseline = 'middle'; context!.fillStyle = '#fff9e9';
-    const names = { bulbasaur: '草', charmander: '火', squirtle: '水' };
-    context!.fillText(unit.kind === 'pokemon' ? names[unit.speciesId] : '拓', point.x, point.y);
+    const size = Math.max(24, Math.min(36, radius * 1.45));
+    const color = ownerColor(unit.ownerId);
+    context!.beginPath();
+    context!.roundRect(point.x - size / 2, point.y - size / 2, size, size, size * .24);
+    context!.fillStyle = color;
+    context!.fill();
+    context!.strokeStyle = actionLeft === 0 ? '#AEB4A5' : '#FFFDF7';
+    context!.lineWidth = 2;
+    context!.stroke();
+    const abbreviation = unit.kind === 'pokemon' ? speciesDisplay(unit.speciesId).abbreviation : '拓';
+    centeredText(abbreviation, point, '#FFFDF7', size * .42);
+    ownerBadge(unit.ownerId, point, size);
+    if (actionLeft === 0) centeredText('✓', { x: point.x - size * .32, y: point.y + size * .34 }, '#FFFDF7', size * .35);
   }
-  // PlayerView contains current visible entities only; historical markers never
-  // become live units under the translucent fog.
+  // Only the authorized PlayerView supplies entities; hidden live units never enter a draw call.
   for (const unit of view.units) if (unit.id !== pose?.unit.id) {
     unitMark(unit, centers[hexToIndex(unit.position, view.map)!], unit.actionLeft);
   }
   if (pose) unitMark(pose.unit, toScreen(pose.position, camera));
+
   for (const index of reachable) if (visible.has(index) && onscreen(centers[index])) {
-    polygon(centers[index]); context.strokeStyle = '#faff91'; context.lineWidth = 2; context.stroke();
+    const p = centers[index];
+    polygon(p);
+    context.fillStyle = '#236B6338';
+    context.fill();
+    context.strokeStyle = '#63B7A9';
+    context.lineWidth = 2;
+    context.stroke();
+    context.beginPath();
+    context.arc(p.x, p.y, Math.max(2, radius * .1), 0, Math.PI * 2);
+    context.fillStyle = '#174E48';
+    context.fill();
   }
+
   for (const [i, biome] of view.map.tiles.entries()) if (biome && !visible.has(i) && onscreen(centers[i])) {
-    polygon(centers[i]); context.fillStyle = '#111a17b8'; context.fill();
+    const p = centers[i];
+    polygon(p);
+    context.fillStyle = '#1018159E';
+    context.fill();
+    context.save();
+    polygon(p);
+    context.clip();
+    context.strokeStyle = '#FFFDF71A';
+    context.lineWidth = 1;
+    for (let offset = -radius * 3; offset < radius * 3; offset += 8) {
+      context.beginPath();
+      context.moveTo(p.x - radius * 2 + offset, p.y + radius * 2);
+      context.lineTo(p.x + radius * 2 + offset, p.y - radius * 2);
+      context.stroke();
+    }
+    context.restore();
   }
+
   const unit = view.units.find(unit => unit.id === selected);
   if (unit && !pose) {
     const p = centers[hexToIndex(unit.position, view.map)!];
-    context.beginPath(); context.arc(p.x, p.y, radius * .7, 0, Math.PI * 2);
-    context.strokeStyle = '#fff495'; context.lineWidth = 2; context.stroke();
+    context.beginPath();
+    context.arc(p.x, p.y, radius * .76, 0, Math.PI * 2);
+    context.strokeStyle = '#1D2B26';
+    context.lineWidth = 4;
+    context.stroke();
+    context.beginPath();
+    context.arc(p.x, p.y, radius * .76, 0, Math.PI * 2);
+    context.strokeStyle = '#F0B73F';
+    context.lineWidth = 2.5;
+    context.stroke();
+  }
+  if (cursorIndex !== null && cursorIndex !== undefined && onscreen(centers[cursorIndex])) {
+    const p = centers[cursorIndex];
+    polygon(p);
+    context.setLineDash([4, 3]);
+    context.strokeStyle = '#7C4DFF';
+    context.lineWidth = 2;
+    context.stroke();
+    context.setLineDash([]);
+    context.beginPath();
+    context.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
+    context.fillStyle = '#7C4DFF';
+    context.fill();
   }
 }

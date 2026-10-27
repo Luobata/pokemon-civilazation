@@ -5,6 +5,7 @@ import { createGame } from '../../src/core/game.ts';
 import { canEnter } from '../../src/core/movement.ts';
 import { hexDistance, hexToIndex, indexToHex, neighbors } from '../../src/core/hex.ts';
 import type { Hex } from '../../src/core/hex.ts';
+import { isMapUnit } from '../../src/core/model.ts';
 import type { GameState } from '../../src/core/model.ts';
 import { canonicalSerialize, stateDigest } from '../../src/core/snapshot.ts';
 import { deserializeSave } from '../../src/app/save.ts';
@@ -26,8 +27,10 @@ async function clickHex(page: Page, hex: Hex) {
 // Test planning uses the deterministic map to find a short route. All actual
 // movement, round and founding commands below go through browser controls.
 function foundingRoute(initial: GameState, unitId: number): Hex[] {
-  const unit = initial.units[unitId], origin = hexToIndex(unit.position, initial.map)!;
-  const occupied = new Set(Object.values(initial.units).filter(u => u.id !== unitId).map(u => hexToIndex(u.position, initial.map)));
+  const unit = initial.units[unitId];
+  if (!isMapUnit(unit)) throw new Error('Founding fixture must start on map');
+  const origin = hexToIndex(unit.position, initial.map)!;
+  const occupied = new Set(Object.values(initial.units).flatMap(u => u.id !== unitId && isMapUnit(u) ? [hexToIndex(u.position, initial.map)] : []));
   const routes = new Map<number, Hex[]>([[origin, []]]), pending = [origin];
   while (pending.length) {
     const index = pending.shift()!, route = routes.get(index)!, position = indexToHex(index, initial.map);
@@ -52,7 +55,9 @@ test('found city, finish production, save/load JSON and continue identically in 
   const route = foundingRoute(createGame(initial.setup), settler.id);
   expect(route.length).toBeGreaterThanOrEqual(4);
   for (const destination of route) {
-    await clickHex(page, (await state(page)).units[settler.id].position);
+    const current = (await state(page)).units[settler.id];
+    if (!isMapUnit(current)) throw new Error('Settler must remain on map before founding');
+    await clickHex(page, current.position);
     await clickHex(page, destination);
     await expect(page.locator('#selection')).toContainText('行动点 0');
     await page.locator('#end-turn').click();
@@ -63,7 +68,7 @@ test('found city, finish production, save/load JSON and continue identically in 
   expect(founded.units[settler.id]).toBeUndefined(); expect(newCity.population).toBe(1);
   await expect(page.locator('#city-summary')).toContainText(`城市 ${newCity.id}`);
   await page.locator('#production-item').selectOption({ label: '集会所 (40)' }); await page.locator('#add-production').click();
-  await expect(page.locator('#production-queue')).toContainText('集会所 0/40');
+  await expect(page.locator('#production-queue')).toContainText('集会所0/40');
   let completed = false;
   for (let i = 0; i < 40; i++) {
     await page.locator('#end-turn').click();
@@ -92,7 +97,7 @@ test('found city, finish production, save/load JSON and continue identically in 
   await expect.poll(async () => stateDigest(await state(page))).toBe(stateDigest(saved));
   await page.locator('#city-select').selectOption(String(newCity.id));
   await page.locator('#city-panel').scrollIntoViewIfNeeded();
-  await page.screenshot({ path: '/Users/bytedance/.local/state/gsb-local/pokemon-civilazation/reports/m2-city.png', fullPage: true });
+  await page.screenshot({ path: '/Users/bytedance/.local/state/gsb-local/pokemon-civilazation/reports/ui2-city.png', fullPage: true });
   expect(errors).toEqual([]);
 });
 
