@@ -1,3 +1,4 @@
+import { isMapUnit } from '../core/model.ts';
 import { deserializeSave, serializeSave } from './save.ts';
 import { CONTENT } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
@@ -7,14 +8,14 @@ import { observe, projectEvents } from '../core/vision.ts';
 import { step } from '../core/step.ts';
 import { canonicalSerialize } from '../core/snapshot.ts';
 
-export type CommandLog = { version: 1; schemaVersion: 2; rulesVersion: 'm2-v1'; contentVersion: string; setup: GameSetup; commands: Command[] };
+export type CommandLog = { version: 1; schemaVersion: 3; rulesVersion: 'm3-v1'; contentVersion: string; setup: GameSetup; commands: Command[] };
 
 export function replay(log: CommandLog, through = log.commands.length, checkpoint?: GameState, content: Content = CONTENT): GameState {
-  if (log.version !== 1 || log.schemaVersion !== 2 || log.rulesVersion !== 'm2-v1' || log.contentVersion !== content.version
+  if (log.version !== 1 || log.schemaVersion !== 3 || log.rulesVersion !== 'm3-v1' || log.contentVersion !== content.version
     || !Number.isInteger(through) || through < 0 || through > log.commands.length) throw new Error('Unsupported log or replay sequence.');
   let state = checkpoint ? JSON.parse(JSON.stringify(checkpoint)) as GameState : createGame(log.setup, content);
   if (state.commandSeq > through || canonicalSerialize(state.setup) !== canonicalSerialize(log.setup)
-    || state.contentVersion !== log.contentVersion || state.rulesVersion !== 'm2-v1') throw new Error('Checkpoint does not match this log.');
+    || state.contentVersion !== log.contentVersion || state.rulesVersion !== 'm3-v1') throw new Error('Checkpoint does not match this log.');
   for (const command of log.commands.slice(state.commandSeq, through)) {
     const result = step(state, command, content);
     if (!result.ok) throw new Error(`Replay rejected at ${state.commandSeq}: ${result.reason}`);
@@ -40,10 +41,10 @@ export class GameSession {
     const view = this.getView();
     const state = this.getState();
     return { ...view, map: state.map, visibleTileIds: state.map.tiles.map((_, i) => i),
-      units: Object.values(state.units), cities: Object.values(state.cities) };
+      units: Object.values(state.units).filter(isMapUnit), cities: Object.values(state.cities) };
   }
   exportLog(): CommandLog {
-    return { version: 1, schemaVersion: 2, rulesVersion: 'm2-v1', contentVersion: this.content.version, setup: this.getState().setup,
+    return { version: 1, schemaVersion: 3, rulesVersion: 'm3-v1', contentVersion: this.content.version, setup: this.getState().setup,
       commands: JSON.parse(JSON.stringify(this.commands)) as Command[] };
   }
   issue(action: Command['action']): StepResult {

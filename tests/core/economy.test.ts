@@ -154,13 +154,13 @@ describe('production and D16/D17/D28', () => {
   test('old waiting records claim the only gap first; new waiting order waits and overflow only carries', () => {
     const state = fixture(), city = state.cities[1]; state.round = 4;
     const adjacent = neighbors(city.position).sort((a, b) => hexToIndex(a, state.map)! - hexToIndex(b, state.map)!);
-    for (const [i, position] of adjacent.slice(1).entries()) state.units[20 + i] = { kind: 'logistics', role: 'settler', id: 20 + i, ownerId: 0, position, actionLeft: 1, xp: 0 };
+    for (const [i, position] of adjacent.slice(1).entries()) state.units[20 + i] = { kind: 'logistics', role: 'settler', id: 20 + i, ownerId: 0, location: 'map', hp: 30, enraged: false, wildHome: null, position, actionLeft: 1, xp: 0 };
     city.pendingDeployments = [{ enteredAtRound: 3, sourceOrderId: 10, item: pokemon as { kind: 'pokemon'; defId: 'charmander' } },
       { enteredAtRound: 2, sourceOrderId: 20, item: pokemon as { kind: 'pokemon'; defId: 'charmander' } }];
     city.queue = [{ id: 42, progress: 100, item: pokemon }, { id: 43, progress: 0, item: { kind: 'building', defId: 'meetingHall' } }];
     const events = resolveEconomy(state);
     expect(events.filter(e => e.type === 'UnitTrained').map(e => e.orderId)).toEqual([20]);
-    expect(state.units[100].position).toEqual(adjacent[0]); expect(state.units[100].actionLeft).toBe(0);
+    expect(state.units[100].position!).toEqual(adjacent[0]); expect(state.units[100].actionLeft).toBe(0);
     expect(city.pendingDeployments.map(p => p.sourceOrderId)).toEqual([10, 42]); expect(state.nextEntityId).toBe(101);
     expect(city.queue).toHaveLength(1); expect(city.queue[0].progress).toBe(81); expect(city.buildingIds).not.toContain('meetingHall');
     expect(state.players[0].gold).toBe(50); // income1 - only actual Pokemon1
@@ -181,7 +181,7 @@ describe('production and D16/D17/D28', () => {
     const events = resolveEconomy(state);
     expect(events.filter(e => e.type === 'UnitTrained').map(e => e.orderId)).toEqual([15, 20]);
     expect(city.pendingDeployments.map(p => p.sourceOrderId)).toEqual([10]); expect(state.units[100].xp).toBe(20);
-    expect(hexToIndex(state.units[100].position, state.map)).toBeLessThan(hexToIndex(state.units[101].position, state.map)!);
+    expect(hexToIndex(state.units[100].position!, state.map)).toBeLessThan(hexToIndex(state.units[101].position!, state.map)!);
   });
   test('empty queue discards production overflow; new training pays upkeep immediately', () => {
     const state = fixture(), city = state.cities[1]; city.queue = [{ id: 10, progress: 30, item: settler }];
@@ -229,10 +229,10 @@ describe('research, purchase, deficit, atomic commands', () => {
     const state = fixture(), content: Content = structuredClone(CONTENT);
     content.units.charmander.upkeep = 3; content.units.squirtle.upkeep = 2; state.players[0].gold = 0;
     state.units = {
-      10: { kind: 'pokemon', speciesId: 'charmander', id: 10, ownerId: 0, position: indexToHex(10, state.map), xp: 0, actionLeft: 1 },
-      11: { kind: 'pokemon', speciesId: 'squirtle', id: 11, ownerId: 0, position: indexToHex(11, state.map), xp: 0, actionLeft: 1 },
-      12: { kind: 'pokemon', speciesId: 'charmander', id: 12, ownerId: 0, position: indexToHex(12, state.map), xp: 0, actionLeft: 1 },
-      13: { kind: 'logistics', role: 'settler', id: 13, ownerId: 0, position: indexToHex(13, state.map), xp: 0, actionLeft: 1 },
+      10: { kind: 'pokemon', speciesId: 'charmander', id: 10, ownerId: 0, location: 'map', hp: 30, enraged: false, wildHome: null, position: indexToHex(10, state.map), xp: 0, actionLeft: 1 },
+      11: { kind: 'pokemon', speciesId: 'squirtle', id: 11, ownerId: 0, location: 'map', hp: 30, enraged: false, wildHome: null, position: indexToHex(11, state.map), xp: 0, actionLeft: 1 },
+      12: { kind: 'pokemon', speciesId: 'charmander', id: 12, ownerId: 0, location: 'map', hp: 30, enraged: false, wildHome: null, position: indexToHex(12, state.map), xp: 0, actionLeft: 1 },
+      13: { kind: 'logistics', role: 'settler', id: 13, ownerId: 0, location: 'map', hp: 30, enraged: false, wildHome: null, position: indexToHex(13, state.map), xp: 0, actionLeft: 1 },
     };
     const events = resolveEconomy(state, content);
     expect(events.filter(e => e.type === 'UnitRemoved').map(e => e.unitId)).toEqual([12, 10, 11]);
@@ -251,7 +251,7 @@ describe('research, purchase, deficit, atomic commands', () => {
   });
   test('FoundCity consumes a ready settler, creates initial city and claims work; distance/AP/water reject', () => {
     const state = fixture(); const position = { q: 7, r: 4 };
-    state.units[50] = { kind: 'logistics', role: 'settler', id: 50, ownerId: 0, position, xp: 0, actionLeft: 1 };
+    state.units[50] = { kind: 'logistics', role: 'settler', id: 50, ownerId: 0, location: 'map', hp: 30, enraged: false, wildHome: null, position, xp: 0, actionLeft: 1 };
     refreshKnowledge(state);
     const next = accepted(state, { type: 'FoundCity', unitId: 50 });
     expect(next.units[50]).toBeUndefined(); expect(next.cities[100]).toMatchObject({ population: 1, food: 0, hp: 100, buildingIds: [], queue: [], position });
@@ -263,7 +263,7 @@ describe('research, purchase, deficit, atomic commands', () => {
   });
   test('observed disband clears historical memory even when its vision source disappears', () => {
     const state = fixture(); state.cities = {}; state.players[0].gold = 0;
-    state.units[50] = { kind: 'pokemon', speciesId: 'charmander', id: 50, ownerId: 0, position: { q: 3, r: 4 }, xp: 0, actionLeft: 1 };
+    state.units[50] = { kind: 'pokemon', speciesId: 'charmander', id: 50, ownerId: 0, location: 'map', hp: 30, enraged: false, wildHome: null, position: { q: 3, r: 4 }, xp: 0, actionLeft: 1 };
     refreshKnowledge(state); expect(state.knowledge[0].lastKnownUnits[50]).toBeDefined();
     const next = round(state); expect(next.units[50]).toBeUndefined(); expect(next.knowledge[0].lastKnownUnits[50]).toBeUndefined();
   });

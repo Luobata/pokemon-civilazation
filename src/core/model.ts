@@ -1,5 +1,5 @@
 import type { BallId, BuildingId, TechId, Yield } from '../content/economy.ts';
-import type { StarterId, UnitIdentity } from '../content/units.ts';
+import type { StarterId, SpeciesId, UnitIdentity } from '../content/units.ts';
 import type { BiomeId } from '../content/rules.ts';
 import type { Hex, GridSize } from './hex.ts';
 import type { RngState } from './rng.ts';
@@ -10,9 +10,13 @@ export type GameSetup = GridSize & {
   players: ({ id: number; controller: 'human'; starterId: StarterId }
     | { id: number; controller: 'ai' })[];
 };
-export type UnitState = UnitIdentity & { id: number; ownerId: number; position: Hex; actionLeft: 0 | 1; xp: number };
+type UnitBase = UnitIdentity & { id: number; ownerId: number | null; actionLeft: 0 | 1; xp: number; hp: number; enraged: boolean; wildHome: Hex | null };
+export type MapUnit = UnitBase & { location: 'map'; position: Hex };
+export type RecoveringUnit = UnitBase & { location: 'recovering'; cityId: number; roundsLeft: number; position: null };
+export type UnitState = MapUnit | RecoveringUnit;
+export function isMapUnit(unit: UnitState): unit is MapUnit { return unit.location === 'map'; }
 export type ProductionItem = { kind: 'building'; defId: BuildingId }
-  | { kind: 'pokemon'; defId: StarterId } | { kind: 'logistics'; defId: 'settler' };
+  | { kind: 'pokemon'; defId: SpeciesId } | { kind: 'logistics'; defId: 'settler' };
 export type ProductionOrder = { id: number; progress: number; item: ProductionItem };
 export type PendingDeployment = { enteredAtRound: number; sourceOrderId: number; item: Exclude<ProductionItem, { kind: 'building' }> };
 export type CitySummary = { id: number; ownerId: number; position: Hex };
@@ -22,8 +26,8 @@ export type CityState = CitySummary & {
   workedTileIds: number[]; lockedTileIds: number[]; capturedAtRound: number | null;
 };
 export type PlayerState = {
-  id: number; controller: 'human' | 'ai'; starterId: StarterId; gold: number;
-  ballInventory: Record<BallId, number>; registeredSpeciesIds: StarterId[];
+  id: number; controller: 'human' | 'ai'; starterId: StarterId; gold: number; headquartersCityId: number; knockdownCount: number;
+  ballInventory: Record<BallId, number>; registeredSpeciesIds: SpeciesId[];
   research: { techId: TechId | null; progressByTech: Record<TechId, number>; unlockedIds: TechId[]; reserve: number };
 };
 export type EconomyAction =
@@ -47,7 +51,7 @@ export type EconomyEvent = { playerId: number } & (
   | { type: 'ResearchProgressed'; techId: TechId | null; progress: number; reserve: number }
   | { type: 'TechCompleted'; techId: TechId }
 );
-export type LastKnownUnit = UnitIdentity & { ownerId: number; position: Hex; lastSeenRound: number };
+export type LastKnownUnit = UnitIdentity & { ownerId: number | null; position: Hex; lastSeenRound: number };
 export type KnowledgeState = {
   exploredTileIds: number[];
   rememberedTiles: Record<number, { biomeId: BiomeId }>;
@@ -55,34 +59,47 @@ export type KnowledgeState = {
   lastKnownCities: Record<number, { ownerId: number; position: Hex; lastSeenRound: number }>;
 };
 export type GameState = {
-  schemaVersion: 2; rulesVersion: 'm2-v1'; contentVersion: string;
+  schemaVersion: 3; rulesVersion: 'm3-v1'; contentVersion: string;
   setup: GameSetup; rng: RngState; nextEntityId: number; commandSeq: number;
   round: number; activePlayerId: number; turnOrder: number[];
   map: MapTerrain;
   players: Record<number, PlayerState>;
   units: Record<number, UnitState>; cities: Record<number, CityState>;
+  diplomacy: { a: number; b: number; status: 'peace' | 'war' }[];
   knowledge: Record<number, KnowledgeState>;
 };
 export type PlayerView = {
   playerId: number; seed: number; round: number; activePlayerId: number; commandSeq: number;
   map: GridSize & { tiles: (BiomeId | null)[] };
   visibleTileIds: number[]; knowledge: KnowledgeState;
-  units: UnitState[]; cities: CitySummary[];
+  units: MapUnit[]; recoveringUnits: RecoveringUnit[]; cities: CitySummary[];
+  diplomacy: GameState['diplomacy'];
   economy: { player: PlayerState; cities: (CityState & { yields: Yield; availableTileIds: number[] })[] };
 };
+export type CombatTarget = { kind: 'unit' | 'city'; id: number };
+export type CombatAction = { type: 'Attack'; unitId: number; target: CombatTarget }
+  | { type: 'Capture'; unitId: number; targetUnitId: number; ballId: BallId }
+  | { type: 'Evolve'; unitId: number; intoSpeciesId: SpeciesId };
+export type CombatEvent =
+  | { type: 'BattleResolved'; attackerId: number; target: CombatTarget; positions: Hex[]; damage: number; counterDamage: number; capturedCity: boolean; knockedDownUnitIds: number[] }
+  | { type: 'Captured'; playerId: number; unitId: number; targetUnitId: number; success: boolean; probability: number }
+  | { type: 'Evolved'; playerId: number; unitId: number; speciesId: SpeciesId }
+  | { type: 'UnitRecovering'; playerId: number; unitId: number; cityId: number; roundsLeft: number }
+  | { type: 'UnitRecovered'; playerId: number; unitId: number; position: Hex }
+  | { type: 'WildSpawned'; unitId: number; position: Hex };
 export type Command = { actorId: number; expectedSeq: number; action:
   | { type: 'Move'; unitId: number; to: Hex }
   | { type: 'EndTurn' }
-  | EconomyAction
+  | EconomyAction | CombatAction
 };
-export type EventPayload = EconomyEvent
+export type EventPayload = EconomyEvent | CombatEvent
   | { type: 'Moved'; unitId: number; path: Hex[] }
   | { type: 'RoundEnded'; round: number }
   | { type: 'TurnChanged'; activePlayerId: number; round: number };
 export type GameEvent = { seq: number; index: number; payload: EventPayload };
 export type VisibleEvent = { seq: number; payload:
-  | { type: 'Moved'; unit: UnitIdentity & { id: number; ownerId: number }; path: Hex[] }
+  | { type: 'Moved'; unit: UnitIdentity & { id: number; ownerId: number | null }; path: Hex[] }
   | Exclude<EventPayload, { type: 'Moved' }>
 };
 export type StepResult = { ok: true; state: GameState; events: GameEvent[] }
-  | { ok: false; reason: 'not-your-turn' | 'stale-command' | 'invalid-command' | 'unit-unavailable' | 'no-action' | 'unreachable' | 'city-unavailable' | 'invalid-production' | 'invalid-work' | 'research-unavailable' | 'purchase-unavailable' | 'invalid-city-site' };
+  | { ok: false; reason: 'not-your-turn' | 'stale-command' | 'invalid-command' | 'unit-unavailable' | 'no-action' | 'unreachable' | 'city-unavailable' | 'invalid-production' | 'invalid-work' | 'research-unavailable' | 'purchase-unavailable' | 'invalid-city-site' | 'attack-unavailable' | 'capture-unavailable' | 'evolution-unavailable' };

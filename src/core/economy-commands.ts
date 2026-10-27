@@ -1,3 +1,4 @@
+import { isMapUnit } from './model.ts';
 import { CONTENT } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
 import type { TechId } from '../content/economy.ts';
@@ -15,7 +16,7 @@ export function validateEconomyAction(state: GameState, actor: number, action: E
   const player = state.players[actor];
   if (action.type === 'FoundCity') {
     const unit = state.units[action.unitId];
-    if (!unit || unit.ownerId !== actor || unit.kind !== 'logistics') return 'unit-unavailable';
+    if (!unit || unit.ownerId !== actor || unit.kind !== 'logistics' || !isMapUnit(unit)) return 'unit-unavailable';
     if (!unit.actionLeft) return 'no-action';
     if (state.map.tiles[hexToIndex(unit.position, state.map)!] === 'ocean'
       || Object.values(state.cities).some(city => hexDistance(city.position, unit.position) < 4)) return 'invalid-city-site';
@@ -55,7 +56,7 @@ export function validateEconomyAction(state: GameState, actor: number, action: E
       buildings.add(item.defId);
     } else if (item.kind === 'pokemon') {
       if (!player.registeredSpeciesIds.includes(item.defId) || !Object.hasOwn(content.units, item.defId)) return 'invalid-production';
-      // No fast-role species in M2; their technology prerequisite arrives with that content.
+      if (content.species[item.defId].role === 'fast' && !player.research.unlockedIds.includes('riding')) return 'invalid-production';
     } else if (item.kind !== 'logistics' || item.defId !== 'settler') return 'invalid-production';
   }
   return null;
@@ -64,6 +65,7 @@ export function applyEconomyAction(state: GameState, actor: number, action: Econ
   const player = state.players[actor];
   if (action.type === 'FoundCity') {
     const unit = state.units[action.unitId], id = state.nextEntityId++;
+    if (!isMapUnit(unit)) throw new Error('Expected deployed settler');
     const city = createCity(id, actor, unit.position); state.cities[id] = city; delete state.units[unit.id];
     for (const existing of Object.values(state.cities)) cleanWork(state, existing, content);
     assignNewWorkers(state, city, city.population, content);

@@ -1,3 +1,5 @@
+import { createMapUnit, registerSpecies } from './unit.ts';
+import { isMapUnit } from './model.ts';
 import { CONTENT, unitDefinition } from '../content/units.ts';
 import type { Content, UnitIdentity } from '../content/units.ts';
 import { hexToIndex, neighbors } from './hex.ts';
@@ -8,7 +10,7 @@ import type { CityState, EconomyEvent, GameState, PendingDeployment } from './mo
 function deploy(state: GameState, city: CityState, pending: PendingDeployment, content: Content, events: EconomyEvent[]): boolean {
   const identity: UnitIdentity = pending.item.kind === 'pokemon'
     ? { kind: 'pokemon', speciesId: pending.item.defId } : { kind: 'logistics', role: 'settler' };
-  const occupied = new Set([...Object.values(state.units), ...Object.values(state.cities)]
+  const occupied = new Set([...Object.values(state.units).filter(isMapUnit), ...Object.values(state.cities)]
     .map(entity => hexToIndex(entity.position, state.map)));
   const position = neighbors(city.position).filter(hex => {
     const index = hexToIndex(hex, state.map);
@@ -17,9 +19,10 @@ function deploy(state: GameState, city: CityState, pending: PendingDeployment, c
   if (!position) return false;
   const id = state.nextEntityId++;
   const xp = city.buildingIds.reduce((total, building) => total + content.buildings[building].trainedXp, 0);
-  state.units[id] = { ...identity, id, ownerId: city.ownerId, position, xp, actionLeft: 0 };
+  state.units[id] = createMapUnit(identity, id, city.ownerId, position, content, xp);
+  registerSpecies(state.players[city.ownerId], state.units[id]);
   events.push({ type: 'UnitTrained', playerId: city.ownerId, cityId: city.id, orderId: pending.sourceOrderId,
-    unit: { ...state.units[id], position: { ...position } } });
+    unit: JSON.parse(JSON.stringify(state.units[id])) });
   return true;
 }
 // Only the implemented M2 stages. The snapshot fixes their shared input (D30).

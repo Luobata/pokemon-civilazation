@@ -1,3 +1,4 @@
+import { isMapUnit } from './model.ts';
 import { CONTENT, unitDefinition } from '../content/units.ts';
 import type { Content, UnitIdentity } from '../content/units.ts';
 import type { BiomeId } from '../content/rules.ts';
@@ -11,7 +12,7 @@ export function canEnter(unit: UnitIdentity, biome: BiomeId, content: Content = 
 
 // D28 B3: initial placement searches all rings, with tile index breaking ties.
 export function initialUnitPosition(state: GameState, city: Hex, unit: UnitIdentity, content: Content = CONTENT): Hex {
-  const occupied = new Set(Object.values(state.units).map(other => hexToIndex(other.position, state.map)));
+  const occupied = new Set(Object.values(state.units).filter(isMapUnit).map(other => hexToIndex(other.position, state.map)));
   const cities = new Set(Object.values(state.cities).map(other => hexToIndex(other.position, state.map)));
   const candidates = state.map.tiles.flatMap((biome, i) => !occupied.has(i) && !cities.has(i) && canEnter(unit, biome, content) ? [i] : []);
   candidates.sort((a, b) => hexDistance(city, indexToHex(a, state.map)) - hexDistance(city, indexToHex(b, state.map)) || a - b);
@@ -42,7 +43,7 @@ export function reachablePaths(view: PlayerView, unitId: number, content: Conten
       if (index === null || blocked.has(index)) continue;
       const biome = view.map.tiles[index];
       if (biome === null || !canEnter(unit, biome, content)) continue;
-      const cost = costs.get(current)! + content.moveCosts[biome];
+      const cost = costs.get(current)! + (unit.kind === 'pokemon' && content.species[unit.speciesId].typeId === 'ghost' ? 1 : content.moveCosts[biome]);
       if (cost > budget || cost >= (costs.get(index) ?? Infinity)) continue;
       costs.set(index, cost);
       paths[index] = [...paths[current], hex];

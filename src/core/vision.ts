@@ -1,8 +1,9 @@
+import { isMapUnit } from './model.ts';
 import { cityYield, workCandidates } from './city.ts';
 import { CONTENT, unitDefinition } from '../content/units.ts';
 import type { Content, UnitIdentity } from '../content/units.ts';
 import { hexDistance, hexToIndex, indexToHex } from './hex.ts';
-import type { GameState, PlayerView, KnowledgeState, UnitState, GameEvent, VisibleEvent } from './model.ts';
+import type { GameState, PlayerView, KnowledgeState, MapUnit, GameEvent, VisibleEvent } from './model.ts';
 
 export function unitIdentity(unit: UnitIdentity): UnitIdentity {
   return unit.kind === 'pokemon' ? { kind: 'pokemon', speciesId: unit.speciesId }
@@ -14,7 +15,7 @@ export function emptyKnowledge(): KnowledgeState {
 export function visibleTiles(state: GameState, playerId: number, content: Content = CONTENT): Set<number> {
   const sources = Object.values(state.cities).filter(city => city.ownerId === playerId)
     .map(city => ({ position: city.position, radius: 2 }));
-  for (const unit of Object.values(state.units).filter(unit => unit.ownerId === playerId)) {
+  for (const unit of Object.values(state.units).filter(isMapUnit).filter(unit => unit.ownerId === playerId)) {
     const index = hexToIndex(unit.position, state.map)!;
     sources.push({ position: unit.position,
       radius: unitDefinition(unit, content).vision + (state.map.tiles[index] === 'mountain' ? 1 : 0) });
@@ -33,11 +34,11 @@ export function refreshKnowledge(state: GameState, content: Content = CONTENT): 
     for (const [id, known] of Object.entries(knowledge.lastKnownUnits)) {
       const tile = hexToIndex(known.position, state.map)!;
       const current = state.units[Number(id)];
-      if (visible.has(tile) && (!current || hexToIndex(current.position, state.map) !== tile)) {
+      if (visible.has(tile) && (!current || !isMapUnit(current) || hexToIndex(current.position, state.map) !== tile)) {
         delete knowledge.lastKnownUnits[Number(id)];
       }
     }
-    for (const unit of Object.values(state.units)) {
+    for (const unit of Object.values(state.units).filter(isMapUnit)) {
       if (visible.has(hexToIndex(unit.position, state.map)!)) knowledge.lastKnownUnits[unit.id] = {
         ...unitIdentity(unit), ownerId: unit.ownerId, position: { ...unit.position }, lastSeenRound: state.round,
       };
@@ -53,13 +54,15 @@ export function refreshKnowledge(state: GameState, content: Content = CONTENT): 
 export function observe(state: GameState, playerId: number, content: Content = CONTENT): PlayerView {
   const visible = visibleTiles(state, playerId, content);
   const knowledge = JSON.parse(JSON.stringify(state.knowledge[playerId])) as KnowledgeState;
-  const copyUnit = (unit: UnitState): UnitState => ({ ...unit, position: { ...unit.position } });
+  const copyUnit = (unit: MapUnit): MapUnit => ({ ...JSON.parse(JSON.stringify(unit)),
+    wildHome: unit.ownerId === playerId ? unit.wildHome && { ...unit.wildHome } : null });
   return {
     playerId, seed: state.setup.seed, round: state.round, activePlayerId: state.activePlayerId, commandSeq: state.commandSeq,
     map: { width: state.map.width, height: state.map.height,
       tiles: state.map.tiles.map((biome, i) => visible.has(i) ? biome : knowledge.rememberedTiles[i]?.biomeId ?? null) },
-    visibleTileIds: [...visible], knowledge,
-    units: Object.values(state.units).filter(unit => visible.has(hexToIndex(unit.position, state.map)!)).map(copyUnit),
+    visibleTileIds: [...visible], knowledge, diplomacy: state.diplomacy.map(relation => ({ ...relation })),
+    units: Object.values(state.units).filter(isMapUnit).filter(unit => visible.has(hexToIndex(unit.position, state.map)!)).map(copyUnit),
+    recoveringUnits: Object.values(state.units).filter(unit => unit.location === 'recovering' && unit.ownerId === playerId).map(unit => JSON.parse(JSON.stringify(unit))),
     cities: Object.values(state.cities).filter(city => visible.has(hexToIndex(city.position, state.map)!))
       .map(city => ({ id: city.id, ownerId: city.ownerId, position: { ...city.position } })),
     economy: { player: JSON.parse(JSON.stringify(state.players[playerId])),
@@ -75,11 +78,13 @@ export function projectEvents(before: GameState, after: GameState, events: reado
   const projected: VisibleEvent[] = [];
   for (const event of events) {
     if ('playerId' in event.payload && event.payload.playerId !== playerId) continue;
+    if (event.payload.type === 'BattleResolved' && !event.payload.positions.every(position => visible.has(hexToIndex(position, before.map)!))) continue;
+    if (event.payload.type === 'WildSpawned' && !visible.has(hexToIndex(event.payload.position, before.map)!)) continue;
     if (event.payload.type !== 'Moved') {
       projected.push({ seq: event.seq, payload: JSON.parse(JSON.stringify(event.payload)) });
       continue;
     }
-    const unit = before.units[event.payload.unitId];
+    const unit = before.units[event.payload.unitId] ?? after.units[event.payload.unitId];
     let segment: typeof event.payload.path = [];
     const flush = () => {
       if (segment.length) projected.push({ seq: event.seq, payload: { type: 'Moved',
