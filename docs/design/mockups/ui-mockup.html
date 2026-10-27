@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>宝可梦 × 文明 — 原野图鉴 UI 样稿</title>
+  <style>
+    :root {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      color: #1D2B26; background: #F3F0E7; font-synthesis: none;
+      --surface: #FFFDF7; --muted: #E8EADF; --ink: #1D2B26; --secondary: #52635B;
+      --border: #CBD2C5; --accent: #2E6B55; --accent-dark: #245540; --soft: #DCE9DF;
+      --danger: #9B3833; --selection: #C18412; --focus: #7C4DFF;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-width: 1100px; }
+    button { font: inherit; }
+    .app { max-width: 1440px; margin: 0 auto; padding: 18px 22px 22px; }
+    .topbar { display: flex; align-items: center; gap: 22px; min-height: 64px; padding: 0 4px 16px; }
+    .brand { display: flex; align-items: center; gap: 12px; margin-right: auto; }
+    .brand-mark { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 12px; color: #FFFDF7; background: #2E6B55; font-size: 18px; font-weight: 750; box-shadow: 0 4px 12px #1d2b261c; }
+    .brand strong { display: block; font-size: 16px; letter-spacing: .03em; }
+    .brand small { color: #52635B; font-size: 11px; letter-spacing: .1em; }
+    .round { padding-right: 20px; border-right: 1px solid #CBD2C5; }
+    .round small, .resource small { display: block; color: #52635B; font-size: 11px; margin-bottom: 3px; }
+    .round strong { font-size: 20px; font-variant-numeric: tabular-nums; }
+    .round strong span { color: #5F6E66; font-size: 13px; font-weight: 500; }
+    .resources { display: flex; gap: 20px; }
+    .resource { min-width: 74px; }
+    .resource strong { font-size: 15px; font-variant-numeric: tabular-nums; }
+    .delta { font-size: 11px; margin-left: 4px; color: #2F704F; }
+    .delta.negative { color: #9B3833; }
+    .btn { min-height: 44px; border: 1px solid #CBD2C5; border-radius: 9px; padding: 0 16px; background: #FFFDF7; color: #1D2B26; font-weight: 650; }
+    .btn.primary { background: #2E6B55; border-color: #2E6B55; color: #FFFDF7; box-shadow: 0 4px 12px #2e6b5526; }
+    .btn.danger { background: #9B3833; border-color: #9B3833; color: #FFFDF7; }
+    .btn.ghost { background: transparent; }
+    .workspace { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; align-items: start; }
+    .map-card { overflow: hidden; border: 1px solid #CBD2C5; border-radius: 16px; background: #FFFDF7; box-shadow: 0 8px 24px #10201510; }
+    .map-toolbar { height: 50px; display: flex; align-items: center; gap: 12px; padding: 0 16px; border-bottom: 1px solid #CBD2C5; }
+    .map-toolbar strong { font-size: 14px; }
+    .map-toolbar .meta { color: #52635B; font-size: 12px; }
+    .map-tools { margin-left: auto; display: flex; gap: 5px; align-items: center; color: #52635B; font-size: 12px; }
+    .icon-btn { width: 32px; height: 32px; border: 1px solid #CBD2C5; background: #FFFDF7; border-radius: 7px; color: #1D2B26; }
+    .map-stage { position: relative; height: 590px; overflow: hidden; background: #17231F; }
+    .map-stage::before { content: ""; position: absolute; inset: 0; opacity: .16; background-image: radial-gradient(#FFFDF7 0.65px, transparent 0.65px); background-size: 12px 12px; }
+    .map-caption { position: absolute; top: 16px; left: 18px; z-index: 2; padding: 7px 10px; border: 1px solid #ffffff24; border-radius: 8px; background: #101815d9; color: #F3F0E7; font-size: 11px; letter-spacing: .04em; }
+    .hex-board { position: absolute; left: 44px; top: 54px; width: 760px; }
+    .hex-row { display: flex; height: 47px; }
+    .hex-row:nth-child(even) { margin-left: 32px; }
+    .hex { position: relative; flex: 0 0 62px; height: 56px; margin: 0 1px; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); background: #91AC72; }
+    .hex::after { content: attr(data-symbol); position: absolute; right: 8px; top: 7px; color: #1D2B2638; font-size: 12px; font-weight: 750; letter-spacing: -2px; }
+    .hex.forest { background: #49735A; } .hex.forest::after { color: #FFFDF744; }
+    .hex.mountain { background: #8A8981; }
+    .hex.ocean { background: #6FA5B8; }
+    .hex.desert { background: #D3B574; }
+    .hex.snow { background: #D9E5E3; }
+    .hex.volcano { background: #B76049; }
+    .hex.memory { filter: saturate(.45) brightness(.58); }
+    .hex.memory::before { content: ""; position: absolute; inset: 0; z-index: 2; background: repeating-linear-gradient(45deg, transparent 0 7px, #fffdf712 7px 8px); }
+    .hex.fog { background: #101815; }
+    .hex.fog::after { content: ""; }
+    .hex.reachable { outline: none; }
+    .hex.reachable::before { content: ""; position: absolute; inset: 3px; z-index: 3; clip-path: inherit; background: #236B6338; border: 2px solid #236B63; }
+    .hex.reachable .range-dot { position: absolute; left: 28px; top: 26px; z-index: 4; width: 6px; height: 6px; border-radius: 50%; background: #174E48; }
+    .hex.selected { z-index: 5; }
+    .hex.selected::before { content: ""; position: absolute; inset: 2px; z-index: 4; clip-path: inherit; background: #C1841233; border: 3px solid #C18412; }
+    .hex.attack::before { content: ""; position: absolute; inset: 3px; z-index: 4; clip-path: inherit; background: #9B383333; border: 2px dashed #9B3833; }
+    .unit-token { position: absolute; z-index: 7; left: 14px; top: 11px; width: 34px; height: 34px; display: grid; place-items: center; border: 2px solid #FFFDF7; border-radius: 9px; background: #2C6E63; color: #FFFDF7; font-size: 14px; font-weight: 750; box-shadow: 0 2px 5px #10181566; }
+    .unit-token::after { content: "1"; position: absolute; right: -4px; bottom: -5px; width: 15px; height: 15px; display: grid; place-items: center; border: 1px solid #FFFDF7; border-radius: 50%; background: #2C6E63; font-size: 9px; }
+    .unit-token.enemy { background: #963F38; border-radius: 50%; }
+    .unit-token.enemy::after { content: "2"; background: #963F38; }
+    .city-token { position: absolute; z-index: 7; left: 16px; top: 13px; width: 30px; height: 30px; display: grid; place-items: center; border: 2px solid #FFFDF7; border-radius: 4px; background: #2C6E63; color: #FFFDF7; font-size: 15px; box-shadow: 0 2px 5px #10181566; }
+    .city-token::after { content: "1"; position: absolute; right: -7px; top: -8px; width: 16px; height: 16px; display: grid; place-items: center; border-radius: 4px 4px 4px 0; background: #2C6E63; font-size: 9px; }
+    .selection-ring { position: absolute; z-index: 8; left: 8px; top: 3px; width: 46px; height: 46px; border: 2px solid #F0B73F; border-radius: 50%; box-shadow: 0 0 0 1px #1D2B26; pointer-events: none; }
+    .map-legend { position: absolute; left: 16px; right: 16px; bottom: 14px; z-index: 3; display: flex; gap: 12px; align-items: center; color: #E8EADF; font-size: 10px; }
+    .legend-chip { display: inline-flex; align-items: center; gap: 5px; padding: 5px 7px; border-radius: 6px; background: #101815d9; }
+    .legend-line { width: 15px; height: 0; border-top: 2px solid #63B7A9; }
+    .legend-line.dashed { border-color: #D77D75; border-top-style: dashed; }
+    .legend-ring { width: 12px; height: 12px; border: 2px solid #F0B73F; border-radius: 50%; }
+    .map-footer { display: flex; align-items: center; gap: 16px; min-height: 44px; padding: 8px 14px; color: #52635B; font-size: 11px; }
+    .biome-keys { display: flex; gap: 10px; }
+    .biome-key { display: inline-flex; align-items: center; gap: 4px; }
+    .swatch { width: 10px; height: 10px; border: 1px solid #1D2B2626; border-radius: 2px; }
+    .map-footer .dev { margin-left: auto; color: #5F6E66; }
+    .city-panel { overflow: hidden; border: 1px solid #CBD2C5; border-radius: 16px; background: #FFFDF7; box-shadow: 0 8px 24px #10201510; }
+    .panel-head { padding: 18px 18px 14px; border-bottom: 1px solid #CBD2C5; }
+    .eyebrow { margin: 0 0 5px; color: #2E6B55; font-size: 10px; font-weight: 750; letter-spacing: .12em; }
+    .panel-title { display: flex; align-items: center; gap: 8px; }
+    .panel-title h1, .panel-title h2 { margin: 0; font-size: 20px; line-height: 1.25; }
+    .city-badge { margin-left: auto; padding: 4px 7px; border-radius: 6px; background: #DCE9DF; color: #2E6B55; font-size: 10px; font-weight: 700; }
+    .city-stats { margin: 8px 0 0; color: #52635B; font-size: 12px; }
+    .city-production { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 14px 18px; }
+    .production-item { padding: 9px 7px; border-radius: 8px; background: #F3F0E7; }
+    .production-item small { display: block; color: #52635B; font-size: 10px; }
+    .production-item strong { display: block; margin-top: 3px; font-size: 17px; }
+    .food-box { margin: 0 18px 14px; padding: 11px 12px; border-left: 3px solid #2E6B55; border-radius: 0 8px 8px 0; background: #DCE9DF; font-size: 12px; }
+    .food-box strong { display: block; margin-bottom: 4px; }
+    .food-box span { color: #52635B; }
+    .tabs { display: flex; padding: 0 18px; border-bottom: 1px solid #CBD2C5; }
+    .tab { position: relative; flex: 1; padding: 11px 4px; border: 0; background: transparent; color: #52635B; font-size: 12px; font-weight: 650; }
+    .tab.active { color: #2E6B55; }
+    .tab.active::after { content: ""; position: absolute; left: 8px; right: 8px; bottom: -1px; height: 2px; background: #2E6B55; }
+    .queue { padding: 12px 18px 8px; }
+    .queue-item { display: grid; grid-template-columns: 24px 1fr auto; gap: 9px; align-items: center; padding: 10px 0; border-bottom: 1px solid #E8EADF; }
+    .queue-index { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 6px; background: #E8EADF; color: #52635B; font-size: 11px; }
+    .queue-item strong { display: block; font-size: 12px; }
+    .queue-item small { color: #52635B; font-size: 10px; }
+    .queue-item .cost { color: #52635B; font-size: 11px; font-variant-numeric: tabular-nums; }
+    .progress { height: 4px; margin-top: 6px; overflow: hidden; border-radius: 4px; background: #D8DCD4; }
+    .progress span { display: block; height: 100%; background: #2E6B55; }
+    .building-list { padding: 4px 18px 12px; }
+    .section-label { margin: 10px 0 8px; color: #52635B; font-size: 10px; font-weight: 700; letter-spacing: .08em; }
+    .buildings { display: flex; flex-wrap: wrap; gap: 6px; }
+    .building { padding: 6px 8px; border: 1px solid #CBD2C5; border-radius: 7px; color: #52635B; font-size: 10px; }
+    .building.done { border-color: #A9C7B6; background: #DCE9DF; color: #2E6B55; }
+    .panel-actions { display: flex; gap: 8px; padding: 12px 18px 16px; border-top: 1px solid #CBD2C5; }
+    .panel-actions .btn { flex: 1; min-height: 40px; font-size: 12px; }
+    .unit-card { position: absolute; z-index: 12; left: 16px; bottom: 48px; width: 270px; overflow: hidden; border: 1px solid #CBD2C5; border-radius: 13px; background: #FFFDF7; box-shadow: 0 12px 30px #1018154d; }
+    .unit-head { display: flex; align-items: center; gap: 10px; padding: 12px 13px 9px; }
+    .portrait { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 11px; background: #B76049; color: #FFFDF7; font-size: 19px; font-weight: 750; }
+    .unit-head strong { display: block; font-size: 14px; }
+    .unit-head small { color: #52635B; font-size: 10px; }
+    .ap { margin-left: auto; padding: 4px 6px; border-radius: 5px; background: #DCE9DF; color: #2E6B55; font-size: 9px; }
+    .bars { padding: 0 13px 9px; }
+    .bar-line { display: grid; grid-template-columns: 27px 1fr 50px; gap: 6px; align-items: center; margin: 5px 0; font-size: 9px; }
+    .bar-line span:last-child { text-align: right; color: #52635B; font-variant-numeric: tabular-nums; }
+    .bar { height: 6px; overflow: hidden; border-radius: 5px; background: #D8DCD4; }
+    .bar i { display: block; height: 100%; background: #2F704F; }
+    .bar.exp i { background: #2F647C; }
+    .unit-stats { display: flex; justify-content: space-between; margin: 0 13px 9px; padding: 8px 0; border-top: 1px solid #E8EADF; border-bottom: 1px solid #E8EADF; font-size: 10px; }
+    .unit-stats strong { margin-left: 2px; font-size: 12px; }
+    .unit-hint { margin: 0 13px 10px; color: #52635B; font-size: 10px; }
+    .unit-actions { display: flex; gap: 5px; padding: 0 13px 12px; }
+    .unit-actions .btn { flex: 1; min-height: 32px; padding: 0 7px; font-size: 10px; }
+    .battle-card { position: absolute; z-index: 13; right: 16px; bottom: 48px; width: 350px; overflow: hidden; border: 1px solid #CBD2C5; border-radius: 13px; background: #FFFDF7; box-shadow: 0 12px 30px #1018154d; }
+    .battle-title { display: flex; align-items: center; padding: 11px 13px; border-bottom: 1px solid #CBD2C5; }
+    .battle-title strong { font-size: 12px; }
+    .preview-badge { margin-left: auto; color: #52635B; font-size: 9px; }
+    .combatants { display: grid; grid-template-columns: 1fr 30px 1fr; align-items: center; padding: 13px; }
+    .combatant:last-child { text-align: right; }
+    .combatant strong { display: block; font-size: 12px; }
+    .combatant small { color: #52635B; font-size: 10px; }
+    .versus { color: #9B3833; text-align: center; font-size: 12px; font-weight: 750; }
+    .damage-main { margin: 0 13px 9px; padding: 12px; border-radius: 9px; background: #F4E0DB; }
+    .damage-main small { display: block; color: #9B3833; font-size: 9px; font-weight: 700; letter-spacing: .06em; }
+    .damage-main strong { display: block; margin: 3px 0; color: #9B3833; font-size: 22px; }
+    .damage-main span { color: #52635B; font-size: 10px; }
+    .counter { margin: 0 13px 11px; color: #52635B; font-size: 10px; }
+    .counter strong { color: #1D2B26; }
+    .battle-actions { display: flex; gap: 7px; padding: 10px 13px 13px; border-top: 1px solid #CBD2C5; }
+    .battle-actions .btn { flex: 1; min-height: 36px; font-size: 11px; }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+  </style>
+</head>
+<body>
+<main class="app">
+  <header class="topbar">
+    <div class="brand"><div class="brand-mark">野</div><div><strong>宝可梦 × 文明</strong><small>原野图鉴 · M2 视觉样稿</small></div></div>
+    <div class="round"><small>当前轮次</small><strong>12 <span>/ 100</span></strong></div>
+    <div class="resources" aria-label="资源总览">
+      <div class="resource"><small>金币</small><strong>50 <span class="delta">+4</span></strong></div>
+      <div class="resource"><small>科研</small><strong>2 <span class="delta">/ 轮</span></strong></div>
+      <div class="resource"><small>维护</small><strong>−3 <span class="delta negative">金币</span></strong></div>
+    </div>
+    <button class="btn primary">结束回合　›</button>
+  </header>
+
+  <div class="workspace">
+    <section class="map-card" aria-label="主地图 HUD 样稿">
+      <div class="map-toolbar"><strong>青绿原野</strong><span class="meta">小地图 · 24 × 16</span><div class="map-tools"><button class="icon-btn">−</button><span>100%</span><button class="icon-btn">+</button><button class="btn ghost" style="min-height:32px;padding:0 9px;font-size:11px">F 地图居中</button></div></div>
+      <div class="map-stage">
+        <div class="map-caption">文明 1 · 妙蛙种子 · 点击高亮格移动</div>
+        <div class="hex-board" aria-label="群系、迷雾、城市和单位示意">
+          <div class="hex-row">
+            <div class="hex fog"></div><div class="hex fog"></div><div class="hex fog"></div><div class="hex fog"></div><div class="hex fog"></div><div class="hex fog"></div><div class="hex fog"></div><div class="hex fog"></div><div class="hex fog"></div><div class="hex fog"></div><div class="hex fog"></div>
+          </div>
+          <div class="hex-row">
+            <div class="hex fog"></div><div class="hex fog"></div><div class="hex fog"></div><div class="hex mountain memory" data-symbol="⋀⋀"></div><div class="hex mountain memory" data-symbol="⋀⋀"></div><div class="hex forest memory" data-symbol="♠"></div><div class="hex fog"></div><div class="hex fog"></div><div class="hex fog"></div><div class="hex fog"></div><div class="hex fog"></div>
+          </div>
+          <div class="hex-row">
+            <div class="hex fog"></div><div class="hex fog"></div><div class="hex mountain memory" data-symbol="⋀⋀"></div><div class="hex mountain" data-symbol="⋀⋀"></div><div class="hex forest" data-symbol="♠"></div><div class="hex forest" data-symbol="♠"></div><div class="hex grassland memory" data-symbol="≈"></div><div class="hex fog"></div><div class="hex fog"></div><div class="hex fog"></div><div class="hex fog"></div>
+          </div>
+          <div class="hex-row">
+            <div class="hex fog"></div><div class="hex ocean memory" data-symbol="≈"></div><div class="hex ocean" data-symbol="≈"></div><div class="hex grassland" data-symbol="≈"></div><div class="hex forest attack" data-symbol="♠"><div class="unit-token enemy">鬼</div></div><div class="hex grassland" data-symbol="≈"></div><div class="hex desert memory" data-symbol="∿"></div><div class="hex fog"></div><div class="hex fog"></div><div class="hex fog"></div><div class="hex fog"></div>
+          </div>
+          <div class="hex-row">
+            <div class="hex ocean memory" data-symbol="≈"></div><div class="hex ocean" data-symbol="≈"></div><div class="hex grassland" data-symbol="≈"><div class="city-token">营</div></div><div class="hex grassland reachable" data-symbol="≈"><i class="range-dot"></i></div><div class="hex grassland selected" data-symbol="≈"><div class="unit-token">火</div><div class="selection-ring"></div></div><div class="hex grassland reachable" data-symbol="≈"><i class="range-dot"></i></div><div class="hex desert" data-symbol="∿"></div><div class="hex desert memory" data-symbol="∿"></div><div class="hex fog"></div><div class="hex fog"></div><div class="hex fog"></div>
+          </div>
+          <div class="hex-row">
+            <div class="hex fog"></div><div class="hex ocean memory" data-symbol="≈"></div><div class="hex snow memory" data-symbol="✣"></div><div class="hex grassland reachable" data-symbol="≈"><i class="range-dot"></i></div><div class="hex grassland reachable" data-symbol="≈"><i class="range-dot"></i></div><div class="hex grassland" data-symbol="≈"></div><div class="hex volcano memory" data-symbol="⋀"></div><div class="hex fog"></div><div class="hex fog"></div><div class="hex fog"></div><div class="hex fog"></div>
+          </div>
+        </div>
+
+        <section class="unit-card" aria-label="单位面板样稿">
+          <div class="unit-head"><div class="portrait">火</div><div><strong>火恐龙 · 一阶</strong><small>火系 · 远程</small></div><span class="ap">行动点 1</span></div>
+          <div class="bars"><div class="bar-line"><span>HP</span><div class="bar"><i style="width:71%"></i></div><span>51/72</span></div><div class="bar-line"><span>EXP</span><div class="bar exp"><i style="width:95%"></i></div><span>238/250</span></div></div>
+          <div class="unit-stats"><span>攻<strong>76</strong></span><span>防<strong>64</strong></span><span>移<strong>3</strong></span><span>程<strong>2</strong></span><span>P<strong>10</strong></span></div>
+          <p class="unit-hint">克制提示：对草 ×2　对水 ×0.5</p>
+          <div class="unit-actions"><button class="btn">移动</button><button class="btn">攻击</button><button class="btn">捕捉</button></div>
+        </section>
+
+        <section class="battle-card" aria-label="战斗预览样稿">
+          <div class="battle-title"><strong>战斗结算预览</strong><span class="preview-badge">悬浮目标 · 尚未行动</span></div>
+          <div class="combatants"><div class="combatant"><strong>火恐龙</strong><small>HP 51/72</small></div><div class="versus">→</div><div class="combatant"><strong>妙蛙草</strong><small>HP 70/70</small></div></div>
+          <div class="damage-main"><small>预计伤害</small><strong>17–21</strong><span>拔群 ×2　·　R 85–100</span></div>
+          <p class="counter">预计反击 <strong>2</strong>　草→火 甚微，固定</p>
+          <div class="battle-actions"><button class="btn">取消　Esc</button><button class="btn danger">确认攻击</button></div>
+        </section>
+
+        <div class="map-legend"><span class="legend-chip"><i class="legend-line"></i>可达</span><span class="legend-chip"><i class="legend-line dashed"></i>可攻击</span><span class="legend-chip"><i class="legend-ring"></i>选中</span><span class="legend-chip">斜线 = 记忆地形</span></div>
+      </div>
+      <footer class="map-footer"><div class="biome-keys"><span class="biome-key"><i class="swatch" style="background:#91AC72"></i>草原</span><span class="biome-key"><i class="swatch" style="background:#49735A"></i>森林</span><span class="biome-key"><i class="swatch" style="background:#8A8981"></i>山地</span><span class="biome-key"><i class="swatch" style="background:#6FA5B8"></i>海洋</span><span class="biome-key"><i class="swatch" style="background:#D3B574"></i>荒漠</span><span class="biome-key"><i class="swatch" style="background:#D9E5E3"></i>雪原</span><span class="biome-key"><i class="swatch" style="background:#B76049"></i>火山</span></div><span class="dev">调试信息已收入开发抽屉</span></footer>
+    </section>
+
+    <aside class="city-panel" aria-label="城市面板样稿">
+      <div class="panel-head"><p class="eyebrow">城市 · 大本营</p><div class="panel-title"><h1>青绿营地</h1><span class="city-badge">文明 1</span></div><p class="city-stats">人口 2　·　HP 120/120　·　大本营 + 牧场</p></div>
+      <div class="city-production"><div class="production-item"><small>食物</small><strong>7</strong></div><div class="production-item"><small>生产</small><strong>4</strong></div><div class="production-item"><small>金币</small><strong>1</strong></div><div class="production-item"><small>科研</small><strong>0</strong></div></div>
+      <div class="food-box"><strong>食物消耗 4 → 盈余 +3</strong><span>库存 22/40　·　6 轮后人口 +1</span></div>
+      <div class="tabs"><button class="tab">工作地块 2/2</button><button class="tab active">建造队列 2/5</button></div>
+      <div class="queue">
+        <div class="queue-item"><span class="queue-index">1</span><div><strong>腕力</strong><small>生产中　·　本轮完成</small><div class="progress"><span style="width:60%"></span></div></div><span class="cost">12/20</span></div>
+        <div class="queue-item"><span class="queue-index">2</span><div><strong>工坊</strong><small>排队中　·　本城生产 +2</small></div><span class="cost">0/40</span></div>
+      </div>
+      <div class="building-list"><p class="section-label">已建与可用建筑</p><div class="buildings"><span class="building done">大本营 ✓</span><span class="building done">牧场 ✓</span><span class="building">工坊</span><span class="building">集会所</span><span class="building">观测站</span><span class="building">训练场</span></div><p class="section-label">工作地块</p><div class="buildings"><span class="building">草原　2食 1产　锁</span><span class="building">森林　1食 2产　锁</span><span class="building">中心格　2食 1产 1金</span></div></div>
+      <div class="panel-actions"><button class="btn">管理地块</button><button class="btn primary">添加订单　+</button></div>
+    </aside>
+  </div>
+</main>
+</body>
+</html>
