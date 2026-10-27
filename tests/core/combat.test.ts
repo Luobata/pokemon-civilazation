@@ -33,12 +33,12 @@ describe('Attack transactions', () => {
     pokemon(state, 11, 'machop', null, 5);
     const distant = accepted(state, attack); expect(distant.units[10].hp).toBe(45);
   });
-  test('D33 XP combines damage and knockout before both multipliers; M3 temporary no-city removal', () => {
+  test('D33 XP combines damage and knockout before both multipliers; defender recovers', () => {
     const state = combatFixture(); pokemon(state); pokemon(state, 11, 'bulbasaur', 1, 4).hp = 1;
-    state.diplomacy[0].status = 'war'; state.cities = { 1: state.cities[1] };
+    state.diplomacy[0].status = 'war';
     state.players[0].starterId = 'charmander'; state.players[0].research.unlockedIds.push('training'); maxRoll();
     const next = accepted(state, attack);
-    expect(next.units[11]).toBeUndefined(); expect(next.units[10].xp).toBe(71); expect(next.players[0].knockdownCount).toBe(1);
+    expect(next.units[11].location).toBe('recovering'); expect(next.units[10].xp).toBe(71); expect(next.players[0].knockdownCount).toBe(1);
     state.players[0].research.unlockedIds = []; pokemon(state, 11, 'bulbasaur', null, 4);
     expect(accepted(state, attack).units[10].xp).toBe(11);
   });
@@ -75,7 +75,7 @@ describe('Attack transactions', () => {
     expect(next.units[10]).toMatchObject({ location: 'recovering', hp: 1, roundsLeft: 3 });
     expect(next.players[1].knockdownCount).toBe(1); expect(next.units[12].xp).toBe(ally.xp);
   });
-  test('M3 temporary HQ conquest keeps civilization alive, removes recovery, preserves city and skips economy', () => {
+  test('HQ conquest eliminates loser, removes recovery, preserves captured city and skips economy', () => {
     const state = combatFixture(); pokemon(state, 10, 'charmander', 0, 9, 2); maxRoll(); state.diplomacy[0].status = 'war';
     const city = state.cities[2]; city.hp = 1; city.food = 10; city.buildingIds.push('pasture');
     city.queue = [{ id: 50, progress: 4, item: { kind: 'logistics', defId: 'settler' } }]; assignNewWorkers(state, city, city.population);
@@ -84,7 +84,7 @@ describe('Attack transactions', () => {
     const next = accepted(state, { ...attack, target: { kind: 'city', id: 2 } });
     expect(next.cities[2]).toMatchObject({ ownerId: 0, hp: 50, population: 2, buildingIds: ['headquarters', 'pasture'], capturedAtRound: 1, lockedTileIds: [] });
     expect(next.cities[2].workedTileIds).toHaveLength(2); expect(next.units[11]).toBeUndefined();
-    expect(next.players[1]).toBeDefined(); expect(next.turnOrder).toEqual([0, 1]); expect(next.units[10].hp).toBe(50);
+    expect(next.players[1].eliminated).toBe(true); expect(next.turnOrder).toEqual([0]); expect(next.outcome?.kind).toBe('conquest'); expect(next.units[10].hp).toBe(50);
     resolveEconomy(next); expect(next.cities[2].food).toBe(10); expect(next.cities[2].queue[0].progress).toBe(4);
     next.round++; resolveEconomy(next); expect(next.cities[2].queue[0].progress).toBeGreaterThan(4);
   });

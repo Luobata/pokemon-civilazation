@@ -1,3 +1,5 @@
+import { RULE_QUERIES } from '../ai/query.ts';
+import { planNext } from '../ai/plan.ts';
 import { isMapUnit } from '../core/model.ts';
 import { deserializeSave, serializeSave } from './save.ts';
 import { CONTENT } from '../content/units.ts';
@@ -8,14 +10,19 @@ import { observe, projectEvents } from '../core/vision.ts';
 import { step } from '../core/step.ts';
 import { canonicalSerialize } from '../core/snapshot.ts';
 
-export type CommandLog = { version: 1; schemaVersion: 3; rulesVersion: 'm3-v1'; contentVersion: string; setup: GameSetup; commands: Command[] };
+export type CommandLog = { version: 1; schemaVersion: 4; rulesVersion: 'm4-v1'; contentVersion: string; setup: GameSetup; commands: Command[] };
 
 export function replay(log: CommandLog, through = log.commands.length, checkpoint?: GameState, content: Content = CONTENT): GameState {
-  if (log.version !== 1 || log.schemaVersion !== 3 || log.rulesVersion !== 'm3-v1' || log.contentVersion !== content.version
+  if (log.version !== 1 || log.schemaVersion !== 4 || log.rulesVersion !== 'm4-v1' || log.contentVersion !== content.version
     || !Number.isInteger(through) || through < 0 || through > log.commands.length) throw new Error('Unsupported log or replay sequence.');
-  let state = checkpoint ? JSON.parse(JSON.stringify(checkpoint)) as GameState : createGame(log.setup, content);
-  if (state.commandSeq > through || canonicalSerialize(state.setup) !== canonicalSerialize(log.setup)
-    || state.contentVersion !== log.contentVersion || state.rulesVersion !== 'm3-v1') throw new Error('Checkpoint does not match this log.');
+  let state = createGame(log.setup, content);
+  if (checkpoint) {
+    if (checkpoint.schemaVersion !== log.schemaVersion || !Number.isSafeInteger(checkpoint.commandSeq)
+      || checkpoint.commandSeq < 0 || checkpoint.commandSeq > through) throw new Error('Checkpoint does not match this log.');
+    const source = replay(log, checkpoint.commandSeq, undefined, content);
+    if (canonicalSerialize(source) !== canonicalSerialize(checkpoint)) throw new Error('Checkpoint does not match this log prefix.');
+    state = JSON.parse(JSON.stringify(checkpoint)) as GameState;
+  }
   for (const command of log.commands.slice(state.commandSeq, through)) {
     const result = step(state, command, content);
     if (!result.ok) throw new Error(`Replay rejected at ${state.commandSeq}: ${result.reason}`);
@@ -24,6 +31,18 @@ export function replay(log: CommandLog, through = log.commands.length, checkpoin
   return state;
 }
 
+/** Full authority state for developer tools and tests; never a player-facing observation. */
+export type DeveloperGameState = GameState;
+/** Command results from legacy developer entry points contain full state. */
+export type DeveloperStepResult = StepResult;
+export type PlayerCommandResult = { ok: true } | { ok: false; reason: string };
+export interface PlayerSession {
+  getView(): PlayerView;
+  readonly presentationQueue: readonly VisibleEvent[];
+  issue(action: Command['action']): PlayerCommandResult;
+  submit(command: Command): PlayerCommandResult;
+  skipAnimations(): void;
+}
 export class GameSession {
   private state: GameState;
   private commands: Command[] = [];
@@ -35,22 +54,30 @@ export class GameSession {
     this.state = createGame(setup, content);
     this.endComputerTurns();
   }
-  getState(): GameState { return JSON.parse(JSON.stringify(this.state)) as GameState; }
+  /** @deprecated Developer/test access only. Production UI must use getView or asPlayerSession. */
+  getState(): DeveloperGameState { return JSON.parse(JSON.stringify(this.state)) as GameState; }
   getView(): PlayerView { return observe(this.state, this.playerId, this.content); }
+  /** Explicit developer omniscient view; never pass this to AI. */
   getDebugView(): PlayerView {
     const view = this.getView();
     const state = this.getState();
     return { ...view, map: state.map, visibleTileIds: state.map.tiles.map((_, i) => i),
-      units: Object.values(state.units).filter(isMapUnit), cities: Object.values(state.cities) };
+      units: Object.values(state.units).filter(isMapUnit), cities: Object.values(state.cities),
+      combat: {
+        units: Object.fromEntries(Object.values(state.units).filter(isMapUnit).map(unit => [unit.id, { typeResearch: unit.ownerId !== null && state.players[unit.ownerId].research.unlockedIds.includes('typeResearch') }])),
+        cities: Object.fromEntries(Object.values(state.cities).map(city => [city.id, { hp: city.hp, counterAttack: city.ownerId === null ? 0 : state.players[city.ownerId].starterId === 'squirtle' ? 34 : 30 }])),
+      } };
   }
   exportLog(): CommandLog {
-    return { version: 1, schemaVersion: 3, rulesVersion: 'm3-v1', contentVersion: this.content.version, setup: this.getState().setup,
+    return { version: 1, schemaVersion: 4, rulesVersion: 'm4-v1', contentVersion: this.content.version, setup: this.getState().setup,
       commands: JSON.parse(JSON.stringify(this.commands)) as Command[] };
   }
-  issue(action: Command['action']): StepResult {
+  /** Developer-compatible result; asPlayerSession strips full authority state. */
+  issue(action: Command['action']): DeveloperStepResult {
     return this.submit({ actorId: this.playerId, expectedSeq: this.state.commandSeq, action });
   }
-  submit(command: Command): StepResult {
+  /** Developer-compatible result; normal player callers should use asPlayerSession. */
+  submit(command: Command): DeveloperStepResult {
     const result = this.apply(command);
     if (result.ok) this.endComputerTurns();
     return result.ok ? { ...result, state: JSON.parse(JSON.stringify(result.state)) as GameState } : result;
@@ -67,12 +94,28 @@ export class GameSession {
     }
     return result;
   }
+  readonly aiInvalidCommands: { command: Command; reason: string }[] = [];
   private endComputerTurns(): void {
-    // M1 temporary strategy: nonhuman turns only EndTurn. M4 replaces this
-    // application policy with the planner; the core never imports AI/app.
-    while (this.state.players[this.state.activePlayerId].controller === 'ai') {
-      this.apply({ actorId: this.state.activePlayerId, expectedSeq: this.state.commandSeq, action: { type: 'EndTurn' } });
+    while (!this.state.outcome && this.state.players[this.state.activePlayerId].controller === 'ai') {
+      const command = planNext(observe(this.state, this.state.activePlayerId, this.content), { ...RULE_QUERIES, content: this.content });
+      const result = this.apply(command);
+      if (!result.ok) {
+        this.aiInvalidCommands.push({ command, reason: result.reason });
+        // A rejected plan is a defect. Reobserve once, then end safely, never retry random alternatives.
+        const view = observe(this.state, this.state.activePlayerId, this.content);
+        this.apply({ actorId: view.playerId, expectedSeq: view.commandSeq, action: { type: 'EndTurn' } });
+      }
     }
+  }
+  asPlayerSession(): PlayerSession {
+    const getPresentation = () => JSON.parse(JSON.stringify(this.presentationQueue)) as VisibleEvent[];
+    const project = (result: StepResult): PlayerCommandResult => result.ok ? { ok: true } : { ok: false, reason: result.reason };
+    return {
+      getView: () => this.getView(),
+      get presentationQueue() { return getPresentation(); },
+      issue: action => project(this.issue(action)), submit: command => project(this.submit(command)),
+      skipAnimations: () => this.skipAnimations(),
+    };
   }
   save(): string { return serializeSave(this.getState(), this.exportLog()); }
   load(text: string): void {

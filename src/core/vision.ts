@@ -3,7 +3,7 @@ import { cityYield, workCandidates } from './city.ts';
 import { CONTENT, unitDefinition } from '../content/units.ts';
 import type { Content, UnitIdentity } from '../content/units.ts';
 import { hexDistance, hexToIndex, indexToHex } from './hex.ts';
-import type { GameState, PlayerView, KnowledgeState, MapUnit, GameEvent, VisibleEvent } from './model.ts';
+import type { GameState, PlayerView, KnowledgeState, MapUnit, GameEvent, VisibleEvent, Diplomacy } from './model.ts';
 
 export function unitIdentity(unit: UnitIdentity): UnitIdentity {
   return unit.kind === 'pokemon' ? { kind: 'pokemon', speciesId: unit.speciesId }
@@ -46,9 +46,17 @@ export function refreshKnowledge(state: GameState, content: Content = CONTENT): 
     for (const city of Object.values(state.cities)) {
       if (visible.has(hexToIndex(city.position, state.map)!)) knowledge.lastKnownCities[city.id] = {
         ownerId: city.ownerId, position: { ...city.position }, lastSeenRound: state.round,
+        headquartersOf: Object.values(state.players).find(player => player.headquartersCityId === city.id)?.id ?? null,
       };
     }
   }
+}
+
+function projectDiplomacy(pair: Diplomacy, playerId: number): Diplomacy {
+  const involved = pair.a === playerId || pair.b === playerId;
+  return { ...pair, proposal: involved && pair.proposal ? { ...pair.proposal } : null,
+    rejectedAtRound: pair.rejectedAtRound[playerId] === undefined ? {} : { [playerId]: pair.rejectedAtRound[playerId] },
+    citiesLostSinceWar: involved ? { [playerId]: pair.citiesLostSinceWar[playerId] ?? 0 } : {} };
 }
 
 export function observe(state: GameState, playerId: number, content: Content = CONTENT): PlayerView {
@@ -60,11 +68,19 @@ export function observe(state: GameState, playerId: number, content: Content = C
     playerId, seed: state.setup.seed, round: state.round, activePlayerId: state.activePlayerId, commandSeq: state.commandSeq,
     map: { width: state.map.width, height: state.map.height,
       tiles: state.map.tiles.map((biome, i) => visible.has(i) ? biome : knowledge.rememberedTiles[i]?.biomeId ?? null) },
-    visibleTileIds: [...visible], knowledge, diplomacy: state.diplomacy.map(relation => ({ ...relation })),
+    combat: {
+      units: Object.fromEntries(Object.values(state.units).filter(isMapUnit).filter(unit => visible.has(hexToIndex(unit.position, state.map)!))
+        .map(unit => [unit.id, { typeResearch: unit.ownerId !== null && state.players[unit.ownerId].research.unlockedIds.includes('typeResearch') }])),
+      cities: Object.fromEntries(Object.values(state.cities).filter(city => visible.has(hexToIndex(city.position, state.map)!))
+        .map(city => [city.id, { hp: city.hp, counterAttack: city.ownerId === null ? 0 : state.players[city.ownerId].starterId === 'squirtle' ? 34 : 30 }])),
+    },
+    visibleTileIds: [...visible], knowledge, diplomacy: state.diplomacy.map(pair => projectDiplomacy(pair, playerId)),
+    outcome: state.outcome && JSON.parse(JSON.stringify(state.outcome)), roundLimit: state.setup.roundLimit ?? 100,
+    civilizations: Object.values(state.players).map(player => ({ id: player.id, eliminated: player.eliminated })),
     units: Object.values(state.units).filter(isMapUnit).filter(unit => visible.has(hexToIndex(unit.position, state.map)!)).map(copyUnit),
     recoveringUnits: Object.values(state.units).filter(unit => unit.location === 'recovering' && unit.ownerId === playerId).map(unit => JSON.parse(JSON.stringify(unit))),
     cities: Object.values(state.cities).filter(city => visible.has(hexToIndex(city.position, state.map)!))
-      .map(city => ({ id: city.id, ownerId: city.ownerId, position: { ...city.position } })),
+      .map(city => ({ id: city.id, ownerId: city.ownerId, position: { ...city.position }, headquartersOf: Object.values(state.players).find(player => player.headquartersCityId === city.id)?.id ?? null })),
     economy: { player: JSON.parse(JSON.stringify(state.players[playerId])),
       cities: Object.values(state.cities).filter(city => city.ownerId === playerId).map(city => ({
         ...JSON.parse(JSON.stringify(city)), yields: cityYield(state, city, content), availableTileIds: workCandidates(state, city, content),
@@ -77,6 +93,10 @@ export function projectEvents(before: GameState, after: GameState, events: reado
   const visible = new Set([...visibleTiles(before, playerId, content), ...visibleTiles(after, playerId, content)]);
   const projected: VisibleEvent[] = [];
   for (const event of events) {
+    if (event.payload.type === 'DiplomacyChanged') {
+      projected.push({ seq: event.seq, payload: { type: 'DiplomacyChanged', relation: projectDiplomacy(event.payload.relation, playerId) } });
+      continue;
+    }
     if ('playerId' in event.payload && event.payload.playerId !== playerId) continue;
     if (event.payload.type === 'BattleResolved' && !event.payload.positions.every(position => visible.has(hexToIndex(position, before.map)!))) continue;
     if (event.payload.type === 'WildSpawned' && !visible.has(hexToIndex(event.payload.position, before.map)!)) continue;

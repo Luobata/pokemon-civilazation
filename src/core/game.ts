@@ -12,28 +12,30 @@ import { emptyKnowledge, refreshKnowledge } from './vision.ts';
 import type { GameSetup, GameState } from './model.ts';
 
 export function createGame(setup: GameSetup, content: Content = CONTENT): GameState {
-  if (setup.players.length < 2 || setup.players.length > 4
+  if ((setup.roundLimit !== undefined && ![100, 200, 300].includes(setup.roundLimit))
+    || setup.players.length < 2 || setup.players.length > 4
     || new Set(setup.players.map(player => player.id)).size !== setup.players.length
     || setup.players.some(player => !Number.isSafeInteger(player.id) || player.id < 0)
-    || setup.players.filter(player => player.controller === 'human').length !== 1
+    || setup.players.filter(player => player.controller === 'human').length > 1
     || setup.players.some(player => player.controller === 'human' && !STARTER_IDS.includes(player.starterId))) {
-    throw new Error('Expected 2–4 distinct players and one human with a chosen starter.');
+    throw new Error('Expected 2–4 distinct players and at most one human with a chosen starter.');
   }
   const generated = generateMap({ ...setup, playerCount: setup.players.length });
   const state: GameState = {
-    schemaVersion: 3, rulesVersion: 'm3-v1', contentVersion: content.version,
+    schemaVersion: 4, rulesVersion: 'm4-v1', contentVersion: content.version,
     setup: JSON.parse(JSON.stringify(setup)) as GameSetup,
     map: { width: generated.width, height: generated.height, tiles: generated.tiles },
     rng: generated.rng, nextEntityId: 1, commandSeq: 0, round: 1,
     activePlayerId: setup.players[0].id, turnOrder: setup.players.map(player => player.id),
-    diplomacy: setup.players.flatMap(a => setup.players.filter(b => a.id < b.id).map(b => ({ a: a.id, b: b.id, status: 'peace' as const }))),
-    players: {}, units: {}, cities: {}, knowledge: {},
+    diplomacy: setup.players.flatMap(a => setup.players.filter(b => a.id < b.id).map(b => ({ a: a.id, b: b.id, status: 'peace' as const, changedAtRound: 1, declaredBy: null, cooldownUntilRound: 0, rejectedAtRound: {}, citiesLostSinceWar: {}, proposal: null }))),
+    outcome: null, players: {}, units: {}, cities: {}, knowledge: {},
   };
   // Reserve all city/settler tiles before placing starters in any outer ring.
   for (const [i, player] of setup.players.entries()) {
     const starterId: StarterId = player.controller === 'human' ? player.starterId : STARTER_IDS[randomBelow(state.rng, STARTER_IDS.length)];
     state.players[player.id] = { ...player, starterId, gold: 50, headquartersCityId: state.nextEntityId, knockdownCount: 0, ballInventory: { pokeBall: 0, greatBall: 0 },
-      registeredSpeciesIds: [starterId], research: { techId: null, reserve: 0, unlockedIds: [],
+      personality: player.controller === 'ai' ? player.personality ?? (['expansion', 'aggressive', 'conservative'] as const)[i % 3] : 'conservative',
+      lastSettlerProducedRound: 1, eliminated: false, frozenScore: null, registeredSpeciesIds: [starterId], research: { techId: null, reserve: 0, unlockedIds: [],
         progressByTech: Object.fromEntries(Object.keys(content.techs).map(id => [id, 0])) as Record<TechId, number> } };
     state.knowledge[player.id] = emptyKnowledge();
     const position = indexToHex(generated.starts[i].tileIndex, state.map);

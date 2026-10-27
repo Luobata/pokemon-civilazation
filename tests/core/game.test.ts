@@ -207,20 +207,20 @@ describe('GameSession command log and replay', () => {
     expect(session.getState().round).toBe(1);
     session.issue({ type: 'EndTurn' }); return session;
   }
-  test('recorded AI EndTurns replay exactly, including continuation from checkpoint', () => {
+  test('recorded AI commands replay exactly, including continuation from checkpoint', () => {
     const session = played(); const log = JSON.parse(JSON.stringify(session.exportLog()));
-    expect(log.commands).toHaveLength(5); expect(session.getState().round).toBe(2);
+    expect(log.commands.some((command: Command) => command.actorId !== 0 && command.action.type !== 'EndTurn')).toBe(true); expect(session.getState().round).toBe(2);
     expect(stateDigest(replay(log))).toBe(stateDigest(session.getState()));
     const checkpoint = replay(log, 2);
     expect(canonicalSerialize(replay(log, log.commands.length, checkpoint))).toBe(canonicalSerialize(session.getState()));
     const before = stateDigest(session.getState()); session.skipAnimations(); expect(stateDigest(session.getState())).toBe(before);
     session.replayTo(1); expect(session.getState().commandSeq).toBe(1); expect(session.presentationQueue).toEqual([]);
-    session.replayTo(5); expect(stateDigest(session.getState())).toBe(before);
+    session.replayTo(log.commands.length); expect(stateDigest(session.getState())).toBe(before);
   });
   test('new accepted commands after replay replace the future; rejections do not append', () => {
-    const session = played(); session.replayTo(0);
-    session.issue({ type: 'Move', unitId: 999, to: at(0) }); expect(session.exportLog().commands).toHaveLength(5);
-    session.issue({ type: 'EndTurn' }); expect(session.exportLog().commands).toHaveLength(4);
+    const session = played(); const original = session.exportLog(); session.replayTo(0);
+    session.issue({ type: 'Move', unitId: 999, to: at(0) }); expect(session.exportLog().commands).toEqual(original.commands);
+    session.issue({ type: 'EndTurn' }); expect(session.exportLog().commands[0].action.type).toBe('EndTurn');
     expect(stateDigest(replay(session.exportLog()))).toBe(stateDigest(session.getState()));
     session.replayTo(1); session.resumeFromReplay(); expect(session.getState().activePlayerId).toBe(0);
     expect(stateDigest(replay(session.exportLog()))).toBe(stateDigest(session.getState()));

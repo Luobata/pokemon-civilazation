@@ -8,6 +8,7 @@ import { assignNewWorkers, cityYield, cleanWork, growthThreshold, productionCost
 import type { CityState, EconomyEvent, GameState, PendingDeployment } from './model.ts';
 
 function deploy(state: GameState, city: CityState, pending: PendingDeployment, content: Content, events: EconomyEvent[]): boolean {
+  if (city.ownerId === null) return false;
   const identity: UnitIdentity = pending.item.kind === 'pokemon'
     ? { kind: 'pokemon', speciesId: pending.item.defId } : { kind: 'logistics', role: 'settler' };
   const occupied = new Set([...Object.values(state.units).filter(isMapUnit), ...Object.values(state.cities)]
@@ -28,7 +29,7 @@ function deploy(state: GameState, city: CityState, pending: PendingDeployment, c
 // Only the implemented M2 stages. The snapshot fixes their shared input (D30).
 export function resolveEconomy(state: GameState, content: Content = CONTENT): EconomyEvent[] {
   const events: EconomyEvent[] = [];
-  const allCities = Object.values(state.cities).sort((a, b) => a.id - b.id);
+  const allCities = Object.values(state.cities).filter((city): city is CityState & { ownerId: number } => city.ownerId !== null).sort((a, b) => a.id - b.id);
   for (const city of allCities) cleanWork(state, city, content);
   const cities = allCities.filter(city => city.capturedAtRound !== state.round);
   const output = new Map(cities.map(city => [city.id, cityYield(state, city, content)]));
@@ -55,6 +56,7 @@ export function resolveEconomy(state: GameState, content: Content = CONTENT): Ec
     order.progress += output.get(city.id)!.production;
     const cost = productionCost(order.item, content);
     if (order.progress < cost) continue;
+    if (order.item.kind === 'logistics') state.players[city.ownerId].lastSettlerProducedRound = state.round;
     const overflow = order.progress - cost;
     city.queue.shift();
     if (city.queue[0]) city.queue[0].progress += overflow;
@@ -72,7 +74,7 @@ export function resolveEconomy(state: GameState, content: Content = CONTENT): Ec
     }
   }
   // 3: newly deployed units already pay upkeep; waiting orders are not units.
-  for (const player of Object.values(state.players).sort((a, b) => a.id - b.id)) {
+  for (const player of Object.values(state.players).filter(player => !player.eliminated).sort((a, b) => a.id - b.id)) {
     const goldBefore = player.gold;
     const income = cities.filter(city => city.ownerId === player.id).reduce((sum, city) => sum + output.get(city.id)!.gold, 0);
     const units = Object.values(state.units).filter(unit => unit.ownerId === player.id)
@@ -90,7 +92,7 @@ export function resolveEconomy(state: GameState, content: Content = CONTENT): Ec
     events.push({ type: 'GoldSettled', playerId: player.id, income, upkeep, refundedUpkeep, goldBefore, goldAfter: player.gold });
   }
   // 4: research reserve carries forward; one selected topic can complete per round.
-  for (const player of Object.values(state.players).sort((a, b) => a.id - b.id)) {
+  for (const player of Object.values(state.players).filter(player => !player.eliminated).sort((a, b) => a.id - b.id)) {
     const science = cities.filter(city => city.ownerId === player.id).reduce((sum, city) => sum + output.get(city.id)!.research, 0);
     const research = player.research, techId = research.techId;
     if (techId === null) research.reserve += science;

@@ -7,13 +7,13 @@ export default [
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    files: ['src/core/**/*.ts', 'src/content/**/*.ts'],
+    files: ['src/core/**/*.ts', 'src/content/**/*.ts', 'src/ai/**/*.ts'],
     plugins: {
       boundaries: { rules: {
         'pure-imports': {
           meta: { type: 'problem', schema: [], messages: { forbidden: 'Core/content imports must resolve within src/core or src/content.' } },
           create(context) {
-            const roots = ['src/core', 'src/content'].map(root => path.resolve(context.cwd, root) + path.sep);
+            const roots = ['src/core', 'src/content', ...(context.filename.includes(`${path.sep}src${path.sep}ai${path.sep}`) ? ['src/ai'] : [])].map(root => path.resolve(context.cwd, root) + path.sep);
             function check(node, source) {
               const name = source?.value;
               const resolved = typeof name === 'string' && name.startsWith('.')

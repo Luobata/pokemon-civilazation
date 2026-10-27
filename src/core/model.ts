@@ -5,10 +5,20 @@ import type { Hex, GridSize } from './hex.ts';
 import type { RngState } from './rng.ts';
 import type { MapTerrain } from './map.ts';
 
+export type AiPersonality = 'expansion' | 'aggressive' | 'conservative';
+export type Score = { playerId: number; total: number; cities: number; population: number; species: number; techs: number; knockdowns: number };
+export type GameOutcome = { kind: 'conquest' | 'score' | 'playerDefeat'; winners: number[]; ranking: Score[]; round: number };
+export type Diplomacy = { a: number; b: number; status: 'peace' | 'war'; changedAtRound: number; declaredBy: number | null;
+  cooldownUntilRound: number; rejectedAtRound: Record<number, number>; citiesLostSinceWar: Record<number, number>;
+  proposal: { proposerId: number; recipientId: number } | null };
+export type DiplomacyAction = { type: 'DeclareWar'; targetPlayerId: number } | { type: 'MakePeace'; targetPlayerId: number }
+  | { type: 'RespondPeace'; targetPlayerId: number; accept: boolean };
+export type DiplomacyEvent = { type: 'DiplomacyChanged'; relation: Diplomacy };
 export type GameSetup = GridSize & {
   seed: number;
+  roundLimit?: 100 | 200 | 300;
   players: ({ id: number; controller: 'human'; starterId: StarterId }
-    | { id: number; controller: 'ai' })[];
+    | { id: number; controller: 'ai'; personality?: AiPersonality })[];
 };
 type UnitBase = UnitIdentity & { id: number; ownerId: number | null; actionLeft: 0 | 1; xp: number; hp: number; enraged: boolean; wildHome: Hex | null };
 export type MapUnit = UnitBase & { location: 'map'; position: Hex };
@@ -19,7 +29,7 @@ export type ProductionItem = { kind: 'building'; defId: BuildingId }
   | { kind: 'pokemon'; defId: SpeciesId } | { kind: 'logistics'; defId: 'settler' };
 export type ProductionOrder = { id: number; progress: number; item: ProductionItem };
 export type PendingDeployment = { enteredAtRound: number; sourceOrderId: number; item: Exclude<ProductionItem, { kind: 'building' }> };
-export type CitySummary = { id: number; ownerId: number; position: Hex };
+export type CitySummary = { id: number; ownerId: number | null; position: Hex; headquartersOf?: number | null };
 export type CityState = CitySummary & {
   hp: number; population: number; food: number; buildingIds: BuildingId[];
   queue: ProductionOrder[]; pendingDeployments: PendingDeployment[];
@@ -27,6 +37,7 @@ export type CityState = CitySummary & {
 };
 export type PlayerState = {
   id: number; controller: 'human' | 'ai'; starterId: StarterId; gold: number; headquartersCityId: number; knockdownCount: number;
+  personality: AiPersonality; lastSettlerProducedRound: number; eliminated: boolean; frozenScore: Score | null;
   ballInventory: Record<BallId, number>; registeredSpeciesIds: SpeciesId[];
   research: { techId: TechId | null; progressByTech: Record<TechId, number>; unlockedIds: TechId[]; reserve: number };
 };
@@ -56,16 +67,17 @@ export type KnowledgeState = {
   exploredTileIds: number[];
   rememberedTiles: Record<number, { biomeId: BiomeId }>;
   lastKnownUnits: Record<number, LastKnownUnit>;
-  lastKnownCities: Record<number, { ownerId: number; position: Hex; lastSeenRound: number }>;
+  lastKnownCities: Record<number, { ownerId: number | null; position: Hex; lastSeenRound: number; headquartersOf?: number | null }>;
 };
 export type GameState = {
-  schemaVersion: 3; rulesVersion: 'm3-v1'; contentVersion: string;
+  schemaVersion: 4; rulesVersion: 'm4-v1'; contentVersion: string;
   setup: GameSetup; rng: RngState; nextEntityId: number; commandSeq: number;
   round: number; activePlayerId: number; turnOrder: number[];
   map: MapTerrain;
   players: Record<number, PlayerState>;
   units: Record<number, UnitState>; cities: Record<number, CityState>;
-  diplomacy: { a: number; b: number; status: 'peace' | 'war' }[];
+  diplomacy: Diplomacy[];
+  outcome: GameOutcome | null;
   knowledge: Record<number, KnowledgeState>;
 };
 export type PlayerView = {
@@ -73,7 +85,10 @@ export type PlayerView = {
   map: GridSize & { tiles: (BiomeId | null)[] };
   visibleTileIds: number[]; knowledge: KnowledgeState;
   units: MapUnit[]; recoveringUnits: RecoveringUnit[]; cities: CitySummary[];
+  combat: { units: Record<number, { typeResearch: boolean }>; cities: Record<number, { hp: number; counterAttack: number }> };
   diplomacy: GameState['diplomacy'];
+  outcome: GameOutcome | null; roundLimit: 100 | 200 | 300;
+  civilizations: { id: number; eliminated: boolean }[];
   economy: { player: PlayerState; cities: (CityState & { yields: Yield; availableTileIds: number[] })[] };
 };
 export type CombatTarget = { kind: 'unit' | 'city'; id: number };
@@ -81,6 +96,8 @@ export type CombatAction = { type: 'Attack'; unitId: number; target: CombatTarge
   | { type: 'Capture'; unitId: number; targetUnitId: number; ballId: BallId }
   | { type: 'Evolve'; unitId: number; intoSpeciesId: SpeciesId };
 export type CombatEvent =
+  | { type: 'CivilizationEliminated'; eliminatedPlayerId: number }
+  | { type: 'GameEnded'; outcome: GameOutcome }
   | { type: 'BattleResolved'; attackerId: number; target: CombatTarget; positions: Hex[]; damage: number; counterDamage: number; capturedCity: boolean; knockedDownUnitIds: number[] }
   | { type: 'Captured'; playerId: number; unitId: number; targetUnitId: number; success: boolean; probability: number }
   | { type: 'Evolved'; playerId: number; unitId: number; speciesId: SpeciesId }
@@ -90,9 +107,9 @@ export type CombatEvent =
 export type Command = { actorId: number; expectedSeq: number; action:
   | { type: 'Move'; unitId: number; to: Hex }
   | { type: 'EndTurn' }
-  | EconomyAction | CombatAction
+  | EconomyAction | CombatAction | DiplomacyAction
 };
-export type EventPayload = EconomyEvent | CombatEvent
+export type EventPayload = EconomyEvent | CombatEvent | DiplomacyEvent
   | { type: 'Moved'; unitId: number; path: Hex[] }
   | { type: 'RoundEnded'; round: number }
   | { type: 'TurnChanged'; activePlayerId: number; round: number };
@@ -102,4 +119,4 @@ export type VisibleEvent = { seq: number; payload:
   | Exclude<EventPayload, { type: 'Moved' }>
 };
 export type StepResult = { ok: true; state: GameState; events: GameEvent[] }
-  | { ok: false; reason: 'not-your-turn' | 'stale-command' | 'invalid-command' | 'unit-unavailable' | 'no-action' | 'unreachable' | 'city-unavailable' | 'invalid-production' | 'invalid-work' | 'research-unavailable' | 'purchase-unavailable' | 'invalid-city-site' | 'attack-unavailable' | 'capture-unavailable' | 'evolution-unavailable' };
+  | { ok: false; reason: 'game-ended' | 'diplomacy-unavailable' | 'not-your-turn' | 'stale-command' | 'invalid-command' | 'unit-unavailable' | 'no-action' | 'unreachable' | 'city-unavailable' | 'invalid-production' | 'invalid-work' | 'research-unavailable' | 'purchase-unavailable' | 'invalid-city-site' | 'attack-unavailable' | 'capture-unavailable' | 'evolution-unavailable' };

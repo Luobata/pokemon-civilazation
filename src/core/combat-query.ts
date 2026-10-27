@@ -1,0 +1,24 @@
+import { CONTENT } from '../content/units.ts';
+import type { Content } from '../content/units.ts';
+import type { BiomeId } from '../content/rules.ts';
+import type { MapUnit } from './model.ts';
+import { damage, effectiveness, terrainMultiplier } from './combat-math.ts';
+
+export function unitDamage(attacker: MapUnit, defender: MapUnit, from: BiomeId, to: BiomeId,
+  researched: boolean, roll: number, counter = false, content: Content = CONTENT): number {
+  if (attacker.kind !== 'pokemon') return 0;
+  if (defender.kind === 'logistics') return defender.hp;
+  const a = content.species[attacker.speciesId], d = content.species[defender.speciesId];
+  return damage(a.attack, d.defense, counter ? 5 : a.power,
+    effectiveness(a.typeId, d.typeId, d.immunities, researched), terrainMultiplier(from, to), roll, attacker.enraged ? 1200 : 1000);
+}
+export function cityDamage(attacker: MapUnit, from: BiomeId, to: BiomeId, siegeTech: boolean, roll: number, content: Content = CONTENT): number {
+  if (attacker.kind !== 'pokemon') return 0;
+  const a = content.species[attacker.speciesId];
+  const siege = a.role === 'siege' && siegeTech ? 1500 : 1000;
+  return damage(a.attack, 50, a.power, 100, terrainMultiplier(from, to), roll, siege * (attacker.enraged ? 1200 : 1000) / 1000);
+}
+export function cityCounterDamage(attack: number, defender: MapUnit, from: BiomeId, to: BiomeId, content: Content = CONTENT): number {
+  if (attack === 0 || defender.kind !== 'pokemon') return 0;
+  return damage(attack, content.species[defender.speciesId].defense, 5, 100, terrainMultiplier(from, to), 100);
+}

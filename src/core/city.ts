@@ -20,11 +20,13 @@ export function tileYield(biome: keyof Content['biomes'], player: PlayerState, c
 }
 // Best first; fixed row-major index is (r,q) order on this map.
 export function compareWorkTiles(state: GameState, city: CityState, a: number, b: number, content: Content = CONTENT): number {
+  if (city.ownerId === null) return a - b;
   const player = state.players[city.ownerId];
   const ya = tileYield(state.map.tiles[a], player, content), yb = tileYield(state.map.tiles[b], player, content);
   return yb.food - ya.food || yb.production - ya.production || yb.gold - ya.gold || yb.research - ya.research || a - b;
 }
 export function workCandidates(state: GameState, city: CityState, content: Content = CONTENT): number[] {
+  if (city.ownerId === null) return [];
   const occupied = new Set(Object.values(state.cities).flatMap(other => [
     hexToIndex(other.position, state.map)!, ...(other.id === city.id ? [] : other.workedTileIds),
   ]));
@@ -53,9 +55,10 @@ export function assignNewWorkers(state: GameState, city: CityState, count: numbe
   city.workedTileIds.sort((a, b) => a - b);
 }
 export function cityYield(state: GameState, city: CityState, content: Content = CONTENT): Yield {
-  if (city.capturedAtRound === state.round) return { food: 0, production: 0, gold: 0, research: 0 };
+  if (city.ownerId === null || city.capturedAtRound === state.round) return { food: 0, production: 0, gold: 0, research: 0 };
+  const player = state.players[city.ownerId];
   const result = { food: 2, production: 1, gold: 1, research: city.population - city.workedTileIds.length };
-  for (const addition of [...city.workedTileIds.map(id => tileYield(state.map.tiles[id], state.players[city.ownerId], content)),
+  for (const addition of [...city.workedTileIds.map(id => tileYield(state.map.tiles[id], player, content)),
     ...city.buildingIds.map(id => content.buildings[id].yields)]) {
     for (const key of ['food', 'production', 'gold', 'research'] as const) result[key] += addition[key];
   }

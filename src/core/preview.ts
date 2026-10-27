@@ -1,0 +1,53 @@
+import { CONTENT } from '../content/units.ts';
+import type { Content } from '../content/units.ts';
+import type { BallId } from '../content/economy.ts';
+import type { CombatTarget, PlayerView } from './model.ts';
+import { hexDistance, hexToIndex } from './hex.ts';
+import { unitDamage, cityDamage, cityCounterDamage } from './combat-query.ts';
+import { captureProbability } from './combat-math.ts';
+
+export type AttackPreview = { ok: true; damage: { min: number; max: number };
+  counter: { trigger: 'always' | 'possible' | 'never'; damage: number };
+  knockdown: 'guaranteed' | 'possible' | 'none' } | { ok: false; reason: string };
+export type CapturePreview = { ok: true; probability: number } | { ok: false; reason: string };
+// Queries consume only the observation, never state, RNG, or last-known entities as live targets.
+export function previewAttack(view: PlayerView, unitId: number, target: CombatTarget, content: Content = CONTENT): AttackPreview {
+  const unit = view.units.find(unit => unit.id === unitId && unit.ownerId === view.playerId);
+  const defender = target.kind === 'unit' ? view.units.find(unit => unit.id === target.id) : view.cities.find(city => city.id === target.id);
+  if (!unit || unit.kind !== 'pokemon' || !unit.actionLeft || view.outcome || view.activePlayerId !== view.playerId || !defender) return { ok: false, reason: 'attack-unavailable' };
+  if (defender.ownerId === view.playerId || (defender.ownerId !== null && !view.diplomacy.some(pair => pair.status === 'war'
+    && pair.a === Math.min(view.playerId, defender.ownerId!) && pair.b === Math.max(view.playerId, defender.ownerId!)))) return { ok: false, reason: 'at-peace' };
+  const distance = hexDistance(unit.position, defender.position), range = content.species[unit.speciesId].range;
+  const from = view.map.tiles[hexToIndex(unit.position, view.map)!], to = view.map.tiles[hexToIndex(defender.position, view.map)!];
+  if (!from || !to || distance < 1 || distance > range || ('kind' in defender && defender.kind === 'logistics' && distance !== 1)) return { ok: false, reason: 'out-of-range' };
+  const techs = view.economy.player.research.unlockedIds;
+  let min: number, max: number, counter = 0, canCounter: boolean, hp: number;
+  if (target.kind === 'unit') {
+    const defendingUnit = view.units.find(unit => unit.id === target.id)!;
+    hp = defendingUnit.hp;
+    min = unitDamage(unit, defendingUnit, from, to, techs.includes('typeResearch'), 85, false, content);
+    max = unitDamage(unit, defendingUnit, from, to, techs.includes('typeResearch'), 100, false, content);
+    canCounter = defendingUnit.kind === 'pokemon' && distance <= content.species[defendingUnit.speciesId].range;
+    if (canCounter) counter = unitDamage(defendingUnit, unit, to, from, view.combat.units[defendingUnit.id].typeResearch, 100, true, content);
+  } else {
+    const city = view.combat.cities[defender.id]; hp = city.hp;
+    min = cityDamage(unit, from, to, techs.includes('siegeCraft'), 85, content);
+    max = cityDamage(unit, from, to, techs.includes('siegeCraft'), 100, content);
+    canCounter = distance <= 2 && city.counterAttack > 0;
+    if (canCounter) counter = cityCounterDamage(city.counterAttack, unit, to, from, content);
+  }
+  const trigger = !canCounter || min >= hp ? 'never' : max >= hp ? 'possible' : 'always';
+  return { ok: true, damage: { min, max }, counter: { trigger, damage: trigger === 'never' ? 0 : counter },
+    knockdown: min >= hp ? 'guaranteed' : max >= hp ? 'possible' : 'none' };
+}
+export function previewCapture(view: PlayerView, unitId: number, targetUnitId: number, ballId: BallId, content: Content = CONTENT): CapturePreview {
+  const unit = view.units.find(unit => unit.id === unitId && unit.ownerId === view.playerId), target = view.units.find(unit => unit.id === targetUnitId);
+  const player = view.economy.player;
+  if (!unit || unit.kind !== 'pokemon' || !unit.actionLeft || view.outcome || view.activePlayerId !== view.playerId || !target || target.kind !== 'pokemon'
+    || target.ownerId !== null || hexDistance(unit.position, target.position) !== 1 || !Object.hasOwn(content.balls, ballId)
+    || !player.research.unlockedIds.includes('domestication') || !player.research.unlockedIds.includes(content.balls[ballId].requiredTech)
+    || player.ballInventory[ballId] < 1) return { ok: false, reason: 'capture-unavailable' };
+  const definition = content.species[target.speciesId];
+  return { ok: true, probability: captureProbability(definition.maxHp, target.hp, ballId === 'greatBall' ? 1500 : 1000,
+    player.research.unlockedIds.includes('fieldObservation'), definition.rare) };
+}

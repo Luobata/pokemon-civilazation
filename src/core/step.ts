@@ -1,3 +1,5 @@
+import { applyDiplomacyAction, expirePeaceProposals, validateDiplomacyAction } from './diplomacy.ts';
+import { finishGame } from './victory.ts';
 import { applyCombatAction, validateCombatAction } from './combat.ts';
 import { resolveRecovery } from './recovery.ts';
 import { resolveWild } from './wild.ts';
@@ -12,6 +14,7 @@ import { observe, refreshKnowledge, visibleTiles } from './vision.ts';
 import type { Command, EventPayload, GameState, StepResult } from './model.ts';
 
 export function step(state: GameState, command: Command, content: Content = CONTENT): StepResult {
+  if (state.outcome) return { ok: false, reason: 'game-ended' };
   if (command.actorId !== state.activePlayerId) return { ok: false, reason: 'not-your-turn' };
   if (command.expectedSeq !== state.commandSeq) return { ok: false, reason: 'stale-command' };
   const action = command.action;
@@ -37,6 +40,9 @@ export function step(state: GameState, command: Command, content: Content = CONT
   } else if (action.type === 'Attack' || action.type === 'Capture' || action.type === 'Evolve') {
     const reason = validateCombatAction(state, command.actorId, action, content);
     if (reason) return { ok: false, reason };
+  } else if (action.type === 'DeclareWar' || action.type === 'MakePeace' || action.type === 'RespondPeace') {
+    const reason = validateDiplomacyAction(state, command.actorId, action);
+    if (reason) return { ok: false, reason };
   } else if (action.type !== 'EndTurn') {
     if (!['FoundCity', 'SetProductionQueue', 'AssignWork', 'SetResearch', 'BuyBall'].includes(action.type)) return { ok: false, reason: 'invalid-command' };
     const reason = validateEconomyAction(state, command.actorId, action, content);
@@ -45,6 +51,7 @@ export function step(state: GameState, command: Command, content: Content = CONT
 
   // Validate first, execute on a copy, publish only the complete transaction.
   const next = JSON.parse(JSON.stringify(state)) as GameState;
+  let knowledgeRefreshed = false;
   if (action.type === 'Move' && path) {
     const moving = next.units[action.unitId];
     if (!isMapUnit(moving)) throw new Error('Expected deployed unit');
@@ -52,6 +59,7 @@ export function step(state: GameState, command: Command, content: Content = CONT
     next.units[action.unitId].actionLeft = 0;
     events.push({ type: 'Moved', unitId: action.unitId, path });
   } else if (action.type === 'EndTurn') {
+    events.push(...expirePeaceProposals(next, command.actorId));
     const nextIndex = (state.turnOrder.indexOf(state.activePlayerId) + 1) % state.turnOrder.length;
     next.activePlayerId = state.turnOrder[nextIndex];
     if (nextIndex === 0) {
@@ -59,12 +67,16 @@ export function step(state: GameState, command: Command, content: Content = CONT
       events.push(...resolveRecovery(next, content));
       events.push(...resolveWild(next, content));
       events.push({ type: 'RoundEnded', round: state.round });
-      next.round++;
-      for (const unit of Object.values(next.units)) unit.actionLeft = isMapUnit(unit) ? 1 : 0;
+      refreshKnowledge(next, content); // Stage 7 precedes the round-limit score.
+      knowledgeRefreshed = true;
+      if (next.round >= (next.setup.roundLimit ?? 100)) events.push(...finishGame(next, 'score'));
+      else next.round++;
+      for (const unit of Object.values(next.units)) unit.actionLeft = !next.outcome && isMapUnit(unit) ? 1 : 0;
     }
-    events.push({ type: 'TurnChanged', activePlayerId: next.activePlayerId, round: next.round });
+    if (!next.outcome) events.push({ type: 'TurnChanged', activePlayerId: next.activePlayerId, round: next.round });
   }
   if (action.type === 'Attack' || action.type === 'Capture' || action.type === 'Evolve') events.push(...applyCombatAction(next, command.actorId, action, content));
+  else if (action.type === 'DeclareWar' || action.type === 'MakePeace' || action.type === 'RespondPeace') events.push(...applyDiplomacyAction(next, command.actorId, action));
   else if (action.type !== 'Move' && action.type !== 'EndTurn') events.push(...applyEconomyAction(next, command.actorId, action, content));
   next.commandSeq++;
   // Removal observed before the transaction must clear memory even when losing
@@ -76,6 +88,6 @@ export function step(state: GameState, command: Command, content: Content = CONT
       delete next.knowledge[playerId].lastKnownUnits[unit.id];
     }
   }
-  refreshKnowledge(next, content);
+  if (!knowledgeRefreshed) refreshKnowledge(next, content);
   return { ok: true, state: next, events: events.map((payload, index) => ({ seq: next.commandSeq, index, payload })) };
 }

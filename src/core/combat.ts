@@ -1,12 +1,14 @@
+import { eliminateCivilization } from './victory.ts';
+import { relationFor } from './diplomacy.ts';
+import { unitDamage, cityDamage, cityCounterDamage } from './combat-query.ts';
 import { CONTENT } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
 import type { TechId } from '../content/economy.ts';
 import { hexDistance, hexToIndex } from './hex.ts';
-import type { Hex } from './hex.ts';
 import { isMapUnit } from './model.ts';
 import type { CombatAction, CombatEvent, CombatTarget, GameState, MapUnit, StepResult } from './model.ts';
 import { assignNewWorkers, cleanWork } from './city.ts';
-import { damage, effectiveness, terrainMultiplier, captureProbability } from './combat-math.ts';
+import { captureProbability } from './combat-math.ts';
 import { randomBelow } from './rng.ts';
 import { registerSpecies } from './unit.ts';
 import { visibleTiles } from './vision.ts';
@@ -52,23 +54,18 @@ function knockedDown(state: GameState, unit: MapUnit, sourceOwner: number | null
   if (unit.ownerId === null || unit.kind === 'logistics') { delete state.units[unit.id]; return; }
   const city = Object.values(state.cities).filter(city => city.ownerId === unit.ownerId)
     .sort((a, b) => hexDistance(unit.position, a.position) - hexDistance(unit.position, b.position) || a.id - b.id)[0];
-  // M3 temporary D33: no city after HQ capture means removal; M4 eliminates at HQ loss.
-  if (!city) { delete state.units[unit.id]; return; }
+  if (!city) throw new Error('Surviving civilization must own a city.');
   const roundsLeft = wildPhase ? 2 : 3;
   state.units[unit.id] = { ...unit, location: 'recovering', position: null, cityId: city.id, roundsLeft, hp: 1, actionLeft: 0 };
   events.push({ type: 'UnitRecovering', playerId: unit.ownerId, unitId: unit.id, cityId: city.id, roundsLeft });
 }
-function terrain(state: GameState, from: Hex, to: Hex): number {
-  return terrainMultiplier(state.map.tiles[hexToIndex(from, state.map)!], state.map.tiles[hexToIndex(to, state.map)!]);
-}
 function unitStrike(state: GameState, attacker: MapUnit, defender: MapUnit, counter: boolean,
   wildPhase: boolean, content: Content, events: CombatEvent[]): number {
   if (attacker.kind !== 'pokemon') return 0;
-  const a = content.species[attacker.speciesId];
   const d = defender.kind === 'pokemon' ? content.species[defender.speciesId] : null;
-  const e = d ? effectiveness(a.typeId, d.typeId, d.immunities, hasTech(state, attacker.ownerId, 'typeResearch')) : 100;
   const roll = counter ? 100 : 85 + randomBelow(state.rng, 16);
-  const hit = d ? damage(a.attack, d.defense, counter ? 5 : a.power, e, terrain(state, attacker.position, defender.position), roll, attacker.enraged ? 1200 : 1000) : defender.hp;
+  const hit = unitDamage(attacker, defender, state.map.tiles[hexToIndex(attacker.position, state.map)!],
+    state.map.tiles[hexToIndex(defender.position, state.map)!], hasTech(state, attacker.ownerId, 'typeResearch'), roll, counter, content);
   attacker.enraged = false;
   defender.hp = Math.max(0, defender.hp - hit);
   experience(state, attacker, (hit > 0 ? 10 : 0) + (defender.hp === 0 && d ? 40 * d.stage : 0));
@@ -93,24 +90,29 @@ export function resolveAttack(state: GameState, unitId: number, target: CombatTa
       counterDamage = unitStrike(state, defendingUnit, attacker, true, wildPhase, content, events);
     }
   } else {
-    const city = state.cities[target.id], a = content.species[attacker.speciesId];
-    // All applicable damage multipliers precede the single floor (GDD appendix 5).
-    const siege = a.role === 'siege' && hasTech(state, attacker.ownerId, 'siegeCraft') ? 1500 : 1000;
-    const bonus = siege * (attacker.enraged ? 1200 : 1000) / 1000;
-    hit = damage(a.attack, 50, a.power, 100, terrain(state, attacker.position, city.position), 85 + randomBelow(state.rng, 16), bonus);
+    const city = state.cities[target.id];
+    hit = cityDamage(attacker, state.map.tiles[hexToIndex(attacker.position, state.map)!],
+      state.map.tiles[hexToIndex(city.position, state.map)!], hasTech(state, attacker.ownerId, 'siegeCraft'), 85 + randomBelow(state.rng, 16), content);
     attacker.enraged = false;
     city.hp = Math.max(0, city.hp - hit); experience(state, attacker, hit > 0 ? 10 : 0);
     if (city.hp === 0) {
       capturedCity = true;
-      for (const unit of Object.values(state.units)) if (unit.location === 'recovering' && unit.cityId === city.id) delete state.units[unit.id];
+      const previousOwner = city.ownerId;
+      const headquarters = previousOwner !== null && state.players[previousOwner].headquartersCityId === city.id;
+      if (!headquarters) for (const unit of Object.values(state.units)) if (unit.location === 'recovering' && unit.cityId === city.id) delete state.units[unit.id];
       city.ownerId = attacker.ownerId!; city.hp = 50; city.capturedAtRound = state.round;
       city.workedTileIds = []; city.lockedTileIds = [];
       for (const other of Object.values(state.cities)) cleanWork(state, other, content);
       assignNewWorkers(state, city, city.population, content);
-      // M3 temporary: HQ capture does not eliminate a civilization. M4 completes this transaction.
-    } else if (hexDistance(attacker.position, city.position) <= 2) {
+      if (previousOwner !== null) {
+        const pair = relationFor(state.diplomacy, attacker.ownerId!, previousOwner);
+        if (pair?.status === 'war') pair.citiesLostSinceWar[previousOwner] = (pair.citiesLostSinceWar[previousOwner] ?? 0) + 1;
+        if (headquarters) events.push(...eliminateCivilization(state, previousOwner));
+      }
+    } else if (city.ownerId !== null && hexDistance(attacker.position, city.position) <= 2) {
       const attack = state.players[city.ownerId].starterId === 'squirtle' ? 34 : 30;
-      counterDamage = damage(attack, a.defense, 5, 100, terrain(state, city.position, attacker.position), 100);
+      counterDamage = cityCounterDamage(attack, attacker, state.map.tiles[hexToIndex(city.position, state.map)!],
+        state.map.tiles[hexToIndex(attacker.position, state.map)!], content);
       attacker.hp = Math.max(0, attacker.hp - counterDamage);
       if (attacker.hp === 0) knockedDown(state, attacker, city.ownerId, wildPhase, events);
     }
