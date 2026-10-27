@@ -12,9 +12,16 @@ main { max-width: 1060px; margin: 0 auto; padding: 36px 24px 28px; }
 h1 { margin: 0 0 10px; font-size: clamp(26px, 4vw, 36px); font-weight: 650; letter-spacing: 0.05em; }
 #map-info { margin: 0; color: #697467; font-size: 13px; }
 figure { margin: 24px 0 0; border-top: 1px solid #d1d7c8; border-bottom: 1px solid #d1d7c8; }
-canvas { display: block; width: 100%; height: auto; }
+canvas { display: block; width: 100%; height: min(58vh, 580px); touch-action: none; }
 canvas[hidden] { display: none; }
 figcaption { display: flex; justify-content: space-between; padding: 4px 0 16px; font-size: 12px; color: #687265; }
 #legend { display: flex; flex-wrap: wrap; gap: 12px 26px; padding: 0; margin: 20px 0 0; list-style: none; }
 #legend li { display: flex; align-items: center; gap: 7px; font-size: 12px; }
 #legend span { display: inline-block; width: 12px; height: 12px; border: 1px solid #263e3226; }
+
+#controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 20px; font-size: 13px; }
+button, select, input { font: inherit; }
+button, select { padding: 5px 9px; }
+#sequence { width: 65px; }
+#selection, #debug { font-size: 12px; }
+#debug { white-space: pre-wrap; overflow-wrap: anywhere; }

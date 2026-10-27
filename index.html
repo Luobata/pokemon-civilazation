@@ -9,14 +9,28 @@
   <body>
     <main>
       <header>
-        <p class="eyebrow">宝可梦 × 文明 <span>M0 · 地图原型</span></p>
+        <p class="eyebrow">宝可梦 × 文明 <span>M1 · 命令与玩家视角</span></p>
         <h1>一片新的原野</h1>
         <p id="map-info" role="status">正在生成地图…</p>
       </header>
+      <section id="controls" aria-label="游戏控制">
+        <label>御三家 <select id="starter"><option value="bulbasaur">妙蛙种子</option><option value="charmander">小火龙</option><option value="squirtle">杰尼龟</option></select></label>
+        <button id="new-game">新游戏</button>
+        <button id="end-turn">结束回合</button>
+        <label><input id="animate" type="checkbox" checked />移动动画</label>
+        <button id="skip">跳过动画</button>
+        <button id="fit">地图居中</button>
+        <label id="god-label"><input id="god" type="checkbox" />上帝视角（开发）</label>
+        <button id="export">导出命令 JSON</button>
+        <label>重放序号 <input id="sequence" type="number" min="0" value="0" /></label>
+        <button id="replay">重放</button><button id="resume">从此处继续</button>
+      </section>
+      <p id="selection"></p>
       <figure>
-        <canvas id="map" aria-label="六角格地图，显示七种群系及四个文明的出生点"></canvas>
-        <figcaption><span>1—4 · 文明出生点</span><span>小地图 · 24 × 16</span></figcaption>
+        <canvas id="map" aria-label="六角格地图，点击己方单位和目标格移动"></canvas>
+        <figcaption><span>草 / 火 / 水 · 宝可梦　拓 · 开拓队　方框 · 城市</span><span>小地图 · 24 × 16</span></figcaption>
       </figure>
+      <pre id="debug" aria-label="调试状态"></pre>
       <ul id="legend" aria-label="群系图例"></ul>
     </main>
     <script type="module" src="/src/browser/main.ts"></script>
