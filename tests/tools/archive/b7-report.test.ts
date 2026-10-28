@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { assessD45, rankD45 } from '../../tools/b7-report.ts';
+import { assessD45, rankD45 } from '../../../tools/archive/b7-report.ts';
 
 function candidate(id: string, aggressiveExpansion = 0.5, aggressiveConservative = 0.5, snowball = 0.6) {
   return { id, values: { defect: 0, aborted: 0, conquest: 0.4, meanRound: 90, meanFourRound: 95, firstSeat: 0.55,

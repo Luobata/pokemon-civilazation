@@ -1,13 +1,13 @@
-/** M5-8 reporting only. Usage: node tools/b5-report.ts <sim-root> <proof-directory> <report.md> */
+/** M5-8 reporting only. Usage: node tools/archive/b5-report.ts <sim-root> <proof-directory> <report.md> */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { summarizeGames } from './summary.ts';
-import type { GameMetrics } from './summary.ts';
+import { summarizeGames } from '../summary.ts';
+import type { GameMetrics } from '../summary.ts';
 import type { diagnoseB5 } from './b5-diagnostics.ts';
 import { rankCandidates } from './b3-report.ts';
 import { distribution } from './balance-diagnostics.ts';
-import { PERSONALITIES } from './matches.ts';
+import { PERSONALITIES } from '../matches.ts';
 
 const configs = [['J8', 'm5-8-j8'], ...['K1', 'K2', 'K3', 'K4', 'K5', 'K6', 'S1', 'S2', 'S3', 'C1'].map(id => [id, 'm5-8-' + id.toLowerCase()])];
 const comparisons: [string, [string, number][]][] = [
@@ -190,13 +190,13 @@ export function reportB5(simRoot: string, proof: string, report: string) {
   table(['批次', '目录', 'patch SHA-256', '确定性'], runs.map(run => [run.id, run.directory, run.manifest.patchSha256 ?? '无',
     run.determinism.every(row => row.equal && row.equalsRecorded) ? '1/50/100双跑及保存结果一致' : '失败']));
   out.push('默认和J8分别300/300字节一致，见compare-base.json和compare-j8.json。K1–K6逐字匹配文档；S1/S2/S3/C1按合同从J8加字段，无字段映射，见patch-validation.json。',
-    '复算：node tools/b5-diagnostics.ts <run-directory> <proof>/<ID>-diagnostics.json；node tools/b5-report.ts <sim-root> <proof> <report.md>。',
+    '复算：node tools/archive/b5-diagnostics.ts <run-directory> <proof>/<ID>-diagnostics.json；node tools/archive/b5-report.ts <sim-root> <proof> <report.md>。',
     '全局指标来自games.jsonl；新诊断需games/*.json的命令与轮末快照，并按各自补丁重放；全部重放终局经canonical比较。', '');
   writeFileSync(report, out.join('\n'));
   return selection;
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  if (process.argv.length !== 5) throw new Error('Usage: node tools/b5-report.ts <sim-root> <proof-directory> <report.md>');
+  if (process.argv.length !== 5) throw new Error('Usage: node tools/archive/b5-report.ts <sim-root> <proof-directory> <report.md>');
   const result = reportB5(process.argv[2], process.argv[3], process.argv[4]);
   console.log(JSON.stringify({ winner: result.winner, ranking: result.eligible.map(row => row.id), excluded: result.excluded.map(row => ({ id: row.id, reasons: row.reasons })) }));
 }

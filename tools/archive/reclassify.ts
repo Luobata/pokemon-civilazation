@@ -1,6 +1,6 @@
 /**
  * One-off D38 migration of historical unpatched simulation output; reusable on matching rules.
- * Usage: node tools/reclassify.ts <source> <output>
+ * Usage: node tools/archive/reclassify.ts <source> <output>
  * Input: games/*.json MatchResult records (setup, commands, invalid, commandLimitReached)
  * plus manifest.json, schedule.json and determinism.json. Replays using current default
  * content, not manifest patches; incompatible rules/patch experiments are unsupported.
@@ -10,11 +10,11 @@
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { createGame } from '../src/core/game.ts';
-import { step } from '../src/core/step.ts';
-import { classifyRejection } from './rejections.ts';
-import { compactResult, summarizeGames } from './summary.ts';
-import type { MatchResult } from './simulate.ts';
+import { createGame } from '../../src/core/game.ts';
+import { step } from '../../src/core/step.ts';
+import { classifyRejection } from '../rejections.ts';
+import { compactResult, summarizeGames } from '../summary.ts';
+import type { MatchResult } from '../simulate.ts';
 
 // D38 migration of preserved runs: replay accepted commands, never rerun the planner.
 export function reclassifyRun(source: string, output: string) {
@@ -53,6 +53,6 @@ export function reclassifyRun(source: string, output: string) {
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const [source, output] = process.argv.slice(2);
-  if (!source || !output) throw new Error('Usage: node tools/reclassify.ts <source> <output>');
+  if (!source || !output) throw new Error('Usage: node tools/archive/reclassify.ts <source> <output>');
   console.log(JSON.stringify(reclassifyRun(source, output)));
 }

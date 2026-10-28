@@ -1,17 +1,17 @@
-/** M5-11 analysis only. Usage: node tools/balance-final-report.ts <sim-root> <proof> <report.md> */
+/** M5-11 analysis only. Usage: node tools/archive/balance-final-report.ts <sim-root> <proof> <report.md> */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
-import { summarizeGames } from './summary.ts';
-import type { GameMetrics } from './summary.ts';
+import { summarizeGames } from '../summary.ts';
+import type { GameMetrics } from '../summary.ts';
 import { assessD45 } from './b7-report.ts';
-import { compareGames } from './compare-games.ts';
-import { parsePatch } from './patch.ts';
-import { canonicalSerialize } from '../src/core/snapshot.ts';
-import { ratio, winCredit } from './statistics.ts';
-import type { Ratio } from './statistics.ts';
-import { PERSONALITIES } from './matches.ts';
+import { compareGames } from '../compare-games.ts';
+import { parsePatch } from '../patch.ts';
+import { canonicalSerialize } from '../../src/core/snapshot.ts';
+import { ratio, winCredit } from '../statistics.ts';
+import type { Ratio } from '../statistics.ts';
+import { PERSONALITIES } from '../matches.ts';
 
 const f = (n: number | null) => n === null ? '—' : n.toFixed(2);
 const pct = (n: number | null) => n === null ? '—' : f(n * 100) + '%';
@@ -137,7 +137,7 @@ export function finalBalanceReport(root: string, proof: string, report: string) 
     '## 证据与复算', '');
   table(['批次', '目录', 'patch SHA-256', 'games.jsonl SHA-256'], inputs.map(r => [r.manifest.seeds[0] + '–' + r.manifest.seeds.at(-1), r.directory, r.manifest.patchSha256, r.sha256]));
   out.push('倍率对照目录m5-11-siege1500，补丁hash见其manifest；两批新运行都保存三种子双跑并与保存结果匹配。siege-comparison.json为完整字节对比。comparison.json含完整指标、D45判定、参数与来源哈希。',
-    '复算：node tools/balance-final-report.ts <sim-root> <proof-directory> <report.md>。正式生产默认值、GDD修订和后续放行由Hub处理。', '');
+    '复算：node tools/archive/balance-final-report.ts <sim-root> <proof-directory> <report.md>。正式生产默认值、GDD修订和后续放行由Hub处理。', '');
   writeFileSync(resolve(proof, 'siege-comparison.json'), JSON.stringify(comparison, null, 2));
   writeFileSync(resolve(proof, 'comparison.json'), JSON.stringify({ rows, inputs: inputs.map(({ directory, manifest, sha256 }) => ({ directory, manifest, sha256 })),
     parameters, finalPatch: finalPatch.patch, finalPatchSha256: finalPatch.sha256, equivalent, comparison, exposure }, null, 2));
@@ -145,6 +145,6 @@ export function finalBalanceReport(root: string, proof: string, report: string) 
   return { appended: rows[2].assessment, independentCombined: rows[3].assessment, equivalent, finalPatchSha256: finalPatch.sha256 };
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  if (process.argv.length !== 5) throw new Error('Usage: node tools/balance-final-report.ts <sim-root> <proof> <report.md>');
+  if (process.argv.length !== 5) throw new Error('Usage: node tools/archive/balance-final-report.ts <sim-root> <proof> <report.md>');
   console.log(JSON.stringify(finalBalanceReport(process.argv[2], process.argv[3], process.argv[4])));
 }

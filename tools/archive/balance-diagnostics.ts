@@ -1,14 +1,14 @@
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { CONTENT, unitDefinition } from '../src/content/units.ts';
-import { createGame } from '../src/core/game.ts';
-import { maxCityHp } from '../src/core/city.ts';
-import { step } from '../src/core/step.ts';
-import { canonicalSerialize } from '../src/core/snapshot.ts';
-import { PERSONALITIES } from './matches.ts';
-import type { MatchResult } from './simulate.ts';
-import { parsePatch } from './patch.ts';
+import { CONTENT, unitDefinition } from '../../src/content/units.ts';
+import { createGame } from '../../src/core/game.ts';
+import { maxCityHp } from '../../src/core/city.ts';
+import { step } from '../../src/core/step.ts';
+import { canonicalSerialize } from '../../src/core/snapshot.ts';
+import { PERSONALITIES } from '../matches.ts';
+import type { MatchResult } from '../simulate.ts';
+import { parsePatch } from '../patch.ts';
 
 export function distribution(values: number[]) {
   const sorted = [...values].sort((a, b) => a - b), n = sorted.length;
@@ -108,7 +108,7 @@ export function diagnoseBalance(directory: string) {
     groups, seats };
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  if (process.argv.length !== 4) throw new Error('Usage: node tools/balance-diagnostics.ts <run-directory> <output.json>');
+  if (process.argv.length !== 4) throw new Error('Usage: node tools/archive/balance-diagnostics.ts <run-directory> <output.json>');
   const result = diagnoseBalance(process.argv[2]);
   writeFileSync(process.argv[3], JSON.stringify(result, null, 2));
   console.log(JSON.stringify({ games: result.games, replayedCommands: result.replayedCommands, fourPlayerConversion: result.fourPlayerConversion }));

@@ -1,6 +1,6 @@
 /**
  * M5-2 one-off capture diagnosis, retained for rerunning historical unpatched runs.
- * Usage: node tools/diagnose-capture.ts <source> <output>
+ * Usage: node tools/archive/diagnose-capture.ts <source> <output>
  * Input: source/games.jsonl rows with id, plus games/<id>.json MatchResult records
  * (setup, personalities, accepted commands). Replays with current default content/AI;
  * not suitable for patched runs or incompatible rules versions. Writes capture evidence
@@ -9,13 +9,13 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { createGame } from '../src/core/game.ts';
-import { step } from '../src/core/step.ts';
-import { observe } from '../src/core/vision.ts';
-import { previewCapture } from '../src/core/preview.ts';
-import { canCaptureByPersonality } from '../src/ai/plan.ts';
-import { CONTENT } from '../src/content/units.ts';
-import type { MatchResult } from './simulate.ts';
+import { createGame } from '../../src/core/game.ts';
+import { step } from '../../src/core/step.ts';
+import { observe } from '../../src/core/vision.ts';
+import { previewCapture } from '../../src/core/preview.ts';
+import { canCaptureByPersonality } from '../../src/ai/plan.ts';
+import { CONTENT } from '../../src/content/units.ts';
+import type { MatchResult } from '../simulate.ts';
 
 type CaptureExample = { round: number; seq: number; unitId: number; targetId: number; hp: number; maxHp: number; probability: number; selected: object };
 type CaptureSeat = { game: string; seed: number; playerId: number; personality: string; researched: boolean; boughtBalls: number;
@@ -77,6 +77,6 @@ export function diagnoseCapture(source: string, output: string) {
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const [source, output] = process.argv.slice(2);
-  if (!source || !output) throw new Error('Usage: node tools/diagnose-capture.ts <recorded-run> <new-output-directory>');
+  if (!source || !output) throw new Error('Usage: node tools/archive/diagnose-capture.ts <recorded-run> <new-output-directory>');
   console.log(JSON.stringify(diagnoseCapture(source, output)));
 }

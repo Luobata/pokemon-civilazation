@@ -1,12 +1,16 @@
 # 模拟数值补丁
 
+正式默认值已采用 **GDD v0.7**（rules `m5-v1`）：城市基础/占城 HP 50、城市计分 ×80、科技 ×20、攻城倍率 1750，AI 采用 D41、D42、D44，D43 关闭。发布复现不传 `--patch`，见 [工具说明](../README.md)。
+
+`b*.json` 全部保留为历史实验记录。最终采用的是 `b7-m2.json` 对应的 1750 配置；`b7-m2-siege1500.json` 是未采用的历史对照。补丁只覆盖列出的字段，缺省项继承当前默认值，因此不能仅凭历史 JSON 在新代码上复现旧实验：还需要对应的代码、规则版本和 manifest。
+
 ```sh
 npm run sim:explore -- --seeds 10 --patch tools/patches/city-hp.json --out /tmp/city-hp-experiment
 npm run sim:explore -- --seeds 10 --out /tmp/city-hp-control
 node tools/compare-games.ts /path/to/baseline /path/to/candidate
 ```
 
-补丁只作用于本次运行，正式 `CONTENT` 不变。带补丁的 manifest 明示「这是实验数据，不是正式内容」，保存补丁内容、SHA-256 和散列格式。散列使用 `canonicalSerialize(patch)` 的 UTF-8 字节（对象键排序、数组顺序保留），与 JSON 缩进和对象键顺序无关。重复种子验证使用同一份补丁；`games/*.json` 保持原格式。复现时必须携带 manifest 补丁和相同代码版本，不可单独按默认内容重放命令。现有 `diagnose-capture.ts` / `reclassify.ts` 是历史默认内容诊断工具，不支持补丁重放。
+补丁只作用于本次运行，正式 `CONTENT` 不变。带补丁的 manifest 明示「这是实验数据，不是正式内容」，保存补丁内容、SHA-256 和散列格式。散列使用 `canonicalSerialize(patch)` 的 UTF-8 字节（对象键排序、数组顺序保留），与 JSON 缩进和对象键顺序无关。重复种子验证使用同一份补丁；`games/*.json` 保持原格式。复现时必须携带 manifest 补丁和相同代码版本，不可单独按默认内容重放命令。现有 `tools/archive/diagnose-capture.ts` / `tools/archive/reclassify.ts` 是历史默认内容诊断工具，不支持补丁重放。
 
 只填写需要覆盖的字段，其余保留默认。除明确标注的布尔开关外，允许的叶子都是整数；未知字段、错误类型、非整数与越界值报出完整字段路径。ID 必须已存在，不支持新增物种、建筑、科技或字段。`PATCH_SCHEMA`（`tools/patch.ts`）是实际范围定义。
 
@@ -29,27 +33,27 @@ node tools/compare-games.ts /path/to/baseline /path/to/candidate
 
 | AI 字段 | 默认值 | 范围 |
 | --- | ---: | --- |
-| `aggressiveSettlerCities` | 3 | 1–100 |
-| `aggressiveWarStrength` | 1500 | 0–10000，千分比 |
+| `aggressiveSettlerCities` | 4 | 1–100 |
+| `aggressiveWarStrength` | 1250 | 0–10000，千分比 |
 | `aggressiveBorderDistance` | 5 | 1–24 |
 | `aggressiveSiegeUnits` | 4 | 1–100 |
 | `aggressiveCaptureRadius` | 6 | 1–24 |
-| `aggressiveSeekUnknownHq` | false | true / false；D42，无已知可攻HQ时推进探索 |
-| `conservativeStrength` | 2000 | 0–10000，千分比；独立攻城门槛 |
-| `conservativeMayDeclareWar` | false | true / false；D41，启用主动宣战及主动战争中的攻城 |
+| `aggressiveSeekUnknownHq` | true | true / false；D42，无已知可攻HQ时推进探索 |
+| `conservativeStrength` | 1500 | 0–10000，千分比；独立攻城门槛 |
+| `conservativeMayDeclareWar` | true | true / false；D41，启用主动宣战及主动战争中的攻城 |
 | `conservativeDeclareStrength` | 2000 | 0–10000，主动宣战千分比 |
-| `conservativeBorderDistance` | 1 | 1–24，已观察城市到己方单位距离 |
-| `conservativeSettlerInterval` | 15 | 1–300 |
+| `conservativeBorderDistance` | 5 | 1–24，已观察城市到己方单位距离 |
+| `conservativeSettlerInterval` | 8 | 1–300 |
 | `conservativeCaptureTerritoryOnly` | true | 仅 true / false；false 允许尝试领地外野生捕捉，不绕过核心捕捉规则 |
 | `peaceCitiesLost` | 1 | 1–100，扩张/好战停战接受与提议 |
 | `expansionCaptureHpPercent` | 50 | 1–100，严格小于 |
 
-性格优先级、攻城/宣战条件、捕捉偏好和攻击/移动限制集中在 `src/ai/strategies.ts` 的只读表；表内门槛引用上述字段，默认值在 `src/ai/thresholds.ts`，对应 GDD §3.14（D40 前）。
+性格优先级、攻城/宣战条件、捕捉偏好和攻击/移动限制集中在 `src/ai/strategies.ts` 的只读表；表内门槛引用上述字段，默认值在 `src/ai/thresholds.ts`，对应 GDD v0.7 §3.14。
 
 不支持：身份/属性/角色/稀有度/免疫/通行与刷新群系列表、科技层级/解锁结构、AI 优先级/其余行为开关/候选评分/预算。D41 开启后，保守主动/被动战争均按 `conservativeStrength` 判断攻城；宣战倍率不会覆盖攻城倍率。D42 仅为满足攻城条件且无已知交战敌HQ的好战宝可梦提供探索移动，按距离、格索引确定性选取可接近的未知区域或未再观察到的敌城，不读取隐藏状态。扩张型只保留一个在产或在途开拓队的机制不改；外交合法性冷却不当作 AI 自由门槛。地图生成、野生刷新、属性表、伤害/捕捉公式与球倍率、经验倍率、休养/回血、城市增长/半径/中心产出、开局资源与余城中立化 HP50 等硬编码规则保持原样；只有攻击占城恢复 HP 使用 `capturedHp`。本轮只将城市战斗、联盟计分、气象科研效果抽成配置，未统一重写各科技/御三家效果。
 
-示例只把城市基础 HP 从100改为60；它不修改占城后HP50、非大本营建筑每座+20、单位数值或 AI。10种子与100种子批次的性格分组不同，因此示例应与另一个同为10种子的默认批次比较，不能直接拿100种子的前30局作对照。小批次只证明实验生效，不是平衡结论。
+示例只把城市基础 HP 从50改为60；它不修改占城后HP50、非大本营建筑每座+20、单位数值或 AI。10种子与100种子批次的性格分组不同，因此示例应与另一个同为10种子的默认批次比较，不能直接拿100种子的前30局作对照。小批次只证明实验生效，不是平衡结论。
 
 B5 / D43: `aggressiveSiegeCaptureBonus` and `aggressiveSiegeTrainingBonus` are integers 0–10000 (default 0). They add benefit within the existing goal order only when an eligible enemy HQ is known or D42 search is enabled and siege-ready. Capture/movement bonuses require a visible siege species within the existing city-based aggressiveCaptureRadius; existing legality and inventory checks remain. Training still requires registration and all existing production gates. `conservativeSeekUnknownHq` is boolean (default false): reuse D42 exploration while at war and satisfying the separate siege strength threshold.
 
-B6 / D44: `expansionMaySiege` is boolean (default false), `expansionSiegeStrength` integer thousandths 0–10000 (default 2000), `expansionBorderDistance` integer 1–24 (default 5). Enabled expansion can attack a warring civilization's cities and approach its known HQ when observed military meets the ratio and any known city of that opponent lies within the distance of any own map unit. No declaration or unknown-HQ search is added; neutral cities do not qualify.
+B6 / D44: `expansionMaySiege` is boolean (default true), `expansionSiegeStrength` integer thousandths 0–10000 (default 2000), `expansionBorderDistance` integer 1–24 (default 5). Enabled expansion can attack a warring civilization's cities and approach its known HQ when observed military meets the ratio and any known city of that opponent lies within the distance of any own map unit. No declaration or unknown-HQ search is added; neutral cities do not qualify.

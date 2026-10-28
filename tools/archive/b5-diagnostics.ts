@@ -2,20 +2,20 @@
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { createGame } from '../src/core/game.ts';
-import { step } from '../src/core/step.ts';
-import { observe } from '../src/core/vision.ts';
-import { hexDistance } from '../src/core/hex.ts';
-import { canonicalSerialize } from '../src/core/snapshot.ts';
-import { unitDefinition } from '../src/content/units.ts';
-import { knownCombatCount, siegeObjectives } from '../src/ai/plan.ts';
-import { knownCities, RULE_QUERIES } from '../src/ai/query.ts';
-import { seekUnknownHeadquarters } from '../src/ai/targets.ts';
-import { parsePatch } from './patch.ts';
+import { createGame } from '../../src/core/game.ts';
+import { step } from '../../src/core/step.ts';
+import { observe } from '../../src/core/vision.ts';
+import { hexDistance } from '../../src/core/hex.ts';
+import { canonicalSerialize } from '../../src/core/snapshot.ts';
+import { unitDefinition } from '../../src/content/units.ts';
+import { knownCombatCount, siegeObjectives } from '../../src/ai/plan.ts';
+import { knownCities, RULE_QUERIES } from '../../src/ai/query.ts';
+import { seekUnknownHeadquarters } from '../../src/ai/targets.ts';
+import { parsePatch } from '../patch.ts';
 import { distribution } from './balance-diagnostics.ts';
-import { PERSONALITIES } from './matches.ts';
-import type { GameState } from '../src/core/model.ts';
-import type { MatchResult } from './simulate.ts';
+import { PERSONALITIES } from '../matches.ts';
+import type { GameState } from '../../src/core/model.ts';
+import type { MatchResult } from '../simulate.ts';
 
 type War = 'offensive' | 'defensive' | 'neutral';
 type Category = 'siege-tech' | 'siege-no-tech' | 'other-tech' | 'other-no-tech';
@@ -278,7 +278,7 @@ export function diagnoseB5(directory: string) {
     }])) };
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  if (process.argv.length !== 4) throw new Error('Usage: node tools/b5-diagnostics.ts <run-directory> <output.json>');
+  if (process.argv.length !== 4) throw new Error('Usage: node tools/archive/b5-diagnostics.ts <run-directory> <output.json>');
   const data = diagnoseB5(process.argv[2]);
   writeFileSync(process.argv[3], JSON.stringify(data, null, 2));
   console.log(JSON.stringify({ games: data.games.length, replayedCommands: data.replayedCommands }));

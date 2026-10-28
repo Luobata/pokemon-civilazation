@@ -1,16 +1,16 @@
 /** M5-10/D45 reporting only; reads saved runs, never changes AI or simulation data.
- * Usage: node tools/b7-report.ts <sim-root> <proof-directory> <report.md>
+ * Usage: node tools/archive/b7-report.ts <sim-root> <proof-directory> <report.md>
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
-import { summarizeGames } from './summary.ts';
-import type { GameMetrics } from './summary.ts';
-import { PERSONALITIES } from './matches.ts';
-import { ratio, threshold, winCredit } from './statistics.ts';
-import type { Ratio } from './statistics.ts';
-import { canonicalSerialize } from '../src/core/snapshot.ts';
+import { summarizeGames } from '../summary.ts';
+import type { GameMetrics } from '../summary.ts';
+import { PERSONALITIES } from '../matches.ts';
+import { ratio, threshold, winCredit } from '../statistics.ts';
+import type { Ratio } from '../statistics.ts';
+import { canonicalSerialize } from '../../src/core/snapshot.ts';
 
 type Candidate = { id: string; values: Record<string, number | null>;
   pairs: { pair: string; results: { personality: string; pointEstimate: number | null }[] }[] };
@@ -139,7 +139,7 @@ export function reportB7(root: string, proof: string, report: string) {
   out.push('## 可复算证据', '');
   table(['批次', '目录', 'patch SHA-256', '双跑种子'], allRuns.map(run => [run.id, run.directory, run.manifest.patchSha256, run.determinism.map(row => row.seed).join('/') ]));
   out.push('所有摘要由games.jsonl重新计算并与保存的summary.json核对。comparison.json含完整摘要、排序、D18标记和输入哈希；selection.json为复验前候选锁定记录。确定性双跑同时匹配已保存对局。', '',
-    '复算：node tools/b7-report.ts <sim-root> <proof-directory> <report.md>。复验使用现有simulateMatch与原300局编排，执行脚本保存在proof目录；无游戏代码改动。', '');
+    '复算：node tools/archive/b7-report.ts <sim-root> <proof-directory> <report.md>。复验使用现有simulateMatch与原300局编排，执行脚本保存在proof目录；无游戏代码改动。', '');
   const compact = ({ games, ...run }: typeof runs[number]) => { void games; return run; };
   writeFileSync(resolve(proof, 'comparison.json'), JSON.stringify({ runs: runs.map(compact), selection,
     validation: validation && compact(validation), combined }, null, 2));
@@ -151,6 +151,6 @@ export function reportB7(root: string, proof: string, report: string) {
   return { winner: selection.winner, qualified: selection.qualified, validation: validation?.assessment ?? null };
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  if (process.argv.length !== 5) throw new Error('Usage: node tools/b7-report.ts <sim-root> <proof-directory> <report.md>');
+  if (process.argv.length !== 5) throw new Error('Usage: node tools/archive/b7-report.ts <sim-root> <proof-directory> <report.md>');
   console.log(JSON.stringify(reportB7(process.argv[2], process.argv[3], process.argv[4])));
 }

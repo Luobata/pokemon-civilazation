@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
-import { rankCandidates } from '../../tools/b3-report.ts';
-import type { Candidate } from '../../tools/b3-report.ts';
+import { rankCandidates } from '../../../tools/archive/b3-report.ts';
+import type { Candidate } from '../../../tools/archive/b3-report.ts';
 
 function candidate(id: string, changes: Candidate['values'] = {}): Candidate {
   return { id, values: { defect: 0, aborted: 0, firstSeat: 0.5, snowball: 0.6, captures: 5, neutral: 0.5,

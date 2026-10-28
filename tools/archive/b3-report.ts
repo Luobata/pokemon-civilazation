@@ -1,13 +1,13 @@
 /** M5-6 factor report. Reads preserved runs and balance-diagnostics output; never reruns AI or edits runs.
- * Usage: node tools/b3-report.ts <sim-root> <proof-directory> <report.md>
+ * Usage: node tools/archive/b3-report.ts <sim-root> <proof-directory> <report.md>
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { summarizeGames } from './summary.ts';
-import type { GameMetrics } from './summary.ts';
+import { summarizeGames } from '../summary.ts';
+import type { GameMetrics } from '../summary.ts';
 import type { diagnoseBalance } from './balance-diagnostics.ts';
-import { PERSONALITIES } from './matches.ts';
+import { PERSONALITIES } from '../matches.ts';
 
 type Values = Record<string, number | null>;
 export type Candidate = { id: string; values: Values; pairs: (number | null)[][] };
@@ -178,13 +178,13 @@ export function buildB3Report(simRoot: string, proof: string, report: string) {
     '## 证据', '',
     '| 批次 | 目录 | patch SHA-256 | 确定性 |', '| --- | --- | --- | --- |');
   for (const run of runs) out.push('| ' + [run.id, run.directory, run.manifest.patchSha256 ?? '无补丁', run.determinism.every(row => row.equal && row.equalsRecorded) ? '1/50/100双跑一致' : '失败'].join(' | ') + ' |');
-  out.push('', '复算：node tools/balance-diagnostics.ts <run-directory> <proof>/<ID>-diagnostics.json；随后 node tools/b3-report.ts <sim-root> <proof> <report.md>。',
+  out.push('', '复算：node tools/archive/balance-diagnostics.ts <run-directory> <proof>/<ID>-diagnostics.json；随后 node tools/archive/b3-report.ts <sim-root> <proof> <report.md>。',
     '六份JSON逐字匹配文档的证据见 patch-validation.json；原始summary由本脚本从games.jsonl重新计算，comparison.json保留完整指标、Wilson、诊断、排序与差值。旧批次不覆盖。', '');
   writeFileSync(report, out.join('\n'));
   return selection;
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  if (process.argv.length !== 5) throw new Error('Usage: node tools/b3-report.ts <sim-root> <proof-directory> <report.md>');
+  if (process.argv.length !== 5) throw new Error('Usage: node tools/archive/b3-report.ts <sim-root> <proof-directory> <report.md>');
   const result = buildB3Report(process.argv[2], process.argv[3], process.argv[4]);
   console.log(JSON.stringify({ winner: result.winner, ranking: result.eligible.map(row => row.id), excluded: result.excluded.map(row => ({ id: row.id, reasons: row.reasons })) }));
 }
