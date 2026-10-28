@@ -1,7 +1,10 @@
 import { renderEconomyPanel } from './economy-panel.ts';
 import { renderUnitPanel } from './unit-panel.ts';
+import { renderDiplomacyPanel, hasPendingPeace } from './diplomacy-panel.ts';
+import { renderOutcome } from './outcome-panel.ts';
+import { renderNeutralPanel } from './neutral-panel.ts';
 import type { ActionMode, PendingTarget } from './unit-panel.ts';
-import type { Command } from '../core/model.ts';
+import type { AiPersonality, CitySummary, Command, GameSetup } from '../core/model.ts';
 import '../styles.css';
 import { GameSession } from '../app/session.ts';
 import { CONTENT, unitDefinition } from '../content/units.ts';
@@ -11,7 +14,7 @@ import { speciesDisplay } from '../content/species.ts';
 import { hexToIndex, indexToHex } from '../core/hex.ts';
 import { reachablePaths } from '../core/movement.ts';
 import type { VisibleEvent } from '../core/model.ts';
-import { BIOME_DISPLAY, drawMap } from './canvas.ts';
+import { BIOME_DISPLAY, FACTION_LEGEND, drawMap } from './canvas.ts';
 import type { AnimationPose, MapEffect } from './canvas.ts';
 import { fitCamera, hexToWorld, toWorld, worldToHex, zoomAt } from './camera.ts';
 import type { Camera, Point } from './camera.ts';
@@ -38,7 +41,9 @@ export let session: GameSession;
 export let camera: Camera = { x: 0, y: 0, zoom: 1 };
 let selected: number | null = null;
 let selectedCity: number | null = null;
+let neutralCity: CitySummary | null = null;
 let keyboardIndex: number | null = null;
+const activityLog: string[] = [];
 let actionMode: ActionMode = null;
 let pendingTarget: PendingTarget | null = null;
 let selectedBall: BallId = 'pokeBall';
@@ -60,47 +65,79 @@ function summary(payload: VisibleEvent['payload']) {
     default: return '';
   }
 }
+function activityText(payload: VisibleEvent['payload']) {
+  switch (payload.type) {
+    case 'TurnChanged': return `文明 ${payload.activePlayerId + 1} 开始行动`;
+    case 'Moved': return `${payload.unit.ownerId === null ? '野生' : `文明 ${payload.unit.ownerId + 1}`}单位移动`;
+    case 'BattleResolved': return `文明 ${payload.attackerId + 1} 交战：${payload.damage} 伤害${payload.counterDamage ? `，反击 ${payload.counterDamage}` : ''}`;
+    case 'Captured': return `文明 ${payload.playerId + 1} 捕捉${payload.success ? '成功' : '失败'}`;
+    case 'Evolved': return `文明 ${payload.playerId + 1} 进化为${speciesDisplay(payload.speciesId).name}`;
+    case 'DiplomacyChanged': return `文明 ${payload.relation.a + 1}/${payload.relation.b + 1}：${payload.relation.status === 'war' ? '战争' : '和平'}${payload.relation.proposal ? '，停战待回应' : ''}`;
+    case 'CityFounded': return `文明 ${payload.playerId + 1} 建立城市 ${payload.cityId}`;
+    case 'UnitTrained': return `文明 ${payload.playerId + 1} 训练单位`;
+    case 'CivilizationEliminated': return `文明 ${payload.eliminatedPlayerId + 1} 出局`;
+    case 'GameEnded': return '对局结束';
+    default: return '';
+  }
+}
+function recordActivity(payload: VisibleEvent['payload']) {
+  const text = activityText(payload);
+  if (!text || activityLog[0] === text) return;
+  activityLog.unshift(text);
+  activityLog.splice(6);
+}
 function controls() {
   const view = session.getView();
+  const ended = view.outcome !== null, pendingPeace = hasPendingPeace(view);
   const { player } = view.economy;
   const yields = view.economy.cities.reduce((sum, city) => ({
     gold: sum.gold + city.yields.gold,
     research: sum.research + city.yields.research,
   }), { gold: 0, research: 0 });
-  const upkeep = view.units.filter(unit => unit.ownerId === view.playerId)
+  const upkeep = [...view.units, ...view.recoveringUnits].filter(unit => unit.ownerId === view.playerId)
     .reduce((sum, unit) => sum + unitDefinition(unit, CONTENT).upkeep, 0);
   const netGold = yields.gold - upkeep;
   info.textContent = `种子 ${view.seed} · 第 ${view.round} 轮 · 当前文明 ${view.activePlayerId + 1} · 命令 ${view.commandSeq}`;
-  document.querySelector('#round-display')!.innerHTML = `${view.round} <span>/ 100</span>`;
+  document.querySelector('#round-display')!.innerHTML = `${view.round} <span>/ ${view.roundLimit}</span>`;
   document.querySelector('#hud-gold')!.innerHTML = `${player.gold} <span class="delta">${netGold >= 0 ? '+' : ''}${netGold}</span>`;
   document.querySelector('#hud-research')!.innerHTML = `${yields.research} <span class="delta">/ 轮</span>`;
   document.querySelector('#hud-upkeep')!.innerHTML = `−${upkeep} <span class="delta negative">金币</span>`;
   const unit = view.units.find(unit => unit.id === selected);
   selection.textContent = unit ? `${unitDefinition(unit, CONTENT).name} · 行动点 ${unit.actionLeft} · 点击高亮格移动` : '点选己方单位；拖动地图平移，滚轮缩放。';
-  actionNotice.textContent = notice || (actionMode === 'attack' ? '攻击模式：选择红色虚线目标，再确认攻击。'
-    : actionMode === 'capture' ? '捕捉模式：选择野生宝可梦，再确认捕捉。' : '');
+  actionNotice.textContent = notice || (pendingPeace ? '请先回应停战提议。' : actionMode === 'attack' ? '攻击模式：选择红色虚线目标，再确认攻击。'
+    : actionMode === 'capture' ? '捕捉模式：选择野生宝可梦，再确认捕捉。' : ended ? '对局已结束，可开始新局。' : '');
   actionNotice.classList.toggle('is-error', notice.includes('拒绝') || notice.includes('失败'));
   debug.textContent = `seed=${view.seed} round=${view.round} activePlayer=${view.activePlayerId} commandSeq=${view.commandSeq}\n最近拒绝：${session.lastRejected ? JSON.stringify(session.lastRejected) : '无'}${notice ? '\n' + notice : ''}`;
   sequence.max = String(session.exportLog().commands.length);
-  renderUnitPanel(view, selected, actionMode, pendingTarget, selectedBall, busy(), {
+  renderUnitPanel(view, selected, actionMode, pendingTarget, selectedBall, busy() || ended, {
     mode: mode => { actionMode = mode; pendingTarget = null; notice = ''; controls(); requestFrame(); },
     confirm: confirmAction,
     cancel: () => { actionMode = null; pendingTarget = null; notice = ''; controls(); requestFrame(); },
     evolve: evolveSelected,
     ball: ballId => { selectedBall = ballId; },
   });
-  renderEconomyPanel(view, selectedCity, selected, issue, id => { selectedCity = id; controls(); }, busy());
-  if (busy()) for (const element of document.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLSelectElement>('#economy button, #economy input, #economy select')) element.disabled = true;
+  renderEconomyPanel(view, selectedCity, selected, issue, id => { selectedCity = id; controls(); }, busy() || ended);
+  renderNeutralPanel(view, neutralCity);
+  renderDiplomacyPanel(view, busy() || ended, issue);
+  renderOutcome(view, newGame);
+  document.querySelector('#activity-list')!.innerHTML = activityLog.length ? activityLog.map(text => `<li>${text}</li>`).join('') : '<li>暂无动态</li>';
+  if (busy() || ended) for (const element of document.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLSelectElement>('#economy button, #economy input, #economy select')) element.disabled = true;
   for (const element of document.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLSelectElement>('#controls button, #controls input, #controls select, #dev-drawer button, #dev-drawer input, #skip')) {
-    element.disabled = element.id === 'skip' ? !busy() : busy();
+    element.disabled = element.id === 'skip' ? !busy() : element.id === 'new-game' ? false : busy() || ended;
   }
-  endTurn.disabled = busy();
+  endTurn.disabled = busy() || ended || pendingPeace;
 }
 
 function issue(action: Command['action']) {
-  if (busy()) return;
+  const view = session.getView();
+  if (busy() || view.outcome) return;
+  if (action.type !== 'RespondPeace' && hasPendingPeace(view)) { notice = '请先接受或拒绝停战提议。'; controls(); return; }
   const result = session.issue(action);
-  if (!result.ok) notice = `${action.type} 被拒绝：${result.reason}`;
+  if (!result.ok) {
+    const reason = result.reason === 'diplomacy-unavailable' ? '当前关系或冷却时机不允许该外交操作'
+      : result.reason === 'game-ended' ? '对局已结束' : result.reason;
+    notice = `${action.type} 被拒绝：${reason}`;
+  }
   else {
     notice = '';
     if (action.type === 'Attack' || action.type === 'Capture') { actionMode = null; pendingTarget = null; }
@@ -122,6 +159,7 @@ function requestFrame() {
   if (!frameRequested) { frameRequested = true; requestAnimationFrame(frame); }
 }
 function finishPresentations() {
+  for (const event of session.presentationQueue) recordActivity(event.payload);
   const payloads = [...(active ? [active.payload] : []), ...session.presentationQueue.map(event => event.payload)];
   const text = payloads.map(summary).filter(Boolean).at(-1);
   if (text) notice = text;
@@ -137,6 +175,7 @@ function frame(now: number) {
   }
   while (!active && session.presentationQueue.length) {
     const event = session.presentationQueue.shift()!;
+    recordActivity(event.payload);
     if (event.payload.type === 'Moved') active = { kind: 'move', payload: event.payload, started: now };
     else if (event.payload.type === 'BattleResolved') active = { kind: 'battle', payload: event.payload, started: now };
     else if (event.payload.type === 'Captured') active = { kind: 'capture', payload: event.payload, started: now };
@@ -177,10 +216,14 @@ function fit() { camera = fitCamera(session.getView().map, canvas.clientWidth, c
 function resetAction() { actionMode = null; pendingTarget = null; }
 function newGame() {
   try {
+    const aiCount = Number(document.querySelector<HTMLSelectElement>('#ai-count')!.value);
+    const personality = document.querySelector<HTMLSelectElement>('#ai-personality')!.value as AiPersonality;
+    const players: GameSetup['players'] = [{ id: 0, controller: 'human', starterId: starter.value as StarterId },
+      ...Array.from({ length: aiCount }, (_, index) => ({ id: index + 1, controller: 'ai' as const, personality }))];
     session = new GameSession({ seed: Number(new URLSearchParams(location.search).get('seed') ?? '12345'), width: 24, height: 16,
-      players: [{ id: 0, controller: 'human', starterId: starter.value as StarterId },
-        { id: 1, controller: 'ai' }, { id: 2, controller: 'ai' }, { id: 3, controller: 'ai' }] });
-    active = null; selected = null; selectedCity = null; keyboardIndex = null; resetAction(); notice = ''; sequence.value = '0';
+      roundLimit: Number(document.querySelector<HTMLSelectElement>('#round-limit')!.value) as GameSetup['roundLimit'], players });
+    active = null; selected = null; selectedCity = null; neutralCity = null; keyboardIndex = null; activityLog.length = 0;
+    resetAction(); notice = ''; sequence.value = '0';
     canvas.hidden = false;
     fit();
     controls();
@@ -194,7 +237,7 @@ function activateIndex(index: number | null) {
   if (busy()) return;
   const view = session.getView();
   keyboardIndex = index;
-  if (index === null) { selected = null; resetAction(); controls(); requestFrame(); return; }
+  if (index === null) { selected = null; neutralCity = null; resetAction(); controls(); requestFrame(); return; }
   if (actionMode && selected !== null) {
     const unit = view.units.find(unit => hexToIndex(unit.position, view.map) === index);
     const city = view.cities.find(city => hexToIndex(city.position, view.map) === index);
@@ -205,8 +248,14 @@ function activateIndex(index: number | null) {
     controls(); requestFrame(); return;
   }
   const hex = indexToHex(index, view.map);
+  const city = view.cities.find(city => hexToIndex(city.position, view.map) === index);
+  if (city?.ownerId === null) {
+    neutralCity = city; selected = null; selectedCity = null;
+    controls(); requestFrame(); return;
+  }
+  neutralCity = null;
   const own = view.units.find(unit => unit.ownerId === view.playerId && hexToIndex(unit.position, view.map) === index);
-  const ownCity = view.cities.find(city => city.ownerId === view.playerId && hexToIndex(city.position, view.map) === index);
+  const ownCity = city?.ownerId === view.playerId ? city : null;
   if (ownCity) selectedCity = ownCity.id;
   if (own) selected = own.id;
   else if (selected !== null && reachablePaths(view, selected)[index]) issue({ type: 'Move', unitId: selected, to: hex });
@@ -286,7 +335,7 @@ document.querySelector('#resume')!.addEventListener('click', () => {
 });
 const saveKey = 'pokemon-civilization-save';
 function load(text: string) {
-  session.load(text); active = null; selected = null; selectedCity = null; keyboardIndex = null; resetAction(); notice = '读档完成';
+  session.load(text); active = null; selected = null; selectedCity = null; neutralCity = null; keyboardIndex = null; activityLog.length = 0; resetAction(); notice = '读档完成';
   fit(); skip();
 }
 function storageAction(action: () => void) {
@@ -318,7 +367,12 @@ document.addEventListener('keydown', event => {
     event.preventDefault();
     selectedCity = session.getView().economy.cities[0]?.id ?? null;
     controls(); document.querySelector<HTMLElement>('#city-select')?.focus();
-  } else if (event.key.toLowerCase() === 'r') { event.preventDefault(); document.querySelector<HTMLElement>('#research-topic')?.focus(); }
+  } else if (['r', 't'].includes(event.key.toLowerCase())) { event.preventDefault(); document.querySelector<HTMLElement>('#research-topic')?.focus(); }
+  else if (event.key === '?') {
+    event.preventDefault();
+    const help = document.querySelector<HTMLDetailsElement>('#keyboard-help')!;
+    help.open = true; help.querySelector('summary')!.focus();
+  }
 });
 god.addEventListener('change', skip);
 if (!import.meta.env.DEV) document.querySelector<HTMLElement>('#god-label')!.hidden = true;
@@ -328,5 +382,10 @@ for (const { label, color, symbol } of Object.values(BIOME_DISPLAY)) {
   swatch.className = 'swatch'; swatch.style.backgroundColor = color;
   text.className = 'legend-symbol'; text.textContent = symbol;
   item.append(swatch, text, label); document.querySelector('#legend')!.append(item);
+}
+for (const faction of FACTION_LEGEND) {
+  const item = document.createElement('li'), swatch = document.createElement('span');
+  swatch.className = `faction-swatch ${faction.className}`; swatch.textContent = String(faction.id + 1);
+  item.append(swatch, faction.label); document.querySelector('#faction-legend')!.append(item);
 }
 newGame();

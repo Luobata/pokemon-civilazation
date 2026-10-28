@@ -242,6 +242,33 @@ p { line-height: 1.5; }
   .map-frame figcaption { flex-direction: column; }
   #unit-panel { width: auto; margin: 12px 0 0; }
 }
+.subpanel { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow-md); }
+.subpanel:empty { display: none; }
+.subpanel-head { display: flex; justify-content: space-between; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+.subpanel-head > span { color: var(--ink-secondary); font-size: var(--text-xs); }
+.diplomacy-list { display: grid; gap: 8px; margin: 0; padding: 12px 14px; list-style: none; }
+.diplomacy-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.diplomacy-list small { display: block; margin-top: 3px; color: var(--ink-secondary); font-size: var(--text-xs); }
+.diplomacy-actions { display: flex; gap: 5px; }
+.diplomacy-actions button { min-height: 34px; padding: 5px 8px; font-size: var(--text-xs); }
+#activity-list { max-height: 160px; overflow: auto; margin: 0; padding: 10px 14px 12px 32px; color: var(--ink-secondary); font-size: var(--text-xs); line-height: 1.65; }
+.neutral-note { margin: 0; padding: 12px 14px; color: var(--ink-secondary); font-size: var(--text-sm); }
+dialog { width: min(560px, calc(100vw - 32px)); max-height: 85vh; overflow: auto; border: 1px solid var(--border-strong); border-radius: var(--radius-lg); padding: 22px; background: var(--surface); color: var(--ink); box-shadow: var(--shadow-lg); }
+dialog::backdrop { background: rgb(16 24 21 / 58%); }
+dialog h2 { margin: 0 0 8px; font-size: var(--text-xl); }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+button.danger { border-color: var(--danger); background: var(--danger); color: var(--on-accent); }
+.score-scroll { overflow-x: auto; }
+#gameover-dialog table { width: 100%; border-collapse: collapse; font-size: var(--text-xs); white-space: nowrap; }
+#gameover-dialog th, #gameover-dialog td { padding: 8px 6px; border-bottom: 1px solid var(--border); text-align: right; }
+#gameover-dialog th:nth-child(-n+2), #gameover-dialog td:nth-child(-n+2) { text-align: left; }
+#faction-legend { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 8px 0 0; padding: 0; list-style: none; }
+#faction-legend li { display: inline-flex; align-items: center; gap: 5px; color: var(--ink-secondary); font-size: var(--text-xs); }
+.faction-swatch { width: 24px; height: 16px; border: 1px solid var(--border-strong); border-radius: 3px; color: var(--on-accent); font-size: 10px; font-weight: 750; text-align: center; line-height: 14px; }
+.faction-solid { background: #2C6E63; }
+.faction-diagonal { background: repeating-linear-gradient(135deg, #963F38 0 4px, #D9A29B 4px 5px); }
+.faction-dots { background-color: #62508F; background-image: radial-gradient(#E0D8ED 1px, transparent 1px); background-size: 5px 5px; }
+.faction-cross { background: repeating-linear-gradient(45deg, transparent 0 4px, #DEC49B 4px 5px), repeating-linear-gradient(-45deg, #87550D 0 4px, #DEC49B 4px 5px); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation: none !important; transition: none !important; }
 }

@@ -9,7 +9,7 @@
   <body>
     <main class="app">
       <header class="topbar">
-        <div class="brand"><div class="brand-mark">野</div><div><strong>宝可梦 × 文明</strong><small>原野图鉴 · M2 城市经济</small><p id="map-info" role="status">正在生成地图…</p></div></div>
+        <div class="brand"><div class="brand-mark">野</div><div><strong>宝可梦 × 文明</strong><small>原野图鉴 · 外交、AI 与终局</small><p id="map-info" role="status">正在生成地图…</p></div></div>
         <div class="round-block"><small>当前轮次</small><strong id="round-display">— <span>/ 100</span></strong></div>
         <div class="hud-resources" aria-label="资源总览">
           <div class="resource"><small>金币</small><strong id="hud-gold">—</strong></div>
@@ -32,31 +32,33 @@
           <p id="action-notice" role="status"></p>
           <section id="unit-panel" aria-label="单位面板"></section>
           <ul id="legend" aria-label="群系图例"></ul>
+          <ul id="faction-legend" aria-label="阵营图例"></ul>
         </div>
         <aside class="side-column">
           <section id="economy" aria-label="城市与经济"></section>
+          <section id="neutral-city" class="subpanel" aria-label="中立营地"></section>
+          <section id="diplomacy" class="subpanel" aria-label="外交关系"></section>
+          <section id="activity-panel" class="subpanel" aria-label="回合动态"><div class="subpanel-head"><strong>回合动态</strong><span>仅可见事件</span></div><ol id="activity-list"><li>暂无动态</li></ol></section>
         </aside>
       </div>
 
       <section id="controls" aria-label="游戏与存档控制">
         <label>御三家 <select id="starter"><option value="bulbasaur">妙蛙种子</option><option value="charmander">小火龙</option><option value="squirtle">杰尼龟</option></select></label>
+        <label>轮上限 <select id="round-limit"><option value="100">100</option><option value="200">200</option><option value="300">300</option></select></label>
+        <label>AI 数量 <select id="ai-count"><option value="1">1</option><option value="2">2</option><option value="3" selected>3</option></select></label>
+        <label>AI 性格 <select id="ai-personality"><option value="expansion">扩张型</option><option value="aggressive">好战型</option><option value="conservative">保守型</option></select></label>
         <button id="new-game">新游戏</button>
         <button id="save-game">保存</button><button id="load-game">读档</button><button id="export-save">导出存档 JSON</button>
         <label>导入存档 <input id="import-save" type="file" accept="application/json,.json"></label>
       </section>
 
-      <details id="dev-drawer">
-        <summary>开发、命令回放与调试</summary>
-        <div class="dev-content">
-          <label id="god-label"><input id="god" type="checkbox" />上帝视角（开发）</label>
-          <button id="export">导出命令 JSON</button>
-          <label>重放序号 <input id="sequence" type="number" min="0" value="0" /></label>
-          <button id="replay">重放</button><button id="resume">从此处继续</button>
-          <pre id="debug" aria-label="调试状态"></pre>
-        </div>
-      </details>
-      <details id="keyboard-help"><summary>键盘操作</summary><p>Tab 切换控件；地图方向键移动光标；Enter 选择/移动；Esc 取消；+ / − 缩放；F 居中；C 城市；R 研究；Ctrl+Enter 结束回合。</p></details>
+      <details id="dev-drawer"><summary>开发、命令回放与调试</summary><div class="dev-content"><label id="god-label"><input id="god" type="checkbox" />上帝视角（开发）</label><button id="export">导出命令 JSON</button><label>重放序号 <input id="sequence" type="number" min="0" value="0" /></label><button id="replay">重放</button><button id="resume">从此处继续</button><pre id="debug" aria-label="调试状态"></pre></div></details>
+      <details id="keyboard-help"><summary>键盘操作</summary><p>Tab 切换控件；地图方向键移动光标；Enter 选择/移动；Esc 取消；+ / − 缩放；F 居中；C 城市；R / T 研究；? 打开本帮助；Ctrl+Enter 结束回合。</p></details>
     </main>
+
+    <dialog id="war-confirm"><h2>确认宣战</h2><p>将对 <strong id="war-target"></strong> 宣战。战争允许攻击其单位与城市。</p><div class="dialog-actions"><button id="cancel-war">取消</button><button id="confirm-war" class="danger">确认宣战</button></div></dialog>
+    <dialog id="peace-response"><h2>停战提议待回应</h2><p><strong id="peace-proposer"></strong> 提出停战。必须接受或拒绝后才能结束当前行动回合；不回应视为拒绝。</p><div class="dialog-actions"><button id="reject-peace">拒绝停战</button><button id="accept-peace" class="primary">接受停战</button></div></dialog>
+    <dialog id="gameover-dialog"><h2 id="outcome-title">对局结束</h2><p id="outcome-summary"></p><div class="score-scroll"><table><thead><tr><th>#</th><th>文明</th><th>总分</th><th>城市</th><th>人口</th><th>物种</th><th>科技</th><th>击坠</th></tr></thead><tbody id="outcome-ranking"></tbody></table></div><div class="dialog-actions"><button id="gameover-close">返回查看</button><button id="gameover-new" class="primary">开始新局</button></div></dialog>
     <script type="module" src="/src/browser/main.ts"></script>
   </body>
 </html>

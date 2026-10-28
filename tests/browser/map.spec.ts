@@ -58,11 +58,12 @@ for (const seed of [12345, 0]) {
     expect(movedState.units[points.unitId].position).toEqual(points.destination);
     expect(movedState.commandSeq).toBe(1);
     await page.locator('#end-turn').click();
-    await expect(page.getByRole('status')).toContainText('第 2 轮 · 当前文明 1 · 命令 5');
+    await expect(page.getByRole('status')).toContainText('第 2 轮 · 当前文明 1');
     await expect(page.locator('#selection')).toContainText('行动点 1');
-    const final = await snapshot(page);
+    const final = await snapshot(page), commandCount = final.log.commands.length;
+    expect(commandCount).toBeGreaterThan(1);
     expect(final.state).toBe(canonicalSerialize(replay(final.log)));
-    expect(final.digest).toBe(stateDigest(replay(final.log, 5, replay(final.log, 2))));
+    expect(final.digest).toBe(stateDigest(replay(final.log, commandCount, replay(final.log, 2))));
     await page.locator('#dev-drawer summary').click();
     const downloadPromise = page.waitForEvent('download'); await page.locator('#export').click();
     const download = await downloadPromise;
@@ -70,7 +71,7 @@ for (const seed of [12345, 0]) {
     expect(exported).toEqual(final.log); expect(stateDigest(replay(exported))).toBe(final.digest);
     await page.locator('#sequence').fill('1'); await page.locator('#replay').click();
     expect((await snapshot(page)).state).toBe(canonicalSerialize(replay(exported, 1)));
-    await page.locator('#sequence').fill('5'); await page.locator('#replay').click();
+    await page.locator('#sequence').fill(String(commandCount)); await page.locator('#replay').click();
     expect((await snapshot(page)).digest).toBe(final.digest);
     if (seed === 12345) {
       await page.locator('#dev-drawer summary').click();

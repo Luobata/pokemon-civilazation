@@ -1,7 +1,7 @@
 import type { BiomeId } from '../content/rules.ts';
 import type { UnitIdentity } from '../content/units.ts';
 import { speciesDisplay } from '../content/species.ts';
-import { hexToIndex, indexToHex } from '../core/hex.ts';
+import { hexToIndex, indexToHex, neighbors } from '../core/hex.ts';
 import type { Hex } from '../core/hex.ts';
 import type { PlayerView } from '../core/model.ts';
 import { HEX_RADIUS, hexToWorld, toScreen } from './camera.ts';
@@ -17,6 +17,12 @@ export const BIOME_DISPLAY: Record<BiomeId, { label: string; color: string; symb
   volcano: { label: '火山', color: '#B76049', symbol: '⋀' },
 };
 const FACTIONS = ['#2C6E63', '#963F38', '#62508F', '#87550D'];
+export const FACTION_LEGEND = [
+  { id: 0, label: '文明 1 · 实心', className: 'faction-solid' },
+  { id: 1, label: '文明 2 · 斜线', className: 'faction-diagonal' },
+  { id: 2, label: '文明 3 · 圆点', className: 'faction-dots' },
+  { id: 3, label: '文明 4 · 交叉线', className: 'faction-cross' },
+];
 export type AnimationPose = { unit: UnitIdentity & { id: number; ownerId: number | null }; position: Point };
 export type MapEffect = { kind: 'battle'; position: Hex; damage: number; counterDamage: number; progress: number }
   | { kind: 'capture'; position: Hex; success: boolean; progress: number }
@@ -56,12 +62,37 @@ export function drawMap(canvas: HTMLCanvasElement, view: PlayerView, camera: Cam
   function ownerColor(ownerId: number | null) {
     return ownerId === null ? '#855000' : FACTIONS[ownerId] ?? '#5F6E66';
   }
-  function ownerBadge(ownerId: number | null, p: Point, size: number) {
-    const badge = Math.max(13, size * .42), x = p.x + size * .32, y = p.y - size * .38;
+  function factionRect(ownerId: number | null, p: Point, size: number, corner: number) {
     context!.beginPath();
-    context!.arc(x, y, badge / 2, 0, Math.PI * 2);
+    context!.roundRect(p.x - size / 2, p.y - size / 2, size, size, corner);
     context!.fillStyle = ownerColor(ownerId);
     context!.fill();
+    if (ownerId === null || ownerId === 0) return;
+    context!.save();
+    context!.clip();
+    context!.strokeStyle = '#FFFDF766';
+    context!.fillStyle = '#FFFDF788';
+    context!.lineWidth = 1;
+    const spacing = Math.max(5, size / 5);
+    if (ownerId === 2) {
+      for (let x = p.x - size / 2 + 3; x < p.x + size / 2; x += spacing)
+        for (let y = p.y - size / 2 + 3; y < p.y + size / 2; y += spacing) {
+          context!.beginPath(); context!.arc(x, y, 1.2, 0, Math.PI * 2); context!.fill();
+        }
+    } else {
+      for (let offset = -size; offset <= size; offset += spacing) {
+        context!.beginPath();
+        context!.moveTo(p.x - size + offset, p.y + size);
+        context!.lineTo(p.x + size + offset, p.y - size);
+        if (ownerId === 3) { context!.moveTo(p.x - size + offset, p.y - size); context!.lineTo(p.x + size + offset, p.y + size); }
+        context!.stroke();
+      }
+    }
+    context!.restore();
+  }
+  function ownerBadge(ownerId: number | null, p: Point, size: number) {
+    const badge = Math.max(13, size * .42), x = p.x + size * .32, y = p.y - size * .38;
+    factionRect(ownerId, { x, y }, badge, badge / 2);
     context!.strokeStyle = '#FFFDF7';
     context!.lineWidth = 1;
     context!.stroke();
@@ -84,16 +115,29 @@ export function drawMap(canvas: HTMLCanvasElement, view: PlayerView, camera: Cam
     }
   }
 
+  const edgeCorners = [[0, 1], [5, 0], [4, 5], [3, 4], [2, 3], [1, 2]];
+  for (const [index, owners] of view.territoryOwnerIds.entries()) {
+    if (!owners?.length || !onscreen(centers[index])) continue;
+    const adjacent = neighbors(indexToHex(index, view.map)).map(hex => hexToIndex(hex, view.map));
+    for (const ownerId of owners) for (const [direction, [a, b]] of edgeCorners.entries()) {
+      const neighbor = adjacent[direction];
+      if (neighbor !== null && view.territoryOwnerIds[neighbor]?.includes(ownerId)) continue;
+      const startAngle = (a * 60 - 30) * Math.PI / 180, endAngle = (b * 60 - 30) * Math.PI / 180;
+      context!.beginPath();
+      context!.moveTo(centers[index].x + radius * Math.cos(startAngle), centers[index].y + radius * Math.sin(startAngle));
+      context!.lineTo(centers[index].x + radius * Math.cos(endAngle), centers[index].y + radius * Math.sin(endAngle));
+      context!.strokeStyle = '#1D2B26'; context!.lineWidth = 4; context!.stroke();
+      context!.strokeStyle = ownerColor(ownerId); context!.lineWidth = 2; context!.stroke();
+    }
+  }
+
   for (const city of view.cities) {
     const p = centers[hexToIndex(city.position, view.map)!];
     if (!onscreen(p)) continue;
     const size = Math.max(20, Math.min(30, radius * 1.25));
-    context.fillStyle = ownerColor(city.ownerId);
+    factionRect(city.ownerId, p, size, 4);
     context.strokeStyle = '#FFFDF7';
     context.lineWidth = 2;
-    context.beginPath();
-    context.roundRect(p.x - size / 2, p.y - size / 2, size, size, 4);
-    context.fill();
     context.stroke();
     centeredText('营', p, '#FFFDF7', size * .48);
     ownerBadge(city.ownerId, p, size);
@@ -102,10 +146,7 @@ export function drawMap(canvas: HTMLCanvasElement, view: PlayerView, camera: Cam
   function unitMark(unit: AnimationPose['unit'], point: Point, actionLeft?: number, enraged = false) {
     if (!onscreen(point)) return;
     const size = Math.max(24, Math.min(36, radius * 1.45));
-    context!.beginPath();
-    context!.roundRect(point.x - size / 2, point.y - size / 2, size, size, size * .24);
-    context!.fillStyle = ownerColor(unit.ownerId);
-    context!.fill();
+    factionRect(unit.ownerId, point, size, size * .24);
     context!.strokeStyle = actionLeft === 0 ? '#AEB4A5' : '#FFFDF7';
     context!.lineWidth = 2;
     context!.stroke();

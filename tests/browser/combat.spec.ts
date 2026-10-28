@@ -3,6 +3,7 @@ import type { Page } from '@playwright/test';
 import { combatSave } from './fixtures/combat.ts';
 import type { GameState } from '../../src/core/model.ts';
 import type { Hex } from '../../src/core/hex.ts';
+import { CONTENT, unitDefinition } from '../../src/content/units.ts';
 
 const reports = '/Users/bytedance/.local/state/gsb-local/pokemon-civilazation/reports';
 async function state(page: Page): Promise<GameState> {
@@ -55,6 +56,15 @@ test('capture a low-health wild pokemon with probability and success feedback', 
   expect((await state(page)).units[13].ownerId).toBe(0);
 });
 
+test('failed capture leaves the wild pokemon unowned and enraged', async ({ page }) => {
+  await importFixture(page, 1, false);
+  await page.locator('#capture-unit').click();
+  await clickHex(page, { q: 3, r: 12 });
+  await page.locator('#confirm-action').click();
+  await expect(page.locator('#action-notice')).toContainText('捕捉失败');
+  expect((await state(page)).units[13]).toMatchObject({ ownerId: null, enraged: true });
+});
+
 test('evolve an eligible unit and show the resulting species and reset XP', async ({ page }) => {
   await importFixture(page);
   await page.locator('#evolve-unit').click();
@@ -70,5 +80,10 @@ test('unit card stays outside the map and recovering units appear in the city pa
   const card = (await page.locator('#unit-panel').boundingBox())!;
   expect(card.y).toBeGreaterThanOrEqual(map.y + map.height);
   await expect(page.locator('#recovering-units')).toContainText('剩余 3 轮');
+  await expect(page.locator('#recovering-units')).toContainText('喵喵');
+  const current = await state(page);
+  const upkeep = Object.values(current.units).filter(unit => unit.ownerId === 0)
+    .reduce((sum, unit) => sum + unitDefinition(unit, CONTENT).upkeep, 0);
+  await expect(page.locator('#hud-upkeep')).toContainText(`−${upkeep}`);
   await page.screenshot({ path: `${reports}/m3ui-map.png`, fullPage: true });
 });
