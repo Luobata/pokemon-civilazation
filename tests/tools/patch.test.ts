@@ -97,3 +97,18 @@ test('B4 patch leaves defaults off and admits captured HP equal to the smallest 
   expect(parsePatch({}).content.balance.city.capturedHp).toBe(50);
   expect(parsePatch({ balance: { city: { baseHp: 60, capturedHp: 60 } } }).content.balance.city.capturedHp).toBe(60);
 });
+
+test.each([
+  { aggressiveSiegeCaptureBonus: -1 }, { aggressiveSiegeCaptureBonus: 10001 }, { aggressiveSiegeCaptureBonus: 0.5 },
+  { aggressiveSiegeTrainingBonus: '100' }, { aggressiveSiegeTrainingBonus: -1 }, { aggressiveSiegeTrainingBonus: 10001 },
+  { conservativeSeekUnknownHq: 1 }, { conservativeSeekUnknownHq: null },
+])('D43 rejects invalid patches %#', ai => {
+  expect(() => parsePatch({ ai })).toThrow('patch.ai.');
+});
+test('D43 defaults preserve behavior and patches accept explicit zero/false', () => {
+  expect(parsePatch({}).ai).toMatchObject({ aggressiveSiegeCaptureBonus: 0, aggressiveSiegeTrainingBonus: 0, conservativeSeekUnknownHq: false });
+  expect(parsePatch({ ai: { aggressiveSiegeCaptureBonus: 100, aggressiveSiegeTrainingBonus: 100, conservativeSeekUnknownHq: true } }).ai)
+    .toMatchObject({ aggressiveSiegeCaptureBonus: 100, aggressiveSiegeTrainingBonus: 100, conservativeSeekUnknownHq: true });
+  expect(parsePatch({ ai: { aggressiveSiegeCaptureBonus: 0, aggressiveSiegeTrainingBonus: 0, conservativeSeekUnknownHq: false } }).ai)
+    .toEqual(parsePatch({}).ai);
+});

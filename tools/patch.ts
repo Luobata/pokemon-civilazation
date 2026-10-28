@@ -32,7 +32,8 @@ export const PATCH_SCHEMA: Schema = {
   ai: {
     aggressiveSettlerCities: [1, 100], aggressiveWarStrength: [0, 10_000], aggressiveBorderDistance: [1, 24],
     aggressiveSiegeUnits: [1, 100], aggressiveCaptureRadius: [1, 24], conservativeStrength: [0, 10_000],
-    conservativeCaptureTerritoryOnly: 'boolean', aggressiveSeekUnknownHq: 'boolean',
+    conservativeCaptureTerritoryOnly: 'boolean', aggressiveSeekUnknownHq: 'boolean', conservativeSeekUnknownHq: 'boolean',
+    aggressiveSiegeCaptureBonus: [0, 10_000], aggressiveSiegeTrainingBonus: [0, 10_000],
     conservativeMayDeclareWar: 'boolean', conservativeDeclareStrength: [0, 10_000], conservativeBorderDistance: [1, 24],
     conservativeSettlerInterval: [1, 300], peaceCitiesLost: [1, 100], expansionCaptureHpPercent: [1, 100],
   },

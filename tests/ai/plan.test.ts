@@ -233,3 +233,88 @@ test('D41/D42 cannot distinguish hidden military, gold or city changes', () => {
     expect(planNext(observe(state, 0), { ...RULE_QUERIES, ai })).toEqual(before);
   }
 });
+
+function siegePreparation() {
+  const { view } = quiet('aggressive');
+  view.units.push(pokemon(combatFixture(), 10, 'bulbasaur', 0, 3, 2));
+  view.diplomacy[0].status = 'war'; view.diplomacy[0].declaredBy = 0;
+  view.knowledge.lastKnownCities[2] = { ownerId: 1, headquartersOf: 1, position: { q: 10, r: 2 }, lastSeenRound: 1 };
+  const ai = { ...AI_THRESHOLDS, aggressiveSiegeUnits: 1, aggressiveSiegeCaptureBonus: 100, aggressiveSiegeTrainingBonus: 100 };
+  const query: RuleQueries = { ...RULE_QUERIES, ai, attack: () => ({ ok: false, reason: 'test' }), paths: () => ({}) };
+  return { view, query };
+}
+test('D43 capture bonus only ranks legal siege targets within radius while pursuing an HQ', () => {
+  const { view, query } = siegePreparation();
+  const ordinary = pokemon(combatFixture(), 11, 'charmander', null, 4, 2); ordinary.hp = 1;
+  const siege = pokemon(combatFixture(), 12, 'geodude', null, 4, 1);
+  view.units.push(ordinary, siege); view.economy.player.ballInventory.pokeBall = 2;
+  const target = () => planNext(view, query).action;
+  expect(target()).toMatchObject({ type: 'Capture', targetUnitId: 12 });
+  expect(planNext(view, { ...query, ai: { ...query.ai!, aggressiveSiegeCaptureBonus: 0 } }).action).toMatchObject({ targetUnitId: 11 });
+  view.knowledge.lastKnownCities = {};
+  expect(target()).toMatchObject({ targetUnitId: 11 });
+  query.ai = { ...query.ai!, aggressiveSeekUnknownHq: true };
+  expect(target()).toMatchObject({ targetUnitId: 12 });
+  query.ai = { ...query.ai!, aggressiveCaptureRadius: 1 };
+  expect(target()).toMatchObject({ targetUnitId: 11 });
+  view.economy.player.ballInventory.pokeBall = 0;
+  expect(target().type).not.toBe('Capture');
+});
+test('D43 capture movement bonus changes only an existing capture approach candidate', () => {
+  const { view, query } = siegePreparation();
+  view.knowledge.lastKnownCities = {}; query.ai = { ...query.ai!, aggressiveSeekUnknownHq: true };
+  view.units.push(pokemon(combatFixture(), 11, 'charmander', null, 5, 2), pokemon(combatFixture(), 12, 'geodude', null, 3, 0));
+  const east = { q: 4, r: 2 }, north = { q: 3, r: 1 };
+  view.visibleTileIds.push(hexToIndex(east, view.map)!, hexToIndex(north, view.map)!);
+  view.economy.player.ballInventory.pokeBall = 1;
+  query.paths = () => ({ [hexToIndex(east, view.map)!]: [east], [hexToIndex(north, view.map)!]: [north] });
+  // Both targets are two steps away; the siege approach wins with its extra benefit.
+  expect(planNext(view, query).action).toEqual({ type: 'Move', unitId: 10, to: north });
+  view.units = view.units.filter(unit => unit.id !== 12);
+  expect(planNext(view, query).action).toEqual({ type: 'Move', unitId: 10, to: east });
+});
+test('D43 training bonus requires HQ intent and registration; production gates remain', () => {
+  const { view, query } = siegePreparation();
+  view.economy.cities[0].queue = [];
+  view.economy.player.registeredSpeciesIds = ['onix', 'charizard'];
+  const chosen = () => planNext(view, query).action;
+  expect(chosen()).toMatchObject({ type: 'SetProductionQueue', orders: [{ item: { defId: 'onix' } }] });
+  view.knowledge.lastKnownCities = {};
+  expect(chosen()).toMatchObject({ orders: [{ item: { defId: 'charizard' } }] });
+  query.ai = { ...query.ai!, aggressiveSeekUnknownHq: true };
+  expect(chosen()).toMatchObject({ orders: [{ item: { defId: 'onix' } }] });
+  view.economy.player.registeredSpeciesIds = ['charizard'];
+  expect(chosen()).toMatchObject({ orders: [{ item: { defId: 'charizard' } }] });
+  view.economy.cities[0].queue = [{ id: 50, progress: 0, item: { kind: 'pokemon', defId: 'charizard' } }];
+  expect(chosen().type).not.toBe('SetProductionQueue');
+});
+test('D43 conservative exploration requires war, siege strength and enabled flag', () => {
+  const { view } = quiet('conservative');
+  for (let id = 10; id < 12; id++) view.units.push(pokemon(combatFixture(), id, 'bulbasaur', 0, 3, 2));
+  view.knowledge.lastKnownUnits[20] = { kind: 'pokemon', speciesId: 'bulbasaur', ownerId: 1, position: { q: 10, r: 2 }, lastSeenRound: 1 };
+  const destination = { q: 4, r: 2 }, target = { q: 10, r: 2 };
+  view.knowledge.exploredTileIds = view.knowledge.exploredTileIds.filter(index => index !== hexToIndex(target, view.map));
+  view.visibleTileIds.push(hexToIndex(destination, view.map)!);
+  const query: RuleQueries = { ...RULE_QUERIES, ai: { ...AI_THRESHOLDS, conservativeSeekUnknownHq: true },
+    paths: (_view, id) => id === 10 ? { [hexToIndex(destination, view.map)!]: [destination] } : {} };
+  expect(planNext(view, query).action.type).toBe('EndTurn');
+  view.diplomacy[0].status = 'war'; view.diplomacy[0].declaredBy = 1;
+  expect(planNext(view, query).action).toEqual({ type: 'Move', unitId: 10, to: destination });
+  expect(planNext(structuredClone(view), query)).toEqual(planNext(view, query));
+  expect(planNext(view, { ...query, ai: AI_THRESHOLDS }).action.type).toBe('EndTurn');
+  view.units.pop(); expect(planNext(view, query).action.type).toBe('EndTurn');
+});
+test('D43 conservative search and siege preparation cannot distinguish hidden state', () => {
+  for (const personality of ['aggressive', 'conservative'] as const) {
+    const { state } = quiet(personality);
+    for (let id = 10; id < 14; id++) pokemon(state, id, 'bulbasaur', 0, 3, 2);
+    state.diplomacy[0].status = 'war'; state.diplomacy[0].declaredBy = 1;
+    refreshKnowledge(state);
+    const { ai } = parsePatch({ ai: { conservativeSeekUnknownHq: true, aggressiveSeekUnknownHq: true,
+      aggressiveSiegeCaptureBonus: 100, aggressiveSiegeTrainingBonus: 100 } });
+    const view = observe(state, 0), before = planNext(view, { ...RULE_QUERIES, ai });
+    pokemon(state, 90, 'onix', 1, 11, 7); state.players[1].gold += 9999; state.cities[2].position = { q: 11, r: 6 };
+    expect(observe(state, 0)).toEqual(view);
+    expect(planNext(observe(state, 0), { ...RULE_QUERIES, ai })).toEqual(before);
+  }
+});

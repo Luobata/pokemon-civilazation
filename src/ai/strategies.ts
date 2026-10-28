@@ -9,7 +9,9 @@ type Strategy = Readonly<{
   declareWar: Readonly<{ enabled: 'conservativeMayDeclareWar' | null;
     strength: 'aggressiveWarStrength' | 'conservativeDeclareStrength';
     borderDistance: 'aggressiveBorderDistance' | 'conservativeBorderDistance' }> | null;
-  seekUnknownHq: 'aggressiveSeekUnknownHq' | null;
+  seekUnknownHq: 'aggressiveSeekUnknownHq' | 'conservativeSeekUnknownHq' | null;
+  siegeCaptureBonus: 'aggressiveSiegeCaptureBonus' | null;
+  siegeTrainingBonus: 'aggressiveSiegeTrainingBonus' | null;
   siege: Readonly<{ kind: 'never' } | { kind: 'minimum'; units: 'aggressiveSiegeUnits' }
     | { kind: 'counteroffensive'; strength: 'conservativeStrength'; allowOffensiveWar: 'conservativeMayDeclareWar' }>;
   peaceCitiesLost: 'peaceCitiesLost' | null;
@@ -28,6 +30,7 @@ export const AI_STRATEGIES: Readonly<Record<AiPersonality, Strategy>> = {
   expansion: {
     priorities: ['diplomacy', 'found', 'economy', 'capture', 'military', 'research', 'explore', 'end'],
     settlerMinCities: null, settlerPeaceOnly: false, settlerInterval: null,
+    siegeCaptureBonus: null, siegeTrainingBonus: null,
     declareWar: null, seekUnknownHq: null, siege: { kind: 'never' }, peaceCitiesLost: 'peaceCitiesLost',
     captureHpPercent: 'expansionCaptureHpPercent', captureTerritoryOnly: null,
     capturePriorityRadius: null, capturePriorityBonus: 0,
@@ -38,6 +41,7 @@ export const AI_STRATEGIES: Readonly<Record<AiPersonality, Strategy>> = {
     settlerMinCities: 'aggressiveSettlerCities', settlerPeaceOnly: false, settlerInterval: null,
     declareWar: { enabled: null, strength: 'aggressiveWarStrength', borderDistance: 'aggressiveBorderDistance' },
     seekUnknownHq: 'aggressiveSeekUnknownHq',
+    siegeCaptureBonus: 'aggressiveSiegeCaptureBonus', siegeTrainingBonus: 'aggressiveSiegeTrainingBonus',
     siege: { kind: 'minimum', units: 'aggressiveSiegeUnits' }, peaceCitiesLost: 'peaceCitiesLost',
     captureHpPercent: null, captureTerritoryOnly: null,
     capturePriorityRadius: 'aggressiveCaptureRadius', capturePriorityBonus: 100,
@@ -47,7 +51,8 @@ export const AI_STRATEGIES: Readonly<Record<AiPersonality, Strategy>> = {
     priorities: ['diplomacy', 'research', 'economy', 'military', 'capture', 'found', 'explore', 'end'],
     settlerMinCities: null, settlerPeaceOnly: true, settlerInterval: 'conservativeSettlerInterval',
     declareWar: { enabled: 'conservativeMayDeclareWar', strength: 'conservativeDeclareStrength', borderDistance: 'conservativeBorderDistance' },
-    seekUnknownHq: null, siege: { kind: 'counteroffensive', strength: 'conservativeStrength', allowOffensiveWar: 'conservativeMayDeclareWar' }, peaceCitiesLost: null,
+    siegeCaptureBonus: null, siegeTrainingBonus: null,
+    seekUnknownHq: 'conservativeSeekUnknownHq', siege: { kind: 'counteroffensive', strength: 'conservativeStrength', allowOffensiveWar: 'conservativeMayDeclareWar' }, peaceCitiesLost: null,
     captureHpPercent: null, captureTerritoryOnly: 'conservativeCaptureTerritoryOnly',
     capturePriorityRadius: null, capturePriorityBonus: 0,
     wildAttackGoal: 'capture', defendTerritoryOnly: true,

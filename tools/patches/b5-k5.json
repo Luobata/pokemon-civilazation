@@ -1,0 +1,18 @@
+{
+  "balance": {
+    "city": { "baseHp": 60, "capturedHp": 60 },
+    "effects": { "siegeMultiplier": 1750 },
+    "score": { "cities": 80 }
+  },
+  "ai": {
+    "aggressiveSettlerCities": 3,
+    "aggressiveSiegeUnits": 3,
+    "aggressiveWarStrength": 1250,
+    "aggressiveSeekUnknownHq": true,
+    "conservativeMayDeclareWar": true,
+    "conservativeDeclareStrength": 2000,
+    "conservativeBorderDistance": 1,
+    "conservativeStrength": 1500,
+    "conservativeSettlerInterval": 15
+  }
+}
