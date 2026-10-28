@@ -1,4 +1,6 @@
 import { RULE_QUERIES } from '../ai/query.ts';
+import { rememberCityRejection } from '../ai/memory.ts';
+import type { RejectedCitySite } from '../ai/memory.ts';
 import { planNext } from '../ai/plan.ts';
 import { isMapUnit } from '../core/model.ts';
 import { deserializeSave, serializeSave } from './save.ts';
@@ -10,7 +12,7 @@ import { observe, projectEvents } from '../core/vision.ts';
 import { step } from '../core/step.ts';
 import { canonicalSerialize } from '../core/snapshot.ts';
 
-export type CommandLog = { version: 1; schemaVersion: 4; rulesVersion: 'm4-v1'; contentVersion: string; setup: GameSetup; commands: Command[] };
+export type CommandLog = { version: 1; schemaVersion: 4; rulesVersion: 'm4-v1'; contentVersion: string; setup: GameSetup; commands: Command[]; aiRejectedCitySites?: RejectedCitySite[] };
 
 export function replay(log: CommandLog, through = log.commands.length, checkpoint?: GameState, content: Content = CONTENT): GameState {
   if (log.version !== 1 || log.schemaVersion !== 4 || log.rulesVersion !== 'm4-v1' || log.contentVersion !== content.version
@@ -46,6 +48,7 @@ export interface PlayerSession {
 export class GameSession {
   private state: GameState;
   private commands: Command[] = [];
+  private aiRejectedCitySites: RejectedCitySite[] = [];
   get playerId(): number { return this.state.setup.players.find(player => player.controller === 'human')!.id; }
   presentationQueue: VisibleEvent[] = [];
   lastRejected: { command: Command; reason: string } | null = null;
@@ -70,7 +73,8 @@ export class GameSession {
   }
   exportLog(): CommandLog {
     return { version: 1, schemaVersion: 4, rulesVersion: 'm4-v1', contentVersion: this.content.version, setup: this.getState().setup,
-      commands: JSON.parse(JSON.stringify(this.commands)) as Command[] };
+      commands: JSON.parse(JSON.stringify(this.commands)) as Command[],
+      aiRejectedCitySites: JSON.parse(JSON.stringify(this.aiRejectedCitySites)) as RejectedCitySite[] };
   }
   /** Developer-compatible result; asPlayerSession strips full authority state. */
   issue(action: Command['action']): DeveloperStepResult {
@@ -87,6 +91,7 @@ export class GameSession {
     const result = step(before, command, this.content);
     if (!result.ok) this.lastRejected = { command: JSON.parse(JSON.stringify(command)) as Command, reason: result.reason };
     else {
+      if (before.commandSeq < this.commands.length) this.aiRejectedCitySites = this.aiRejectedCitySites.filter(site => site.seq < before.commandSeq);
       this.state = result.state;
       this.commands = this.commands.slice(0, before.commandSeq);
       this.commands.push(JSON.parse(JSON.stringify(command)) as Command);
@@ -97,12 +102,13 @@ export class GameSession {
   readonly aiInvalidCommands: { command: Command; reason: string }[] = [];
   private endComputerTurns(): void {
     while (!this.state.outcome && this.state.players[this.state.activePlayerId].controller === 'ai') {
-      const command = planNext(observe(this.state, this.state.activePlayerId, this.content), { ...RULE_QUERIES, content: this.content });
+      const view = observe(this.state, this.state.activePlayerId, this.content);
+      const command = planNext(view, { ...RULE_QUERIES, content: this.content }, this.aiRejectedCitySites);
       const result = this.apply(command);
       if (!result.ok) {
         this.aiInvalidCommands.push({ command, reason: result.reason });
-        // A rejected plan is a defect. Reobserve once, then end safely, never retry random alternatives.
-        const view = observe(this.state, this.state.activePlayerId, this.content);
+        rememberCityRejection(this.aiRejectedCitySites, view, command, result.reason);
+        // End this turn safely; the next turn avoids the rejected site using only this AI's observation.
         this.apply({ actorId: view.playerId, expectedSeq: view.commandSeq, action: { type: 'EndTurn' } });
       }
     }
@@ -122,6 +128,7 @@ export class GameSession {
     const save = deserializeSave(text, this.content);
     this.state = save.state;
     this.commands = save.log.commands;
+    this.aiRejectedCitySites = save.log.aiRejectedCitySites ?? [];
     this.presentationQueue = [];
     this.lastRejected = null;
   }
@@ -134,6 +141,7 @@ export class GameSession {
   resumeFromReplay(): void {
     // A new command after a replay checkpoint starts a new local log branch.
     this.commands = this.commands.slice(0, this.state.commandSeq);
+    this.aiRejectedCitySites = this.aiRejectedCitySites.filter(site => site.seq < this.state.commandSeq);
     this.endComputerTurns();
   }
 }

@@ -21,6 +21,8 @@ export function runExploration(count: number, output: string, experiment?: Exper
     const result = simulateMatch(match, 100, experiment), compact = compactResult(result); results.push(compact);
     writeFileSync(resolve(output, 'games', `${match.id}.json`), JSON.stringify(result));
     appendFileSync(jsonl, JSON.stringify(compact) + '\n');
+    if (result.defect) throw new Error(`Defect in ${match.id}; stop and inspect the preserved game.`);
+    if (results.filter(game => game.aborted).length > matches.length * 0.05) throw new Error('Aborted games exceed 5% of this scheduled batch.');
     if (index % 15 === 14 || result.aborted) console.log(JSON.stringify({ completed: index + 1, total: matches.length, match: match.id,
       elapsedSeconds: Math.round((performance.now() - start) / 1000), aborted: result.aborted,
       invalidCount: result.invalid.length, firstInvalid: result.invalid[0] ?? null }));

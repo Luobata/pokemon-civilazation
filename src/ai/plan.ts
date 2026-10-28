@@ -6,6 +6,8 @@ import type { BallId, BuildingId, TechId } from '../content/economy.ts';
 import { knownCities, RULE_QUERIES } from './query.ts';
 import type { RuleQueries } from './query.ts';
 
+import { rejectedCitySite } from './memory.ts';
+import type { RejectedCitySite } from './memory.ts';
 import { AI_THRESHOLDS } from './thresholds.ts';
 import type { AiThresholds } from './thresholds.ts';
 
@@ -48,8 +50,9 @@ export function canSiege(view: PlayerView, ownerId: number | null, ai: AiThresho
   const pair = view.diplomacy.find(pair => pair.status === 'war' && pair.declaredBy === ownerId && (pair.a === view.playerId || pair.b === view.playerId));
   return !!pair && own * 1000 >= ai.conservativeStrength * knownCombatCount(view, ownerId);
 }
-export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES): Command {
+export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, memory: readonly RejectedCitySite[] = []): Command {
   const actorId = view.playerId, player = view.economy.player, content = query.content, ai = query.ai ?? AI_THRESHOLDS;
+  const citySite = (position: MapUnit['position']) => !rejectedCitySite(memory, view, position) && query.citySite(view, position);
   const result = (action: Command['action']): Command => ({ actorId, expectedSeq: view.commandSeq, action });
   if (view.outcome || view.activePlayerId !== actorId || player.eliminated) return result({ type: 'EndTurn' });
   const units = view.units.filter(unit => unit.ownerId === actorId).sort((a, b) => a.id - b.id);
@@ -113,7 +116,7 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES): C
   const visible = new Set(view.visibleTileIds), explored = new Set(view.knowledge.exploredTileIds);
   for (const unit of units.filter(unit => unit.actionLeft)) {
     if (unit.kind === 'logistics') {
-      if (query.citySite(view, unit.position)) add({ type: 'FoundCity', unitId: unit.id }, 'found', 1000, unit.id);
+      if (citySite(unit.position)) add({ type: 'FoundCity', unitId: unit.id }, 'found', 1000, unit.id);
     } else {
       const evolution = content.species[unit.speciesId].evolution;
       if (evolution && unit.xp >= evolution.xp && player.gold >= evolution.gold && (!evolution.requiresTraining || player.research.unlockedIds.includes('training'))) add({ type: 'Evolve', unitId: unit.id, intoSpeciesId: evolution.speciesId }, 'military', 200, unit.id);
@@ -136,7 +139,7 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES): C
       }
     }
     const paths = query.paths(view, unit.id, content);
-    const sites = unit.kind === 'logistics' ? view.map.tiles.flatMap((_, index) => query.citySite(view, indexToHex(index, view.map)) ? [indexToHex(index, view.map)] : []) : [];
+    const sites = unit.kind === 'logistics' ? view.map.tiles.flatMap((_, index) => citySite(indexToHex(index, view.map)) ? [indexToHex(index, view.map)] : []) : [];
     const enemyHqs = known.filter(city => city.ownerId !== null && city.ownerId !== actorId && city.headquartersOf === city.ownerId && canSiege(view, city.ownerId, ai)
       && view.diplomacy.some(pair => pair.status === 'war' && ((pair.a === actorId && pair.b === city.ownerId) || (pair.b === actorId && pair.a === city.ownerId))));
     const targetHq = enemyHqs.sort((a, b) => hexDistance(unit.position, a.position) - hexDistance(unit.position, b.position) || a.id - b.id)[0];

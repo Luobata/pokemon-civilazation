@@ -6,6 +6,8 @@ import { pathToFileURL } from 'node:url';
 import { createGame } from '../src/core/game.ts';
 import { observe } from '../src/core/vision.ts';
 import { step } from '../src/core/step.ts';
+import { rememberCityRejection } from '../src/ai/memory.ts';
+import type { RejectedCitySite } from '../src/ai/memory.ts';
 import { planNext } from '../src/ai/plan.ts';
 import type { Command, GameState } from '../src/core/model.ts';
 import { matchSetup } from './matches.ts';
@@ -15,7 +17,7 @@ import { classifyRejection } from './rejections.ts';
 
 export function simulateMatch(match: Match, roundLimit: 100 | 200 | 300 = 100, options?: SimulationOptions) {
   const content = options?.content ?? CONTENT, ai = options?.ai ?? AI_THRESHOLDS;
-  const query = { ...RULE_QUERIES, content, ai };
+  const query = { ...RULE_QUERIES, content, ai }, memory: RejectedCitySite[] = [];
   const setup = matchSetup(match, roundLimit);
   let state: GameState;
   try { state = createGame(setup, content); } catch (error) {
@@ -31,13 +33,14 @@ export function simulateMatch(match: Match, roundLimit: 100 | 200 | 300 = 100, o
   try {
     // This diagnostic guard does not alter game rules or silently replace a seed.
     while (!state.outcome && state.commandSeq < 100_000) {
-      const command = planNext(observe(state, state.activePlayerId, content), query);
+      const view = observe(state, state.activePlayerId, content);
+      const command = planNext(view, query, memory);
       const result = step(state, command, content);
       if (result.ok) {
         collectTelemetry(telemetry, state, result.state, command, result.events, content); commands.push(command); state = result.state;
       } else {
         invalid.push({ round: state.round, seq: state.commandSeq, reason: result.reason, command, category: classifyRejection(state, command, result.reason, content) });
-        const view = observe(state, state.activePlayerId, content);
+        rememberCityRejection(memory, view, command, result.reason);
         const end: Command = { actorId: view.playerId, expectedSeq: view.commandSeq, action: { type: 'EndTurn' } };
         const ended = step(state, end, content);
         if (!ended.ok) break;
