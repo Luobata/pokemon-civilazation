@@ -43,9 +43,13 @@ export function canProduceSettler(view: PlayerView, ai: AiThresholds = AI_THRESH
 export function canSiege(view: PlayerView, ownerId: number | null, ai: AiThresholds = AI_THRESHOLDS): boolean {
   const own = view.units.filter(unit => unit.ownerId === view.playerId && unit.kind === 'pokemon').length;
   const siege = AI_STRATEGIES[view.economy.player.personality].siege;
-  if (siege.kind === 'never') return false;
   if (siege.kind === 'minimum') return own >= ai[siege.units];
   if (ownerId === null) return false;
+  if (siege.kind === 'border') return ai[siege.enabled]
+    && view.diplomacy.some(pair => pair.status === 'war' && ((pair.a === view.playerId && pair.b === ownerId) || (pair.b === view.playerId && pair.a === ownerId)))
+    && own * 1000 >= ai[siege.strength] * knownCombatCount(view, ownerId)
+    && knownCities(view).some(city => city.ownerId === ownerId && view.units.some(unit => unit.ownerId === view.playerId
+      && hexDistance(unit.position, city.position) <= ai[siege.distance]));
   const pair = view.diplomacy.find(pair => pair.status === 'war' && (pair.a === view.playerId || pair.b === view.playerId)
     && (pair.declaredBy === ownerId || (ai[siege.allowOffensiveWar] && (pair.a === ownerId || pair.b === ownerId))));
   return !!pair && own * 1000 >= ai[siege.strength] * knownCombatCount(view, ownerId);

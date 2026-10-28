@@ -17,6 +17,9 @@ const defaults = {
   conservativeCaptureTerritoryOnly: true,
   peaceCitiesLost: 1,
   expansionCaptureHpPercent: 50,
+  expansionMaySiege: false,
+  expansionSiegeStrength: 2000,
+  expansionBorderDistance: 5,
 };
 export const AI_THRESHOLDS = Object.freeze(defaults);
 export type AiThresholds = typeof AI_THRESHOLDS;

@@ -318,3 +318,54 @@ test('D43 conservative search and siege preparation cannot distinguish hidden st
     expect(planNext(observe(state, 0), { ...RULE_QUERIES, ai })).toEqual(before);
   }
 });
+
+test('D44 expansion siege requires enabled war, 2x observed military and distance5, without declaration', () => {
+  const { view } = quiet('expansion');
+  for (let id = 10; id < 12; id++) view.units.push(pokemon(combatFixture(), id, 'bulbasaur', 0, 3, 2));
+  view.knowledge.lastKnownUnits[20] = { kind: 'pokemon', speciesId: 'bulbasaur', ownerId: 1, position: { q: 10, r: 2 }, lastSeenRound: 1 };
+  view.knowledge.lastKnownCities[2] = { ownerId: 1, headquartersOf: 1, position: { q: 8, r: 2 }, lastSeenRound: 1 };
+  const ai = { ...AI_THRESHOLDS, expansionMaySiege: true };
+  expect(canSiege(view, 1, ai)).toBe(false);
+  expect(planNext(view, { ...RULE_QUERIES, ai }).action.type).not.toBe('DeclareWar');
+  view.diplomacy[0].status = 'war'; view.diplomacy[0].declaredBy = 1;
+  expect(canSiege(view, 1)).toBe(false);
+  expect(canSiege(view, 1, ai)).toBe(true);
+  expect(canSiege(view, null, ai)).toBe(false);
+  view.knowledge.lastKnownCities[2].position.q = 9;
+  expect(canSiege(view, 1, ai)).toBe(false);
+  view.knowledge.lastKnownCities[2].position.q = 8;
+  view.units.pop(); expect(canSiege(view, 1, ai)).toBe(false);
+  view.units.push(pokemon(combatFixture(), 11, 'bulbasaur', 0, 3, 2), pokemon(combatFixture(), 12, 'bulbasaur', 0, 3, 2));
+  view.knowledge.lastKnownUnits[21] = { ...view.knowledge.lastKnownUnits[20] };
+  expect(canSiege(view, 1, ai)).toBe(false);
+  expect(canSiege(view, 1, { ...ai, expansionSiegeStrength: 1500 })).toBe(true);
+});
+test('D44 expansion attacks a visible city and advances to known HQ, without unknown HQ search', () => {
+  const { view } = quiet('expansion');
+  for (let id = 10; id < 12; id++) view.units.push(pokemon(combatFixture(), id, 'bulbasaur', 0, 3, 2));
+  view.diplomacy[0].status = 'war'; view.diplomacy[0].declaredBy = 1;
+  const ai = { ...AI_THRESHOLDS, expansionMaySiege: true };
+  const target = { q: 8, r: 2 }, to = { q: 4, r: 2 };
+  view.knowledge.lastKnownCities[2] = { ownerId: 1, headquartersOf: 1, position: target, lastSeenRound: 1 };
+  view.visibleTileIds.push(hexToIndex(to, view.map)!);
+  const query: RuleQueries = { ...RULE_QUERIES, ai, paths: (_view, id) => id === 10 ? { [hexToIndex(to, view.map)!]: [to] } : {} };
+  expect(planNext(view, query).action).toEqual({ type: 'Move', unitId: 10, to });
+  expect(planNext(structuredClone(view), query)).toEqual(planNext(view, query));
+  view.knowledge.lastKnownCities = {};
+  view.knowledge.exploredTileIds = view.knowledge.exploredTileIds.filter(index => index !== hexToIndex(target, view.map));
+  expect(planNext(view, query).action.type).toBe('EndTurn');
+  view.cities.push({ id: 2, ownerId: 1, headquartersOf: 1, position: { q: 5, r: 2 } });
+  view.combat.cities[2] = { hp: 60, counterAttack: 30 };
+  expect(planNext(view, query).action).toMatchObject({ type: 'Attack', target: { kind: 'city', id: 2 } });
+});
+test('D44 expansion decisions are invariant to hidden units, treasury and cities', () => {
+  const { state } = quiet('expansion');
+  for (let id = 10; id < 12; id++) pokemon(state, id, 'bulbasaur', 0, 3, 2);
+  state.diplomacy[0].status = 'war'; state.diplomacy[0].declaredBy = 1;
+  refreshKnowledge(state);
+  const ai = { ...AI_THRESHOLDS, expansionMaySiege: true }, view = observe(state, 0);
+  const before = planNext(view, { ...RULE_QUERIES, ai });
+  pokemon(state, 90, 'charizard', 1, 11, 7); state.players[1].gold += 9999; state.cities[2].position = { q: 11, r: 6 };
+  expect(observe(state, 0)).toEqual(view);
+  expect(planNext(observe(state, 0), { ...RULE_QUERIES, ai })).toEqual(before);
+});

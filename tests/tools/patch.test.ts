@@ -112,3 +112,17 @@ test('D43 defaults preserve behavior and patches accept explicit zero/false', ()
   expect(parsePatch({ ai: { aggressiveSiegeCaptureBonus: 0, aggressiveSiegeTrainingBonus: 0, conservativeSeekUnknownHq: false } }).ai)
     .toEqual(parsePatch({}).ai);
 });
+
+test.each([
+  { expansionMaySiege: 1 }, { expansionMaySiege: 'false' },
+  { expansionSiegeStrength: -1 }, { expansionSiegeStrength: 10001 }, { expansionSiegeStrength: 1500.5 },
+  { expansionBorderDistance: 0 }, { expansionBorderDistance: 25 },
+])('D44 rejects invalid fields %#', ai => {
+  expect(() => parsePatch({ ai })).toThrow('patch.ai.');
+});
+test('D44 defaults are off; explicit experimental fields parse without changing defaults', () => {
+  expect(parsePatch({}).ai).toMatchObject({ expansionMaySiege: false, expansionSiegeStrength: 2000, expansionBorderDistance: 5 });
+  expect(parsePatch({ ai: { expansionMaySiege: true, expansionSiegeStrength: 1500, expansionBorderDistance: 5 } }).ai)
+    .toMatchObject({ expansionMaySiege: true, expansionSiegeStrength: 1500, expansionBorderDistance: 5 });
+  expect(parsePatch({}).ai.expansionMaySiege).toBe(false);
+});
