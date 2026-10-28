@@ -14,7 +14,7 @@ import type { BallId } from '../content/economy.ts';
 import { speciesDisplay } from '../content/species.ts';
 import { hexToIndex, indexToHex } from '../core/hex.ts';
 import { reachablePaths } from '../core/movement.ts';
-import type { VisibleEvent } from '../core/model.ts';
+import type { PlayerView, VisibleEvent } from '../core/model.ts';
 import { BIOME_DISPLAY, FACTION_LEGEND, drawMap } from './canvas.ts';
 import type { AnimationPose, MapEffect } from './canvas.ts';
 import { fitCamera, hexToWorld, toWorld, worldToHex, zoomAt } from './camera.ts';
@@ -85,11 +85,25 @@ function summary(payload: VisibleEvent['payload']) {
     default: return '';
   }
 }
+export function battleActivityText(payload: BattlePayload, view: PlayerView): string {
+  const unitLabel = (id: number) => {
+    const unit = view.units.find(candidate => candidate.id === id);
+    if (!unit) return '未知单位';
+    const name = unitDefinition(unit, CONTENT).name;
+    return unit.ownerId === null ? `野生 ${name}` : `文明 ${unit.ownerId + 1} 的 ${name}`;
+  };
+  const targetLabel = payload.target.kind === 'unit' ? unitLabel(payload.target.id) : (() => {
+    const city = view.cities.find(candidate => candidate.id === payload.target.id);
+    if (!city) return '未知城市';
+    return city.ownerId === null ? `中立营地 ${city.id}` : `文明 ${city.ownerId + 1} 的 城市 ${city.id}`;
+  })();
+  return `${unitLabel(payload.attackerId)} 攻击了 ${targetLabel}：${payload.damage} 伤害${payload.counterDamage ? `，反击 ${payload.counterDamage}` : ''}`;
+}
 function activityText(payload: VisibleEvent['payload']) {
   switch (payload.type) {
     case 'TurnChanged': return `文明 ${payload.activePlayerId + 1} 开始行动`;
     case 'Moved': return `${payload.unit.ownerId === null ? '野生' : `文明 ${payload.unit.ownerId + 1}`}单位移动`;
-    case 'BattleResolved': return `文明 ${payload.attackerId + 1} 交战：${payload.damage} 伤害${payload.counterDamage ? `，反击 ${payload.counterDamage}` : ''}`;
+    case 'BattleResolved': return battleActivityText(payload, session.getView());
     case 'Captured': return `文明 ${payload.playerId + 1} 捕捉${payload.success ? '成功' : '失败'}`;
     case 'Evolved': return `文明 ${payload.playerId + 1} 进化为${speciesDisplay(payload.speciesId).name}`;
     case 'DiplomacyChanged': return `文明 ${payload.relation.a + 1}/${payload.relation.b + 1}：${payload.relation.status === 'war' ? '战争' : '和平'}${payload.relation.proposal ? '，停战待回应' : ''}`;

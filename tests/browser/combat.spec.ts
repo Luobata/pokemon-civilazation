@@ -87,3 +87,25 @@ test('unit card stays outside the map and recovering units appear in the city pa
   await expect(page.locator('#hud-upkeep')).toContainText(`−${upkeep}`);
   await page.screenshot({ path: `${reports}/m3ui-map.png`, fullPage: true });
 });
+
+test('battle activity uses civilization and species labels without revealing unknown combatants', async ({ page }) => {
+  await importFixture(page);
+  const labels = await page.evaluate(async () => {
+    const mainPath = '/src/browser/main.ts';
+    const { battleActivityText, session } = await import(mainPath);
+    const view = session.getView();
+    const base = { type: 'BattleResolved' as const, attackerId: 9, target: { kind: 'unit' as const, id: 13 },
+      positions: [{ q: 2, r: 12 }, { q: 3, r: 12 }], damage: 7, counterDamage: 3,
+      capturedCity: false, knockedDownUnitIds: [] };
+    return {
+      visible: battleActivityText(base, view),
+      unknownAttacker: battleActivityText({ ...base, attackerId: 999 }, view),
+      unknownTarget: battleActivityText({ ...base, target: { kind: 'unit', id: 999 } }, view),
+    };
+  });
+  expect(labels.visible).toBe('文明 1 的 妙蛙种子 攻击了 野生 凯西：7 伤害，反击 3');
+  expect(labels.unknownAttacker).toBe('未知单位 攻击了 野生 凯西：7 伤害，反击 3');
+  expect(labels.unknownTarget).toBe('文明 1 的 妙蛙种子 攻击了 未知单位：7 伤害，反击 3');
+  expect(labels.unknownAttacker).not.toContain('妙蛙种子');
+  expect(labels.unknownTarget).not.toContain('凯西');
+});

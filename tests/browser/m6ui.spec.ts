@@ -60,6 +60,9 @@ test('complete small-map game with milestone screenshots and identical command r
   await expect(page.locator('#outcome-ranking')).toContainText('2×80');
   await expect(page.locator('#end-turn')).toBeDisabled();
   await expect(page.locator('#new-game')).toBeEnabled();
+  await expect(page.locator('#activity-list')).toContainText('攻击了');
+  await expect(page.locator('#activity-list')).not.toContainText('文明 27');
+  await expect(page.locator('#activity-list')).not.toContainText('文明 32');
   const finalLog = await page.evaluate(async () => {
     const mainPath = '/src/browser/main.ts'; return (await import(mainPath)).developerAdapter.exportLog();
   });
