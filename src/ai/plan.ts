@@ -1,4 +1,4 @@
-import type { AiPersonality, Command, MapUnit, PlayerView, ProductionItem } from '../core/model.ts';
+import type { Command, MapUnit, PlayerView, ProductionItem } from '../core/model.ts';
 import { hexDistance, hexToIndex, indexToHex } from '../core/hex.ts';
 import { workRadius } from '../core/city.ts';
 import { unitDefinition } from '../content/units.ts';
@@ -11,13 +11,9 @@ import type { RejectedCitySite } from './memory.ts';
 import { AI_THRESHOLDS } from './thresholds.ts';
 import type { AiThresholds } from './thresholds.ts';
 
-type Goal = 'diplomacy' | 'found' | 'economy' | 'capture' | 'military' | 'research' | 'explore' | 'end';
+import { AI_STRATEGIES } from './strategies.ts';
+import type { Goal } from './strategies.ts';
 type Candidate = { action: Command['action']; goal: Goal; benefit: number; ownId: number; targetId: number };
-const PRIORITIES: Record<AiPersonality, Goal[]> = {
-  expansion: ['diplomacy', 'found', 'economy', 'capture', 'military', 'research', 'explore', 'end'],
-  aggressive: ['diplomacy', 'military', 'capture', 'found', 'research', 'economy', 'explore', 'end'],
-  conservative: ['diplomacy', 'research', 'economy', 'military', 'capture', 'found', 'explore', 'end'],
-};
 export const CANDIDATE_BUDGET = 256; // 32 representatives for each of eight goals, never a time budget.
 export function knownCombatCount(view: PlayerView, ownerId: number): number {
   const known = new Map(Object.entries(view.knowledge.lastKnownUnits).map(([id, unit]) => [Number(id), unit]));
@@ -26,8 +22,9 @@ export function knownCombatCount(view: PlayerView, ownerId: number): number {
 }
 export function canCaptureByPersonality(view: PlayerView, target: MapUnit, query: RuleQueries = RULE_QUERIES): boolean {
   if (target.kind !== 'pokemon' || target.ownerId !== null) return false;
-  if (view.economy.player.personality === 'expansion') return target.hp * 100 < query.content.species[target.speciesId].maxHp * (query.ai ?? AI_THRESHOLDS).expansionCaptureHpPercent;
-  if (view.economy.player.personality === 'conservative') {
+  const strategy = AI_STRATEGIES[view.economy.player.personality], ai = query.ai ?? AI_THRESHOLDS;
+  if (strategy.captureHpPercent !== null && target.hp * 100 >= query.content.species[target.speciesId].maxHp * ai[strategy.captureHpPercent]) return false;
+  if (strategy.captureTerritoryOnly !== null && ai[strategy.captureTerritoryOnly]) {
     const tile = hexToIndex(target.position, view.map);
     return tile !== null && (view.territoryOwnerIds[tile]?.includes(view.playerId) ?? false);
   }
@@ -37,27 +34,32 @@ export function canProduceSettler(view: PlayerView, ai: AiThresholds = AI_THRESH
   const player = view.economy.player, cities = view.economy.cities;
   const queued = cities.some(city => [...city.queue, ...city.pendingDeployments].some(order => order.item.kind === 'logistics'));
   if (queued || view.units.some(unit => unit.ownerId === view.playerId && unit.kind === 'logistics')) return false;
-  if (player.personality === 'aggressive') return cities.length >= ai.aggressiveSettlerCities;
-  if (player.personality === 'conservative') return !view.diplomacy.some(pair => (pair.a === view.playerId || pair.b === view.playerId) && pair.status === 'war')
-    && view.round - player.lastSettlerProducedRound >= ai.conservativeSettlerInterval;
-  return true;
+  const strategy = AI_STRATEGIES[player.personality];
+  if (strategy.settlerMinCities !== null && cities.length < ai[strategy.settlerMinCities]) return false;
+  if (strategy.settlerPeaceOnly && view.diplomacy.some(pair => (pair.a === view.playerId || pair.b === view.playerId) && pair.status === 'war')) return false;
+  return strategy.settlerInterval === null || view.round - player.lastSettlerProducedRound >= ai[strategy.settlerInterval];
 }
 export function canSiege(view: PlayerView, ownerId: number | null, ai: AiThresholds = AI_THRESHOLDS): boolean {
   const own = view.units.filter(unit => unit.ownerId === view.playerId && unit.kind === 'pokemon').length;
-  if (view.economy.player.personality === 'expansion') return false;
-  if (view.economy.player.personality === 'aggressive') return own >= ai.aggressiveSiegeUnits;
+  const siege = AI_STRATEGIES[view.economy.player.personality].siege;
+  if (siege.kind === 'never') return false;
+  if (siege.kind === 'minimum') return own >= ai[siege.units];
   if (ownerId === null) return false;
   const pair = view.diplomacy.find(pair => pair.status === 'war' && pair.declaredBy === ownerId && (pair.a === view.playerId || pair.b === view.playerId));
-  return !!pair && own * 1000 >= ai.conservativeStrength * knownCombatCount(view, ownerId);
+  return !!pair && own * 1000 >= ai[siege.strength] * knownCombatCount(view, ownerId);
 }
 export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, memory: readonly RejectedCitySite[] = []): Command {
   const actorId = view.playerId, player = view.economy.player, content = query.content, ai = query.ai ?? AI_THRESHOLDS;
+  const strategy = AI_STRATEGIES[player.personality], declaration = strategy.declareWar;
   const citySite = (position: MapUnit['position']) => !rejectedCitySite(memory, view, position) && query.citySite(view, position);
   const result = (action: Command['action']): Command => ({ actorId, expectedSeq: view.commandSeq, action });
   if (view.outcome || view.activePlayerId !== actorId || player.eliminated) return result({ type: 'EndTurn' });
   const units = view.units.filter(unit => unit.ownerId === actorId).sort((a, b) => a.id - b.id);
   const combat = units.filter(unit => unit.kind === 'pokemon');
   const cities = [...view.economy.cities].sort((a, b) => a.id - b.id), known = knownCities(view);
+  const captureRadius = strategy.capturePriorityRadius === null ? null : ai[strategy.capturePriorityRadius];
+  const captureBonus = (target: MapUnit) => captureRadius !== null
+    && cities.some(city => hexDistance(city.position, target.position) <= captureRadius) ? strategy.capturePriorityBonus : 0;
   const candidates = new Map<Goal, Candidate[]>();
   const stable = (a: Candidate, b: Candidate) => (a.action.type < b.action.type ? -1 : a.action.type > b.action.type ? 1 : 0)
     || a.ownId - b.ownId || a.targetId - b.targetId;
@@ -73,13 +75,13 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
     const enemy = pair.a === actorId ? pair.b : pair.a;
     if (view.civilizations.find(civ => civ.id === enemy)?.eliminated) continue;
     const lost = pair.citiesLostSinceWar[actorId] ?? 0;
-    if (pair.proposal?.recipientId === actorId) add({ type: 'RespondPeace', targetPlayerId: enemy, accept: player.personality === 'conservative' || lost >= ai.peaceCitiesLost }, 'diplomacy', 1000, actorId, enemy);
+    if (pair.proposal?.recipientId === actorId) add({ type: 'RespondPeace', targetPlayerId: enemy, accept: strategy.peaceCitiesLost === null || lost >= ai[strategy.peaceCitiesLost] }, 'diplomacy', 1000, actorId, enemy);
     else if (pair.status === 'war' && !pair.proposal && view.round - pair.changedAtRound >= 5
       && (pair.rejectedAtRound[actorId] === undefined || view.round - pair.rejectedAtRound[actorId] >= 5)
-      && (lost >= ai.peaceCitiesLost || player.personality === 'conservative')) add({ type: 'MakePeace', targetPlayerId: enemy }, 'diplomacy', 100, actorId, enemy);
-    else if (pair.status === 'peace' && view.round >= pair.cooldownUntilRound && player.personality === 'aggressive'
-      && combat.length * 1000 >= knownCombatCount(view, enemy) * ai.aggressiveWarStrength
-      && known.some(city => city.ownerId === enemy && units.some(unit => hexDistance(unit.position, city.position) <= ai.aggressiveBorderDistance))) {
+      && (strategy.peaceCitiesLost === null || lost >= ai[strategy.peaceCitiesLost])) add({ type: 'MakePeace', targetPlayerId: enemy }, 'diplomacy', 100, actorId, enemy);
+    else if (pair.status === 'peace' && view.round >= pair.cooldownUntilRound && declaration !== null
+      && combat.length * 1000 >= knownCombatCount(view, enemy) * ai[declaration.strength]
+      && known.some(city => city.ownerId === enemy && units.some(unit => hexDistance(unit.position, city.position) <= ai[declaration.borderDistance]))) {
       add({ type: 'DeclareWar', targetPlayerId: enemy }, 'diplomacy', 10, actorId, enemy);
     }
   }
@@ -124,13 +126,13 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
         if (canCaptureByPersonality(view, target, query)) for (const ballId of ['pokeBall', 'greatBall'] as BallId[]) {
           const preview = query.capture(view, unit.id, target.id, ballId, content);
           if (preview.ok) add({ type: 'Capture', unitId: unit.id, targetUnitId: target.id, ballId }, 'capture', preview.probability
-            + (player.personality === 'aggressive' && cities.some(city => hexDistance(city.position, target.position) <= ai.aggressiveCaptureRadius) ? 100 : 0), unit.id, target.id);
+            + captureBonus(target), unit.id, target.id);
         }
         const preview = query.attack(view, unit.id, { kind: 'unit', id: target.id }, content);
-        if (preview.ok && preview.damage.min > 0 && (target.ownerId === null || player.personality !== 'conservative' || canSiege(view, target.ownerId, ai)
+        if (preview.ok && preview.damage.min > 0 && (target.ownerId === null || !strategy.defendTerritoryOnly || canSiege(view, target.ownerId, ai)
           || cities.some(city => hexDistance(city.position, target.position) <= workRadius(city)))) add({ type: 'Attack', unitId: unit.id, target: { kind: 'unit', id: target.id } },
           // Wild-target weakening competes with capture; it is neither military training nor civilization defense.
-          target.ownerId === null && player.personality !== 'expansion' ? 'capture' : 'military',
+          target.ownerId === null ? strategy.wildAttackGoal : 'military',
           preview.damage.min - preview.counter.damage + (target.ownerId !== null ? 200 : 0), unit.id, target.id);
       }
       for (const city of view.cities) if (city.ownerId !== actorId && canSiege(view, city.ownerId, ai)) {
@@ -156,14 +158,14 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
       if (unit.kind === 'pokemon') for (const target of view.units.filter(target => target.ownerId !== null && target.ownerId !== actorId)) {
         const war = view.diplomacy.some(pair => pair.status === 'war' && ((pair.a === actorId && pair.b === target.ownerId) || (pair.b === actorId && pair.a === target.ownerId)));
         const defensive = cities.some(city => hexDistance(city.position, target.position) <= workRadius(city));
-        if (war && (player.personality !== 'conservative' || defensive || canSiege(view, target.ownerId, ai))
+        if (war && (!strategy.defendTerritoryOnly || defensive || canSiege(view, target.ownerId, ai))
           && hexDistance(to, target.position) < hexDistance(unit.position, target.position)) add(action, 'military', 150 - hexDistance(to, target.position), unit.id, index);
       }
       if (unit.kind === 'pokemon') for (const target of wild) {
         if (!canCaptureByPersonality(view, target, query) || !player.research.unlockedIds.includes('domestication') || player.ballInventory.pokeBall + player.ballInventory.greatBall === 0) continue;
         const distance = hexDistance(to, target.position);
         if (distance < hexDistance(unit.position, target.position)) add(action, 'capture', 10 - distance
-          + (player.personality === 'aggressive' && cities.some(city => hexDistance(city.position, target.position) <= ai.aggressiveCaptureRadius) ? 100 : 0), unit.id, index);
+          + captureBonus(target), unit.id, index);
       }
       const radius = unitDefinition(unit, content).vision + (view.map.tiles[index] === 'mountain' ? 1 : 0);
       const gain = view.map.tiles.reduce((sum, _, tile) => sum + (!explored.has(tile) && hexDistance(to, indexToHex(tile, view.map)) <= radius ? 1 : 0), 0);
@@ -171,7 +173,7 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
     }
   }
   add({ type: 'EndTurn' }, 'end');
-  const priority = PRIORITIES[player.personality];
+  const priority = strategy.priorities;
   const selected = [...candidates.values()].flat().sort((a, b) => priority.indexOf(a.goal) - priority.indexOf(b.goal)
     // Buying the missing ball is preparation and costs no unit action; do it before weakening the target.
     || (a.goal === 'capture' && b.goal === 'capture' ? Number(b.action.type === 'BuyBall') - Number(a.action.type === 'BuyBall') : 0)

@@ -1,3 +1,12 @@
+/**
+ * One-off D38 migration of historical unpatched simulation output; reusable on matching rules.
+ * Usage: node tools/reclassify.ts <source> <output>
+ * Input: games/*.json MatchResult records (setup, commands, invalid, commandLimitReached)
+ * plus manifest.json, schedule.json and determinism.json. Replays using current default
+ * content, not manifest patches; incompatible rules/patch experiments are unsupported.
+ * Writes reclassified games and summaries to a separate output directory. Copied determinism
+ * evidence belongs to the source run; it does not validate the migrated format.
+ */
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';

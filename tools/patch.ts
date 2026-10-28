@@ -8,14 +8,14 @@ import { canonicalSerialize } from '../src/core/snapshot.ts';
 
 export type SimulationOptions = { content: Content; ai: AiThresholds };
 export type Experiment = SimulationOptions & { patch: Record<string, JsonValue>; sha256: string };
-type Schema = readonly [number, number] | { [key: string]: Schema };
+type Schema = 'boolean' | readonly [number, number] | { [key: string]: Schema };
 const cost = [1, 10_000] as const, amount = [0, 1000] as const;
 const yields = { food: amount, production: amount, gold: amount, research: amount };
 const unit = { move: [1, 12], vision: [1, 12], trainCost: cost, upkeep: [0, 100] } satisfies Schema;
 const species = { ...unit, maxHp: [4, 1000], attack: [1, 1000], defense: [1, 1000], range: [1, 12], power: [1, 100] } satisfies Schema;
 const keyed = <T>(values: Record<string, T>, schema: (value: T) => Schema): Schema =>
   Object.fromEntries(Object.entries(values).map(([key, value]) => [key, schema(value)]));
-// Only these existing numeric leaves are writable. Identity, unlocks and rule structure are not patches.
+// Only these listed leaves are writable. Identity, unlocks and rule structure are not patches.
 export const PATCH_SCHEMA: Schema = {
   species: keyed(CONTENT.species, value => ({ ...species, ...(value.evolution ? { evolution: { xp: amount, gold: amount } } : {}) })),
   settler: unit,
@@ -32,10 +32,15 @@ export const PATCH_SCHEMA: Schema = {
   ai: {
     aggressiveSettlerCities: [1, 100], aggressiveWarStrength: [0, 10_000], aggressiveBorderDistance: [1, 24],
     aggressiveSiegeUnits: [1, 100], aggressiveCaptureRadius: [1, 24], conservativeStrength: [0, 10_000],
+    conservativeCaptureTerritoryOnly: 'boolean',
     conservativeSettlerInterval: [1, 300], peaceCitiesLost: [1, 100], expansionCaptureHpPercent: [1, 100],
   },
 };
 function validate(value: unknown, schema: Schema, path: string): void {
+  if (schema === 'boolean') {
+    if (typeof value !== 'boolean') throw new Error(`${path}: expected boolean`);
+    return;
+  }
   if (Array.isArray(schema)) {
     if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < schema[0] || value > schema[1]) {
       throw new Error(`${path}: expected integer in [${schema[0]}, ${schema[1]}]`);
@@ -51,7 +56,7 @@ function validate(value: unknown, schema: Schema, path: string): void {
 function apply(target: object, patch: Record<string, unknown>): void {
   const record = target as Record<string, unknown>;
   for (const [key, value] of Object.entries(patch)) {
-    if (typeof value === 'number') record[key] = value;
+    if (typeof value === 'number' || typeof value === 'boolean') record[key] = value;
     else apply(record[key] as object, value as Record<string, unknown>);
   }
 }

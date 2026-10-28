@@ -24,8 +24,12 @@ test.each([
   [{ techs: { riding: { tier: 1 } } }, 'patch.techs.riding.tier'],
   [{ balance: { city: { baseHp: 49 } } }, 'patch.balance.city.baseHp'],
   [{ ai: { expansionCaptureHpPercent: 101 } }, 'patch.ai.expansionCaptureHpPercent'],
+  [{ ai: { conservativeCaptureTerritoryOnly: 0 } }, 'patch.ai.conservativeCaptureTerritoryOnly'],
+  [{ ai: { conservativeCaptureTerritoryOnly: 'false' } }, 'patch.ai.conservativeCaptureTerritoryOnly'],
+  [{ ai: { conservativeCaptureTerritoryOnly: null } }, 'patch.ai.conservativeCaptureTerritoryOnly'],
+  [{ ai: { conservativeCaptureTerritoryOnly: {} } }, 'patch.ai.conservativeCaptureTerritoryOnly'],
   [JSON.parse('{"species":{"__proto__":{"attack":1}}}'), 'patch.species.__proto__'],
-])('invalid numeric patch %# reports its exact path', (input, path) => {
+])('invalid patch %# reports its exact path', (input, path) => {
   expect(() => parsePatch(input)).toThrow(String(path));
 });
 test('patches are isolated, aliased species stay consistent, hashes ignore key order', () => {
@@ -67,3 +71,9 @@ test('empty patch preserves a full match', () => {
   const match = explorationMatches(3)[0], baseline = simulateMatch(match);
   expect(JSON.stringify(simulateMatch(match, 100, parsePatch({})))).toBe(JSON.stringify(baseline));
 }, 30_000);
+
+test('boolean AI patches preserve explicit false and do not mutate defaults', () => {
+  expect(parsePatch({ ai: { conservativeCaptureTerritoryOnly: false } }).ai.conservativeCaptureTerritoryOnly).toBe(false);
+  expect(parsePatch({ ai: { conservativeCaptureTerritoryOnly: true } }).ai.conservativeCaptureTerritoryOnly).toBe(true);
+  expect(parsePatch({}).ai.conservativeCaptureTerritoryOnly).toBe(true);
+});

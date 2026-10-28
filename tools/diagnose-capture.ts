@@ -1,3 +1,11 @@
+/**
+ * M5-2 one-off capture diagnosis, retained for rerunning historical unpatched runs.
+ * Usage: node tools/diagnose-capture.ts <source> <output>
+ * Input: source/games.jsonl rows with id, plus games/<id>.json MatchResult records
+ * (setup, personalities, accepted commands). Replays with current default content/AI;
+ * not suitable for patched runs or incompatible rules versions. Writes capture evidence
+ * into output; use a fresh output directory to preserve earlier evidence.
+ */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';

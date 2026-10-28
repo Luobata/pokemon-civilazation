@@ -6,6 +6,8 @@ import { canCaptureByPersonality, canProduceSettler, canSiege, knownCombatCount,
 import { CONTENT } from '../../src/content/units.ts';
 import type { AiPersonality, PlayerView } from '../../src/core/model.ts';
 import type { RuleQueries } from '../../src/ai/query.ts';
+import { AI_THRESHOLDS } from '../../src/ai/thresholds.ts';
+import { parsePatch } from '../../tools/patch.ts';
 import { RULE_QUERIES } from '../../src/ai/query.ts';
 import { GameSession, replay } from '../../src/app/session.ts';
 import { canonicalSerialize } from '../../src/core/snapshot.ts';
@@ -130,7 +132,7 @@ test('no repeated queue/research settings and pending production counts as settl
 });
 
 test('injected personality thresholds change only their corresponding decisions', () => {
-  const ai = { aggressiveSettlerCities: 2, aggressiveWarStrength: 2000, aggressiveBorderDistance: 6,
+  const ai = { ...AI_THRESHOLDS, aggressiveSettlerCities: 2, aggressiveWarStrength: 2000, aggressiveBorderDistance: 6,
     aggressiveSiegeUnits: 3, aggressiveCaptureRadius: 7, conservativeStrength: 1000,
     conservativeSettlerInterval: 20, peaceCitiesLost: 2, expansionCaptureHpPercent: 60 };
   const { view } = quiet('aggressive');
@@ -157,4 +159,20 @@ test('injected personality thresholds change only their corresponding decisions'
   const wild = pokemon(combatFixture(), 11, 'charmander', null); wild.hp = Math.floor(CONTENT.species.charmander.maxHp / 2);
   expect(canCaptureByPersonality(view, wild)).toBe(false);
   expect(canCaptureByPersonality(view, wild, { ...RULE_QUERIES, ai })).toBe(true);
+});
+
+test('territory capture patch reaches the planner without changing other personalities', () => {
+  const { view } = quiet('conservative');
+  const wild = pokemon(combatFixture(), 11, 'charmander', null, 5, 2);
+  view.units.push(pokemon(combatFixture(), 10, 'bulbasaur', 0, 4, 3), wild);
+  view.economy.player.ballInventory.pokeBall = 2;
+  const query = { ...RULE_QUERIES, attack: () => ({ ok: false as const, reason: 'immune' }), paths: () => ({}) };
+  const experiment = parsePatch({ ai: { conservativeCaptureTerritoryOnly: false } });
+  expect(planNext(view, query).action.type).toBe('EndTurn');
+  expect(planNext(view, { ...query, ...experiment }).action).toMatchObject({ type: 'Capture', targetUnitId: 11 });
+  expect(canCaptureByPersonality(view, { ...wild, ownerId: 1 }, { ...query, ...experiment })).toBe(false);
+  for (const personality of ['expansion', 'aggressive'] as const) {
+    view.economy.player.personality = personality;
+    expect(planNext(view, { ...query, ...experiment })).toEqual(planNext(view, query));
+  }
 });
