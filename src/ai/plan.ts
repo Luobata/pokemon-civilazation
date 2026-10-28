@@ -11,6 +11,7 @@ import type { RejectedCitySite } from './memory.ts';
 import { AI_THRESHOLDS } from './thresholds.ts';
 import type { AiThresholds } from './thresholds.ts';
 
+import { seekUnknownHeadquarters } from './targets.ts';
 import { AI_STRATEGIES } from './strategies.ts';
 import type { Goal } from './strategies.ts';
 type Candidate = { action: Command['action']; goal: Goal; benefit: number; ownId: number; targetId: number };
@@ -45,7 +46,8 @@ export function canSiege(view: PlayerView, ownerId: number | null, ai: AiThresho
   if (siege.kind === 'never') return false;
   if (siege.kind === 'minimum') return own >= ai[siege.units];
   if (ownerId === null) return false;
-  const pair = view.diplomacy.find(pair => pair.status === 'war' && pair.declaredBy === ownerId && (pair.a === view.playerId || pair.b === view.playerId));
+  const pair = view.diplomacy.find(pair => pair.status === 'war' && (pair.a === view.playerId || pair.b === view.playerId)
+    && (pair.declaredBy === ownerId || (ai[siege.allowOffensiveWar] && (pair.a === ownerId || pair.b === ownerId))));
   return !!pair && own * 1000 >= ai[siege.strength] * knownCombatCount(view, ownerId);
 }
 export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, memory: readonly RejectedCitySite[] = []): Command {
@@ -79,7 +81,7 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
     else if (pair.status === 'war' && !pair.proposal && view.round - pair.changedAtRound >= 5
       && (pair.rejectedAtRound[actorId] === undefined || view.round - pair.rejectedAtRound[actorId] >= 5)
       && (strategy.peaceCitiesLost === null || lost >= ai[strategy.peaceCitiesLost])) add({ type: 'MakePeace', targetPlayerId: enemy }, 'diplomacy', 100, actorId, enemy);
-    else if (pair.status === 'peace' && view.round >= pair.cooldownUntilRound && declaration !== null
+    else if (pair.status === 'peace' && view.round >= pair.cooldownUntilRound && declaration !== null && (declaration.enabled === null || ai[declaration.enabled])
       && combat.length * 1000 >= knownCombatCount(view, enemy) * ai[declaration.strength]
       && known.some(city => city.ownerId === enemy && units.some(unit => hexDistance(unit.position, city.position) <= ai[declaration.borderDistance]))) {
       add({ type: 'DeclareWar', targetPlayerId: enemy }, 'diplomacy', 10, actorId, enemy);
@@ -145,6 +147,8 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
     const enemyHqs = known.filter(city => city.ownerId !== null && city.ownerId !== actorId && city.headquartersOf === city.ownerId && canSiege(view, city.ownerId, ai)
       && view.diplomacy.some(pair => pair.status === 'war' && ((pair.a === actorId && pair.b === city.ownerId) || (pair.b === actorId && pair.a === city.ownerId))));
     const targetHq = enemyHqs.sort((a, b) => hexDistance(unit.position, a.position) - hexDistance(unit.position, b.position) || a.id - b.id)[0];
+    const seek = unit.kind === 'pokemon' && !enemyHqs.length && strategy.seekUnknownHq !== null
+      && ai[strategy.seekUnknownHq] && canSiege(view, null, ai) ? seekUnknownHeadquarters(view, unit, paths) : null;
     for (const [indexText, path] of Object.entries(paths)) {
       // A visible route cannot hit a hidden first-step blocker and be rejected.
       if (!path.every(position => visible.has(hexToIndex(position, view.map)!))) continue;
@@ -154,6 +158,9 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
         if (after < before) add(action, 'found', 100 - after, unit.id, index);
       } else if (targetHq && hexDistance(to, targetHq.position) < hexDistance(unit.position, targetHq.position)) {
         add(action, 'military', 100 - hexDistance(to, targetHq.position), unit.id, index);
+      }
+      if (seek && hexDistance(to, seek) < hexDistance(unit.position, seek)) {
+        add(action, 'military', 100 - hexDistance(to, seek), unit.id, index);
       }
       if (unit.kind === 'pokemon') for (const target of view.units.filter(target => target.ownerId !== null && target.ownerId !== actorId)) {
         const war = view.diplomacy.some(pair => pair.status === 'war' && ((pair.a === actorId && pair.b === target.ownerId) || (pair.b === actorId && pair.a === target.ownerId)));

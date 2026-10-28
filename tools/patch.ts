@@ -25,14 +25,15 @@ export const PATCH_SCHEMA: Schema = {
   biomes: keyed(CONTENT.biomes, () => yields),
   moveCosts: keyed(CONTENT.moveCosts, () => [1, 12]),
   balance: {
-    city: { baseHp: [50, 1000], buildingHp: [0, 1000], defense: [1, 1000], counterAttack: [0, 1000], squirtleCounterAttack: [0, 1000] },
+    city: { baseHp: [50, 1000], capturedHp: [1, 1000], buildingHp: [0, 1000], defense: [1, 1000], counterAttack: [0, 1000], squirtleCounterAttack: [0, 1000] },
     effects: { siegeMultiplier: [0, 5000], leagueScoreMultiplier: [0, 5000], meteorologyResearch: amount },
     score: { cities: amount, population: amount, species: amount, techs: amount, knockdowns: amount },
   },
   ai: {
     aggressiveSettlerCities: [1, 100], aggressiveWarStrength: [0, 10_000], aggressiveBorderDistance: [1, 24],
     aggressiveSiegeUnits: [1, 100], aggressiveCaptureRadius: [1, 24], conservativeStrength: [0, 10_000],
-    conservativeCaptureTerritoryOnly: 'boolean',
+    conservativeCaptureTerritoryOnly: 'boolean', aggressiveSeekUnknownHq: 'boolean',
+    conservativeMayDeclareWar: 'boolean', conservativeDeclareStrength: [0, 10_000], conservativeBorderDistance: [1, 24],
     conservativeSettlerInterval: [1, 300], peaceCitiesLost: [1, 100], expansionCaptureHpPercent: [1, 100],
   },
 };
@@ -65,6 +66,10 @@ export function parsePatch(value: unknown): Experiment {
   const patch = JSON.parse(JSON.stringify(value)) as Record<string, JsonValue>;
   const content = structuredClone(CONTENT), ai = { ...AI_THRESHOLDS };
   apply({ ...content, settler: content.units.settler, ai }, patch);
+  // A building-free city is the minimum maximum HP; buildingHp is nonnegative.
+  if (content.balance.city.capturedHp > content.balance.city.baseHp) {
+    throw new Error('patch.balance.city.capturedHp: must not exceed balance.city.baseHp');
+  }
   // Keep unit movement, training and upkeep queries on the same patched species definitions.
   for (const id of Object.keys(content.species) as (keyof Content['species'])[]) content.units[id] = content.species[id];
   return { content, ai, patch, sha256: createHash('sha256').update(canonicalSerialize(patch)).digest('hex') };

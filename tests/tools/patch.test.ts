@@ -77,3 +77,23 @@ test('boolean AI patches preserve explicit false and do not mutate defaults', ()
   expect(parsePatch({ ai: { conservativeCaptureTerritoryOnly: true } }).ai.conservativeCaptureTerritoryOnly).toBe(true);
   expect(parsePatch({}).ai.conservativeCaptureTerritoryOnly).toBe(true);
 });
+
+test.each([
+  [{ ai: { conservativeMayDeclareWar: 1 } }, 'conservativeMayDeclareWar'],
+  [{ ai: { aggressiveSeekUnknownHq: 'true' } }, 'aggressiveSeekUnknownHq'],
+  [{ ai: { conservativeDeclareStrength: -1 } }, 'conservativeDeclareStrength'],
+  [{ ai: { conservativeDeclareStrength: 10001 } }, 'conservativeDeclareStrength'],
+  [{ ai: { conservativeBorderDistance: 0 } }, 'conservativeBorderDistance'],
+  [{ ai: { conservativeBorderDistance: 25 } }, 'conservativeBorderDistance'],
+  [{ balance: { city: { capturedHp: 0 } } }, 'capturedHp'],
+  [{ balance: { city: { capturedHp: 101 } } }, 'capturedHp'],
+  [{ balance: { city: { baseHp: 50, capturedHp: 60 } } }, 'capturedHp'],
+])('B4 rejects invalid new fields %#', (patch, field) => {
+  expect(() => parsePatch(patch)).toThrow(String(field));
+});
+test('B4 patch leaves defaults off and admits captured HP equal to the smallest city maximum', () => {
+  expect(parsePatch({}).ai).toMatchObject({ conservativeMayDeclareWar: false, conservativeDeclareStrength: 2000,
+    conservativeBorderDistance: 1, aggressiveSeekUnknownHq: false });
+  expect(parsePatch({}).content.balance.city.capturedHp).toBe(50);
+  expect(parsePatch({ balance: { city: { baseHp: 60, capturedHp: 60 } } }).content.balance.city.capturedHp).toBe(60);
+});

@@ -1,0 +1,11 @@
+{
+  "balance": { "city": { "baseHp": 80 }, "score": { "cities": 80 } },
+  "ai": {
+    "aggressiveSettlerCities": 3,
+    "aggressiveSiegeUnits": 3,
+    "aggressiveWarStrength": 1250,
+    "conservativeMayDeclareWar": true,
+    "conservativeDeclareStrength": 1500,
+    "conservativeBorderDistance": 1
+  }
+}

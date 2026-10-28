@@ -6,6 +6,7 @@ import { canCaptureByPersonality, canProduceSettler, canSiege, knownCombatCount,
 import { CONTENT } from '../../src/content/units.ts';
 import type { AiPersonality, PlayerView } from '../../src/core/model.ts';
 import type { RuleQueries } from '../../src/ai/query.ts';
+import { hexToIndex } from '../../src/core/hex.ts';
 import { AI_THRESHOLDS } from '../../src/ai/thresholds.ts';
 import { parsePatch } from '../../tools/patch.ts';
 import { RULE_QUERIES } from '../../src/ai/query.ts';
@@ -174,5 +175,61 @@ test('territory capture patch reaches the planner without changing other persona
   for (const personality of ['expansion', 'aggressive'] as const) {
     view.economy.player.personality = personality;
     expect(planNext(view, { ...query, ...experiment })).toEqual(planNext(view, query));
+  }
+});
+
+test('D41 declaration has independent 2x strength and distance1 boundaries; own war can siege only when enabled', () => {
+  const { view } = quiet('conservative');
+  for (let id = 10; id < 12; id++) view.units.push(pokemon(combatFixture(), id, 'bulbasaur', 0, 8, 2));
+  view.knowledge.lastKnownUnits[20] = { kind: 'pokemon', speciesId: 'bulbasaur', ownerId: 1, position: { q: 10, r: 2 }, lastSeenRound: 1 };
+  view.knowledge.lastKnownCities[2] = { ownerId: 1, position: { q: 9, r: 2 }, lastSeenRound: 1 };
+  const { ai } = parsePatch({ ai: { conservativeMayDeclareWar: true } });
+  expect(planNext(view).action.type).not.toBe('DeclareWar');
+  expect(planNext(view, { ...RULE_QUERIES, ai }).action).toEqual({ type: 'DeclareWar', targetPlayerId: 1 });
+  view.knowledge.lastKnownCities[2].position.q = 10;
+  expect(planNext(view, { ...RULE_QUERIES, ai }).action.type).not.toBe('DeclareWar');
+  view.knowledge.lastKnownCities[2].position.q = 9;
+  view.units.pop();
+  expect(planNext(view, { ...RULE_QUERIES, ai }).action.type).not.toBe('DeclareWar');
+  view.units.push(pokemon(combatFixture(), 11, 'bulbasaur', 0, 8, 2));
+  view.knowledge.lastKnownUnits[21] = { ...view.knowledge.lastKnownUnits[20] };
+  view.units.push(pokemon(combatFixture(), 12, 'bulbasaur', 0, 8, 2));
+  const j2 = { ...ai, conservativeDeclareStrength: 1500 };
+  expect(planNext(view, { ...RULE_QUERIES, ai: j2 }).action.type).toBe('DeclareWar');
+  view.diplomacy[0].status = 'war'; view.diplomacy[0].declaredBy = 0;
+  expect(canSiege(view, 1, j2)).toBe(false); // Declaration 1.5x never changes the 2x siege threshold.
+  view.units.push(pokemon(combatFixture(), 13, 'bulbasaur', 0, 8, 2));
+  expect(canSiege(view, 1)).toBe(false);
+  expect(canSiege(view, 1, j2)).toBe(true);
+  view.diplomacy[0].status = 'peace'; expect(canSiege(view, 1, j2)).toBe(false);
+});
+
+test.each([false, true])('D42 seeks an unseen tile or remembered city (%s) only when enabled and siege-ready', rememberedCity => {
+  const { view } = quiet('aggressive');
+  for (let id = 10; id < 14; id++) view.units.push(pokemon(combatFixture(), id, 'bulbasaur', 0, 3, 2));
+  view.cities = view.cities.filter(city => city.ownerId === 0); view.knowledge.lastKnownCities = {};
+  const target = { q: 10, r: 2 }, destination = { q: 4, r: 2 };
+  if (rememberedCity) view.knowledge.lastKnownCities[2] = { ownerId: 1, position: target, lastSeenRound: 1 };
+  else view.knowledge.exploredTileIds = view.knowledge.exploredTileIds.filter(index => index !== hexToIndex(target, view.map));
+  view.visibleTileIds.push(hexToIndex(destination, view.map)!);
+  const query: RuleQueries = { ...RULE_QUERIES, paths: (_view, id) => id === 10 ? { [hexToIndex(destination, view.map)!]: [destination] } : {} };
+  const { ai } = parsePatch({ ai: { aggressiveSeekUnknownHq: true } });
+  expect(planNext(view, query).action.type).toBe('EndTurn');
+  expect(planNext(view, { ...query, ai }).action).toEqual({ type: 'Move', unitId: 10, to: { q: 4, r: 2 } });
+  expect(planNext(structuredClone(view), { ...query, ai })).toEqual(planNext(view, { ...query, ai }));
+  view.units.pop(); expect(planNext(view, { ...query, ai }).action.type).toBe('EndTurn');
+});
+
+test('D41/D42 cannot distinguish hidden military, gold or city changes', () => {
+  for (const personality of ['conservative', 'aggressive'] as const) {
+    const { state } = quiet(personality);
+    for (let id = 10; id < 14; id++) pokemon(state, id, 'bulbasaur', 0, 3, 2);
+    refreshKnowledge(state);
+    const { ai } = parsePatch({ ai: { conservativeMayDeclareWar: true, aggressiveSeekUnknownHq: true } });
+    const view = observe(state, 0), before = planNext(view, { ...RULE_QUERIES, ai });
+    pokemon(state, 90, 'charizard', 1, 11, 7); state.players[1].gold += 9999;
+    state.cities[2].position = { q: 11, r: 6 };
+    expect(observe(state, 0)).toEqual(view);
+    expect(planNext(observe(state, 0), { ...RULE_QUERIES, ai })).toEqual(before);
   }
 });

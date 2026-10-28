@@ -108,7 +108,7 @@ export function resolveAttack(state: GameState, unitId: number, target: CombatTa
       const previousOwner = city.ownerId;
       const headquarters = previousOwner !== null && state.players[previousOwner].headquartersCityId === city.id;
       if (!headquarters) for (const unit of Object.values(state.units)) if (unit.location === 'recovering' && unit.cityId === city.id) delete state.units[unit.id];
-      city.ownerId = attacker.ownerId!; city.hp = 50; city.capturedAtRound = state.round;
+      city.ownerId = attacker.ownerId!; city.hp = content.balance.city.capturedHp; city.capturedAtRound = state.round;
       city.workedTileIds = []; city.lockedTileIds = [];
       for (const other of Object.values(state.cities)) cleanWork(state, other, content);
       assignNewWorkers(state, city, city.population, content);
