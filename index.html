@@ -22,7 +22,7 @@
       <div class="workspace">
         <div class="map-column">
           <section class="map-card" aria-label="主地图">
-            <div class="map-toolbar"><strong>青绿原野</strong><span class="map-meta">小地图 · 24 × 16</span><div class="map-actions"><button id="fit">F 地图居中</button><label><input id="animate" type="checkbox" checked />移动动画</label><button id="skip" disabled>跳过动画</button></div></div>
+            <div class="map-toolbar"><strong>青绿原野</strong><span id="map-size-label" class="map-meta">小地图 · 24 × 16</span><div class="map-actions"><button id="fit">F 地图居中</button><label><input id="animate" type="checkbox" checked />移动动画</label><button id="skip" disabled>跳过动画</button></div></div>
             <figure class="map-frame">
               <canvas id="map" tabindex="0" aria-label="六角格地图。点击或用方向键选择，Enter 确认，Escape 取消，加减缩放，F 居中"></canvas>
               <figcaption><span>色块字母 = 宝可梦简称　数字 1–4 = 文明　斜线 = 记忆地形</span><span>点选单位 → 高亮格移动</span></figcaption>
@@ -44,6 +44,7 @@
 
       <section id="controls" aria-label="游戏与存档控制">
         <label>御三家 <select id="starter"><option value="bulbasaur">妙蛙种子</option><option value="charmander">小火龙</option><option value="squirtle">杰尼龟</option></select></label>
+        <label>地图尺寸 <select id="map-size"><option value="24x16" selected>小 · 24 × 16</option><option value="30x20">标准 · 30 × 20</option><option value="40x26">大 · 40 × 26</option></select></label>
         <label>轮上限 <select id="round-limit"><option value="100">100</option><option value="200">200</option><option value="300">300</option></select></label>
         <label>AI 数量 <select id="ai-count"><option value="1">1</option><option value="2">2</option><option value="3" selected>3</option></select></label>
         <label>AI 性格 <select id="ai-personality"><option value="expansion">扩张型</option><option value="aggressive">好战型</option><option value="conservative">保守型</option></select></label>
@@ -52,7 +53,7 @@
         <label>导入存档 <input id="import-save" type="file" accept="application/json,.json"></label>
       </section>
 
-      <details id="dev-drawer"><summary>开发、命令回放与调试</summary><div class="dev-content"><label id="god-label"><input id="god" type="checkbox" />上帝视角（开发）</label><button id="export">导出命令 JSON</button><label>重放序号 <input id="sequence" type="number" min="0" value="0" /></label><button id="replay">重放</button><button id="resume">从此处继续</button><pre id="debug" aria-label="调试状态"></pre></div></details>
+      <details id="dev-drawer"><summary>开发、命令回放与调试</summary><div class="dev-content"><label id="god-label"><input id="god" type="checkbox" />上帝视角（开发）</label><button id="export">导出命令 JSON</button><label>重放序号 <input id="sequence" type="number" min="0" value="0" /></label><button id="replay">重放</button><button id="resume">从此处继续</button><pre id="debug" aria-label="调试状态"></pre><pre id="frame-metrics" aria-label="帧绘制耗时"></pre></div></details>
       <details id="keyboard-help"><summary>键盘操作</summary><p>Tab 切换控件；地图方向键移动光标；Enter 选择/移动；Esc 取消；+ / − 缩放；F 居中；C 城市；R / T 研究；? 打开本帮助；Ctrl+Enter 结束回合。</p></details>
     </main>
 

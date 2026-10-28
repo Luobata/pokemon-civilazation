@@ -89,7 +89,7 @@ for (const [kind, title] of [['score', '轮上限计分'], ['conquest', '征服�
     await expect(page.locator('#gameover-dialog')).toBeVisible();
     await expect(page.locator('#outcome-title')).toHaveText(title);
     await expect(page.locator('#outcome-ranking tr')).toHaveCount(2);
-    await expect(page.locator('#outcome-ranking')).toContainText('×100');
+    await expect(page.locator('#outcome-ranking')).toContainText('×80');
     const outcomeState = await state(page);
     if (kind === 'conquest') expect(outcomeState.players).toMatchObject({ 0: { eliminated: false }, 1: { eliminated: true } });
     if (kind === 'playerDefeat') {

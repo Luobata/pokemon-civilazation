@@ -23,6 +23,7 @@ import type { Camera, Point } from './camera.ts';
 const canvas = document.querySelector<HTMLCanvasElement>('#map')!;
 const info = document.querySelector<HTMLElement>('#map-info')!;
 const debug = document.querySelector<HTMLElement>('#debug')!;
+const frameMetricsElement = document.querySelector<HTMLElement>('#frame-metrics')!;
 const selection = document.querySelector<HTMLElement>('#selection')!;
 const actionNotice = document.querySelector<HTMLElement>('#action-notice')!;
 const animate = document.querySelector<HTMLInputElement>('#animate')!;
@@ -38,6 +39,15 @@ type Active = { kind: 'move'; payload: MovedPayload; started: number }
   | { kind: 'battle'; payload: BattlePayload; started: number }
   | { kind: 'capture'; payload: CapturePayload; started: number }
   | { kind: 'evolve'; payload: EvolvePayload; started: number };
+export type FrameMetrics = { samples: number; last: number; mean: number; p95: number; max: number };
+const frameDurations: number[] = [];
+function frameMetrics(): FrameMetrics {
+  const sorted = [...frameDurations].sort((a, b) => a - b);
+  const sum = frameDurations.reduce((total, duration) => total + duration, 0);
+  return { samples: frameDurations.length, last: frameDurations.at(-1) ?? 0,
+    mean: frameDurations.length ? sum / frameDurations.length : 0,
+    p95: sorted[Math.max(0, Math.ceil(sorted.length * .95) - 1)] ?? 0, max: sorted.at(-1) ?? 0 };
+}
 export let session: PlayerSession;
 let driver: GameSession;
 export const developerAdapter = {
@@ -45,6 +55,7 @@ export const developerAdapter = {
   getDebugView: () => driver.getDebugView(),
   exportLog: () => driver.exportLog(),
   save: () => driver.save(),
+  getFrameMetrics: () => ({ ...frameMetrics() }),
 };
 export let camera: Camera = { x: 0, y: 0, zoom: 1 };
 let selected: number | null = null;
@@ -107,6 +118,8 @@ function controls() {
     .reduce((sum, unit) => sum + unitDefinition(unit, CONTENT).upkeep, 0);
   const netGold = yields.gold - upkeep;
   info.textContent = `种子 ${view.seed} · 第 ${view.round} 轮 · 当前文明 ${view.activePlayerId + 1} · 命令 ${view.commandSeq}`;
+  const sizeName = view.map.width === 24 ? '小地图' : view.map.width === 30 ? '标准地图' : '大地图';
+  document.querySelector('#map-size-label')!.textContent = `${sizeName} · ${view.map.width} × ${view.map.height}`;
   document.querySelector('#round-display')!.innerHTML = `${view.round} <span>/ ${view.roundLimit}</span>`;
   document.querySelector('#hud-gold')!.innerHTML = `${player.gold} <span class="delta">${netGold >= 0 ? '+' : ''}${netGold}</span>`;
   document.querySelector('#hud-research')!.innerHTML = `${yields.research} <span class="delta">/ 轮</span>`;
@@ -220,8 +233,15 @@ function frame(now: number) {
     ? [...view.units.filter(unit => unit.ownerId !== view.playerId).map(unit => hexToIndex(unit.position, view.map)!),
       ...view.cities.filter(city => city.ownerId !== view.playerId).map(city => hexToIndex(city.position, view.map)!)]
     : actionMode === 'capture' ? view.units.filter(unit => unit.ownerId === null).map(unit => hexToIndex(unit.position, view.map)!) : [];
+  const drawStarted = performance.now();
   drawMap(canvas, import.meta.env.DEV && god.checked ? developerAdapter.getDebugView() : view,
     camera, selected, Object.keys(paths).map(Number), pose, keyboardIndex, effect, actionMode, targets, pendingTarget?.index);
+  frameDurations.push(performance.now() - drawStarted);
+  if (frameDurations.length > 240) frameDurations.shift();
+  if (import.meta.env.DEV) {
+    const metrics = frameMetrics();
+    frameMetricsElement.textContent = `帧绘制耗时（最近 ${metrics.samples} 帧）：${metrics.last.toFixed(2)} ms\n均值 ${metrics.mean.toFixed(2)} ms · p95 ${metrics.p95.toFixed(2)} ms · 最大 ${metrics.max.toFixed(2)} ms`;
+  }
   if (busy()) requestFrame(); else controls();
 }
 function skip() { finishPresentations(); controls(); requestFrame(); }
@@ -239,10 +259,14 @@ function newGame() {
     const personality = document.querySelector<HTMLSelectElement>('#ai-personality')!.value as AiPersonality;
     const players: GameSetup['players'] = [{ id: 0, controller: 'human', starterId: starter.value as StarterId },
       ...Array.from({ length: aiCount }, (_, index) => ({ id: index + 1, controller: 'ai' as const, personality }))];
-    driver = new GameSession({ seed: Number(new URLSearchParams(location.search).get('seed') ?? '12345'), width: 24, height: 16,
+    const mapSizes = { '24x16': { width: 24, height: 16 }, '30x20': { width: 30, height: 20 }, '40x26': { width: 40, height: 26 } } as const;
+    const sizeOption = document.querySelector<HTMLSelectElement>('#map-size')!.value as keyof typeof mapSizes;
+    const size = mapSizes[sizeOption] ?? mapSizes['24x16'];
+    driver = new GameSession({ seed: Number(new URLSearchParams(location.search).get('seed') ?? '12345'), ...size,
       roundLimit: Number(document.querySelector<HTMLSelectElement>('#round-limit')!.value) as GameSetup['roundLimit'], players });
     session = driver.asPlayerSession();
     active = null; presentationIndex = 0; selected = null; selectedCity = null; neutralCity = null; keyboardIndex = null; activityLog.length = 0;
+    frameDurations.length = 0;
     resetAction(); notice = ''; sequence.value = '0';
     canvas.hidden = false;
     fit();
@@ -359,6 +383,7 @@ const saveKey = 'pokemon-civilization-save';
 function load(text: string) {
   if (transitionBlocked()) return;
   driver.load(text); active = null; selected = null; selectedCity = null; neutralCity = null; keyboardIndex = null; activityLog.length = 0; resetAction(); notice = '读档完成';
+  frameDurations.length = 0;
   fit(); skip();
 }
 function storageAction(action: () => void) {
@@ -398,7 +423,10 @@ document.addEventListener('keydown', event => {
   }
 });
 god.addEventListener('change', skip);
-if (!import.meta.env.DEV) document.querySelector<HTMLElement>('#god-label')!.hidden = true;
+if (!import.meta.env.DEV) {
+  document.querySelector<HTMLElement>('#god-label')!.hidden = true;
+  frameMetricsElement.hidden = true;
+}
 new ResizeObserver(() => { if (session) requestFrame(); }).observe(canvas);
 for (const { label, color, symbol } of Object.values(BIOME_DISPLAY)) {
   const item = document.createElement('li'), swatch = document.createElement('span'), text = document.createElement('span');
