@@ -15,8 +15,8 @@ export function unitDamage(attacker: MapUnit, defender: MapUnit, from: BiomeId, 
 export function cityDamage(attacker: MapUnit, from: BiomeId, to: BiomeId, siegeTech: boolean, roll: number, content: Content = CONTENT): number {
   if (attacker.kind !== 'pokemon') return 0;
   const a = content.species[attacker.speciesId];
-  const siege = a.role === 'siege' && siegeTech ? 1500 : 1000;
-  return damage(a.attack, 50, a.power, 100, terrainMultiplier(from, to), roll, siege * (attacker.enraged ? 1200 : 1000) / 1000);
+  const siege = a.role === 'siege' && siegeTech ? content.balance.effects.siegeMultiplier : 1000;
+  return damage(a.attack, content.balance.city.defense, a.power, 100, terrainMultiplier(from, to), roll, siege * (attacker.enraged ? 1200 : 1000) / 1000);
 }
 export function cityCounterDamage(attack: number, defender: MapUnit, from: BiomeId, to: BiomeId, content: Content = CONTENT): number {
   if (attack === 0 || defender.kind !== 'pokemon') return 0;

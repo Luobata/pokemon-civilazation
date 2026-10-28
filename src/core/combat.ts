@@ -115,10 +115,10 @@ export function resolveAttack(state: GameState, unitId: number, target: CombatTa
       if (previousOwner !== null) {
         const pair = relationFor(state.diplomacy, attacker.ownerId!, previousOwner);
         if (pair?.status === 'war') pair.citiesLostSinceWar[previousOwner] = (pair.citiesLostSinceWar[previousOwner] ?? 0) + 1;
-        if (headquarters) events.push(...eliminateCivilization(state, previousOwner));
+        if (headquarters) events.push(...eliminateCivilization(state, previousOwner, content));
       }
     } else if (city.ownerId !== null && hexDistance(attacker.position, city.position) <= 2) {
-      const attack = state.players[city.ownerId].starterId === 'squirtle' ? 34 : 30;
+      const attack = state.players[city.ownerId].starterId === 'squirtle' ? content.balance.city.squirtleCounterAttack : content.balance.city.counterAttack;
       counterDamage = cityCounterDamage(attack, attacker, state.map.tiles[hexToIndex(city.position, state.map)!],
         state.map.tiles[hexToIndex(attacker.position, state.map)!], content);
       attacker.hp = Math.max(0, attacker.hp - counterDamage);

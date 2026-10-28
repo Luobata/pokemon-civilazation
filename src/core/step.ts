@@ -69,7 +69,7 @@ export function step(state: GameState, command: Command, content: Content = CONT
       events.push({ type: 'RoundEnded', round: state.round });
       refreshKnowledge(next, content); // Stage 7 precedes the round-limit score.
       knowledgeRefreshed = true;
-      if (next.round >= (next.setup.roundLimit ?? 100)) events.push(...finishGame(next, 'score'));
+      if (next.round >= (next.setup.roundLimit ?? 100)) events.push(...finishGame(next, 'score', undefined, content));
       else next.round++;
       for (const unit of Object.values(next.units)) unit.actionLeft = !next.outcome && isMapUnit(unit) ? 1 : 0;
     }

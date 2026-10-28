@@ -1,3 +1,4 @@
+import type { AiThresholds } from './thresholds.ts';
 import { CONTENT } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
 import { canResearch } from '../core/economy-commands.ts';
@@ -27,4 +28,4 @@ export function isCitySite(view: PlayerView, position: Hex): boolean {
 }
 // Each query takes its observation explicitly; no closure captures authoritative state.
 export const RULE_QUERIES = { content: CONTENT, paths: reachablePaths, attack: previewAttack, capture: previewCapture, research: canResearch, citySite: isCitySite };
-export type RuleQueries = Omit<typeof RULE_QUERIES, 'content'> & { content: Content };
+export type RuleQueries = Omit<typeof RULE_QUERIES, 'content'> & { content: Content; ai?: AiThresholds };

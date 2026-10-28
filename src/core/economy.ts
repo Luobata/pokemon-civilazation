@@ -61,7 +61,7 @@ export function resolveEconomy(state: GameState, content: Content = CONTENT): Ec
     city.queue.shift();
     if (city.queue[0]) city.queue[0].progress += overflow;
     if (order.item.kind === 'building') {
-      city.buildingIds.push(order.item.defId); city.buildingIds.sort(); city.hp += 20;
+      city.buildingIds.push(order.item.defId); city.buildingIds.sort(); city.hp += content.balance.city.buildingHp;
       events.push({ type: 'BuildingCompleted', playerId: city.ownerId, cityId: city.id, orderId: order.id,
         definitionId: order.item.defId, cost, overflow });
     } else {

@@ -128,3 +128,33 @@ test('no repeated queue/research settings and pending production counts as settl
   view.economy.cities = [{ ...view.economy.cities[0], ...createCity(1, 0, { q: 2, r: 2 }), queue: [{ id: 55, progress: 0, item: { kind: 'logistics', defId: 'settler' } }] }];
   view.economy.cities[0].availableTileIds = []; expect(planNext(view).action.type).toBe('EndTurn');
 });
+
+test('injected personality thresholds change only their corresponding decisions', () => {
+  const ai = { aggressiveSettlerCities: 2, aggressiveWarStrength: 2000, aggressiveBorderDistance: 6,
+    aggressiveSiegeUnits: 3, aggressiveCaptureRadius: 7, conservativeStrength: 1000,
+    conservativeSettlerInterval: 20, peaceCitiesLost: 2, expansionCaptureHpPercent: 60 };
+  const { view } = quiet('aggressive');
+  view.economy.cities.push({ ...view.economy.cities[0], id: 3 });
+  expect(canProduceSettler(view)).toBe(false); expect(canProduceSettler(view, ai)).toBe(true);
+  for (let id = 10; id < 13; id++) view.units.push(pokemon(combatFixture(), id));
+  expect(canSiege(view, 1)).toBe(false); expect(canSiege(view, 1, ai)).toBe(true);
+  view.knowledge.lastKnownUnits[20] = { kind: 'pokemon', speciesId: 'bulbasaur', ownerId: 1, position: { q: 10, r: 3 }, lastSeenRound: 1 };
+  view.knowledge.lastKnownUnits[21] = { ...view.knowledge.lastKnownUnits[20] };
+  view.knowledge.lastKnownCities[2] = { ownerId: 1, position: { q: 8, r: 3 }, lastSeenRound: 1 };
+  expect(planNext(view).action.type).toBe('DeclareWar');
+  expect(planNext(view, { ...RULE_QUERIES, ai }).action.type).not.toBe('DeclareWar');
+  view.knowledge.lastKnownCities[2].position.q = 9;
+  expect(planNext(view, { ...RULE_QUERIES, ai: { ...ai, aggressiveWarStrength: 1500 } }).action.type).toBe('DeclareWar');
+  view.diplomacy[0].status = 'war'; view.diplomacy[0].proposal = { proposerId: 1, recipientId: 0 };
+  view.diplomacy[0].citiesLostSinceWar[0] = 1;
+  expect(planNext(view).action).toMatchObject({ type: 'RespondPeace', accept: true });
+  expect(planNext(view, { ...RULE_QUERIES, ai }).action).toMatchObject({ type: 'RespondPeace', accept: false });
+  view.economy.player.personality = 'conservative'; view.diplomacy[0].declaredBy = 1;
+  expect(canSiege(view, 1)).toBe(false); expect(canSiege(view, 1, ai)).toBe(true);
+  view.diplomacy[0].status = 'peace'; view.round = 16; view.economy.player.lastSettlerProducedRound = 1;
+  expect(canProduceSettler(view)).toBe(true); expect(canProduceSettler(view, ai)).toBe(false);
+  view.economy.player.personality = 'expansion';
+  const wild = pokemon(combatFixture(), 11, 'charmander', null); wild.hp = Math.floor(CONTENT.species.charmander.maxHp / 2);
+  expect(canCaptureByPersonality(view, wild)).toBe(false);
+  expect(canCaptureByPersonality(view, wild, { ...RULE_QUERIES, ai })).toBe(true);
+});

@@ -1,3 +1,5 @@
+import { BALANCE } from './balance.ts';
+import type { Balance } from './balance.ts';
 import { SPECIES } from './species.ts';
 import type { SpeciesId } from './species.ts';
 export { speciesDisplay } from './species.ts';
@@ -11,14 +13,16 @@ export type UnitIdentity = { kind: 'pokemon'; speciesId: SpeciesId } | { kind: '
 export type UnitDefinition = { name: string; move: number; vision: number; terrain: readonly BiomeId[]; trainCost: number; upkeep: number };
 export type Content = {
   version: string;
-  biomes: typeof BIOME_YIELDS; buildings: typeof BUILDINGS; techs: typeof TECHS; balls: typeof BALLS;
+  biomes: typeof BIOME_YIELDS; buildings: typeof BUILDINGS; techs: { [K in keyof typeof TECHS]: Omit<typeof TECHS[K], 'cost'> & { cost: number } };
+  balls: { [K in keyof typeof BALLS]: Omit<typeof BALLS[K], 'goldCost'> & { goldCost: number } };
+  balance: Balance;
   units: Record<SpeciesId | 'settler', UnitDefinition>;
   species: typeof SPECIES;
   moveCosts: Record<BiomeId, number>;
 };
 const land: BiomeId[] = ['grassland', 'forest', 'mountain', 'desert', 'snow'];
 export const CONTENT: Content = {
-  version: 'm3-v1', species: SPECIES, biomes: BIOME_YIELDS, buildings: BUILDINGS, techs: TECHS, balls: BALLS,
+  version: 'm3-v1', balance: BALANCE, species: SPECIES, biomes: BIOME_YIELDS, buildings: BUILDINGS, techs: TECHS, balls: BALLS,
   units: {
     ...SPECIES,
     settler: { name: '开拓队', move: 2, vision: 2, terrain: land, trainCost: 30, upkeep: 0 },

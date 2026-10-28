@@ -66,7 +66,7 @@ export function applyEconomyAction(state: GameState, actor: number, action: Econ
   if (action.type === 'FoundCity') {
     const unit = state.units[action.unitId], id = state.nextEntityId++;
     if (!isMapUnit(unit)) throw new Error('Expected deployed settler');
-    const city = createCity(id, actor, unit.position); state.cities[id] = city; delete state.units[unit.id];
+    const city = createCity(id, actor, unit.position, false, content); state.cities[id] = city; delete state.units[unit.id];
     for (const existing of Object.values(state.cities)) cleanWork(state, existing, content);
     assignNewWorkers(state, city, city.population, content);
     return [{ type: 'CityFounded', playerId: actor, cityId: id, unitId: unit.id, position: { ...city.position } }];

@@ -1,3 +1,7 @@
+import { CONTENT } from '../src/content/units.ts';
+import { AI_THRESHOLDS } from '../src/ai/thresholds.ts';
+import { RULE_QUERIES } from '../src/ai/query.ts';
+import type { SimulationOptions } from './patch.ts';
 import { pathToFileURL } from 'node:url';
 import { createGame } from '../src/core/game.ts';
 import { observe } from '../src/core/vision.ts';
@@ -9,15 +13,17 @@ import type { Match } from './matches.ts';
 import { collectTelemetry, createTelemetry } from './telemetry.ts';
 import { classifyRejection } from './rejections.ts';
 
-export function simulateMatch(match: Match, roundLimit: 100 | 200 | 300 = 100) {
+export function simulateMatch(match: Match, roundLimit: 100 | 200 | 300 = 100, options?: SimulationOptions) {
+  const content = options?.content ?? CONTENT, ai = options?.ai ?? AI_THRESHOLDS;
+  const query = { ...RULE_QUERIES, content, ai };
   const setup = matchSetup(match, roundLimit);
   let state: GameState;
-  try { state = createGame(setup); } catch (error) {
+  try { state = createGame(setup, content); } catch (error) {
     return { ...match, winners: [], kind: null, round: 0, aborted: false, defect: true, legacyAborted: true, invalid: [], exception: String(error), commandCount: 0,
       commandLimitReached: false, setup, starters: [], outcome: null, commands: [],
-      telemetry: createTelemetry({ players: Object.fromEntries(setup.players.map(player => [player.id, player])), schemaVersion: 4, rulesVersion: 'm4-v1' }) };
+      telemetry: createTelemetry({ players: Object.fromEntries(setup.players.map(player => [player.id, player])), schemaVersion: 4, rulesVersion: 'm4-v1' }, content) };
   }
-  const telemetry = createTelemetry(state), commands: Command[] = [];
+  const telemetry = createTelemetry(state, content), commands: Command[] = [];
   const invalid: { round: number; seq: number; reason: string; command: Command; category: 'fog' | 'defect' }[] = [];
   const starters = Object.values(state.players).map(player => ({ id: player.id, personality: player.personality, starterId: player.starterId,
     headquarters: { ...state.cities[player.headquartersCityId].position } }));
@@ -25,17 +31,17 @@ export function simulateMatch(match: Match, roundLimit: 100 | 200 | 300 = 100) {
   try {
     // This diagnostic guard does not alter game rules or silently replace a seed.
     while (!state.outcome && state.commandSeq < 100_000) {
-      const command = planNext(observe(state, state.activePlayerId));
-      const result = step(state, command);
+      const command = planNext(observe(state, state.activePlayerId, content), query);
+      const result = step(state, command, content);
       if (result.ok) {
-        collectTelemetry(telemetry, state, result.state, command, result.events); commands.push(command); state = result.state;
+        collectTelemetry(telemetry, state, result.state, command, result.events, content); commands.push(command); state = result.state;
       } else {
-        invalid.push({ round: state.round, seq: state.commandSeq, reason: result.reason, command, category: classifyRejection(state, command, result.reason) });
-        const view = observe(state, state.activePlayerId);
+        invalid.push({ round: state.round, seq: state.commandSeq, reason: result.reason, command, category: classifyRejection(state, command, result.reason, content) });
+        const view = observe(state, state.activePlayerId, content);
         const end: Command = { actorId: view.playerId, expectedSeq: view.commandSeq, action: { type: 'EndTurn' } };
-        const ended = step(state, end);
+        const ended = step(state, end, content);
         if (!ended.ok) break;
-        collectTelemetry(telemetry, state, ended.state, end, ended.events); commands.push(end); state = ended.state;
+        collectTelemetry(telemetry, state, ended.state, end, ended.events, content); commands.push(end); state = ended.state;
       }
     }
   } catch (error) { exception = String(error); }

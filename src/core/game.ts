@@ -40,7 +40,7 @@ export function createGame(setup: GameSetup, content: Content = CONTENT): GameSt
     state.knowledge[player.id] = emptyKnowledge();
     const position = indexToHex(generated.starts[i].tileIndex, state.map);
     const cityId = state.nextEntityId++;
-    state.cities[cityId] = createCity(cityId, player.id, position, true);
+    state.cities[cityId] = createCity(cityId, player.id, position, true, content);
     const settlerId = state.nextEntityId++;
     state.units[settlerId] = createMapUnit({ kind: 'logistics', role: 'settler' }, settlerId, player.id, position, content, 0, 1);
   }

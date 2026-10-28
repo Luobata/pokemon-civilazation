@@ -90,7 +90,7 @@ export function observe(state: GameState, playerId: number, content: Content = C
       units: Object.fromEntries(Object.values(state.units).filter(isMapUnit).filter(unit => visible.has(hexToIndex(unit.position, state.map)!))
         .map(unit => [unit.id, { typeResearch: unit.ownerId !== null && state.players[unit.ownerId].research.unlockedIds.includes('typeResearch') }])),
       cities: Object.fromEntries(Object.values(state.cities).filter(city => visible.has(hexToIndex(city.position, state.map)!))
-        .map(city => [city.id, { hp: city.hp, counterAttack: city.ownerId === null ? 0 : state.players[city.ownerId].starterId === 'squirtle' ? 34 : 30 }])),
+        .map(city => [city.id, { hp: city.hp, counterAttack: city.ownerId === null ? 0 : state.players[city.ownerId].starterId === 'squirtle' ? content.balance.city.squirtleCounterAttack : content.balance.city.counterAttack }])),
     },
     visibleTileIds: [...visible], knowledge, diplomacy: state.diplomacy.map(pair => projectDiplomacy(pair, playerId)),
     outcome: state.outcome && JSON.parse(JSON.stringify(state.outcome)), roundLimit: state.setup.roundLimit ?? 100,

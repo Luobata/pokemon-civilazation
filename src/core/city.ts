@@ -5,17 +5,17 @@ import { hexDistance, hexToIndex, indexToHex } from './hex.ts';
 import type { Hex } from './hex.ts';
 import type { CityState, GameState, PlayerState, ProductionItem } from './model.ts';
 
-export function createCity(id: number, ownerId: number, position: Hex, headquarters = false): CityState {
-  return { id, ownerId, position: { ...position }, hp: 100, population: headquarters ? 2 : 1,
+export function createCity(id: number, ownerId: number, position: Hex, headquarters = false, content: Content = CONTENT): CityState {
+  return { id, ownerId, position: { ...position }, hp: content.balance.city.baseHp, population: headquarters ? 2 : 1,
     food: headquarters ? 10 : 0, buildingIds: headquarters ? ['headquarters'] : [],
     queue: [], pendingDeployments: [], workedTileIds: [], lockedTileIds: [], capturedAtRound: null };
 }
 export const workRadius = (city: CityState) => 2 + Math.floor(city.population / 4);
 export const growthThreshold = (city: CityState) => 20 + 10 * city.population;
-export const maxCityHp = (city: CityState) => 100 + 20 * city.buildingIds.filter(id => id !== 'headquarters').length;
+export const maxCityHp = (city: CityState, content: Content = CONTENT) => content.balance.city.baseHp + content.balance.city.buildingHp * city.buildingIds.filter(id => id !== 'headquarters').length;
 export function tileYield(biome: keyof Content['biomes'], player: PlayerState, content: Content = CONTENT): Yield {
   const result = { ...content.biomes[biome] };
-  if ((biome === 'snow' || biome === 'volcano') && player.research.unlockedIds.includes('meteorology')) result.research++;
+  if ((biome === 'snow' || biome === 'volcano') && player.research.unlockedIds.includes('meteorology')) result.research += content.balance.effects.meteorologyResearch;
   return result;
 }
 // Best first; fixed row-major index is (r,q) order on this map.
