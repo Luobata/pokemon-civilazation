@@ -47,3 +47,25 @@ test('D46 rejects standalone old-rule logs and replays current logs', () => {
   const old = JSON.parse(JSON.stringify(log)); old.rulesVersion = 'm4-v1';
   expect(() => replay(old)).toThrow('Unsupported log');
 });
+
+
+test('malformed AI rejection memory is rejected before replacing the session; optional and valid memory load', () => {
+  const session = new GameSession(combatFixture().setup), before = session.save(), save = JSON.parse(before);
+  const valid = { playerId: 1, position: { q: -1, r: 2 }, seq: 0 }; // Valid axial q may be negative.
+  const malformed = [null, {}, 'bad', [null], [{}], [{ ...valid, playerId: '1' }], [{ ...valid, playerId: 99 }],
+    [{ ...valid, position: null }], [{ playerId: 1, seq: 0 }], [{ playerId: 1, position: valid.position }],
+    [{ ...valid, position: { q: 0.5, r: 2 } }], [{ ...valid, position: { q: 0, r: -1 } }],
+    [{ ...valid, position: { q: save.state.map.width, r: 0 } }], [{ ...valid, position: { q: 0, r: save.state.map.height } }],
+    [{ ...valid, seq: -1 }], [{ ...valid, seq: 0.5 }], [{ ...valid, seq: '0' }]];
+  for (const memory of malformed) {
+    save.log.aiRejectedCitySites = memory;
+    expect(() => session.load(JSON.stringify(save))).toThrow('AI 建城拒绝记忆无效');
+    expect(session.save()).toBe(before);
+  }
+  save.log.aiRejectedCitySites = [valid]; session.load(JSON.stringify(save));
+  expect(session.exportLog().aiRejectedCitySites).toEqual([valid]);
+  save.log.aiRejectedCitySites = []; session.load(JSON.stringify(save));
+  expect(session.exportLog().aiRejectedCitySites).toEqual([]);
+  delete save.log.aiRejectedCitySites; session.load(JSON.stringify(save));
+  expect(session.exportLog().aiRejectedCitySites).toEqual([]);
+});

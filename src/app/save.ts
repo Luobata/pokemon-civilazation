@@ -3,6 +3,7 @@ import type { Content } from '../content/units.ts';
 import type { GameState } from '../core/model.ts';
 import { canonicalSerialize } from '../core/snapshot.ts';
 import { observe } from '../core/vision.ts';
+import { hexToIndex } from '../core/hex.ts';
 import type { CommandLog } from './session.ts';
 
 export type SaveFile = {
@@ -23,6 +24,13 @@ export function deserializeSave(text: string, content: Content = CONTENT): SaveF
   const state = save.state;
   if (!Array.isArray(save.log.commands) || !Number.isSafeInteger(state.commandSeq) || state.commandSeq < 0 || state.commandSeq > save.log.commands.length
     || canonicalSerialize(state.setup) !== canonicalSerialize(save.log.setup)) throw new Error('存档状态与命令日志不匹配。');
+  const memory = save.log.aiRejectedCitySites;
+  if (memory !== undefined && (!Array.isArray(memory) || memory.some(site => !site || typeof site !== 'object'
+    || !Number.isSafeInteger(site.playerId) || !Object.hasOwn(state.players, site.playerId)
+    || !site.position || !Number.isSafeInteger(site.position.q) || !Number.isSafeInteger(site.position.r)
+    || hexToIndex(site.position, state.map) === null || !Number.isSafeInteger(site.seq) || site.seq < 0))) {
+    throw new Error('存档 AI 建城拒绝记忆无效：需要玩家、地图内整数坐标和非负整数命令序号。');
+  }
   // Visibility is derived on demand, never serialized. Rebuild the view without
   // refreshing historical knowledge: merely loading must not change the save.
   try {

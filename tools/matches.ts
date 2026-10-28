@@ -1,7 +1,7 @@
 import type { AiPersonality, GameSetup } from '../src/core/model.ts';
 
 export const PERSONALITIES: AiPersonality[] = ['expansion', 'aggressive', 'conservative'];
-export type Match = { id: string; seed: number; mode: '1v1' | '1v3' | 'smoke'; leg: number; personalities: AiPersonality[] };
+export type Match = { id: string; seed: number; mode: '1v1' | '1v3' | 'smoke'; leg: number; personalities: AiPersonality[]; width?: number; height?: number };
 export function explorationMatches(count: number): Match[] {
   const pairs: [AiPersonality, AiPersonality][] = [['expansion', 'aggressive'], ['expansion', 'conservative'], ['aggressive', 'conservative']];
   const base = Math.floor(count / 3);
@@ -17,6 +17,6 @@ export function explorationMatches(count: number): Match[] {
   }).flat();
 }
 export function matchSetup(match: Match, roundLimit: 100 | 200 | 300 = 100): GameSetup {
-  return { seed: match.seed, width: 24, height: 16, roundLimit,
+  return { seed: match.seed, width: match.width ?? 24, height: match.height ?? 16, roundLimit,
     players: match.personalities.map((personality, id) => ({ id, controller: 'ai', personality })) };
 }
