@@ -6,6 +6,8 @@ import { canonicalSerialize, stateDigest } from '../../src/core/snapshot.ts';
 import { replay } from '../../src/app/session.ts';
 import type { CommandLog } from '../../src/app/session.ts';
 
+const reports = process.env.E2E_SCREENSHOT_DIR ?? 'test-results/screenshots';
+
 async function snapshot(page: Page) {
   return page.evaluate(async () => {
     const mainPath = '/src/browser/main.ts', snapshotPath = '/src/core/snapshot.ts';
@@ -77,7 +79,7 @@ for (const seed of [12345, 0]) {
       await page.locator('#dev-drawer summary').click();
       const current = await movePoints(page);
       await page.mouse.click(current.from.x, current.from.y);
-      await page.screenshot({ path: '/Users/bytedance/.local/state/gsb-local/pokemon-civilazation/reports/ui2-map.png', fullPage: true });
+      await page.screenshot({ path: `${reports}/ui2-map.png`, fullPage: true });
       await page.locator('#new-game').click();
       const visibility = await page.evaluate(async () => {
         const mainPath = '/src/browser/main.ts'; const { session } = await import(mainPath);
@@ -87,7 +89,7 @@ for (const seed of [12345, 0]) {
       expect(visibility.view.units.every((unit: { ownerId: number }) => unit.ownerId === 0)).toBe(true);
       expect(visibility.debug.units).toHaveLength(20);
       expect(visibility.debug.units.filter((unit: { ownerId: number | null }) => unit.ownerId === null)).toHaveLength(12);
-      await page.screenshot({ path: '/Users/bytedance/.local/state/gsb-local/pokemon-civilazation/reports/ui2-fog.png', fullPage: true });
+      await page.screenshot({ path: `${reports}/ui2-fog.png`, fullPage: true });
     }
     expect(errors).toEqual([]);
   });

@@ -5,7 +5,7 @@ import type { GameState } from '../../src/core/model.ts';
 import type { Hex } from '../../src/core/hex.ts';
 import { CONTENT, unitDefinition } from '../../src/content/units.ts';
 
-const reports = '/Users/bytedance/.local/state/gsb-local/pokemon-civilazation/reports';
+const reports = process.env.E2E_SCREENSHOT_DIR ?? 'test-results/screenshots';
 async function state(page: Page): Promise<GameState> {
   return page.evaluate(async () => {
     const mainPath = '/src/browser/main.ts';

@@ -11,6 +11,8 @@ import { canonicalSerialize, stateDigest } from '../../src/core/snapshot.ts';
 import { deserializeSave } from '../../src/app/save.ts';
 import { GameSession } from '../../src/app/session.ts';
 
+const reports = process.env.E2E_SCREENSHOT_DIR ?? 'test-results/screenshots';
+
 async function state(page: Page): Promise<GameState> {
   return page.evaluate(async () => { const path = '/src/browser/main.ts'; return (await import(path)).session.getState(); });
 }
@@ -97,7 +99,7 @@ test('found city, finish production, save/load JSON and continue identically in 
   await expect.poll(async () => stateDigest(await state(page))).toBe(stateDigest(saved));
   await page.locator('#city-select').selectOption(String(newCity.id));
   await page.locator('#city-panel').scrollIntoViewIfNeeded();
-  await page.screenshot({ path: '/Users/bytedance/.local/state/gsb-local/pokemon-civilazation/reports/ui2-city.png', fullPage: true });
+  await page.screenshot({ path: `${reports}/ui2-city.png`, fullPage: true });
   expect(errors).toEqual([]);
 });
 

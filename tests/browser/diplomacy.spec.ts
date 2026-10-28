@@ -6,7 +6,7 @@ import { canonicalSerialize, stateDigest } from '../../src/core/snapshot.ts';
 import type { GameState, PlayerView } from '../../src/core/model.ts';
 import type { Hex } from '../../src/core/hex.ts';
 
-const reports = 'reports';
+const reports = process.env.E2E_SCREENSHOT_DIR ?? 'test-results/screenshots';
 async function importFixture(page: Page, text: string) {
   await page.goto('/?seed=12345');
   await page.locator('#import-save').setInputFiles({ name: 'fixture.json', mimeType: 'application/json', buffer: Buffer.from(text) });
