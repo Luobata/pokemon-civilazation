@@ -6,7 +6,7 @@ import { observe } from '../core/vision.ts';
 import type { CommandLog } from './session.ts';
 
 export type SaveFile = {
-  formatVersion: 1; schemaVersion: 4; rulesVersion: 'm4-v1'; contentVersion: string;
+  formatVersion: 1; schemaVersion: 4; rulesVersion: 'm5-v1'; contentVersion: string;
   state: GameState; log: CommandLog;
 };
 export function serializeSave(state: GameState, log: CommandLog): string {
@@ -15,7 +15,7 @@ export function serializeSave(state: GameState, log: CommandLog): string {
 }
 export function deserializeSave(text: string, content: Content = CONTENT): SaveFile {
   const save = JSON.parse(text) as SaveFile;
-  if (save?.formatVersion !== 1 || save.schemaVersion !== 4 || save.rulesVersion !== 'm4-v1' || save.contentVersion !== content.version
+  if (save?.formatVersion !== 1 || save.schemaVersion !== 4 || save.rulesVersion !== 'm5-v1' || save.contentVersion !== content.version
     || save.state?.schemaVersion !== 4 || save.state.rulesVersion !== save.rulesVersion || save.state.contentVersion !== save.contentVersion
     || save.log?.version !== 1 || save.log.schemaVersion !== 4 || save.log.rulesVersion !== save.rulesVersion || save.log.contentVersion !== save.contentVersion) {
     throw new Error('存档版本不匹配；当前版本不支持迁移。');

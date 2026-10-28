@@ -23,14 +23,14 @@ function quiet(personality: AiPersonality) {
   return { state, view };
 }
 
-test.each(['expansion', 'conservative'] as const)('%s never declares, expansion never sieges', personality => {
+test.each(['expansion', 'conservative'] as const)('%s follows its declaration policy and cannot siege during peace', personality => {
   const { view } = quiet(personality);
   for (let id = 10; id < 14; id++) view.units.push({ ...pokemon(combatFixture(), id), position: { q: 9, r: 2 } });
   view.cities.push({ id: 2, ownerId: 1, position: { q: 10, r: 2 } });
-  expect(planNext(view).action.type).not.toBe('DeclareWar');
+  expect(planNext(view).action.type === 'DeclareWar').toBe(personality === 'conservative');
   expect(canSiege(view, 1)).toBe(false);
 });
-test('aggressive declaration uses observed 1.5 strength, border 5/6; siege 3/4', () => {
+test('aggressive declaration uses observed 1.25 strength, border 5/6; siege 3/4', () => {
   const { view } = quiet('aggressive');
   for (let id = 10; id < 13; id++) view.units.push(pokemon(combatFixture(), id));
   view.knowledge.lastKnownUnits[20] = { kind: 'pokemon', speciesId: 'bulbasaur', ownerId: 1, position: { q: 10, r: 3 }, lastSeenRound: 1 };
@@ -44,22 +44,22 @@ test('aggressive declaration uses observed 1.5 strength, border 5/6; siege 3/4',
   view.units.pop(); view.units.pop(); view.knowledge.lastKnownCities[2].position.q = 8;
   expect(planNext(view).action.type).not.toBe('DeclareWar');
 });
-test('conservative counteroffensive requires own defensive war and twice known military', () => {
+test('conservative siege requires war and 1.5x known military', () => {
   const { view } = quiet('conservative'); view.units.push(pokemon(combatFixture()));
   view.knowledge.lastKnownUnits[20] = { kind: 'pokemon', speciesId: 'bulbasaur', ownerId: 1, position: { q: 10, r: 3 }, lastSeenRound: 1 };
   view.diplomacy[0].status = 'war'; view.diplomacy[0].declaredBy = 1;
   expect(canSiege(view, 1)).toBe(false);
   view.units.push(pokemon(combatFixture(), 11)); expect(canSiege(view, 1)).toBe(true);
-  view.diplomacy[0].declaredBy = 0; expect(canSiege(view, 1)).toBe(false);
+  view.diplomacy[0].declaredBy = 0; expect(canSiege(view, 1)).toBe(true);
 });
-test('settler quotas include map, queue, pending; conservative 14/15 and aggressive cities2/3', () => {
+test('settler quotas include map, queue, pending; conservative 7/8 and aggressive cities3/4', () => {
   const { view } = quiet('conservative'); view.economy.player.lastSettlerProducedRound = 1;
-  view.round = 15; expect(canProduceSettler(view)).toBe(false);
-  view.round = 16; expect(canProduceSettler(view)).toBe(true);
+  view.round = 8; expect(canProduceSettler(view)).toBe(false);
+  view.round = 9; expect(canProduceSettler(view)).toBe(true);
   view.economy.cities[0].pendingDeployments = [{ enteredAtRound: 2, sourceOrderId: 50, item: { kind: 'logistics', defId: 'settler' } }];
   expect(canProduceSettler(view)).toBe(false); view.economy.cities[0].pendingDeployments = [];
   view.diplomacy[0].status = 'war'; expect(canProduceSettler(view)).toBe(false); view.diplomacy[0].status = 'peace';
-  view.economy.player.personality = 'aggressive'; view.economy.cities.push({ ...view.economy.cities[0], id: 3 });
+  view.economy.player.personality = 'aggressive'; view.economy.cities.push({ ...view.economy.cities[0], id: 2 }, { ...view.economy.cities[0], id: 3 });
   expect(canProduceSettler(view)).toBe(false); view.economy.cities.push({ ...view.economy.cities[0], id: 4 }); expect(canProduceSettler(view)).toBe(true);
   view.economy.player.personality = 'expansion'; expect(canProduceSettler(view)).toBe(true);
   view.economy.cities[0].queue[0].item = { kind: 'logistics', defId: 'settler' }; expect(canProduceSettler(view)).toBe(false);
@@ -153,6 +153,7 @@ test('injected personality thresholds change only their corresponding decisions'
   expect(planNext(view).action).toMatchObject({ type: 'RespondPeace', accept: true });
   expect(planNext(view, { ...RULE_QUERIES, ai }).action).toMatchObject({ type: 'RespondPeace', accept: false });
   view.economy.player.personality = 'conservative'; view.diplomacy[0].declaredBy = 1;
+  view.units.pop(); // 2 vs 2: default 1.5x fails while injected 1x passes.
   expect(canSiege(view, 1)).toBe(false); expect(canSiege(view, 1, ai)).toBe(true);
   view.diplomacy[0].status = 'peace'; view.round = 16; view.economy.player.lastSettlerProducedRound = 1;
   expect(canProduceSettler(view)).toBe(true); expect(canProduceSettler(view, ai)).toBe(false);
@@ -183,8 +184,9 @@ test('D41 declaration has independent 2x strength and distance1 boundaries; own 
   for (let id = 10; id < 12; id++) view.units.push(pokemon(combatFixture(), id, 'bulbasaur', 0, 8, 2));
   view.knowledge.lastKnownUnits[20] = { kind: 'pokemon', speciesId: 'bulbasaur', ownerId: 1, position: { q: 10, r: 2 }, lastSeenRound: 1 };
   view.knowledge.lastKnownCities[2] = { ownerId: 1, position: { q: 9, r: 2 }, lastSeenRound: 1 };
-  const { ai } = parsePatch({ ai: { conservativeMayDeclareWar: true } });
-  expect(planNext(view).action.type).not.toBe('DeclareWar');
+  const { ai } = parsePatch({ ai: { conservativeMayDeclareWar: true, conservativeBorderDistance: 1, conservativeStrength: 2000 } });
+  expect(planNext(view, { ...RULE_QUERIES, ai: { ...ai, conservativeMayDeclareWar: false } }).action.type).not.toBe('DeclareWar');
+  expect(planNext(view).action.type).toBe('DeclareWar');
   expect(planNext(view, { ...RULE_QUERIES, ai }).action).toEqual({ type: 'DeclareWar', targetPlayerId: 1 });
   view.knowledge.lastKnownCities[2].position.q = 10;
   expect(planNext(view, { ...RULE_QUERIES, ai }).action.type).not.toBe('DeclareWar');
@@ -199,7 +201,8 @@ test('D41 declaration has independent 2x strength and distance1 boundaries; own 
   view.diplomacy[0].status = 'war'; view.diplomacy[0].declaredBy = 0;
   expect(canSiege(view, 1, j2)).toBe(false); // Declaration 1.5x never changes the 2x siege threshold.
   view.units.push(pokemon(combatFixture(), 13, 'bulbasaur', 0, 8, 2));
-  expect(canSiege(view, 1)).toBe(false);
+  expect(canSiege(view, 1, { ...j2, conservativeMayDeclareWar: false })).toBe(false);
+  expect(canSiege(view, 1)).toBe(true);
   expect(canSiege(view, 1, j2)).toBe(true);
   view.diplomacy[0].status = 'peace'; expect(canSiege(view, 1, j2)).toBe(false);
 });
@@ -213,8 +216,9 @@ test.each([false, true])('D42 seeks an unseen tile or remembered city (%s) only 
   else view.knowledge.exploredTileIds = view.knowledge.exploredTileIds.filter(index => index !== hexToIndex(target, view.map));
   view.visibleTileIds.push(hexToIndex(destination, view.map)!);
   const query: RuleQueries = { ...RULE_QUERIES, paths: (_view, id) => id === 10 ? { [hexToIndex(destination, view.map)!]: [destination] } : {} };
-  const { ai } = parsePatch({ ai: { aggressiveSeekUnknownHq: true } });
-  expect(planNext(view, query).action.type).toBe('EndTurn');
+  const { ai } = parsePatch({ ai: { aggressiveSeekUnknownHq: true, aggressiveSiegeCaptureBonus: 0, aggressiveSiegeTrainingBonus: 0 } });
+  expect(planNext(view, { ...query, ai: { ...ai, aggressiveSeekUnknownHq: false } }).action.type).toBe('EndTurn');
+  expect(planNext(view, query).action.type).toBe('Move');
   expect(planNext(view, { ...query, ai }).action).toEqual({ type: 'Move', unitId: 10, to: { q: 4, r: 2 } });
   expect(planNext(structuredClone(view), { ...query, ai })).toEqual(planNext(view, { ...query, ai }));
   view.units.pop(); expect(planNext(view, { ...query, ai }).action.type).toBe('EndTurn');
@@ -239,7 +243,7 @@ function siegePreparation() {
   view.units.push(pokemon(combatFixture(), 10, 'bulbasaur', 0, 3, 2));
   view.diplomacy[0].status = 'war'; view.diplomacy[0].declaredBy = 0;
   view.knowledge.lastKnownCities[2] = { ownerId: 1, headquartersOf: 1, position: { q: 10, r: 2 }, lastSeenRound: 1 };
-  const ai = { ...AI_THRESHOLDS, aggressiveSiegeUnits: 1, aggressiveSiegeCaptureBonus: 100, aggressiveSiegeTrainingBonus: 100 };
+  const ai = { ...AI_THRESHOLDS, aggressiveSeekUnknownHq: false, aggressiveSiegeUnits: 1, aggressiveSiegeCaptureBonus: 100, aggressiveSiegeTrainingBonus: 100 };
   const query: RuleQueries = { ...RULE_QUERIES, ai, attack: () => ({ ok: false, reason: 'test' }), paths: () => ({}) };
   return { view, query };
 }
@@ -328,7 +332,8 @@ test('D44 expansion siege requires enabled war, 2x observed military and distanc
   expect(canSiege(view, 1, ai)).toBe(false);
   expect(planNext(view, { ...RULE_QUERIES, ai }).action.type).not.toBe('DeclareWar');
   view.diplomacy[0].status = 'war'; view.diplomacy[0].declaredBy = 1;
-  expect(canSiege(view, 1)).toBe(false);
+  expect(canSiege(view, 1, { ...ai, expansionMaySiege: false })).toBe(false);
+  expect(canSiege(view, 1)).toBe(true);
   expect(canSiege(view, 1, ai)).toBe(true);
   expect(canSiege(view, null, ai)).toBe(false);
   view.knowledge.lastKnownCities[2].position.q = 9;
@@ -368,4 +373,27 @@ test('D44 expansion decisions are invariant to hidden units, treasury and cities
   pokemon(state, 90, 'charizard', 1, 11, 7); state.players[1].gold += 9999; state.cities[2].position = { q: 11, r: 6 };
   expect(observe(state, 0)).toEqual(view);
   expect(planNext(observe(state, 0), { ...RULE_QUERIES, ai })).toEqual(before);
+});
+
+test('D46 declaration strength and conservative border use the new exact boundaries', () => {
+  const { view } = quiet('aggressive');
+  for (let id = 10; id < 14; id++) view.units.push(pokemon(combatFixture(), id, 'bulbasaur', 0, 3, 2));
+  for (let id = 20; id < 24; id++) view.knowledge.lastKnownUnits[id] = {
+    kind: 'pokemon', speciesId: 'bulbasaur', ownerId: 1, position: { q: 10, r: 2 }, lastSeenRound: 1,
+  };
+  view.knowledge.lastKnownCities[2] = { ownerId: 1, position: { q: 8, r: 2 }, lastSeenRound: 1 };
+  expect(planNext(view).action.type).not.toBe('DeclareWar'); // 4/4 < 1.25
+  view.units.push(pokemon(combatFixture(), 14, 'bulbasaur', 0, 3, 2));
+  expect(planNext(view).action.type).toBe('DeclareWar'); // 5/4 = 1.25
+  view.economy.player.personality = 'conservative';
+  view.diplomacy[0].status = 'war';
+  expect(canSiege(view, 1)).toBe(false); // 5/4 < 1.5
+  view.units.push(pokemon(combatFixture(), 15, 'bulbasaur', 0, 3, 2));
+  expect(canSiege(view, 1)).toBe(true); // 6/4 = 1.5
+  view.diplomacy[0].status = 'peace';
+  expect(planNext(view).action.type).not.toBe('DeclareWar'); // siege strength does not grant declaration
+  for (let id = 16; id < 18; id++) view.units.push(pokemon(combatFixture(), id, 'bulbasaur', 0, 3, 2));
+  expect(planNext(view).action.type).toBe('DeclareWar'); // 8/4 = 2, distance 5
+  view.knowledge.lastKnownCities[2].position.q = 9;
+  expect(planNext(view).action.type).not.toBe('DeclareWar'); // distance 6
 });

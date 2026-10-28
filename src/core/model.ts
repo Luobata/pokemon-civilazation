@@ -71,7 +71,7 @@ export type KnowledgeState = {
   lastKnownCities: Record<number, { ownerId: number | null; position: Hex; lastSeenRound: number; headquartersOf?: number | null }>;
 };
 export type GameState = {
-  schemaVersion: 4; rulesVersion: 'm4-v1'; contentVersion: string;
+  schemaVersion: 4; rulesVersion: 'm5-v1'; contentVersion: string;
   setup: GameSetup; rng: RngState; nextEntityId: number; commandSeq: number;
   round: number; activePlayerId: number; turnOrder: number[];
   map: MapTerrain;

@@ -254,7 +254,7 @@ describe('research, purchase, deficit, atomic commands', () => {
     state.units[50] = { kind: 'logistics', role: 'settler', id: 50, ownerId: 0, location: 'map', hp: 30, enraged: false, wildHome: null, position, xp: 0, actionLeft: 1 };
     refreshKnowledge(state);
     const next = accepted(state, { type: 'FoundCity', unitId: 50 });
-    expect(next.units[50]).toBeUndefined(); expect(next.cities[100]).toMatchObject({ population: 1, food: 0, hp: 100, buildingIds: [], queue: [], position });
+    expect(next.units[50]).toBeUndefined(); expect(next.cities[100]).toMatchObject({ population: 1, food: 0, hp: 50, buildingIds: [], queue: [], position });
     expect(next.cities[100].workedTileIds).toHaveLength(1); expect(next.nextEntityId).toBe(101);
     state.units[50].actionLeft = 0; expect(command(state, { type: 'FoundCity', unitId: 50 }).ok).toBe(false);
     state.units[50].actionLeft = 1; state.units[50].position = { q: 6, r: 4 }; expect(command(state, { type: 'FoundCity', unitId: 50 }).ok).toBe(false);

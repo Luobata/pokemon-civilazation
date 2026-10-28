@@ -64,7 +64,7 @@ test.each([100, 200, 300] as const)('stage 8 scores after settlement at %i bound
 test('score multiplier, tie breakers and shared winners', () => {
   const state = combatFixture(); state.players[0].registeredSpeciesIds = ['bulbasaur', 'charmander'];
   state.players[0].knockdownCount = 7; state.players[0].research.unlockedIds = ['leagueRules'];
-  expect(scorePlayer(state, 0).total).toBe(Math.floor((100 + 20 + 10 + 20 + 14) * 1.2));
+  expect(scorePlayer(state, 0).total).toBe(Math.floor((80 + 20 + 10 + 20 + 14) * 1.2));
   const a = scorePlayer(state, 0);
   for (const key of ['cities', 'population', 'techs', 'knockdowns'] as const) expect(compareScores({ ...a, [key]: a[key] + 1 }, a)).toBeLessThan(0);
   state.players[0] = { ...structuredClone(state.players[1]), id: 0 };

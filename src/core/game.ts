@@ -22,7 +22,7 @@ export function createGame(setup: GameSetup, content: Content = CONTENT): GameSt
   }
   const generated = generateMap({ ...setup, playerCount: setup.players.length });
   const state: GameState = {
-    schemaVersion: 4, rulesVersion: 'm4-v1', contentVersion: content.version,
+    schemaVersion: 4, rulesVersion: 'm5-v1', contentVersion: content.version,
     setup: JSON.parse(JSON.stringify(setup)) as GameSetup,
     map: { width: generated.width, height: generated.height, tiles: generated.tiles },
     rng: generated.rng, nextEntityId: 1, commandSeq: 0, round: 1,

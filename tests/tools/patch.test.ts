@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { AI_THRESHOLDS } from '../../src/ai/thresholds.ts';
 import { expect, test } from 'vitest';
 import { parsePatch } from '../../tools/patch.ts';
 import { CONTENT, unitDefinition } from '../../src/content/units.ts';
@@ -91,9 +93,9 @@ test.each([
 ])('B4 rejects invalid new fields %#', (patch, field) => {
   expect(() => parsePatch(patch)).toThrow(String(field));
 });
-test('B4 patch leaves defaults off and admits captured HP equal to the smallest city maximum', () => {
-  expect(parsePatch({}).ai).toMatchObject({ conservativeMayDeclareWar: false, conservativeDeclareStrength: 2000,
-    conservativeBorderDistance: 1, aggressiveSeekUnknownHq: false });
+test('D46 enables B4 defaults and admits captured HP equal to the smallest city maximum', () => {
+  expect(parsePatch({}).ai).toMatchObject({ conservativeMayDeclareWar: true, conservativeDeclareStrength: 2000,
+    conservativeBorderDistance: 5, aggressiveSeekUnknownHq: true });
   expect(parsePatch({}).content.balance.city.capturedHp).toBe(50);
   expect(parsePatch({ balance: { city: { baseHp: 60, capturedHp: 60 } } }).content.balance.city.capturedHp).toBe(60);
 });
@@ -120,9 +122,17 @@ test.each([
 ])('D44 rejects invalid fields %#', ai => {
   expect(() => parsePatch({ ai })).toThrow('patch.ai.');
 });
-test('D44 defaults are off; explicit experimental fields parse without changing defaults', () => {
-  expect(parsePatch({}).ai).toMatchObject({ expansionMaySiege: false, expansionSiegeStrength: 2000, expansionBorderDistance: 5 });
+test('D44 defaults are on; explicit experimental fields parse without changing defaults', () => {
+  expect(parsePatch({}).ai).toMatchObject({ expansionMaySiege: true, expansionSiegeStrength: 2000, expansionBorderDistance: 5 });
   expect(parsePatch({ ai: { expansionMaySiege: true, expansionSiegeStrength: 1500, expansionBorderDistance: 5 } }).ai)
     .toMatchObject({ expansionMaySiege: true, expansionSiegeStrength: 1500, expansionBorderDistance: 5 });
-  expect(parsePatch({}).ai.expansionMaySiege).toBe(false);
+  expect(parsePatch({ ai: { expansionMaySiege: false } }).ai.expansionMaySiege).toBe(false);
+  expect(parsePatch({}).ai.expansionMaySiege).toBe(true);
+});
+
+
+test('D46 production defaults equal the complete approved M2 configuration', () => {
+  const m2 = parsePatch(JSON.parse(readFileSync(new URL('../../tools/patches/b7-m2.json', import.meta.url), 'utf8')));
+  expect(CONTENT).toEqual(m2.content);
+  expect(AI_THRESHOLDS).toEqual(m2.ai);
 });

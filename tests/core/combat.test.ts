@@ -55,7 +55,7 @@ describe('Attack transactions', () => {
     const state = combatFixture(); pokemon(state, 10, 'gastly', 0, 9, 2); state.diplomacy[0].status = 'war';
     state.players[1].starterId = starter; const random = maxRoll();
     const next = accepted(state, { ...attack, target: { kind: 'city', id: 2 } });
-    expect(next.cities[2].hp).toBe(89); // ghost attack city E100, no normal immunity
+    expect(next.cities[2].hp).toBe(39); // ghost attack city E100, no normal immunity
     expect(next.units[10].hp).toBe(48 - (starter === 'squirtle' ? 3 : 2));
     expect(random.mock.calls.map(call => call[1])).toEqual([16]);
   });
@@ -66,7 +66,7 @@ describe('Attack transactions', () => {
     pokemon(state, 12, 'pidgey', 0, 10, 3);
     state.players[0].research.unlockedIds.push('siegeCraft');
     const next = accepted(state, { ...attack, target: { kind: 'city', id: 2 } });
-    expect(next.cities[2].hp).toBe(78); expect(next.units[10].hp).toBe(85);
+    expect(next.cities[2].hp).toBe(24); expect(next.units[10].hp).toBe(85);
   });
   test('city counter knockout credits city owner without XP to a unit', () => {
     const state = combatFixture(); pokemon(state, 10, 'charmander', 0, 9, 2).hp = 1;
@@ -188,7 +188,7 @@ test('damage modifiers are multiplied before a single floor (enrage and siege)',
   expect(resolveAttack(state, 10, { kind: 'unit', id: 11 })[0]).toMatchObject({ damage: 26 }); // floor(60*10*200/55/100*1.2), not floor(21*1.2)
   vi.restoreAllMocks(); vi.spyOn(rng, 'randomBelow').mockReturnValue(0);
   pokemon(state, 10, 'geodude', 0, 9, 2); state.players[0].research.unlockedIds.push('siegeCraft');
-  expect(resolveAttack(state, 10, { kind: 'city', id: 2 })[0]).toMatchObject({ damage: 14 }); // floor(9.35*1.5), not floor(9*1.5)
+  expect(resolveAttack(state, 10, { kind: 'city', id: 2 })[0]).toMatchObject({ damage: 16 }); // floor(9.35*1.75), not floor(9*1.75)
 });
 
 test('visible wild unit does not expose its hidden original spawn coordinates', () => {

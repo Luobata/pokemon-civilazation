@@ -49,7 +49,7 @@ test('seed3 unit6 never retries its rejected site on later turns and moves elsew
 }, 30_000);
 
 test('real rejection survives save/load; continuation and rewind branches reproduce AI commands and outcome', () => {
-  const setup = { seed: 50, width: 24, height: 16, players: [
+  const setup = { seed: 126, width: 24, height: 16, players: [
     { id: 0, controller: 'human' as const, starterId: 'bulbasaur' as const },
     { id: 1, controller: 'ai' as const, personality: 'aggressive' as const },
     { id: 2, controller: 'ai' as const, personality: 'conservative' as const },
@@ -66,7 +66,8 @@ test('real rejection survives save/load; continuation and rewind branches reprod
   const uninterrupted = new GameSession(setup);
   while (!uninterrupted.getView().outcome && !uninterrupted.exportLog().aiRejectedCitySites!.length) advance(uninterrupted);
   const memory = uninterrupted.exportLog().aiRejectedCitySites!;
-  expect(memory).toHaveLength(1); expect(memory[0]).toMatchObject({ playerId: 2, seq: 353 });
+  expect(memory).toHaveLength(1); expect(memory[0]).toMatchObject({ playerId: 2, seq: 115 });
+  expect(replay(uninterrupted.exportLog(), memory[0].seq).round).toBe(13);
   const saved = uninterrupted.save(), resumed = new GameSession(setup);
   expect(resumed.exportLog().aiRejectedCitySites).toEqual([]); // distinct game, no global cache
   resumed.load(saved); expect(resumed.exportLog()).toEqual(uninterrupted.exportLog());

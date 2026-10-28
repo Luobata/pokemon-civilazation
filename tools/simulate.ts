@@ -23,7 +23,7 @@ export function simulateMatch(match: Match, roundLimit: 100 | 200 | 300 = 100, o
   try { state = createGame(setup, content); } catch (error) {
     return { ...match, winners: [], kind: null, round: 0, aborted: false, defect: true, legacyAborted: true, invalid: [], exception: String(error), commandCount: 0,
       commandLimitReached: false, setup, starters: [], outcome: null, commands: [],
-      telemetry: createTelemetry({ players: Object.fromEntries(setup.players.map(player => [player.id, player])), schemaVersion: 4, rulesVersion: 'm4-v1' }, content) };
+      telemetry: createTelemetry({ players: Object.fromEntries(setup.players.map(player => [player.id, player])), schemaVersion: 4, rulesVersion: 'm5-v1' }, content) };
   }
   const telemetry = createTelemetry(state, content), commands: Command[] = [];
   const invalid: { round: number; seq: number; reason: string; command: Command; category: 'fog' | 'defect' }[] = [];
