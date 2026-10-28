@@ -1,0 +1,4 @@
+{
+  "balance": { "city": { "baseHp": 80 }, "score": { "cities": 80 } },
+  "ai": { "aggressiveSettlerCities": 2 }
+}
