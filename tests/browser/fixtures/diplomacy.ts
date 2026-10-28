@@ -33,7 +33,7 @@ export function incomingPeaceSave(): string {
 
 export function outcomeSave(kind: GameOutcome['kind'] = 'score'): string {
   const state = fixtureState();
-  finishGame(state, kind, kind === 'playerDefeat' ? [] : [0]);
+  finishGame(state, kind, kind === 'score' ? undefined : kind === 'playerDefeat' ? [] : [0]);
   return save(state);
 }
 

@@ -69,6 +69,10 @@ for (const [kind, title] of [['score', '轮上限计分'], ['conquest', '征服�
     await expect(page.locator('#outcome-title')).toHaveText(title);
     await expect(page.locator('#outcome-ranking tr')).toHaveCount(2);
     await expect(page.locator('#outcome-ranking')).toContainText('×100');
+    if (kind === 'score') {
+      await expect(page.locator('#outcome-summary')).toContainText('文明 1、文明 2');
+      expect((await state(page)).outcome?.winners).toEqual([0, 1]);
+    }
     await expect(page.locator('#end-turn')).toBeDisabled();
     await expect(page.locator('#save-game')).toBeDisabled();
     await expect(page.locator('#new-game')).toBeEnabled();
