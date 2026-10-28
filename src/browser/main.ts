@@ -7,6 +7,7 @@ import type { ActionMode, PendingTarget } from './unit-panel.ts';
 import type { AiPersonality, CitySummary, Command, GameSetup } from '../core/model.ts';
 import '../styles.css';
 import { GameSession } from '../app/session.ts';
+import type { PlayerSession } from '../app/session.ts';
 import { CONTENT, unitDefinition } from '../content/units.ts';
 import type { StarterId } from '../content/units.ts';
 import type { BallId } from '../content/economy.ts';
@@ -37,7 +38,14 @@ type Active = { kind: 'move'; payload: MovedPayload; started: number }
   | { kind: 'battle'; payload: BattlePayload; started: number }
   | { kind: 'capture'; payload: CapturePayload; started: number }
   | { kind: 'evolve'; payload: EvolvePayload; started: number };
-export let session: GameSession;
+export let session: PlayerSession;
+let driver: GameSession;
+export const developerAdapter = {
+  getState: () => driver.getState(),
+  getDebugView: () => driver.getDebugView(),
+  exportLog: () => driver.exportLog(),
+  save: () => driver.save(),
+};
 export let camera: Camera = { x: 0, y: 0, zoom: 1 };
 let selected: number | null = null;
 let selectedCity: number | null = null;
@@ -50,7 +58,8 @@ let selectedBall: BallId = 'pokeBall';
 let active: Active | null = null;
 let frameRequested = false;
 let notice = '';
-const busy = () => active !== null || session.presentationQueue.length > 0;
+let presentationIndex = 0;
+const busy = () => active !== null || presentationIndex < session.presentationQueue.length;
 
 function duration(item: Active) {
   if (item.kind === 'move') return Math.max(1, item.payload.path.length - 1) * 180;
@@ -107,8 +116,8 @@ function controls() {
   actionNotice.textContent = notice || (pendingPeace ? '请先回应停战提议。' : actionMode === 'attack' ? '攻击模式：选择红色虚线目标，再确认攻击。'
     : actionMode === 'capture' ? '捕捉模式：选择野生宝可梦，再确认捕捉。' : ended ? '对局已结束，可开始新局。' : '');
   actionNotice.classList.toggle('is-error', notice.includes('拒绝') || notice.includes('失败'));
-  debug.textContent = `seed=${view.seed} round=${view.round} activePlayer=${view.activePlayerId} commandSeq=${view.commandSeq}\n最近拒绝：${session.lastRejected ? JSON.stringify(session.lastRejected) : '无'}${notice ? '\n' + notice : ''}`;
-  sequence.max = String(session.exportLog().commands.length);
+  debug.textContent = `seed=${view.seed} round=${view.round} activePlayer=${view.activePlayerId} commandSeq=${view.commandSeq}\n最近拒绝：${driver.lastRejected ? JSON.stringify(driver.lastRejected) : '无'}${notice ? '\n' + notice : ''}`;
+  sequence.max = String(driver.exportLog().commands.length);
   renderUnitPanel(view, selected, actionMode, pendingTarget, selectedBall, busy() || ended, {
     mode: mode => { actionMode = mode; pendingTarget = null; notice = ''; controls(); requestFrame(); },
     confirm: confirmAction,
@@ -123,7 +132,9 @@ function controls() {
   document.querySelector('#activity-list')!.innerHTML = activityLog.length ? activityLog.map(text => `<li>${text}</li>`).join('') : '<li>暂无动态</li>';
   if (busy() || ended) for (const element of document.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLSelectElement>('#economy button, #economy input, #economy select')) element.disabled = true;
   for (const element of document.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLSelectElement>('#controls button, #controls input, #controls select, #dev-drawer button, #dev-drawer input, #skip')) {
-    element.disabled = element.id === 'skip' ? !busy() : element.id === 'new-game' ? false : busy() || ended;
+    const transition = pendingPeace && !ended && ['new-game', 'load-game', 'import-save', 'replay', 'resume'].includes(element.id);
+    element.disabled = element.id === 'skip' ? !busy()
+      : element.id === 'new-game' ? busy() || transition : busy() || ended || transition;
   }
   endTurn.disabled = busy() || ended || pendingPeace;
 }
@@ -159,11 +170,13 @@ function requestFrame() {
   if (!frameRequested) { frameRequested = true; requestAnimationFrame(frame); }
 }
 function finishPresentations() {
-  for (const event of session.presentationQueue) recordActivity(event.payload);
-  const payloads = [...(active ? [active.payload] : []), ...session.presentationQueue.map(event => event.payload)];
+  const pending = session.presentationQueue.slice(presentationIndex);
+  for (const event of pending) recordActivity(event.payload);
+  const payloads = [...(active ? [active.payload] : []), ...pending.map(event => event.payload)];
   const text = payloads.map(summary).filter(Boolean).at(-1);
   if (text) notice = text;
   active = null;
+  presentationIndex = 0;
   session.skipAnimations();
 }
 function frame(now: number) {
@@ -173,8 +186,8 @@ function frame(now: number) {
     notice = summary(active.payload) || notice;
     active = null;
   }
-  while (!active && session.presentationQueue.length) {
-    const event = session.presentationQueue.shift()!;
+  while (!active && presentationIndex < session.presentationQueue.length) {
+    const event = session.presentationQueue[presentationIndex++]!;
     recordActivity(event.payload);
     if (event.payload.type === 'Moved') active = { kind: 'move', payload: event.payload, started: now };
     else if (event.payload.type === 'BattleResolved') active = { kind: 'battle', payload: event.payload, started: now };
@@ -207,22 +220,29 @@ function frame(now: number) {
     ? [...view.units.filter(unit => unit.ownerId !== view.playerId).map(unit => hexToIndex(unit.position, view.map)!),
       ...view.cities.filter(city => city.ownerId !== view.playerId).map(city => hexToIndex(city.position, view.map)!)]
     : actionMode === 'capture' ? view.units.filter(unit => unit.ownerId === null).map(unit => hexToIndex(unit.position, view.map)!) : [];
-  drawMap(canvas, import.meta.env.DEV && god.checked ? session.getDebugView() : view,
+  drawMap(canvas, import.meta.env.DEV && god.checked ? developerAdapter.getDebugView() : view,
     camera, selected, Object.keys(paths).map(Number), pose, keyboardIndex, effect, actionMode, targets, pendingTarget?.index);
   if (busy()) requestFrame(); else controls();
 }
 function skip() { finishPresentations(); controls(); requestFrame(); }
 function fit() { camera = fitCamera(session.getView().map, canvas.clientWidth, canvas.clientHeight); requestFrame(); }
 function resetAction() { actionMode = null; pendingTarget = null; }
+function transitionBlocked() {
+  const view = session.getView();
+  if (view.outcome || !hasPendingPeace(view)) return false;
+  notice = '请先接受或拒绝停战提议，再切换对局。'; controls(); return true;
+}
 function newGame() {
+  if (session && transitionBlocked()) return;
   try {
     const aiCount = Number(document.querySelector<HTMLSelectElement>('#ai-count')!.value);
     const personality = document.querySelector<HTMLSelectElement>('#ai-personality')!.value as AiPersonality;
     const players: GameSetup['players'] = [{ id: 0, controller: 'human', starterId: starter.value as StarterId },
       ...Array.from({ length: aiCount }, (_, index) => ({ id: index + 1, controller: 'ai' as const, personality }))];
-    session = new GameSession({ seed: Number(new URLSearchParams(location.search).get('seed') ?? '12345'), width: 24, height: 16,
+    driver = new GameSession({ seed: Number(new URLSearchParams(location.search).get('seed') ?? '12345'), width: 24, height: 16,
       roundLimit: Number(document.querySelector<HTMLSelectElement>('#round-limit')!.value) as GameSetup['roundLimit'], players });
-    active = null; selected = null; selectedCity = null; neutralCity = null; keyboardIndex = null; activityLog.length = 0;
+    session = driver.asPlayerSession();
+    active = null; presentationIndex = 0; selected = null; selectedCity = null; neutralCity = null; keyboardIndex = null; activityLog.length = 0;
     resetAction(); notice = ''; sequence.value = '0';
     canvas.hidden = false;
     fit();
@@ -322,20 +342,23 @@ document.querySelector('#skip')!.addEventListener('click', skip);
 document.querySelector('#new-game')!.addEventListener('click', newGame);
 document.querySelector('#fit')!.addEventListener('click', fit);
 document.querySelector('#export')!.addEventListener('click', () => {
-  const url = URL.createObjectURL(new Blob([JSON.stringify(session.exportLog(), null, 2)], { type: 'application/json' }));
+  const url = URL.createObjectURL(new Blob([JSON.stringify(driver.exportLog(), null, 2)], { type: 'application/json' }));
   const link = document.createElement('a'); link.href = url; link.download = `pokemon-${session.getView().seed}-commands.json`;
   link.click(); URL.revokeObjectURL(url);
 });
 document.querySelector('#replay')!.addEventListener('click', () => {
-  try { session.replayTo(Number(sequence.value)); selected = null; keyboardIndex = null; resetAction(); notice = ''; skip(); }
+  if (transitionBlocked()) return;
+  try { driver.replayTo(Number(sequence.value)); selected = null; keyboardIndex = null; resetAction(); notice = ''; skip(); }
   catch (error) { notice = error instanceof Error ? error.message : String(error); controls(); }
 });
 document.querySelector('#resume')!.addEventListener('click', () => {
-  session.resumeFromReplay(); selected = null; keyboardIndex = null; resetAction(); controls(); requestFrame();
+  if (transitionBlocked()) return;
+  driver.resumeFromReplay(); selected = null; keyboardIndex = null; resetAction(); controls(); requestFrame();
 });
 const saveKey = 'pokemon-civilization-save';
 function load(text: string) {
-  session.load(text); active = null; selected = null; selectedCity = null; neutralCity = null; keyboardIndex = null; activityLog.length = 0; resetAction(); notice = '读档完成';
+  if (transitionBlocked()) return;
+  driver.load(text); active = null; selected = null; selectedCity = null; neutralCity = null; keyboardIndex = null; activityLog.length = 0; resetAction(); notice = '读档完成';
   fit(); skip();
 }
 function storageAction(action: () => void) {
@@ -343,13 +366,13 @@ function storageAction(action: () => void) {
   controls();
 }
 document.querySelector('#save-game')!.addEventListener('click', () => storageAction(() => {
-  localStorage.setItem(saveKey, session.save()); notice = '已保存到此浏览器';
+  localStorage.setItem(saveKey, driver.save()); notice = '已保存到此浏览器';
 }));
 document.querySelector('#load-game')!.addEventListener('click', () => storageAction(() => {
   const text = localStorage.getItem(saveKey); if (!text) throw new Error('此浏览器暂无存档'); load(text);
 }));
 document.querySelector('#export-save')!.addEventListener('click', () => {
-  const url = URL.createObjectURL(new Blob([session.save()], { type: 'application/json' }));
+  const url = URL.createObjectURL(new Blob([driver.save()], { type: 'application/json' }));
   const link = document.createElement('a'); link.href = url; link.download = 'pokemon-save.json'; link.click(); URL.revokeObjectURL(url);
 });
 document.querySelector<HTMLInputElement>('#import-save')!.addEventListener('change', async event => {

@@ -14,7 +14,7 @@ import { GameSession } from '../../src/app/session.ts';
 const reports = process.env.E2E_SCREENSHOT_DIR ?? 'test-results/screenshots';
 
 async function state(page: Page): Promise<GameState> {
-  return page.evaluate(async () => { const path = '/src/browser/main.ts'; return (await import(path)).session.getState(); });
+  return page.evaluate(async () => { const path = '/src/browser/main.ts'; return (await import(path)).developerAdapter.getState(); });
 }
 async function clickHex(page: Page, hex: Hex) {
   await page.locator('canvas').scrollIntoViewIfNeeded();
@@ -120,7 +120,7 @@ test('work locking, queue reorder/cancel, purchases and version refusal use UI',
   await page.locator('#buy-ball').click(); expect((await state(page)).players[0].gold).toBe(goldBefore - 20);
   expect((await state(page)).players[0].ballInventory.pokeBall).toBe(1);
   const before = await state(page);
-  const badSave = await page.evaluate(async () => { const path = '/src/browser/main.ts'; const save = JSON.parse((await import(path)).session.save()); save.rulesVersion = 'm1-v1'; return JSON.stringify(save); });
+  const badSave = await page.evaluate(async () => { const path = '/src/browser/main.ts'; const save = JSON.parse((await import(path)).developerAdapter.save()); save.rulesVersion = 'm1-v1'; return JSON.stringify(save); });
   await page.locator('#import-save').setInputFiles({ name: 'old.json', mimeType: 'application/json', buffer: Buffer.from(badSave) });
   await expect(page.locator('#debug')).toContainText('版本不匹配'); expect(stateDigest(await state(page))).toBe(stateDigest(before));
 });

@@ -9,7 +9,7 @@ const reports = process.env.E2E_SCREENSHOT_DIR ?? 'test-results/screenshots';
 async function state(page: Page): Promise<GameState> {
   return page.evaluate(async () => {
     const mainPath = '/src/browser/main.ts';
-    return (await import(mainPath)).session.getState();
+    return (await import(mainPath)).developerAdapter.getState();
   });
 }
 async function clickHex(page: Page, hex: Hex) {

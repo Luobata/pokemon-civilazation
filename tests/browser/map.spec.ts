@@ -11,9 +11,9 @@ const reports = process.env.E2E_SCREENSHOT_DIR ?? 'test-results/screenshots';
 async function snapshot(page: Page) {
   return page.evaluate(async () => {
     const mainPath = '/src/browser/main.ts', snapshotPath = '/src/core/snapshot.ts';
-    const { session } = await import(mainPath);
+    const { developerAdapter } = await import(mainPath);
     const { canonicalSerialize, stateDigest } = await import(snapshotPath);
-    return { state: canonicalSerialize(session.getState()), digest: stateDigest(session.getState()), log: session.exportLog() };
+    return { state: canonicalSerialize(developerAdapter.getState()), digest: stateDigest(developerAdapter.getState()), log: developerAdapter.exportLog() };
   });
 }
 async function movePoints(page: Page) {
@@ -82,8 +82,8 @@ for (const seed of [12345, 0]) {
       await page.screenshot({ path: `${reports}/ui2-map.png`, fullPage: true });
       await page.locator('#new-game').click();
       const visibility = await page.evaluate(async () => {
-        const mainPath = '/src/browser/main.ts'; const { session } = await import(mainPath);
-        return { view: session.getView(), debug: session.getDebugView() };
+        const mainPath = '/src/browser/main.ts'; const { session, developerAdapter } = await import(mainPath);
+        return { view: session.getView(), debug: developerAdapter.getDebugView() };
       });
       expect(visibility.view.map.tiles).toContain(null);
       expect(visibility.view.units.every((unit: { ownerId: number }) => unit.ownerId === 0)).toBe(true);

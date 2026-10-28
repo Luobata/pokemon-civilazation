@@ -13,7 +13,7 @@ async function importFixture(page: Page, text: string) {
   await expect(page.locator('#action-notice')).toContainText('读档完成');
 }
 async function state(page: Page): Promise<GameState> {
-  return page.evaluate(async () => { const mainPath = '/src/browser/main.ts'; return (await import(mainPath)).session.getState(); });
+  return page.evaluate(async () => { const mainPath = '/src/browser/main.ts'; return (await import(mainPath)).developerAdapter.getState(); });
 }
 async function clickHex(page: Page, hex: Hex) {
   await page.locator('#map').scrollIntoViewIfNeeded();
@@ -62,6 +62,27 @@ test('incoming peace is modal, cannot be escaped and blocks ending the turn', as
   expect((await state(page)).diplomacy[0]).toMatchObject({ status: 'war', proposal: null });
 });
 
+test('pending peace guards every state transition until a response', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('#save-game').click();
+  await importFixture(page, incomingPeaceSave());
+  await expect(page.locator('#peace-response')).toBeVisible();
+  for (const id of ['new-game', 'load-game', 'import-save', 'replay', 'resume']) await expect(page.locator(`#${id}`)).toBeDisabled();
+  await page.evaluate(() => {
+    for (const id of ['new-game', 'load-game', 'replay', 'resume']) document.querySelector(`#${id}`)!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  });
+  const blocked = await state(page);
+  expect(blocked.round).toBe(6);
+  expect(blocked.commandSeq).toBe(0);
+  expect(blocked.diplomacy[0].proposal).toEqual({ proposerId: 1, recipientId: 0 });
+  await expect(page.locator('#action-notice')).toContainText('再切换对局');
+  await page.locator('#reject-peace').click();
+  await expect(page.locator('#new-game')).toBeEnabled();
+  await page.locator('#new-game').click();
+  await expect(page.locator('#round-display')).toContainText('1 ');
+  expect((await state(page)).diplomacy[0].proposal).toBeNull();
+});
+
 for (const [kind, title] of [['score', '轮上限计分'], ['conquest', '征服胜利'], ['playerDefeat', '失败出局']] as const) {
   test(`${kind} outcome shows ranking and switches commands to read-only`, async ({ page }) => {
     await importFixture(page, outcomeSave(kind));
@@ -69,6 +90,12 @@ for (const [kind, title] of [['score', '轮上限计分'], ['conquest', '征服�
     await expect(page.locator('#outcome-title')).toHaveText(title);
     await expect(page.locator('#outcome-ranking tr')).toHaveCount(2);
     await expect(page.locator('#outcome-ranking')).toContainText('×100');
+    const outcomeState = await state(page);
+    if (kind === 'conquest') expect(outcomeState.players).toMatchObject({ 0: { eliminated: false }, 1: { eliminated: true } });
+    if (kind === 'playerDefeat') {
+      expect(outcomeState.players[0].eliminated).toBe(true);
+      expect(outcomeState.outcome?.winners).toEqual([]);
+    }
     if (kind === 'score') {
       await expect(page.locator('#outcome-summary')).toContainText('文明 1、文明 2');
       expect((await state(page)).outcome?.winners).toEqual([0, 1]);
@@ -119,8 +146,8 @@ test('visible AI movement uses projected events and a real AI turn replays ident
   await expect(page.locator('#end-turn')).toBeEnabled();
   const result = await page.evaluate(async () => {
     const mainPath = '/src/browser/main.ts';
-    const { session } = await import(mainPath);
-    return { log: session.exportLog(), state: session.getState() };
+    const { developerAdapter } = await import(mainPath);
+    return { log: developerAdapter.exportLog(), state: developerAdapter.getState() };
   });
   expect(result.log.commands.length).toBeGreaterThan(1);
   expect(canonicalSerialize(result.state)).toBe(canonicalSerialize(replay(result.log)));
