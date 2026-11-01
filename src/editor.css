@@ -4,8 +4,8 @@
 .editor-shell h1{margin:0;font-size:22px}
 .editor-shell p{margin:0;color:#b9c9c1}
 .editor-actions{display:flex;flex-wrap:wrap;gap:8px}
-button,input[type=file],textarea,select{font:inherit}
-button{border:1px solid #40615c;border-radius:8px;background:#183031;color:#f5f0df;padding:7px 11px;cursor:pointer}
+.editor-shell button,.editor-shell input[type=file],.editor-shell textarea,.editor-shell select{font:inherit}
+.editor-shell button{border:1px solid #40615c;border-radius:8px;background:#183031;color:#f5f0df;padding:7px 11px;cursor:pointer}
 button:hover{border-color:#77b7a1}
 #content-editor,#simulation-action{width:100%;min-height:520px;border:1px solid #35504b;background:#071013;color:#e7f4ea;font-size:13px;line-height:1.5;border-radius:8px;padding:12px;box-sizing:border-box;font-family:ui-monospace,monospace;white-space:pre}
 #simulation-action{min-height:190px}

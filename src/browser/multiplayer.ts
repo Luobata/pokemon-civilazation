@@ -1,5 +1,3 @@
-import '../styles.css';
-import '../multiplayer.css';
 import { EXPANSION_ACTION_FIELDS } from '../core/expansion-commands.ts';
 import { CONTENT as BASE_CONTENT, EXPANSION_CONTENT } from '../content/units.ts';
 import { hexToIndex, indexToHex } from '../core/hex.ts';
@@ -518,3 +516,6 @@ function connectFromHash(): void {
 window.addEventListener('hashchange', connectFromHash);
 connectFromHash();
 window.setInterval(() => void refresh(), 2000);
+
+// Clear the fallback only after synchronous page initialization succeeds.
+document.querySelector<HTMLElement>('#startup-notice')!.hidden = true;

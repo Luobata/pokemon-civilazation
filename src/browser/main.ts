@@ -11,7 +11,6 @@ import { renderOutcome } from './outcome-panel.ts';
 import { renderNeutralPanel } from './neutral-panel.ts';
 import type { ActionMode, PendingTarget } from './unit-panel.ts';
 import type { AiPersonality, CitySummary, Command, GameSetup } from '../core/model.ts';
-import '../styles.css';
 import { GameSession } from '../app/session.ts';
 import type { PlayerSession } from '../app/session.ts';
 import { CONTENT as BASE_CONTENT, EXPANSION_CONTENT, unitDefinition } from '../content/units.ts';
@@ -538,3 +537,6 @@ for (const faction of FACTION_LEGEND) {
 renderLeaderSetup();
 newGame();
 loadPokemonSprites(requestFrame);
+
+// Clear the fallback only after synchronous page initialization succeeds.
+document.querySelector<HTMLElement>('#startup-notice')!.hidden = true;

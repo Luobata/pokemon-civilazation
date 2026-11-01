@@ -1,13 +1,21 @@
 <!doctype html>
 <html lang="zh-CN">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>本地多人 · 宝可梦 × 文明</title><link rel="icon" href="data:,"></head>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>本地多人 · 宝可梦 × 文明</title><link rel="icon" href="data:,"><link rel="stylesheet" href="./src/styles.css">
+<link rel="stylesheet" href="./src/multiplayer.css">
+</head>
 <body>
+<aside id="startup-notice" role="status" style="margin:16px;padding:16px;border:1px solid #b78c44;border-radius:10px;background:#fff4da;color:#342a18;font:16px/1.6 sans-serif">
+  <strong>页面正在启动</strong>
+  <p>如果此提示持续显示，请通过本地服务打开页面。直接预览 HTML 文件无法运行游戏。</p>
+  <a href="http://127.0.0.1:5173/multiplayer.html" style="color:#175f51">打开本地运行页面 ↗</a>
+  <details><summary>启动方式</summary><p>在项目目录运行 <code>npm run dev -- --host 127.0.0.1 --port 5173 --strictPort</code>；联机时另开终端运行 <code>npm run server</code>。如果服务已启动，请使用终端显示的地址。服务正常但页面仍未启动时，请刷新页面并检查浏览器控制台。</p></details>
+</aside>
 <main class="multiplayer-shell">
   <aside class="multiplayer-aside">
     <div><h1>本地多人客户端</h1><p>连接多人房间；每位玩家只能查看自己视野内的地图和单位。</p></div>
     <section class="status-card"><h2>连接</h2><p id="connection-status" role="status">未连接</p><p id="hud">—</p><div class="multiplayer-actions"><button id="refresh" type="button">刷新</button><button id="fit-map" type="button">地图居中</button></div></section>
     <section><h2>创建房间</h2><label>权威 API 地址<input id="api-base-url" type="url" value="http://127.0.0.1:8787"></label><div class="multiplayer-grid" style="margin-top:8px"><label>种子<input id="room-seed" type="number" value="12345" min="0"></label><label>人数<select id="room-seats"><option value="2">2</option><option value="3">3</option><option value="4">4</option></select></label></div><div class="multiplayer-actions" style="margin-top:8px"><button id="create-room" type="button">创建</button></div><label style="margin-top:8px">房主令牌<input id="owner-token" readonly></label><ul id="invite-list"></ul><div id="owner-controls" class="multiplayer-actions"><label style="margin-top:8px">存档位<input id="save-slot" value="slot-1"></label><button id="save-room" type="button" disabled>保存</button><button id="load-room" type="button" disabled>读取</button><button id="export-room" type="button" disabled>导出</button></div></section>
-    <section><h2>加入 / 重连</h2><label>房间链接或座位邀请链接<input id="room-url" type="url" placeholder="http://127.0.0.1:8787/multiplayer.html#room=..."></label><div class="multiplayer-actions" style="margin-top:8px"><button id="join-room" type="button">连接座位</button></div></section>
+    <section><h2>加入 / 重连</h2><label>房间链接或座位邀请链接<input id="room-url" type="url" placeholder="粘贴创建房间后生成的座位邀请链接"></label><div class="multiplayer-actions" style="margin-top:8px"><button id="join-room" type="button">连接座位</button></div></section>
     <section><h2>回合</h2><div class="multiplayer-actions"><button id="end-turn" type="button" class="primary">结束回合</button></div><details class="multiplayer-developer"><summary>开发命令控制台</summary><div class="multiplayer-grid"><label>命令<select id="action-type"></select></label><label>地图对象<select id="target-list"></select></label></div><label style="margin-top:8px">命令 JSON<textarea id="action-json" spellcheck="false"></textarea></label><div class="multiplayer-actions" style="margin-top:8px"><button id="send-action" type="button">提交</button><button id="move-mode" type="button">移动模式</button></div></details></section>
     <p id="network-notice" role="status">创建房间后复制邀请链接；令牌只保存在本页链接。</p>
   </aside>

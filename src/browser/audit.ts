@@ -1,4 +1,3 @@
-import '../audit.css';
 import { EXPANSION_ACTION_FIELDS, expansionActionType } from '../core/expansion-commands.ts';
 import { AUDIT_SYSTEMS } from '../audit/catalog.ts';
 import { inspectSystem } from '../audit/inspect.ts';
@@ -199,3 +198,6 @@ element('audit-import').addEventListener('change', async () => {
   input.value = '';
 });
 renderSystem();
+
+// Clear the fallback only after synchronous page initialization succeeds.
+document.querySelector<HTMLElement>('#startup-notice')!.hidden = true;

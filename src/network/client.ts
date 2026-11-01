@@ -21,6 +21,8 @@ export type NetworkClientOptions = {
   tokenKind?: 'invite' | 'seat' | undefined;
 };
 
+const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
+
 export class NetworkError extends Error {
   constructor(readonly status: number, readonly code: string, reason: string) {
     super(reason);
@@ -44,8 +46,35 @@ async function parse<T>(response: Response): Promise<T> {
 }
 
 async function request<T>(url: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(url, { ...init, headers: { accept: 'application/json', ...(init.body ? { 'content-type': 'application/json' } : {}), ...init.headers } });
-  return parse<T>(response);
+  const controller = new AbortController();
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const timeoutFailure = new Promise<never>((_, reject) => {
+    timeout = setTimeout(() => {
+      controller.abort();
+      reject(new DOMException('Request timed out', 'AbortError'));
+    }, DEFAULT_REQUEST_TIMEOUT_MS);
+  });
+  try {
+    const response = await Promise.race([
+      fetch(url, {
+        ...init,
+        signal: controller.signal,
+        headers: { accept: 'application/json', ...(init.body ? { 'content-type': 'application/json' } : {}), ...init.headers },
+      }),
+      timeoutFailure,
+    ]);
+    return await Promise.race([parse<T>(response), timeoutFailure]);
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new NetworkError(0, 'request-timeout',
+        `请求 ${DEFAULT_REQUEST_TIMEOUT_MS} 毫秒后仍未返回，结果可能已经生效。请刷新房间状态确认后再重新提交；客户端不会自动重试。`);
+    }
+    if (error instanceof NetworkError) throw error;
+    throw new NetworkError(0, 'server-unreachable',
+      `无法连接联机服务。请先运行 npm run server，并检查 API 地址 ${url} 是否正确。`);
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export class NetworkClient {

@@ -1,5 +1,3 @@
-import '../styles.css';
-import '../editor.css';
 import { cloneContent, exportContent, importEditorContent } from '../editor/content.ts';
 import { EditorSandbox } from '../editor/sandbox.ts';
 
@@ -88,3 +86,6 @@ document.querySelector<HTMLButtonElement>('#run-action')!.addEventListener('clic
 editor.addEventListener('input', () => setNotice('内容已修改；执行前会重新校验。', 'ok'));
 syncEditor();
 refresh();
+
+// Clear the fallback only after synchronous page initialization succeeds.
+document.querySelector<HTMLElement>('#startup-notice')!.hidden = true;
