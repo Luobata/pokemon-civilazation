@@ -143,9 +143,13 @@ test('starter selection restarts the game and god view only changes presentation
 });
 
 test('invalid seeds show an explanation instead of a blank map', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
   await page.goto('/?seed=invalid');
   await expect(page.getByRole('status')).toContainText('无法生成地图');
   await expect(page.locator('canvas')).toBeHidden();
+  await page.waitForLoadState('networkidle');
+  expect(errors).toEqual([]);
 });
 
 test('keyboard cursor selects and moves a unit through the existing command path', async ({ page }) => {
@@ -185,6 +189,7 @@ test('normal fog never issues hidden faction badge draw calls', async ({ page })
     };
   });
   await page.goto('/?seed=12345');
+  await page.locator('#fit').click();
   const drawnTexts = () => page.evaluate(() => (window as unknown as { __drawnTexts: string[] }).__drawnTexts);
   const normal = await drawnTexts();
   expect(normal).not.toContain('2');

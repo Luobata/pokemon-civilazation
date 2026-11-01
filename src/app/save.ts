@@ -1,4 +1,5 @@
 import { CONTENT } from '../content/units.ts';
+import { isLeaderId } from '../content/leaders.ts';
 import type { Content } from '../content/units.ts';
 import type { GameState } from '../core/model.ts';
 import { canonicalSerialize } from '../core/snapshot.ts';
@@ -36,6 +37,10 @@ export function deserializeSave(text: string, content: Content = CONTENT): SaveF
   try {
     const human = state.setup.players.find(player => player.controller === 'human');
     if (!human) throw new Error('Missing human player');
+    if (state.setup.players.some(player => (player.leaderId !== undefined && !isLeaderId(player.leaderId))
+      || !state.players[player.id] || state.players[player.id].leaderId !== player.leaderId)) {
+      throw new Error('Invalid or mismatched leader.');
+    }
     observe(state, human.id, content);
   } catch { throw new Error('存档状态不完整。'); }
   return save;

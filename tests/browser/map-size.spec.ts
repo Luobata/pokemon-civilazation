@@ -13,6 +13,19 @@ for (const size of sizes) {
     await page.locator('#ai-count').selectOption('1');
     await page.locator('#new-game').click();
     await expect(page.locator('#map-size-label')).toHaveText(`${size.label} · ${size.width} × ${size.height}`);
+    const opening = await page.evaluate(async () => {
+      const mainPath = '/src/browser/main.ts', cameraPath = '/src/browser/camera.ts';
+      const { session, camera } = await import(mainPath);
+      const { hexToWorld, toScreen } = await import(cameraPath);
+      const view = session.getView();
+      const city = view.economy.cities.find((item: { id: number }) => item.id === view.economy.player.headquartersCityId);
+      const canvas = document.querySelector<HTMLCanvasElement>('#map')!;
+      return { zoom: camera.zoom, center: toScreen(hexToWorld(city.position), camera), width: canvas.clientWidth, height: canvas.clientHeight };
+    });
+    expect(opening.zoom).toBeGreaterThanOrEqual(1.5);
+    expect(opening.center.x).toBeCloseTo(opening.width / 2, 6);
+    expect(opening.center.y).toBeCloseTo(opening.height / 2, 6);
+    await page.locator('#fit').click();
     const initial = await page.evaluate(async () => {
       const mainPath = '/src/browser/main.ts', cameraPath = '/src/browser/camera.ts';
       const { session, camera, developerAdapter } = await import(mainPath);

@@ -7,6 +7,7 @@ import { deserializeSave, serializeSave } from './save.ts';
 import { CONTENT } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
 import { createGame } from '../core/game.ts';
+import { cityCounterAttack } from '../core/city.ts';
 import type { Command, GameSetup, GameState, PlayerView, StepResult, VisibleEvent } from '../core/model.ts';
 import { observe, projectEvents } from '../core/vision.ts';
 import { step } from '../core/step.ts';
@@ -68,7 +69,7 @@ export class GameSession {
       units: Object.values(state.units).filter(isMapUnit), cities: Object.values(state.cities),
       combat: {
         units: Object.fromEntries(Object.values(state.units).filter(isMapUnit).map(unit => [unit.id, { typeResearch: unit.ownerId !== null && state.players[unit.ownerId].research.unlockedIds.includes('typeResearch') }])),
-        cities: Object.fromEntries(Object.values(state.cities).map(city => [city.id, { hp: city.hp, counterAttack: city.ownerId === null ? 0 : state.players[city.ownerId].starterId === 'squirtle' ? 34 : 30 }])),
+        cities: Object.fromEntries(Object.values(state.cities).map(city => [city.id, { hp: city.hp, counterAttack: cityCounterAttack(city.ownerId === null ? undefined : state.players[city.ownerId], this.content) }])),
       } };
   }
   exportLog(): CommandLog {

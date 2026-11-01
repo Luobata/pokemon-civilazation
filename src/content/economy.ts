@@ -24,12 +24,12 @@ export type TechId = keyof typeof TECHS;
 export type BuildingId = 'headquarters' | 'pasture' | 'workshop' | 'meetingHall' | 'observatory' | 'trainingGround';
 export type BuildingDef = { name: string; cost: number | null; yields: Yield; trainedXp: number; requiredTech?: TechId };
 export const BUILDINGS: Record<BuildingId, BuildingDef> = {
-  headquarters: { name: '大本营', cost: null, yields: yields(), trainedXp: 0 },
-  pasture: { name: '牧场', cost: 30, yields: yields(2), trainedXp: 0, requiredTech: 'berryCultivation' },
-  workshop: { name: '工坊', cost: 40, yields: yields(0, 2), trainedXp: 0, requiredTech: 'stoneCraft' },
-  meetingHall: { name: '集会所', cost: 40, yields: yields(0, 0, 2), trainedXp: 0 },
-  observatory: { name: '观测站', cost: 50, yields: yields(0, 0, 0, 2), trainedXp: 0 },
-  trainingGround: { name: '训练场', cost: 60, yields: yields(), trainedXp: 20 },
+  headquarters: { name: '联盟总部', cost: null, yields: yields(), trainedXp: 0 },
+  pasture: { name: '树果园', cost: 30, yields: yields(2), trainedXp: 0, requiredTech: 'berryCultivation' },
+  workshop: { name: '精灵球工坊', cost: 40, yields: yields(0, 2), trainedXp: 0, requiredTech: 'stoneCraft' },
+  meetingHall: { name: '友好商店', cost: 40, yields: yields(0, 0, 2), trainedXp: 0 },
+  observatory: { name: '宝可梦研究所', cost: 50, yields: yields(0, 0, 0, 2), trainedXp: 0 },
+  trainingGround: { name: '宝可梦中心', cost: 60, yields: yields(), trainedXp: 20 },
 };
 export const BALLS = {
   pokeBall: { name: '精灵球', goldCost: 20, requiredTech: 'domestication' },

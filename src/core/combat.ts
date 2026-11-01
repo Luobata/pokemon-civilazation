@@ -1,4 +1,5 @@
 import { eliminateCivilization } from './victory.ts';
+import { leaderEffects } from '../content/leaders.ts';
 import { relationFor } from './diplomacy.ts';
 import { unitDamage, cityDamage, cityCounterDamage } from './combat-query.ts';
 import { CONTENT } from '../content/units.ts';
@@ -7,7 +8,7 @@ import type { TechId } from '../content/economy.ts';
 import { hexDistance, hexToIndex } from './hex.ts';
 import { isMapUnit } from './model.ts';
 import type { CombatAction, CombatEvent, CombatTarget, GameState, MapUnit, StepResult, KnockdownRecord, KnockdownCombatant } from './model.ts';
-import { assignNewWorkers, cleanWork } from './city.ts';
+import { assignNewWorkers, cityCounterAttack, cleanWork } from './city.ts';
 import { captureProbability, effectiveness } from './combat-math.ts';
 import { randomBelow } from './rng.ts';
 import { registerSpecies } from './unit.ts';
@@ -55,7 +56,7 @@ function knockedDown(state: GameState, unit: MapUnit, sourceOwner: number | null
   const city = Object.values(state.cities).filter(city => city.ownerId === unit.ownerId)
     .sort((a, b) => hexDistance(unit.position, a.position) - hexDistance(unit.position, b.position) || a.id - b.id)[0];
   if (!city) throw new Error('Surviving civilization must own a city.');
-  const roundsLeft = wildPhase ? 2 : 3;
+  const roundsLeft = Math.max(1, (wildPhase ? 2 : 3) - leaderEffects(state.players[unit.ownerId].leaderId).recoveryReduction);
   state.units[unit.id] = { ...unit, location: 'recovering', position: null, cityId: city.id, roundsLeft, hp: 1, actionLeft: 0 };
   events.push({ type: 'UnitRecovering', playerId: unit.ownerId, unitId: unit.id, cityId: city.id, roundsLeft });
 }
@@ -68,7 +69,8 @@ function unitStrike(state: GameState, attacker: MapUnit, defender: MapUnit, coun
   const d = defender.kind === 'pokemon' ? content.species[defender.speciesId] : null;
   const roll = counter ? 100 : 85 + randomBelow(state.rng, 16);
   const hit = unitDamage(attacker, defender, state.map.tiles[hexToIndex(attacker.position, state.map)!],
-    state.map.tiles[hexToIndex(defender.position, state.map)!], hasTech(state, attacker.ownerId, 'typeResearch'), roll, counter, content);
+    state.map.tiles[hexToIndex(defender.position, state.map)!], hasTech(state, attacker.ownerId, 'typeResearch'), roll, counter, content,
+    leaderEffects(attacker.ownerId === null ? undefined : state.players[attacker.ownerId].leaderId).activeAttackMultiplier);
   attacker.enraged = false;
   defender.hp = Math.max(0, defender.hp - hit);
   experience(state, attacker, (hit > 0 ? 10 : 0) + (defender.hp === 0 && d ? 40 * d.stage : 0));
@@ -100,7 +102,8 @@ export function resolveAttack(state: GameState, unitId: number, target: CombatTa
   } else {
     const city = state.cities[target.id];
     hit = cityDamage(attacker, state.map.tiles[hexToIndex(attacker.position, state.map)!],
-      state.map.tiles[hexToIndex(city.position, state.map)!], hasTech(state, attacker.ownerId, 'siegeCraft'), 85 + randomBelow(state.rng, 16), content);
+      state.map.tiles[hexToIndex(city.position, state.map)!], hasTech(state, attacker.ownerId, 'siegeCraft'), 85 + randomBelow(state.rng, 16), content,
+      leaderEffects(attacker.ownerId === null ? undefined : state.players[attacker.ownerId].leaderId).activeAttackMultiplier);
     attacker.enraged = false;
     city.hp = Math.max(0, city.hp - hit); experience(state, attacker, hit > 0 ? 10 : 0);
     if (city.hp === 0) {
@@ -118,7 +121,7 @@ export function resolveAttack(state: GameState, unitId: number, target: CombatTa
         if (headquarters) events.push(...eliminateCivilization(state, previousOwner, content));
       }
     } else if (city.ownerId !== null && hexDistance(attacker.position, city.position) <= 2) {
-      const attack = state.players[city.ownerId].starterId === 'squirtle' ? content.balance.city.squirtleCounterAttack : content.balance.city.counterAttack;
+      const attack = cityCounterAttack(state.players[city.ownerId], content);
       counterDamage = cityCounterDamage(attack, attacker, state.map.tiles[hexToIndex(city.position, state.map)!],
         state.map.tiles[hexToIndex(attacker.position, state.map)!], content);
       attacker.hp = Math.max(0, attacker.hp - counterDamage);

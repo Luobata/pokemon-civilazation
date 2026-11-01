@@ -1,4 +1,5 @@
 import type { TypeId } from '../content/species.ts';
+import type { LeaderId } from '../content/leaders.ts';
 import type { BallId, BuildingId, TechId, Yield } from '../content/economy.ts';
 import type { StarterId, SpeciesId, UnitIdentity } from '../content/units.ts';
 import type { BiomeId } from '../content/rules.ts';
@@ -18,8 +19,8 @@ export type DiplomacyEvent = { type: 'DiplomacyChanged'; relation: Diplomacy };
 export type GameSetup = GridSize & {
   seed: number;
   roundLimit?: 100 | 200 | 300;
-  players: ({ id: number; controller: 'human'; starterId: StarterId }
-    | { id: number; controller: 'ai'; personality?: AiPersonality })[];
+  players: (({ id: number; controller: 'human'; starterId: StarterId }
+    | { id: number; controller: 'ai'; personality?: AiPersonality }) & { leaderId?: LeaderId })[];
 };
 type UnitBase = UnitIdentity & { id: number; ownerId: number | null; actionLeft: 0 | 1; xp: number; hp: number; enraged: boolean; wildHome: Hex | null };
 export type MapUnit = UnitBase & { location: 'map'; position: Hex };
@@ -37,6 +38,7 @@ export type CityState = CitySummary & {
   workedTileIds: number[]; lockedTileIds: number[]; capturedAtRound: number | null;
 };
 export type PlayerState = {
+  leaderId?: LeaderId;
   id: number; controller: 'human' | 'ai'; starterId: StarterId; gold: number; headquartersCityId: number; knockdownCount: number;
   personality: AiPersonality; lastSettlerProducedRound: number; eliminated: boolean; frozenScore: Score | null;
   ballInventory: Record<BallId, number>; registeredSpeciesIds: SpeciesId[];
@@ -91,7 +93,7 @@ export type PlayerView = {
   combat: { units: Record<number, { typeResearch: boolean }>; cities: Record<number, { hp: number; counterAttack: number }> };
   diplomacy: GameState['diplomacy'];
   outcome: GameOutcome | null; roundLimit: 100 | 200 | 300;
-  civilizations: { id: number; eliminated: boolean }[];
+  civilizations: { id: number; eliminated: boolean; leaderId?: LeaderId }[];
   economy: { player: PlayerState; cities: (CityState & { yields: Yield; availableTileIds: number[] })[] };
 };
 export type CombatTarget = { kind: 'unit' | 'city'; id: number };

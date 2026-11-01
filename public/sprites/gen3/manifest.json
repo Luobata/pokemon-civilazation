@@ -1,0 +1,241 @@
+{
+  "source": "PokeAPI/sprites",
+  "commit": "1dd55c0436d2a5b6e324c0b780e1b1b416fbfb64",
+  "path": "sprites/pokemon/versions/generation-iii/emerald",
+  "files": [
+    {
+      "id": 1,
+      "file": "1.png",
+      "sha256": "9314b1d08efa88f4e78eec7de6e50de0827d5f82694729ecac5c60a65b1c2705",
+      "bytes": 525
+    },
+    {
+      "id": 2,
+      "file": "2.png",
+      "sha256": "9aa4d8e8276e73770584bf8224c1fee79649e36f408fcdde4fa992288e6848d8",
+      "bytes": 718
+    },
+    {
+      "id": 3,
+      "file": "3.png",
+      "sha256": "7ddd2f98820db1181e8374dab8ff251f496c6d584be057a62ccc5fd0be0e6eff",
+      "bytes": 1186
+    },
+    {
+      "id": 4,
+      "file": "4.png",
+      "sha256": "0d32638a98314b98c4d5f58f1b1749c7ae2a736630bed4a6ba226dc94cd1aaad",
+      "bytes": 561
+    },
+    {
+      "id": 5,
+      "file": "5.png",
+      "sha256": "647a183447d711fa5e53f58f4a3e08ee8e8c64ee3ddc9f7a381d3f284b15b9a1",
+      "bytes": 775
+    },
+    {
+      "id": 6,
+      "file": "6.png",
+      "sha256": "b0ba02c7dc772ef1566468b695329ce5940ffbbf88bb6e8a6c33c7ade819e2f3",
+      "bytes": 1134
+    },
+    {
+      "id": 7,
+      "file": "7.png",
+      "sha256": "98d1471a6f61f0374bf0cc235425c2fef370f0245c9b83b3b58da4d4867eadc6",
+      "bytes": 580
+    },
+    {
+      "id": 8,
+      "file": "8.png",
+      "sha256": "abdb9ea9d0353808b5a352f01eef2a56689c27bf8759acc9f4f226cb19e85a38",
+      "bytes": 765
+    },
+    {
+      "id": 9,
+      "file": "9.png",
+      "sha256": "517d78dfff0f42d88e3f0f63a210ae44b7b5e305a6c6d7b59a0a0835b1e55695",
+      "bytes": 1071
+    },
+    {
+      "id": 25,
+      "file": "25.png",
+      "sha256": "49e9816a16c0c886233e25d9b91f7ee86ac5083c93aa973a9b210528555f72ec",
+      "bytes": 600
+    },
+    {
+      "id": 26,
+      "file": "26.png",
+      "sha256": "ec35ed8125ab64ed0e1e65c64240fc527e77deb1d38c41a02b3e9a591f71fe9d",
+      "bytes": 841
+    },
+    {
+      "id": 19,
+      "file": "19.png",
+      "sha256": "13d19b13559e930d9efaed033ed91610c73739a453b1c7d50cd19b5c27fd9ecc",
+      "bytes": 474
+    },
+    {
+      "id": 20,
+      "file": "20.png",
+      "sha256": "5ce0fbbe612aac7ddc91792054b654d4304af107729b90086abbd8b66df95bb7",
+      "bytes": 754
+    },
+    {
+      "id": 52,
+      "file": "52.png",
+      "sha256": "0a7f87b804c27cbad10b56ec98a976df9b7a713709cfe7416b9636c4186b363b",
+      "bytes": 637
+    },
+    {
+      "id": 143,
+      "file": "143.png",
+      "sha256": "5ce3ee0c83a77ef0ef1fda34f588e7e0eb3f25300b78034b9e97c095064a5685",
+      "bytes": 873
+    },
+    {
+      "id": 66,
+      "file": "66.png",
+      "sha256": "4fed9812fe9f683d68e960152d32ace797315f449bca2bd4c518000be8466258",
+      "bytes": 534
+    },
+    {
+      "id": 67,
+      "file": "67.png",
+      "sha256": "1f37c9a51b94ca2103fa54790d070da7a812a043f7db7bae97e3d88a32302bf1",
+      "bytes": 752
+    },
+    {
+      "id": 68,
+      "file": "68.png",
+      "sha256": "8cbdc26ec926a4f19dabd0cee2e3693b312a69cf6f9e2f29fed79342d15ad6fd",
+      "bytes": 1106
+    },
+    {
+      "id": 16,
+      "file": "16.png",
+      "sha256": "f7420d62e34970a76f2d0091c26a3ad9b0a2834e412641dee045513566a23199",
+      "bytes": 631
+    },
+    {
+      "id": 17,
+      "file": "17.png",
+      "sha256": "7254c4950a5cd9b12a40baac7c563f84dee1db8f1a38d5c55affd0629e74cbdb",
+      "bytes": 729
+    },
+    {
+      "id": 18,
+      "file": "18.png",
+      "sha256": "e33f091118cc6db0b83e57515b6956ae198141d30b50160c36e219eb80bb38a0",
+      "bytes": 1085
+    },
+    {
+      "id": 74,
+      "file": "74.png",
+      "sha256": "84c730f0296202aaffcc5f99868d491b61fa3df8f2364a11ce11d81d2348cd90",
+      "bytes": 453
+    },
+    {
+      "id": 75,
+      "file": "75.png",
+      "sha256": "e1a45f11178c3bcbbee1849e5e79140de9f5483315efa661fc0a075f42868dac",
+      "bytes": 815
+    },
+    {
+      "id": 76,
+      "file": "76.png",
+      "sha256": "576b064096ceeb6e3a61d5acd3b25b31efea16f4b81accdccb731eefbd11aa35",
+      "bytes": 917
+    },
+    {
+      "id": 95,
+      "file": "95.png",
+      "sha256": "e44b1267dfc340144602c1c33fb1a5f11281af832d7714d55836f5968a59f215",
+      "bytes": 876
+    },
+    {
+      "id": 77,
+      "file": "77.png",
+      "sha256": "e7216052d6938967649e9354b714a10aee677fb0b4fd196d2df6e235f4f50761",
+      "bytes": 772
+    },
+    {
+      "id": 78,
+      "file": "78.png",
+      "sha256": "efaeac77d75c2fcf7131e247b66b0e51048805e9ded4a3ad167b4a11ab73ed6e",
+      "bytes": 991
+    },
+    {
+      "id": 129,
+      "file": "129.png",
+      "sha256": "dac97545f777fb8dc8959ab6df5b089495bc6aa6e819e4a524e2b956ef7c5df8",
+      "bytes": 722
+    },
+    {
+      "id": 130,
+      "file": "130.png",
+      "sha256": "5355f5ab76c40ba149ad773f2ce9500f9190833b20a9f1fb12dce4ee0e7ad42e",
+      "bytes": 1179
+    },
+    {
+      "id": 131,
+      "file": "131.png",
+      "sha256": "c73bcb6bfaefa9766dbed4e6c19f82aa596fdd2cf26f1c41498c66807c82e8c8",
+      "bytes": 798
+    },
+    {
+      "id": 63,
+      "file": "63.png",
+      "sha256": "73693dfce58849e4dee152bd4c2da44093ce5d203139071c4c81738102b9f858",
+      "bytes": 585
+    },
+    {
+      "id": 64,
+      "file": "64.png",
+      "sha256": "7ef0ae504baacc861fdb695091f64d9127c2cb61c72bc11c44c7b21e5d8e35b9",
+      "bytes": 923
+    },
+    {
+      "id": 65,
+      "file": "65.png",
+      "sha256": "799a5b96b316bc4f81848e6b0e8fdae53d099b2f2a51441cd2b4634a695aa0d9",
+      "bytes": 839
+    },
+    {
+      "id": 92,
+      "file": "92.png",
+      "sha256": "2ba311e52f218c49733642e8aaed45d240a1597f59f09f04b4231f6f47c10e03",
+      "bytes": 772
+    },
+    {
+      "id": 93,
+      "file": "93.png",
+      "sha256": "ace3683ddb71652c4d42230485ab53bb08c49003ce0b9058388111148dbbee7e",
+      "bytes": 811
+    },
+    {
+      "id": 94,
+      "file": "94.png",
+      "sha256": "7701633e3a29b1f55dcb26a3467df57b2f469020105721445b8c8b135fe5d5cc",
+      "bytes": 749
+    },
+    {
+      "id": 147,
+      "file": "147.png",
+      "sha256": "fc916cbda34a7334b85594c2e4fa07138c03dd6dec91f35655a1596bca79688f",
+      "bytes": 549
+    },
+    {
+      "id": 148,
+      "file": "148.png",
+      "sha256": "d2c1b1dad3ffee3efa322e75824c4e38d1e4be0fea5d4f22c4f2ebe1f5ff6e58",
+      "bytes": 733
+    },
+    {
+      "id": 149,
+      "file": "149.png",
+      "sha256": "0f343559cc422599eac0ff70fd0cb5054e2d5bbb545f96f28a11a643bc81f9e3",
+      "bytes": 1139
+    }
+  ]
+}

@@ -2,8 +2,10 @@ import { CONTENT, unitDefinition } from '../content/units.ts';
 import type { BallId } from '../content/economy.ts';
 import type { CombatTarget, PlayerView } from '../core/model.ts';
 import { previewAttack, previewCapture } from '../core/preview.ts';
+import { hexDistance, hexToIndex } from '../core/hex.ts';
+import { pokemonSpritePath } from './sprites.ts';
 
-export type ActionMode = 'attack' | 'capture' | null;
+export type ActionMode = 'move' | 'attack' | 'capture' | null;
 export type PendingTarget = CombatTarget & { index: number };
 type Callbacks = {
   mode: (mode: ActionMode) => void;
@@ -11,15 +13,38 @@ type Callbacks = {
   cancel: () => void;
   evolve: () => void;
   ball: (ballId: BallId) => void;
+  found: () => void;
 };
 
 export function renderUnitPanel(view: PlayerView, selected: number | null, mode: ActionMode,
   target: PendingTarget | null, ballId: BallId, busy: boolean, callbacks: Callbacks): void {
   const root = document.querySelector<HTMLElement>('#unit-panel')!;
   const unit = view.units.find(unit => unit.id === selected && unit.ownerId === view.playerId);
-  if (!unit || unit.kind !== 'pokemon') { root.innerHTML = ''; return; }
+  if (!unit) { root.innerHTML = ''; return; }
+  if (unit.kind === 'logistics') {
+    const nearest = [...view.cities, ...Object.values(view.knowledge.lastKnownCities)]
+      .reduce((distance, city) => Math.min(distance, hexDistance(unit.position, city.position)), Infinity);
+    const biome = view.map.tiles[hexToIndex(unit.position, view.map)!];
+    const reason = !unit.actionLeft ? '本回合已行动。结束回合后，开拓队恢复行动点。'
+      : biome === 'ocean' ? '海洋上无法建城，请选择陆地。'
+      : nearest < 4 ? `距最近已知城市 ${nearest} 格，至少需要 4 格。请继续向外探索。` : null;
+    root.innerHTML = `<div class="unit-card settler-card"><div class="unit-head"><div class="unit-portrait settler-portrait" aria-hidden="true">⚑</div><div><strong>开拓队</strong><small>建立城市 · 文明 ${view.playerId + 1}</small></div><span class="unit-ap ${unit.actionLeft ? '' : 'spent'}">行动点 ${unit.actionLeft}</span></div>
+      <p class="settler-intro">在新的土地上建立一座人口为 1 的城市。</p>
+      <ol class="founding-steps"><li>移动到陆地，与其他城市至少相距 4 格。</li><li>移动会消耗行动点；下一回合再建城。</li><li>建城消耗这支开拓队，随后进入城市管理。</li></ol>
+      <p id="founding-status" class="founding-status ${reason ? 'unavailable' : ''}">${reason ?? '已知选址条件满足，可以在此建立城市。'}</p>
+      <div class="unit-actions"><button id="move-unit" ${busy || !unit.actionLeft ? 'disabled' : ''}>${mode === 'move' ? '取消移动' : '移动'}</button><button id="found-city" class="primary" ${busy || reason ? 'disabled' : ''}>在此建立城市</button></div>
+      <p class="unit-note">需要更多开拓队：选中城市 → 训练开拓队 → 加入队列（30 生产）。</p></div>`;
+    root.querySelector('#found-city')!.addEventListener('click', callbacks.found);
+    root.querySelector('#move-unit')!.addEventListener('click', () => callbacks.mode(mode === 'move' ? null : 'move'));
+    return;
+  }
   const definition = unitDefinition(unit, CONTENT), species = CONTENT.species[unit.speciesId];
   const evolution = species.evolution;
+  const player = view.economy.player;
+  const canEvolve = evolution && unit.xp >= evolution.xp && player.gold >= evolution.gold
+    && (!evolution.requiresTraining || player.research.unlockedIds.includes('training'));
+  const canCapture = player.research.unlockedIds.includes('domestication')
+    && (player.ballInventory.pokeBall > 0 || (player.research.unlockedIds.includes('ballCraft') && player.ballInventory.greatBall > 0));
   const targetUnit = target?.kind === 'unit' ? view.units.find(unit => unit.id === target.id) : null;
   const targetLabel = targetUnit
     ? targetUnit.kind === 'pokemon' ? CONTENT.species[targetUnit.speciesId].name : '开拓队'
@@ -41,12 +66,14 @@ export function renderUnitPanel(view: PlayerView, selected: number | null, mode:
     : mode === 'capture'
       ? `<div class="combat-preview"><p class="eyebrow">捕捉预览</p><strong>${targetLabel ?? '未选择目标'}</strong><p id="capture-preview">${captureText}</p></div>`
       : '';
-  root.innerHTML = `<div class="unit-card"><div class="unit-head"><div class="unit-portrait">${definition.name.slice(0, 1)}</div><div><strong>${definition.name}</strong><small>宝可梦 · 文明 ${view.playerId + 1}${unit.enraged ? ' · 激怒' : ''}</small></div><span class="unit-ap ${unit.actionLeft ? '' : 'spent'}">行动点 ${unit.actionLeft}</span></div>
-    <div class="unit-vitals"><span>HP <strong>${unit.hp}/${species.maxHp}</strong></span><span>EXP <strong>${unit.xp}${evolution ? `/${evolution.xp}` : ''}</strong></span></div>
+  root.innerHTML = `<div class="unit-card"><div class="unit-head"><div class="unit-portrait"><img src="${pokemonSpritePath(unit.speciesId)}" alt="${definition.name}" width="64" height="64"></div><div><strong>${definition.name}</strong><small>宝可梦 · 文明 ${view.playerId + 1}${unit.enraged ? ' · 激怒' : ''}</small></div><span class="unit-ap ${unit.actionLeft ? '' : 'spent'}">行动点 ${unit.actionLeft}</span></div>
+    <div class="unit-vitals"><span>HP <strong>${unit.hp}/${species.maxHp}</strong><span class="vital-bar" aria-hidden="true"><span style="width:${Math.max(0, Math.min(100, unit.hp * 100 / species.maxHp))}%"></span></span></span><span>EXP <strong>${unit.xp}${evolution ? `/${evolution.xp}` : ''}</strong>${evolution ? `<span class="vital-bar xp" aria-hidden="true"><span style="width:${Math.max(0, Math.min(100, unit.xp * 100 / evolution.xp))}%"></span></span>` : ''}</span></div>
     <div class="unit-details"><div class="unit-detail"><small>攻</small><strong>${species.attack}</strong></div><div class="unit-detail"><small>防</small><strong>${species.defense}</strong></div><div class="unit-detail"><small>程</small><strong>${species.range}</strong></div><div class="unit-detail"><small>移</small><strong>${species.move}</strong></div><div class="unit-detail"><small>视</small><strong>${species.vision}</strong></div><div class="unit-detail"><small>P</small><strong>${species.power}</strong></div></div>
-    <div class="unit-actions"><button id="attack-unit" class="${mode === 'attack' ? 'selected' : ''}" ${busy || !unit.actionLeft ? 'disabled' : ''}>攻击</button><button id="capture-unit" class="${mode === 'capture' ? 'selected' : ''}" ${busy || !unit.actionLeft ? 'disabled' : ''}>捕捉</button><button id="evolve-unit" ${busy || !unit.actionLeft || !evolution ? 'disabled' : ''}>${evolution ? `进化→${CONTENT.species[evolution.speciesId].name}` : '不可进化'}</button></div>
-    ${mode ? `<div class="action-config">${mode === 'capture' ? `<label>球种<select id="capture-ball"><option value="pokeBall" ${ballId === 'pokeBall' ? 'selected' : ''}>精灵球（${view.economy.player.ballInventory.pokeBall}）</option><option value="greatBall" ${ballId === 'greatBall' ? 'selected' : ''}>超级球（${view.economy.player.ballInventory.greatBall}）</option></select></label>` : ''}<button id="cancel-action">取消目标</button></div>${preview}<div class="action-confirm"><button id="confirm-action" class="primary" ${!target || (mode === 'attack' ? attackPreview?.ok !== true : capturePreview?.ok !== true) ? 'disabled' : ''}>确认${mode === 'attack' ? '攻击' : '捕捉'}</button></div>` : ''}
+    <div class="unit-actions"><button id="move-unit" class="${mode === 'move' ? 'selected' : ''}" ${busy || !unit.actionLeft ? 'disabled' : ''}>${mode === 'move' ? '取消移动' : '移动'}</button><button id="attack-unit" class="${mode === 'attack' ? 'selected' : ''}" ${busy || !unit.actionLeft ? 'disabled' : ''}>攻击</button><button id="capture-unit" class="${mode === 'capture' ? 'selected' : ''}" ${busy || !unit.actionLeft || !canCapture ? 'disabled' : ''}>捕捉</button><button id="evolve-unit" ${busy || !unit.actionLeft || !canEvolve ? 'disabled' : ''}>${evolution ? `进化→${CONTENT.species[evolution.speciesId].name}` : '不可进化'}</button></div>
+    ${!canCapture ? '<p class="unit-note">捕捉需要研究「驯化」，并在城市采购精灵球。</p>' : ''}
+    ${mode && mode !== 'move' ? `<div class="action-config">${mode === 'capture' ? `<label>球种<select id="capture-ball"><option value="pokeBall" ${ballId === 'pokeBall' ? 'selected' : ''}>精灵球（${view.economy.player.ballInventory.pokeBall}）</option><option value="greatBall" ${ballId === 'greatBall' ? 'selected' : ''}>超级球（${view.economy.player.ballInventory.greatBall}）</option></select></label>` : ''}<button id="cancel-action">取消目标</button></div>${preview}<div class="action-confirm"><button id="confirm-action" class="primary" ${!target || (mode === 'attack' ? attackPreview?.ok !== true : capturePreview?.ok !== true) ? 'disabled' : ''}>确认${mode === 'attack' ? '攻击' : '捕捉'}</button></div>` : ''}
     ${evolution ? `<p class="unit-note">进化条件：EXP ${evolution.xp} + ${evolution.gold} 金币${evolution.requiresTraining ? ' + 特训法' : ''}；经验、金币与科技条件需同时满足。</p>` : ''}</div>`;
+  root.querySelector('#move-unit')!.addEventListener('click', () => callbacks.mode(mode === 'move' ? null : 'move'));
   root.querySelector('#attack-unit')!.addEventListener('click', () => callbacks.mode(mode === 'attack' ? null : 'attack'));
   root.querySelector('#capture-unit')!.addEventListener('click', () => callbacks.mode(mode === 'capture' ? null : 'capture'));
   root.querySelector('#evolve-unit')!.addEventListener('click', callbacks.evolve);

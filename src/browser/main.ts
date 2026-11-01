@@ -1,5 +1,9 @@
 import { renderEconomyPanel } from './economy-panel.ts';
 import { renderUnitPanel } from './unit-panel.ts';
+import { renderSelectionPanel } from './selection-panel.ts';
+import { renderResearchPanel } from './research-panel.ts';
+import { renderLeaderPanel, renderLeaderSetup, selectedLeaderId } from './leader-panel.ts';
+import { loadPokemonSprites } from './sprites.ts';
 import { renderDiplomacyPanel, hasPendingPeace } from './diplomacy-panel.ts';
 import { renderOutcome } from './outcome-panel.ts';
 import { renderNeutralPanel } from './neutral-panel.ts';
@@ -11,6 +15,7 @@ import type { PlayerSession } from '../app/session.ts';
 import { CONTENT, unitDefinition } from '../content/units.ts';
 import type { StarterId } from '../content/units.ts';
 import type { BallId } from '../content/economy.ts';
+import { LEADER_IDS } from '../content/leaders.ts';
 import { speciesDisplay } from '../content/species.ts';
 import { hexToIndex, indexToHex } from '../core/hex.ts';
 import { reachablePaths } from '../core/movement.ts';
@@ -123,6 +128,10 @@ function recordActivity(payload: VisibleEvent['payload']) {
 function controls() {
   const view = session.getView();
   const ended = view.outcome !== null, pendingPeace = hasPendingPeace(view);
+  if (selected !== null && !view.units.some(unit => unit.id === selected && unit.ownerId === view.playerId)) {
+    selected = null; resetAction();
+  }
+  if (selectedCity !== null && !view.economy.cities.some(city => city.id === selectedCity)) selectedCity = null;
   const { player } = view.economy;
   const yields = view.economy.cities.reduce((sum, city) => ({
     gold: sum.gold + city.yields.gold,
@@ -139,29 +148,38 @@ function controls() {
   document.querySelector('#hud-research')!.innerHTML = `${yields.research} <span class="delta">/ 轮</span>`;
   document.querySelector('#hud-upkeep')!.innerHTML = `−${upkeep} <span class="delta negative">金币</span>`;
   const unit = view.units.find(unit => unit.id === selected);
-  selection.textContent = unit ? `${unitDefinition(unit, CONTENT).name} · 行动点 ${unit.actionLeft} · 点击高亮格移动` : '点选己方单位；拖动地图平移，滚轮缩放。';
+  selection.textContent = unit ? `${unitDefinition(unit, CONTENT).name} · 行动点 ${unit.actionLeft} · 点击高亮格移动`
+    : selectedCity !== null ? `已选城市 ${selectedCity} · 在城市面板建造、训练或采购`
+    : '点选城市管理生产，点选单位执行行动；拖动地图平移，滚轮缩放。';
   actionNotice.textContent = notice || (pendingPeace ? '请先回应停战提议。' : actionMode === 'attack' ? '攻击模式：选择红色虚线目标，再确认攻击。'
+    : actionMode === 'move' ? '移动模式：点击高亮格移动，包括己方城市。Esc 取消。'
     : actionMode === 'capture' ? '捕捉模式：选择野生宝可梦，再确认捕捉。' : ended ? '对局已结束，可开始新局。' : '');
   actionNotice.classList.toggle('is-error', notice.includes('拒绝') || notice.includes('失败'));
   debug.textContent = `seed=${view.seed} round=${view.round} activePlayer=${view.activePlayerId} commandSeq=${view.commandSeq}\n最近拒绝：${driver.lastRejected ? JSON.stringify(driver.lastRejected) : '无'}${notice ? '\n' + notice : ''}`;
   sequence.max = String(driver.exportLog().commands.length);
-  renderUnitPanel(view, selected, actionMode, pendingTarget, selectedBall, busy() || ended, {
+  renderSelectionPanel(view, selected, selectedCity, { unit: selectUnit, city: selectCity, clear: clearSelection }, busy());
+  renderLeaderPanel(view);
+  document.querySelector<HTMLElement>('#selection-empty')!.hidden = selected !== null || selectedCity !== null || neutralCity !== null;
+  renderUnitPanel(view, selected, actionMode, pendingTarget, selectedBall, busy() || ended || pendingPeace, {
     mode: mode => { actionMode = mode; pendingTarget = null; notice = ''; controls(); requestFrame(); },
     confirm: confirmAction,
     cancel: () => { actionMode = null; pendingTarget = null; notice = ''; controls(); requestFrame(); },
     evolve: evolveSelected,
-    ball: ballId => { selectedBall = ballId; },
+    ball: ballId => { selectedBall = ballId; controls(); requestFrame(); },
+    found: () => { if (selected !== null) issue({ type: 'FoundCity', unitId: selected }); },
   });
-  renderEconomyPanel(view, selectedCity, selected, issue, id => { selectedCity = id; controls(); }, busy() || ended);
+  renderEconomyPanel(view, selectedCity, issue, busy() || ended || pendingPeace);
+  renderResearchPanel(view, issue, busy() || ended || pendingPeace);
   renderNeutralPanel(view, neutralCity);
   renderDiplomacyPanel(view, busy() || ended, issue);
   renderOutcome(view, newGame);
   document.querySelector('#activity-list')!.innerHTML = activityLog.length ? activityLog.map(text => `<li>${text}</li>`).join('') : '<li>暂无动态</li>';
-  if (busy() || ended) for (const element of document.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLSelectElement>('#economy button, #economy input, #economy select')) element.disabled = true;
+  if (busy() || ended || pendingPeace) for (const element of document.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLSelectElement>('#economy button, #economy input, #economy select')) element.disabled = true;
   for (const element of document.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLSelectElement>('#controls button, #controls input, #controls select, #dev-drawer button, #dev-drawer input, #skip')) {
-    const transition = pendingPeace && !ended && ['new-game', 'load-game', 'import-save', 'replay', 'resume'].includes(element.id);
+    const newGameSetting = element.matches('#leader-setup input, #starter, #map-size, #round-limit, #ai-count, #ai-personality');
+    const transition = pendingPeace && !ended && (newGameSetting || ['new-game', 'load-game', 'import-save', 'replay', 'resume'].includes(element.id));
     element.disabled = element.id === 'skip' ? !busy()
-      : element.id === 'new-game' ? busy() || transition : busy() || ended || transition;
+      : element.id === 'new-game' || newGameSetting ? busy() || transition : busy() || ended || transition;
   }
   endTurn.disabled = busy() || ended || pendingPeace;
 }
@@ -173,13 +191,18 @@ function issue(action: Command['action']) {
   const result = session.issue(action);
   if (!result.ok) {
     const reason = result.reason === 'diplomacy-unavailable' ? '当前关系或冷却时机不允许该外交操作'
-      : result.reason === 'game-ended' ? '对局已结束' : result.reason;
+      : result.reason === 'game-ended' ? '对局已结束'
+      : result.reason === 'invalid-city-site' ? '此处不能建城：需要陆地，且距所有城市至少 4 格'
+      : result.reason === 'no-action' ? '本回合已行动，请结束回合后再试' : result.reason;
     notice = `${action.type} 被拒绝：${reason}`;
   }
   else {
     notice = '';
-    if (action.type === 'Attack' || action.type === 'Capture') { actionMode = null; pendingTarget = null; }
-    if (action.type === 'FoundCity') { selected = null; selectedCity = session.getView().economy.cities.at(-1)!.id; }
+    if (action.type === 'Attack' || action.type === 'Capture' || action.type === 'Move') resetAction();
+    if (action.type === 'FoundCity') {
+      selected = null; selectedCity = session.getView().economy.cities.at(-1)!.id; resetAction();
+      notice = `城市 ${selectedCity} 已建立。现在可以建造建筑或训练新的单位。`;
+    }
   }
   controls(); requestFrame();
 }
@@ -194,7 +217,7 @@ function evolveSelected() {
   if (unit && evolution) issue({ type: 'Evolve', unitId: unit.id, intoSpeciesId: evolution.speciesId });
 }
 function requestFrame() {
-  if (!frameRequested) { frameRequested = true; requestAnimationFrame(frame); }
+  if (session && !frameRequested) { frameRequested = true; requestAnimationFrame(frame); }
 }
 function finishPresentations() {
   const pending = session.presentationQueue.slice(presentationIndex);
@@ -249,7 +272,7 @@ function frame(now: number) {
     : actionMode === 'capture' ? view.units.filter(unit => unit.ownerId === null).map(unit => hexToIndex(unit.position, view.map)!) : [];
   const drawStarted = performance.now();
   drawMap(canvas, import.meta.env.DEV && god.checked ? developerAdapter.getDebugView() : view,
-    camera, selected, Object.keys(paths).map(Number), pose, keyboardIndex, effect, actionMode, targets, pendingTarget?.index);
+    camera, selected, Object.keys(paths).map(Number), pose, keyboardIndex, effect, actionMode, targets, pendingTarget?.index, selectedCity);
   frameDurations.push(performance.now() - drawStarted);
   if (frameDurations.length > 240) frameDurations.shift();
   if (import.meta.env.DEV) {
@@ -261,6 +284,31 @@ function frame(now: number) {
 function skip() { finishPresentations(); controls(); requestFrame(); }
 function fit() { camera = fitCamera(session.getView().map, canvas.clientWidth, canvas.clientHeight); requestFrame(); }
 function resetAction() { actionMode = null; pendingTarget = null; }
+function clearSelection() {
+  selected = null; selectedCity = null; neutralCity = null; keyboardIndex = null;
+  resetAction(); notice = ''; controls(); requestFrame();
+}
+function focusHex(position: { q: number; r: number }) {
+  keyboardIndex = hexToIndex(position, session.getView().map);
+  camera.zoom = Math.max(camera.zoom, 1.5);
+  const point = hexToWorld(position);
+  camera.x = canvas.clientWidth / 2 - point.x * camera.zoom;
+  camera.y = canvas.clientHeight / 2 - point.y * camera.zoom;
+}
+function selectUnit(id: number | null, focus = true) {
+  const unit = session.getView().units.find(unit => unit.id === id && unit.ownerId === session.getView().playerId);
+  selected = unit?.id ?? null; selectedCity = null; neutralCity = null;
+  resetAction(); notice = '';
+  if (unit && focus) focusHex(unit.position);
+  controls(); requestFrame();
+}
+function selectCity(id: number | null, focus = true) {
+  const city = session.getView().economy.cities.find(city => city.id === id);
+  selectedCity = city?.id ?? null; selected = null; neutralCity = null;
+  resetAction(); notice = '';
+  if (city && focus) focusHex(city.position);
+  controls(); requestFrame();
+}
 function transitionBlocked() {
   const view = session.getView();
   if (view.outcome || !hasPendingPeace(view)) return false;
@@ -271,20 +319,24 @@ function newGame() {
   try {
     const aiCount = Number(document.querySelector<HTMLSelectElement>('#ai-count')!.value);
     const personality = document.querySelector<HTMLSelectElement>('#ai-personality')!.value as AiPersonality;
-    const players: GameSetup['players'] = [{ id: 0, controller: 'human', starterId: starter.value as StarterId },
-      ...Array.from({ length: aiCount }, (_, index) => ({ id: index + 1, controller: 'ai' as const, personality }))];
+    const humanLeaderId = selectedLeaderId();
+    const aiLeaderIds = LEADER_IDS.filter(id => id !== humanLeaderId);
+    const players: GameSetup['players'] = [{ id: 0, controller: 'human', starterId: starter.value as StarterId, leaderId: humanLeaderId },
+      ...Array.from({ length: aiCount }, (_, index) => ({ id: index + 1, controller: 'ai' as const, personality, leaderId: aiLeaderIds[index] }))];
     const mapSizes = { '24x16': { width: 24, height: 16 }, '30x20': { width: 30, height: 20 }, '40x26': { width: 40, height: 26 } } as const;
     const sizeOption = document.querySelector<HTMLSelectElement>('#map-size')!.value as keyof typeof mapSizes;
     const size = mapSizes[sizeOption] ?? mapSizes['24x16'];
     driver = new GameSession({ seed: Number(new URLSearchParams(location.search).get('seed') ?? '12345'), ...size,
       roundLimit: Number(document.querySelector<HTMLSelectElement>('#round-limit')!.value) as GameSetup['roundLimit'], players });
     session = driver.asPlayerSession();
-    active = null; presentationIndex = 0; selected = null; selectedCity = null; neutralCity = null; keyboardIndex = null; activityLog.length = 0;
+    active = null; presentationIndex = 0; selected = null; selectedCity = session.getView().economy.player.headquartersCityId; neutralCity = null; keyboardIndex = null; activityLog.length = 0;
     frameDurations.length = 0;
     resetAction(); notice = ''; sequence.value = '0';
     canvas.hidden = false;
     fit();
-    controls();
+    selectCity(selectedCity);
+    // Opening camera focus should not change the first keyboard unit selection.
+    keyboardIndex = null;
   } catch (error) {
     canvas.hidden = true;
     info.textContent = `无法生成地图：${error instanceof Error ? error.message : String(error)}`;
@@ -295,7 +347,12 @@ function activateIndex(index: number | null) {
   if (busy()) return;
   const view = session.getView();
   keyboardIndex = index;
-  if (index === null) { selected = null; neutralCity = null; resetAction(); controls(); requestFrame(); return; }
+  if (index === null) { clearSelection(); return; }
+  if (actionMode === 'move' && selected !== null) {
+    if (reachablePaths(view, selected)[index]) issue({ type: 'Move', unitId: selected, to: indexToHex(index, view.map) });
+    else { notice = '此处无法移动，请选择高亮格，或取消移动以选择其他对象。'; controls(); }
+    requestFrame(); return;
+  }
   if (actionMode && selected !== null) {
     const unit = view.units.find(unit => hexToIndex(unit.position, view.map) === index);
     const city = view.cities.find(city => hexToIndex(city.position, view.map) === index);
@@ -308,16 +365,16 @@ function activateIndex(index: number | null) {
   const hex = indexToHex(index, view.map);
   const city = view.cities.find(city => hexToIndex(city.position, view.map) === index);
   if (city?.ownerId === null) {
-    neutralCity = city; selected = null; selectedCity = null;
+    neutralCity = city; selected = null; selectedCity = null; resetAction(); notice = '';
     controls(); requestFrame(); return;
   }
   neutralCity = null;
   const own = view.units.find(unit => unit.ownerId === view.playerId && hexToIndex(unit.position, view.map) === index);
   const ownCity = city?.ownerId === view.playerId ? city : null;
-  if (ownCity) selectedCity = ownCity.id;
-  if (own) selected = own.id;
-  else if (selected !== null && reachablePaths(view, selected)[index]) issue({ type: 'Move', unitId: selected, to: hex });
-  else selected = null;
+  if (ownCity && (!own || selectedCity !== ownCity.id)) { selectCity(ownCity.id, false); return; }
+  if (own) { selectUnit(own.id, false); return; }
+  if (selected !== null && reachablePaths(view, selected)[index]) issue({ type: 'Move', unitId: selected, to: hex });
+  else { selected = null; selectedCity = null; resetAction(); notice = ''; }
   controls(); requestFrame();
 }
 function localPoint(event: { clientX: number; clientY: number }): Point {
@@ -350,13 +407,22 @@ canvas.addEventListener('pointerup', event => {
 canvas.addEventListener('wheel', event => {
   event.preventDefault(); zoomAt(camera, localPoint(event), Math.exp(-event.deltaY * .001)); requestFrame();
 }, { passive: false });
+canvas.addEventListener('contextmenu', event => {
+  event.preventDefault();
+  if (busy() || selected === null) return;
+  const view = session.getView(), hex = worldToHex(toWorld(localPoint(event), camera));
+  const index = hexToIndex(hex, view.map);
+  if (index !== null && reachablePaths(view, selected)[index]) issue({ type: 'Move', unitId: selected, to: hex });
+});
 canvas.addEventListener('keydown', event => {
   if (busy()) return;
   const view = session.getView();
-  const current = keyboardIndex ?? (selected === null ? null : hexToIndex(view.units.find(unit => unit.id === selected)!.position, view.map));
+  const selectedUnit = view.units.find(unit => unit.id === selected);
+  const current = keyboardIndex ?? (selectedUnit ? hexToIndex(selectedUnit.position, view.map) : null);
   const initialUnit = view.units.find(unit => unit.ownerId === view.playerId && unit.kind === 'pokemon')
-    ?? view.units.find(unit => unit.ownerId === view.playerId)!;
-  const fallback = current ?? hexToIndex(initialUnit.position, view.map);
+    ?? view.units.find(unit => unit.ownerId === view.playerId);
+  const initialPosition = initialUnit?.position ?? view.economy.cities[0]?.position;
+  const fallback = current ?? (initialPosition ? hexToIndex(initialPosition, view.map) : null);
   if (fallback === null) return;
   const hex = indexToHex(fallback, view.map);
   const directions: Record<string, { q: number; r: number }> = {
@@ -368,7 +434,7 @@ canvas.addEventListener('keydown', event => {
     keyboardIndex = hexToIndex(directions[event.key], view.map) ?? fallback;
     requestFrame();
   } else if (event.key === 'Enter') { event.preventDefault(); activateIndex(fallback); }
-  else if (event.key === 'Escape') { event.preventDefault(); selected = null; keyboardIndex = null; resetAction(); controls(); requestFrame(); }
+  else if (event.key === 'Escape') { event.preventDefault(); clearSelection(); }
   else if (event.key === '+' || event.key === '=' || event.key === '-') {
     event.preventDefault();
     zoomAt(camera, { x: canvas.clientWidth / 2, y: canvas.clientHeight / 2 }, event.key === '-' ? .9 : 1.1);
@@ -386,17 +452,17 @@ document.querySelector('#export')!.addEventListener('click', () => {
 });
 document.querySelector('#replay')!.addEventListener('click', () => {
   if (transitionBlocked()) return;
-  try { driver.replayTo(Number(sequence.value)); selected = null; keyboardIndex = null; resetAction(); notice = ''; skip(); }
+  try { driver.replayTo(Number(sequence.value)); selected = null; selectedCity = null; neutralCity = null; keyboardIndex = null; resetAction(); notice = ''; skip(); }
   catch (error) { notice = error instanceof Error ? error.message : String(error); controls(); }
 });
 document.querySelector('#resume')!.addEventListener('click', () => {
   if (transitionBlocked()) return;
-  driver.resumeFromReplay(); selected = null; keyboardIndex = null; resetAction(); controls(); requestFrame();
+  driver.resumeFromReplay(); selected = null; selectedCity = null; neutralCity = null; keyboardIndex = null; resetAction(); controls(); requestFrame();
 });
 const saveKey = 'pokemon-civilization-save';
 function load(text: string) {
   if (transitionBlocked()) return;
-  driver.load(text); active = null; selected = null; selectedCity = null; neutralCity = null; keyboardIndex = null; activityLog.length = 0; resetAction(); notice = '读档完成';
+  driver.load(text); active = null; selected = null; selectedCity = session.getView().economy.cities[0]?.id ?? null; neutralCity = null; keyboardIndex = null; activityLog.length = 0; resetAction(); notice = '读档完成';
   frameDurations.length = 0;
   fit(); skip();
 }
@@ -427,8 +493,8 @@ document.addEventListener('keydown', event => {
   if (event.ctrlKey && event.key === 'Enter') { event.preventDefault(); if (!busy()) issue({ type: 'EndTurn' }); }
   else if (event.key.toLowerCase() === 'c') {
     event.preventDefault();
-    selectedCity = session.getView().economy.cities[0]?.id ?? null;
-    controls(); document.querySelector<HTMLElement>('#city-select')?.focus();
+    selectCity(session.getView().economy.cities[0]?.id ?? null);
+    document.querySelector<HTMLElement>('#city-select')?.focus();
   } else if (['r', 't'].includes(event.key.toLowerCase())) { event.preventDefault(); document.querySelector<HTMLElement>('#research-topic')?.focus(); }
   else if (event.key === '?') {
     event.preventDefault();
@@ -453,4 +519,6 @@ for (const faction of FACTION_LEGEND) {
   swatch.className = `faction-swatch ${faction.className}`; swatch.textContent = String(faction.id + 1);
   item.append(swatch, faction.label); document.querySelector('#faction-legend')!.append(item);
 }
+renderLeaderSetup();
 newGame();
+loadPokemonSprites(requestFrame);

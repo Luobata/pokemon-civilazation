@@ -1,4 +1,5 @@
 import { spawnWild } from './wild.ts';
+import { isLeaderId } from '../content/leaders.ts';
 import { createMapUnit } from './unit.ts';
 import type { TechId } from '../content/economy.ts';
 import { assignNewWorkers, createCity } from './city.ts';
@@ -12,6 +13,9 @@ import { emptyKnowledge, refreshKnowledge } from './vision.ts';
 import type { GameSetup, GameState } from './model.ts';
 
 export function createGame(setup: GameSetup, content: Content = CONTENT): GameState {
+  if (setup.players.some(player => player.leaderId !== undefined && !isLeaderId(player.leaderId))) {
+    throw new Error('Unknown leader.');
+  }
   if ((setup.roundLimit !== undefined && ![100, 200, 300].includes(setup.roundLimit))
     || setup.players.length < 2 || setup.players.length > 4
     || new Set(setup.players.map(player => player.id)).size !== setup.players.length
@@ -33,7 +37,8 @@ export function createGame(setup: GameSetup, content: Content = CONTENT): GameSt
   // Reserve all city/settler tiles before placing starters in any outer ring.
   for (const [i, player] of setup.players.entries()) {
     const starterId: StarterId = player.controller === 'human' ? player.starterId : STARTER_IDS[randomBelow(state.rng, STARTER_IDS.length)];
-    state.players[player.id] = { ...player, starterId, gold: 50, headquartersCityId: state.nextEntityId, knockdownCount: 0, ballInventory: { pokeBall: 0, greatBall: 0 },
+    const { leaderId, ...playerBase } = player;
+    state.players[player.id] = { ...playerBase, ...(leaderId === undefined ? {} : { leaderId }), starterId, gold: 50, headquartersCityId: state.nextEntityId, knockdownCount: 0, ballInventory: { pokeBall: 0, greatBall: 0 },
       personality: player.controller === 'ai' ? player.personality ?? (['expansion', 'aggressive', 'conservative'] as const)[i % 3] : 'conservative',
       lastSettlerProducedRound: 1, eliminated: false, frozenScore: null, registeredSpeciesIds: [starterId], research: { techId: null, reserve: 0, unlockedIds: [],
         progressByTech: Object.fromEntries(Object.keys(content.techs).map(id => [id, 0])) as Record<TechId, number> } };

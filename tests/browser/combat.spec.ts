@@ -78,7 +78,10 @@ test('unit card stays outside the map and recovering units appear in the city pa
   await importFixture(page);
   const map = (await page.locator('.map-card').boundingBox())!;
   const card = (await page.locator('#unit-panel').boundingBox())!;
-  expect(card.y).toBeGreaterThanOrEqual(map.y + map.height);
+  expect(card.x >= map.x + map.width || card.y >= map.y + map.height).toBe(true);
+  await expect(page.locator('#economy')).toBeHidden();
+  await page.locator('#city-select').selectOption('1');
+  await expect(page.locator('#unit-panel')).toBeEmpty();
   await expect(page.locator('#recovering-units')).toContainText('剩余 3 轮');
   await expect(page.locator('#recovering-units')).toContainText('喵喵');
   const current = await state(page);

@@ -156,14 +156,16 @@ test('visible AI movement uses projected events and a real AI turn replays ident
 
 test('unobserved territory never emits faction boundary strokes', async ({ page }) => {
   await page.goto('/');
+  await page.locator('#fit').click();
   const counts = await page.evaluate(async () => {
     const mainPath = '/src/browser/main.ts', canvasPath = '/src/browser/canvas.ts';
     const { session, camera } = await import(mainPath);
     const { drawMap } = await import(canvasPath);
     const strokes: string[] = [];
+    const factionColor = getComputedStyle(document.documentElement).getPropertyValue('--civ-1').trim().toLowerCase();
     const original = CanvasRenderingContext2D.prototype.stroke;
     CanvasRenderingContext2D.prototype.stroke = function () {
-      if (this.lineWidth === 2 && String(this.strokeStyle).toLowerCase() === '#2c6e63') strokes.push(String(this.strokeStyle));
+      if (this.lineWidth === 2 && String(this.strokeStyle).toLowerCase() === factionColor) strokes.push(String(this.strokeStyle));
       return Reflect.apply(original, this, []);
     };
     const canvas = document.querySelector<HTMLCanvasElement>('#map')!;

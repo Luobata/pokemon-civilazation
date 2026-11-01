@@ -69,8 +69,8 @@ test('found city, finish production, save/load JSON and continue identically in 
   const founded = await state(page), newCity = Object.values(founded.cities).filter(c => c.ownerId === 0).at(-1)!;
   expect(founded.units[settler.id]).toBeUndefined(); expect(newCity.population).toBe(1);
   await expect(page.locator('#city-summary')).toContainText(`城市 ${newCity.id}`);
-  await page.locator('#production-item').selectOption({ label: '集会所 (40)' }); await page.locator('#add-production').click();
-  await expect(page.locator('#production-queue')).toContainText('集会所0/40');
+  await page.locator('#production-item').selectOption({ label: '友好商店 (40)' }); await page.locator('#add-production').click();
+  await expect(page.locator('#production-queue')).toContainText('友好商店0/40');
   let completed = false;
   for (let i = 0; i < 40; i++) {
     await page.locator('#end-turn').click();
@@ -79,6 +79,7 @@ test('found city, finish production, save/load JSON and continue identically in 
   }
   expect(completed).toBe(true); await expect(page.locator('#production-queue li')).toHaveCount(0);
   // Work can deliberately remain empty, and selecting research consumes reserve only at the next round end.
+  await page.locator('[data-city-section="citizens"]').click();
   const checkedWork = page.locator('#economy [data-work]:checked');
   while (await checkedWork.count()) {
     const id = await checkedWork.first().getAttribute('data-work');
@@ -106,10 +107,14 @@ test('found city, finish production, save/load JSON and continue identically in 
 test('work locking, queue reorder/cancel, purchases and version refusal use UI', async ({ page }) => {
   await page.goto('/'); await page.locator('#animate').uncheck();
   const cityId = (await state(page)).cities[1].id;
+  await page.locator('[data-city-section="citizens"]').click();
   const first = page.locator('#economy [data-work]:checked').first(); const tileId = await first.getAttribute('data-work');
   await page.locator(`[data-lock="${tileId}"]`).check(); expect((await state(page)).cities[cityId].lockedTileIds).toContain(Number(tileId));
   await page.locator(`[data-work="${tileId}"]`).uncheck(); expect((await state(page)).cities[cityId].lockedTileIds).not.toContain(Number(tileId));
+  await page.locator('[data-city-section="production"]').click();
+  await page.locator('[data-production-kind="logistics"]').click();
   await page.locator('#production-item').selectOption({ label: '开拓队 (30)' }); await page.locator('#add-production').click();
+  await page.locator('[data-production-kind="pokemon"]').click();
   await page.locator('#production-item').selectOption({ label: '妙蛙种子 (19)' }); await page.locator('#add-production').click();
   await page.locator('[data-up="1"]').click(); await expect(page.locator('#production-queue li').first()).toContainText('妙蛙种子');
   await page.locator('[data-remove="1"]').click(); await expect(page.locator('#production-queue li')).toHaveCount(1);
@@ -117,6 +122,7 @@ test('work locking, queue reorder/cancel, purchases and version refusal use UI',
   for (let i = 0; i < 20 && !(await state(page)).players[0].research.unlockedIds.includes('domestication'); i++) await page.locator('#end-turn').click();
   expect((await state(page)).players[0].research.unlockedIds).toContain('domestication');
   const goldBefore = (await state(page)).players[0].gold;
+  await page.locator('[data-city-section="supplies"]').click();
   await page.locator('#buy-ball').click(); expect((await state(page)).players[0].gold).toBe(goldBefore - 20);
   expect((await state(page)).players[0].ballInventory.pokeBall).toBe(1);
   const before = await state(page);

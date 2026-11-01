@@ -1,4 +1,5 @@
 import { CONTENT } from '../../../src/content/units.ts';
+import type { LeaderId } from '../../../src/content/leaders.ts';
 import { RULE_QUERIES } from '../../../src/ai/query.ts';
 import { planNext } from '../../../src/ai/plan.ts';
 import { rememberCityRejection } from '../../../src/ai/memory.ts';
@@ -17,6 +18,7 @@ export type RealGameOptions = {
   height: 16 | 20 | 26;
   personalities: AiPersonality[];
   roundLimit?: 100 | 200 | 300;
+  leaderIds?: LeaderId[];
 };
 
 export type RealGame = {
@@ -34,8 +36,9 @@ export function generateRealGame(options: RealGameOptions): RealGame {
   const setup: GameSetup = {
     seed: options.seed, width: options.width, height: options.height, roundLimit: options.roundLimit ?? 100,
     players: [
-      { id: 0, controller: 'human', starterId: 'bulbasaur' },
-      ...options.personalities.slice(1).map((personality, index) => ({ id: index + 1, controller: 'ai' as const, personality })),
+      { id: 0, controller: 'human', starterId: 'bulbasaur', ...(options.leaderIds?.[0] ? { leaderId: options.leaderIds[0] } : {}) },
+      ...options.personalities.slice(1).map((personality, index) => ({ id: index + 1, controller: 'ai' as const, personality,
+        ...(options.leaderIds?.[index + 1] ? { leaderId: options.leaderIds[index + 1] } : {}) })),
     ],
   };
   let state = createGame(setup, CONTENT);

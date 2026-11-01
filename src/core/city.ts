@@ -1,4 +1,5 @@
 import { CONTENT } from '../content/units.ts';
+import { leaderEffects } from '../content/leaders.ts';
 import type { Content } from '../content/units.ts';
 import type { Yield } from '../content/economy.ts';
 import { hexDistance, hexToIndex, indexToHex } from './hex.ts';
@@ -13,6 +14,11 @@ export function createCity(id: number, ownerId: number, position: Hex, headquart
 export const workRadius = (city: CityState) => 2 + Math.floor(city.population / 4);
 export const growthThreshold = (city: CityState) => 20 + 10 * city.population;
 export const maxCityHp = (city: CityState, content: Content = CONTENT) => content.balance.city.baseHp + content.balance.city.buildingHp * city.buildingIds.filter(id => id !== 'headquarters').length;
+export function cityCounterAttack(player: PlayerState | undefined, content: Content = CONTENT): number {
+  if (!player) return 0;
+  return (player.starterId === 'squirtle' ? content.balance.city.squirtleCounterAttack : content.balance.city.counterAttack)
+    + leaderEffects(player.leaderId).cityCounterAttack;
+}
 export function tileYield(biome: keyof Content['biomes'], player: PlayerState, content: Content = CONTENT): Yield {
   const result = { ...content.biomes[biome] };
   if ((biome === 'snow' || biome === 'volcano') && player.research.unlockedIds.includes('meteorology')) result.research += content.balance.effects.meteorologyResearch;
@@ -63,6 +69,8 @@ export function cityYield(state: GameState, city: CityState, content: Content = 
     for (const key of ['food', 'production', 'gold', 'research'] as const) result[key] += addition[key];
   }
   if (state.players[city.ownerId].starterId === 'bulbasaur') result.food = Math.floor(result.food * 1100 / 1000);
+  const leader = leaderEffects(player.leaderId);
+  result.research += leader.cityResearch + (city.buildingIds.includes('observatory') ? leader.laboratoryResearch : 0);
   return result;
 }
 export function productionCost(item: ProductionItem, content: Content = CONTENT): number {

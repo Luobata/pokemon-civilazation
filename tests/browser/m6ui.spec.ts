@@ -9,13 +9,14 @@ test('complete small-map game with milestone screenshots and identical command r
   test.setTimeout(180_000);
   await mkdir(screenshots, { recursive: true });
   await mkdir(acceptance, { recursive: true });
-  const game = generateRealGame({ seed: 1, width: 24, height: 16, personalities: ['conservative', 'aggressive'] });
+  const game = generateRealGame({ seed: 1, width: 24, height: 16, personalities: ['conservative', 'aggressive'], leaderIds: ['oak', 'lance'] });
   expect(game.finalState.outcome?.kind).toBe('score');
   expect(game.invalid).toBe(0);
   for (const milestone of ['city', 'battle', 'capture', 'war', 'peace', 'outcome']) expect(game.milestones[milestone]).not.toBeUndefined();
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/?seed=1');
+  await page.locator('input[name="leader"][value="oak"]').check();
   await page.locator('#starter').selectOption('bulbasaur');
   await page.locator('#map-size').selectOption('24x16');
   await page.locator('#ai-count').selectOption('1');
@@ -25,12 +26,17 @@ test('complete small-map game with milestone screenshots and identical command r
 
   const taken = new Set<string>();
   const visualChecks: unknown[] = [];
+  let sawBattleActivity = false;
   async function capture(name: string) {
     if (taken.has(name)) return;
     taken.add(name);
     await page.locator('#fit').click();
     await page.screenshot({ path: `${screenshots}/m6ui-${name}.png`, fullPage: true });
     await page.screenshot({ path: `${acceptance}/m6ui-${name}.png`, fullPage: true });
+    const activity = await page.locator('#activity-list').innerText();
+    sawBattleActivity ||= activity.includes('攻击了');
+    expect(activity).not.toContain('文明 27');
+    expect(activity).not.toContain('文明 32');
     visualChecks.push(await page.evaluate(() => ({
       viewportWidth: window.innerWidth,
       documentWidth: document.documentElement.scrollWidth,
@@ -60,7 +66,8 @@ test('complete small-map game with milestone screenshots and identical command r
   await expect(page.locator('#outcome-ranking')).toContainText('2×80');
   await expect(page.locator('#end-turn')).toBeDisabled();
   await expect(page.locator('#new-game')).toBeEnabled();
-  await expect(page.locator('#activity-list')).toContainText('攻击了');
+  // The six-entry log can legitimately evict earlier battles before round 100.
+  expect(sawBattleActivity).toBe(true);
   await expect(page.locator('#activity-list')).not.toContainText('文明 27');
   await expect(page.locator('#activity-list')).not.toContainText('文明 32');
   const finalLog = await page.evaluate(async () => {

@@ -9,12 +9,12 @@
   <body>
     <main class="app">
       <header class="topbar">
-        <div class="brand"><div class="brand-mark">野</div><div><strong>宝可梦 × 文明</strong><small>原野图鉴 · 外交、AI 与终局</small><p id="map-info" role="status">正在生成地图…</p></div></div>
+        <div class="brand"><div class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32"><path fill="#3D7564" stroke="#E6B85C" stroke-width="2" d="M9 3h14l6 10v8l-6 8H9l-6-8v-8Z"/><path fill="#183137" d="M6 14h20v6H6z"/><path fill="#F1EAD8" d="M12 10h8v14h-8z"/><path fill="#D3655C" d="M12 10h8v6h-8z"/><path fill="#F1EAD8" d="M10 15h12v4H10z"/><path fill="#E6B85C" d="M14 15h4v4h-4z"/></svg></div><div><strong>宝可梦 × 文明</strong><small>原野图鉴 · 探索、建设与征服</small><p id="map-info" role="status">正在生成地图…</p></div></div>
         <div class="round-block"><small>当前轮次</small><strong id="round-display">— <span>/ 100</span></strong></div>
         <div class="hud-resources" aria-label="资源总览">
-          <div class="resource"><small>金币</small><strong id="hud-gold">—</strong></div>
-          <div class="resource"><small>科研</small><strong id="hud-research">—</strong></div>
-          <div class="resource"><small>维护</small><strong id="hud-upkeep">—</strong></div>
+          <div class="resource"><svg class="resource-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 2h10l5 5v10l-5 5H7l-5-5V7Zm2 4v12h6V6Z"/><path fill="#17282D" d="M10 7h4v3h3v4h-3v3h-4v-3H7v-4h3Z"/></svg><small>金币</small><strong id="hud-gold">—</strong></div>
+          <div class="resource"><svg class="resource-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="m12 1 3 7 7 4-7 3-3 8-3-8-7-3 7-4Z"/><path fill="#17282D" d="m12 7 1.5 3.5L17 12l-3.5 1.5L12 17l-1.5-3.5L7 12l3.5-1.5Z"/></svg><small>科研</small><strong id="hud-research">—</strong></div>
+          <div class="resource"><svg class="resource-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2 21 6v6c0 5-4 8-9 10-5-2-9-5-9-10V6Zm0 5v10l5-3V8Z"/></svg><small>维护</small><strong id="hud-upkeep">—</strong></div>
         </div>
         <button id="end-turn" class="primary">结束回合　›</button>
       </header>
@@ -25,24 +25,33 @@
             <div class="map-toolbar"><strong>青绿原野</strong><span id="map-size-label" class="map-meta">小地图 · 24 × 16</span><div class="map-actions"><button id="fit">F 地图居中</button><label><input id="animate" type="checkbox" checked />移动动画</label><button id="skip" disabled>跳过动画</button></div></div>
             <figure class="map-frame">
               <canvas id="map" tabindex="0" aria-label="六角格地图。点击或用方向键选择，Enter 确认，Escape 取消，加减缩放，F 居中"></canvas>
-              <figcaption><span>色块字母 = 宝可梦简称　数字 1–4 = 文明　斜线 = 记忆地形</span><span>点选单位 → 高亮格移动</span></figcaption>
+              <figcaption><span>数字 1–4 = 文明　爪 = 野生　斜线 = 记忆地形</span><span>点城市管理 · 点单位行动 · 同格再次点击切换</span></figcaption>
             </figure>
           </section>
           <p id="selection" aria-live="polite">点选己方单位；拖动地图平移，滚轮缩放。</p>
           <p id="action-notice" role="status"></p>
-          <section id="unit-panel" aria-label="单位面板"></section>
           <ul id="legend" aria-label="群系图例"></ul>
           <ul id="faction-legend" aria-label="阵营图例"></ul>
         </div>
         <aside class="side-column">
+          <section id="selection-panel" class="subpanel" aria-label="选择行动对象"></section>
+          <section id="leader-panel" class="subpanel" aria-label="当前领袖"></section>
+          <section id="unit-panel" aria-label="单位面板"></section>
           <section id="economy" aria-label="城市与经济"></section>
           <section id="neutral-city" class="subpanel" aria-label="中立营地"></section>
+          <section id="selection-empty" class="subpanel"><p class="neutral-note">在地图上选择己方城市或单位，查看它的可用操作。</p></section>
+          <section id="research-panel" class="subpanel" aria-label="文明研究"></section>
           <section id="diplomacy" class="subpanel" aria-label="外交关系"></section>
           <section id="activity-panel" class="subpanel" aria-label="回合动态"><div class="subpanel-head"><strong>回合动态</strong><span>仅可见事件</span></div><ol id="activity-list"><li>暂无动态</li></ol></section>
         </aside>
       </div>
 
       <section id="controls" aria-label="游戏与存档控制">
+        <fieldset id="leader-setup" tabindex="-1">
+          <legend>下局领袖</legend>
+          <p id="leader-setup-note">选择仅在新游戏生效，御三家可独立选择</p>
+          <div id="leader-options" class="leader-options"></div>
+        </fieldset>
         <label>御三家 <select id="starter"><option value="bulbasaur">妙蛙种子</option><option value="charmander">小火龙</option><option value="squirtle">杰尼龟</option></select></label>
         <label>地图尺寸 <select id="map-size"><option value="24x16" selected>小 · 24 × 16</option><option value="30x20">标准 · 30 × 20</option><option value="40x26">大 · 40 × 26</option></select></label>
         <label>轮上限 <select id="round-limit"><option value="100">100</option><option value="200">200</option><option value="300">300</option></select></label>
