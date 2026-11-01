@@ -3,7 +3,8 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { CONTENT } from '../src/content/units.ts';
+import { CONTENT, EXPANSION_CONTENT } from '../src/content/units.ts';
+import type { Content } from '../src/content/units.ts';
 import { LEADER_IDS } from '../src/content/leaders.ts';
 import type { LeaderId } from '../src/content/leaders.ts';
 import { AI_THRESHOLDS } from '../src/ai/thresholds.ts';
@@ -17,7 +18,7 @@ import { step } from '../src/core/step.ts';
 import { hexDistance, hexToIndex } from '../src/core/hex.ts';
 import { compareScores, scorePlayer } from '../src/core/victory.ts';
 import { canonicalSerialize } from '../src/core/snapshot.ts';
-import type { AiPersonality, Command, GameSetup, GameState, Score } from '../src/core/model.ts';
+import type { AiPersonality, Command, GameSetup, GameState, Score, GameOutcome } from '../src/core/model.ts';
 import { classifyRejection } from './rejections.ts';
 import { collectTelemetry, createTelemetry } from './telemetry.ts';
 import { mean, ratio, wilson95 } from './statistics.ts';
@@ -26,6 +27,8 @@ export type RoundLimit = 100 | 200 | 300;
 export const PERSONALITIES: AiPersonality[] = ['expansion', 'aggressive', 'conservative'];
 export type LeaderBalanceConfig = {
   seeds: number;
+  seedStart?: number;
+  expansionVersion?: 1;
   roundLimit: RoundLimit;
   width: number;
   height: number;
@@ -63,7 +66,7 @@ export type LeaderGameResult = {
   rotation: number;
   leaderBySeat: Record<number, LeaderId>;
   status: 'completed' | 'defect' | 'aborted';
-  outcomeKind: 'conquest' | 'score' | 'playerDefeat' | null;
+  outcomeKind: GameOutcome['kind'] | null;
   winners: number[];
   eliminatedSeats: number[];
   round: number;
@@ -73,12 +76,13 @@ export type LeaderGameResult = {
   startingBySeat: StartingPosition[];
   rejections: RejectionSummary;
   exception: string | null;
-  activityByLeader: Record<LeaderId, { peakCities: number; attacks: number; captureAttempts: number; captureSuccesses: number }>;
+  activityByLeader: Record<LeaderId, { peakCities: number; attacks: number; captureAttempts: number; captureSuccesses: number; activeAbilities: number; recruitedLeaderUnits: number; leaderBuildings: number }>;
 };
 
 export function leaderBalanceCases(config: LeaderBalanceConfig): LeaderBalanceCase[] {
   const cases: LeaderBalanceCase[] = [];
-  for (let seed = 1; seed <= config.seeds; seed++) {
+  const seedStart = config.seedStart ?? 1;
+  for (let seed = seedStart; seed < seedStart + config.seeds; seed++) {
     for (const personality of PERSONALITIES) {
       for (let rotation = 0; rotation < LEADER_IDS.length; rotation++) {
         const leaderBySeat = Object.fromEntries(LEADER_IDS.map((leaderId, seat) => [seat, LEADER_IDS[(seat + rotation) % LEADER_IDS.length]])) as Record<number, LeaderId>;
@@ -90,6 +94,7 @@ export function leaderBalanceCases(config: LeaderBalanceConfig): LeaderBalanceCa
           leaderBySeat,
           setup: {
             seed,
+            ...(config.expansionVersion === 1 ? { expansionVersion: 1 as const } : {}),
             width: config.width,
             height: config.height,
             roundLimit: config.roundLimit,
@@ -113,13 +118,13 @@ function addRejection(summary: RejectionSummary, item: { round: number; seq: num
   if (summary.examples.length < 20) summary.examples.push(item);
 }
 
-function startingPositions(state: GameState): StartingPosition[] {
+function startingPositions(state: GameState, content: Content = CONTENT): StartingPosition[] {
   return Object.values(state.players).map(player => {
     const city = state.cities[player.headquartersCityId];
     const tileIndex = hexToIndex(city.position, state.map)!;
     const base = { food: 2, production: 1, gold: 1, research: 0 };
     for (const workedTileId of city.workedTileIds) {
-      const yieldToAdd = CONTENT.biomes[state.map.tiles[workedTileId]];
+      const yieldToAdd = content.biomes[state.map.tiles[workedTileId]];
       base.food += yieldToAdd.food;
       base.production += yieldToAdd.production;
       base.gold += yieldToAdd.gold;
@@ -141,13 +146,13 @@ function startingPositions(state: GameState): StartingPosition[] {
   });
 }
 
-function finalRanking(state: GameState): Score[] {
+function finalRanking(state: GameState, content: Content = CONTENT): Score[] {
   return state.outcome?.ranking ?? Object.keys(state.players).map(Number)
-    .map(id => scorePlayer(state, id)).sort((a, b) => compareScores(a, b) || a.playerId - b.playerId);
+    .map(id => scorePlayer(state, id, content)).sort((a, b) => compareScores(a, b) || a.playerId - b.playerId);
 }
 
 export function simulateLeaderCase(match: LeaderBalanceCase): LeaderGameResult {
-  const content = CONTENT;
+  const content = match.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT;
   let state: GameState;
   try {
     state = createGame(match.setup, content);
@@ -157,11 +162,11 @@ export function simulateLeaderCase(match: LeaderBalanceCase): LeaderGameResult {
       id: match.id, seed: match.seed, personality: match.personality, rotation: match.rotation, leaderBySeat: match.leaderBySeat,
       status: 'defect', outcomeKind: null, winners: [], eliminatedSeats: [], round: 0, commandCount: 0, ranking: [], scoreByLeader: emptyScores,
       startingBySeat: [], rejections: emptyRejections(), exception: String(error),
-      activityByLeader: Object.fromEntries(LEADER_IDS.map(leaderId => [leaderId, { peakCities: 0, attacks: 0, captureAttempts: 0, captureSuccesses: 0 }])) as LeaderGameResult['activityByLeader'],
+      activityByLeader: Object.fromEntries(LEADER_IDS.map(leaderId => [leaderId, { peakCities: 0, attacks: 0, captureAttempts: 0, captureSuccesses: 0, activeAbilities: 0, recruitedLeaderUnits: 0, leaderBuildings: 0 }])) as LeaderGameResult['activityByLeader'],
     };
   }
   const telemetry = createTelemetry(state, content), memory: RejectedCitySite[] = [], rejections = emptyRejections();
-  const startingBySeat = startingPositions(state);
+  const startingBySeat = startingPositions(state, content);
   let exception: string | null = null;
   try {
     while (!state.outcome && state.commandSeq < 100_000) {
@@ -185,7 +190,7 @@ export function simulateLeaderCase(match: LeaderBalanceCase): LeaderGameResult {
   } catch (error) {
     exception = String(error);
   }
-  const ranking = finalRanking(state);
+  const ranking = finalRanking(state, content);
   const scoreByLeader = Object.fromEntries(LEADER_IDS.map((leaderId, seat) => {
     const score = ranking.find(item => item.playerId === seat)!;
     return [leaderId, { ...score, seat, rank: ranking.findIndex(item => item.playerId === seat) + 1, winCredit: state.outcome?.winners.includes(seat) ? 1 / state.outcome.winners.length : 0 }];
@@ -200,6 +205,7 @@ export function simulateLeaderCase(match: LeaderBalanceCase): LeaderGameResult {
     activityByLeader: Object.fromEntries(LEADER_IDS.map((leaderId, seat) => [leaderId, {
       peakCities: telemetry.activity[seat].peakCities, attacks: telemetry.activity[seat].attacks,
       captureAttempts: telemetry.activity[seat].captureAttempts, captureSuccesses: telemetry.activity[seat].captureSuccesses,
+      activeAbilities: telemetry.activity[seat].activeAbilities, recruitedLeaderUnits: telemetry.activity[seat].recruitedLeaderUnits, leaderBuildings: telemetry.activity[seat].leaderBuildings,
     }])) as LeaderGameResult['activityByLeader'],
   };
 }
@@ -227,6 +233,9 @@ type LeaderAggregate = {
   meanTechs: ReturnType<typeof mean>;
   meanKnockdowns: ReturnType<typeof mean>;
   meanPeakCities: ReturnType<typeof mean>;
+  meanActiveAbilities: ReturnType<typeof mean>;
+  meanRecruitedLeaderUnits: ReturnType<typeof mean>;
+  meanLeaderBuildings: ReturnType<typeof mean>;
   eliminatedCount: number;
   splitWinCount: number;
   starting: StartingAggregate;
@@ -273,6 +282,9 @@ export function aggregateLeaderGames(games: LeaderGameResult[]) {
       meanTechs: mean(observations.map(({ game, score }) => ({ seed: game.seed, value: score.techs }))),
       meanKnockdowns: mean(observations.map(({ game, score }) => ({ seed: game.seed, value: score.knockdowns }))),
       meanPeakCities: mean(observations.map(({ game }) => ({ seed: game.seed, value: game.activityByLeader[leaderId].peakCities }))),
+      meanActiveAbilities: mean(observations.map(({ game }) => ({ seed: game.seed, value: game.activityByLeader[leaderId].activeAbilities }))),
+      meanRecruitedLeaderUnits: mean(observations.map(({ game }) => ({ seed: game.seed, value: game.activityByLeader[leaderId].recruitedLeaderUnits }))),
+      meanLeaderBuildings: mean(observations.map(({ game }) => ({ seed: game.seed, value: game.activityByLeader[leaderId].leaderBuildings }))),
       eliminatedCount: observations.filter(({ game }) => game.eliminatedSeats.includes(game.scoreByLeader[leaderId].seat)).length,
       splitWinCount: observations.filter(({ game, score }) => game.winners.length > 1 && game.winners.includes(score.seat)).length,
       starting: aggregateStarting(valid.flatMap(game => game.startingBySeat.filter(start => start.leaderId === leaderId))),
@@ -291,7 +303,7 @@ export function aggregateLeaderGames(games: LeaderGameResult[]) {
     abortedGames: games.filter(game => game.status === 'aborted').length,
     exceptionGames: games.filter(game => game.exception !== null).length,
     splitWinGames: valid.filter(game => game.winners.length > 1).length,
-    outcomeKinds: Object.fromEntries(['conquest', 'score', 'playerDefeat'].map(kind => [kind, valid.filter(game => game.outcomeKind === kind).length])),
+    outcomeKinds: Object.fromEntries((['conquest', 'score', 'playerDefeat', 'pokedex', 'origin', 'championship'] as const).map(kind => [kind, valid.filter(game => game.outcomeKind === kind).length])),
     rejections: {
       total: games.reduce((sum, game) => sum + game.rejections.total, 0),
       fog: games.reduce((sum, game) => sum + game.rejections.fog, 0),
@@ -303,6 +315,8 @@ export function aggregateLeaderGames(games: LeaderGameResult[]) {
   };
 }
 
+export type LeaderBalanceAggregate = ReturnType<typeof aggregateLeaderGames>;
+
 export type LeaderBalanceReport = {
   schemaVersion: 1;
   metadata: {
@@ -310,33 +324,103 @@ export type LeaderBalanceReport = {
     nodeVersion: string;
     gitHead: string | null;
     config: LeaderBalanceConfig;
+    seedStart: number;
     seedValues: number[];
+    expansion: boolean;
     gamesPlanned: number;
     scheduleSha256: string;
     toolSha256: string;
     contentVersion: string;
+    contentSha256: string;
     deterministic: true;
   };
-  aggregate: ReturnType<typeof aggregateLeaderGames>;
+  aggregate: LeaderBalanceAggregate;
+  acceptance?: LeaderBalanceAcceptance;
   warnings: string[];
   games: LeaderGameResult[];
 };
 
+export const LEADER_BALANCE_ACCEPTANCE_THRESHOLDS = {
+  minimumWinShare: 0.15,
+  maximumWinShare: 0.35,
+  maximumWinShareSpread: 0.15,
+  minimumMeanActiveAbilities: 0.25,
+  minimumMeanRecruitedLeaderUnits: 0.1,
+  minimumMeanLeaderBuildings: 0.1,
+} as const;
+
+type LeaderBalanceAcceptanceCheck = {
+  id: string;
+  passes: boolean;
+  value: number | null;
+  minimum?: number;
+  maximum?: number;
+  failingLeaders: LeaderId[];
+};
+
+export type LeaderBalanceAcceptance = {
+  status: 'pass' | 'fail';
+  thresholds: typeof LEADER_BALANCE_ACCEPTANCE_THRESHOLDS;
+  checks: LeaderBalanceAcceptanceCheck[];
+};
+
+export function evaluateLeaderBalanceAcceptance(aggregate: LeaderBalanceAggregate, plannedGames: number): LeaderBalanceAcceptance {
+  const shares = aggregate.leaders.map(leader => ({ leader, value: leader.winShare.pointEstimate }));
+  const availableShares = shares.filter((item): item is { leader: LeaderAggregate; value: number } => item.value !== null);
+  const minimumShare = availableShares.length ? Math.min(...availableShares.map(item => item.value)) : null;
+  const maximumShare = availableShares.length ? Math.max(...availableShares.map(item => item.value)) : null;
+  const spread = minimumShare === null || maximumShare === null ? null : maximumShare - minimumShare;
+  const check = (id: string, passes: boolean, value: number | null, limits: { minimum?: number; maximum?: number } = {}, failingLeaders: LeaderId[] = []): LeaderBalanceAcceptanceCheck =>
+    ({ id, passes, value, ...limits, failingLeaders });
+  const withinWinShare = aggregate.leaders.every(leader => leader.winShare.pointEstimate !== null
+    && leader.winShare.pointEstimate >= LEADER_BALANCE_ACCEPTANCE_THRESHOLDS.minimumWinShare
+    && leader.winShare.pointEstimate <= LEADER_BALANCE_ACCEPTANCE_THRESHOLDS.maximumWinShare);
+  const meanAtLeast = (key: 'meanActiveAbilities' | 'meanRecruitedLeaderUnits' | 'meanLeaderBuildings', minimum: number) => {
+    const values = aggregate.leaders.map(leader => ({ leader, value: leader[key].value }));
+    return {
+      passes: values.every(item => item.value !== null && item.value >= minimum),
+      minimumValue: values.every(item => item.value !== null) ? Math.min(...values.map(item => item.value as number)) : null,
+      failingLeaders: values.filter(item => item.value === null || item.value < minimum).map(item => item.leader.leaderId),
+    };
+  };
+  const activity = meanAtLeast('meanActiveAbilities', LEADER_BALANCE_ACCEPTANCE_THRESHOLDS.minimumMeanActiveAbilities);
+  const recruitment = meanAtLeast('meanRecruitedLeaderUnits', LEADER_BALANCE_ACCEPTANCE_THRESHOLDS.minimumMeanRecruitedLeaderUnits);
+  const buildings = meanAtLeast('meanLeaderBuildings', LEADER_BALANCE_ACCEPTANCE_THRESHOLDS.minimumMeanLeaderBuildings);
+  const checks = [
+    check('planned-games-completed', aggregate.attemptedGames === plannedGames && aggregate.completedGames === plannedGames && aggregate.leaders.every(leader => leader.observations === aggregate.completedGames), aggregate.completedGames, { minimum: plannedGames }),
+    check('zero-defects', aggregate.defectGames === 0, aggregate.defectGames, { maximum: 0 }),
+    check('zero-aborts', aggregate.abortedGames === 0, aggregate.abortedGames, { maximum: 0 }),
+    check('zero-exceptions', aggregate.exceptionGames === 0, aggregate.exceptionGames, { maximum: 0 }),
+    check('win-share-band', withinWinShare, minimumShare === null || maximumShare === null ? null : maximumShare * 100, { minimum: LEADER_BALANCE_ACCEPTANCE_THRESHOLDS.minimumWinShare * 100, maximum: LEADER_BALANCE_ACCEPTANCE_THRESHOLDS.maximumWinShare * 100 }, shares.filter(item => item.value === null || item.value < LEADER_BALANCE_ACCEPTANCE_THRESHOLDS.minimumWinShare || item.value > LEADER_BALANCE_ACCEPTANCE_THRESHOLDS.maximumWinShare).map(item => item.leader.leaderId)),
+    check('win-share-spread', spread !== null && spread <= LEADER_BALANCE_ACCEPTANCE_THRESHOLDS.maximumWinShareSpread, spread === null ? null : spread * 100, { maximum: LEADER_BALANCE_ACCEPTANCE_THRESHOLDS.maximumWinShareSpread * 100 }),
+    check('active-ability-usage', activity.passes, activity.minimumValue, { minimum: LEADER_BALANCE_ACCEPTANCE_THRESHOLDS.minimumMeanActiveAbilities }, activity.failingLeaders),
+    check('leader-recruitment-usage', recruitment.passes, recruitment.minimumValue, { minimum: LEADER_BALANCE_ACCEPTANCE_THRESHOLDS.minimumMeanRecruitedLeaderUnits }, recruitment.failingLeaders),
+    check('leader-building-usage', buildings.passes, buildings.minimumValue, { minimum: LEADER_BALANCE_ACCEPTANCE_THRESHOLDS.minimumMeanLeaderBuildings }, buildings.failingLeaders),
+  ];
+  return { status: checks.every(item => item.passes) ? 'pass' : 'fail', thresholds: LEADER_BALANCE_ACCEPTANCE_THRESHOLDS, checks };
+}
+
 export function runLeaderBalance(config: LeaderBalanceConfig, context?: { command?: string[]; nodeVersion?: string; gitHead?: string | null }): LeaderBalanceReport {
+  const seedStart = config.seedStart ?? 1;
   const matches = leaderBalanceCases(config);
   const games = matches.map(simulateLeaderCase);
+  const aggregate = aggregateLeaderGames(games);
+  const content = config.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT;
   const scheduleSha256 = createHash('sha256').update(canonicalSerialize(matches)).digest('hex');
   const toolSha256 = createHash('sha256').update(readFileSync(new URL('./leader-balance.ts', import.meta.url))).digest('hex');
+  const contentJson = JSON.parse(JSON.stringify(content));
+  const contentSha256 = createHash('sha256').update(canonicalSerialize(contentJson)).digest('hex');
   return {
     schemaVersion: 1,
     metadata: {
-      command: context?.command ?? ['node', 'tools/leader-balance.ts', '--seeds', String(config.seeds), '--round-limit', String(config.roundLimit)],
+      command: context?.command ?? ['node', 'tools/leader-balance.ts', '--seeds', String(config.seeds), '--seed-start', String(seedStart), '--expansion', config.expansionVersion === 1 ? 'true' : 'false', '--round-limit', String(config.roundLimit)],
       nodeVersion: context?.nodeVersion ?? process.version,
       gitHead: context?.gitHead ?? null,
-      config, seedValues: Array.from({ length: config.seeds }, (_, index) => index + 1), gamesPlanned: matches.length,
-      scheduleSha256, toolSha256, contentVersion: CONTENT.version, deterministic: true,
+      config, seedStart, seedValues: Array.from({ length: config.seeds }, (_, index) => seedStart + index), expansion: config.expansionVersion === 1, gamesPlanned: matches.length,
+      scheduleSha256, toolSha256, contentVersion: content.version, contentSha256, deterministic: true,
     },
-    aggregate: aggregateLeaderGames(games),
+    aggregate,
+    acceptance: evaluateLeaderBalanceAcceptance(aggregate, matches.length),
     warnings: [
       `样本仅 ${config.seeds} 个地图种子 × ${PERSONALITIES.length} 种性格 × ${LEADER_IDS.length} 个座位轮换，不能推断校准完成或长期平衡。`,
       '同一种子与性格的四局共享地形、初始位置和初始随机流；胜负观测不是互相独立的地图样本。',
@@ -350,32 +434,50 @@ export function parseLeaderBalanceArgs(args: string[]): { config: LeaderBalanceC
   const flags: Record<string, string> = {};
   for (let index = 0; index < args.length; index += 2) {
     const key = args[index];
-    if (!['--seeds', '--round-limit', '--out'].includes(key) || !args[index + 1] || args[index + 1].startsWith('--') || Object.hasOwn(flags, key)) {
-      throw new Error('Usage: node tools/leader-balance.ts --seeds <1..100> --round-limit <100|200|300> [--out <file.json>]');
+    if (!['--seeds', '--seed-start', '--expansion', '--round-limit', '--out'].includes(key)
+      || !args[index + 1] || args[index + 1].startsWith('--') || Object.hasOwn(flags, key)) {
+      throw new Error('Usage: node tools/leader-balance.ts --seeds <1..100> [--seed-start <1..>] [--expansion <true|false>] --round-limit <100|200|300> [--out <file.json>]');
     }
     flags[key] = args[index + 1];
   }
-  const seeds = Number(flags['--seeds'] ?? 2), roundLimit = Number(flags['--round-limit'] ?? 100);
-  if (!Number.isSafeInteger(seeds) || seeds < 1 || seeds > 100 || ![100, 200, 300].includes(roundLimit)) {
-    throw new Error('Expected --seeds 1..100 and --round-limit 100|200|300');
+  const seeds = Number(flags['--seeds'] ?? 2), seedStart = Number(flags['--seed-start'] ?? 1), roundLimit = Number(flags['--round-limit'] ?? 100), expansion = flags['--expansion'] ?? 'false';
+  if (!Number.isSafeInteger(seeds) || seeds < 1 || seeds > 100 || !Number.isSafeInteger(seedStart) || seedStart < 1
+    || !Number.isSafeInteger(seedStart + seeds - 1) || !['100', '200', '300'].includes(String(roundLimit))
+    || !['true', 'false'].includes(expansion)) {
+    throw new Error('Expected --seeds 1..100, --seed-start >=1, --expansion true|false, and --round-limit 100|200|300');
   }
-  return { config: { seeds, roundLimit: roundLimit as RoundLimit, width: 24, height: 16 }, output: flags['--out'] };
+  return {
+    config: {
+      seeds, seedStart, ...(expansion === 'true' ? { expansionVersion: 1 as const } : {}), roundLimit: roundLimit as RoundLimit, width: 24, height: 16,
+    },
+    output: flags['--out'],
+  };
 }
 
 function formatNumber(value: number | null, digits = 2): string {
   return value === null ? '—' : value.toFixed(digits);
 }
+function formatAcceptanceLimits(check: { minimum?: number; maximum?: number }): string {
+  if (check.minimum !== undefined && check.maximum !== undefined) return `${check.minimum}–${check.maximum}`;
+  if (check.minimum !== undefined) return `≥ ${check.minimum}`;
+  if (check.maximum !== undefined) return `≤ ${check.maximum}`;
+  return '—';
+}
 
 export function renderLeaderBalanceMarkdown(report: LeaderBalanceReport): string {
-  const a = report.aggregate;
-  const rows = a.leaders.map(leader => `| ${leader.leaderId} | ${leader.observations} | ${formatNumber(leader.winShare.pointEstimate === null ? null : leader.winShare.pointEstimate * 100)}% (${formatNumber(leader.wilson95?.[0] === undefined ? null : leader.wilson95[0] * 100)}–${formatNumber(leader.wilson95?.[1] === undefined ? null : leader.wilson95[1] * 100)}%) | ${formatNumber(leader.meanScore.value)} | ${formatNumber(leader.meanRank.value)} | ${formatNumber(leader.meanCities.value)} | ${formatNumber(leader.meanPeakCities.value)} | ${leader.eliminatedCount} |`).join('\n');
+  const a = report.aggregate, acceptance = report.acceptance ?? evaluateLeaderBalanceAcceptance(a, report.metadata.gamesPlanned);
+  const rows = a.leaders.map(leader => `| ${leader.leaderId} | ${leader.observations} | ${formatNumber(leader.winShare.pointEstimate === null ? null : leader.winShare.pointEstimate * 100)}% (${formatNumber(leader.wilson95?.[0] === undefined ? null : leader.wilson95[0] * 100)}–${formatNumber(leader.wilson95?.[1] === undefined ? null : leader.wilson95[1] * 100)}%) | ${formatNumber(leader.meanScore.value)} | ${formatNumber(leader.meanRank.value)} | ${formatNumber(leader.meanCities.value)} | ${formatNumber(leader.meanPeakCities.value)} | ${formatNumber(leader.meanActiveAbilities.value)} | ${formatNumber(leader.meanRecruitedLeaderUnits.value)} | ${formatNumber(leader.meanLeaderBuildings.value)} | ${leader.eliminatedCount} |`).join('\n');
   const personalityRows = a.leaders.flatMap(leader => PERSONALITIES.map(personality => {
     const item = leader.byPersonality[personality];
     return `| ${leader.leaderId} | ${personality} | ${item.observations} | ${formatNumber(item.observations ? item.winCredit / item.observations * 100 : null)}% | ${formatNumber(item.meanScore)} |`;
   })).join('\n');
 
-const rankedLeaders = [...a.leaders].sort((x, y) => (y.winShare.pointEstimate ?? 0) - (x.winShare.pointEstimate ?? 0));
-const top = rankedLeaders[0], bottom = rankedLeaders.at(-1)!;
+  const acceptanceRows = acceptance.checks.map(item => `| ${item.id} | ${formatAcceptanceLimits(item)} | ${item.value === null ? '—' : item.value.toFixed(2)} | ${item.passes ? '通过' : '失败'} | ${item.failingLeaders.join(', ') || '—'} |`).join('\n');
+  const rankedLeaders = [...a.leaders].sort((x, y) => (y.winShare.pointEstimate ?? 0) - (x.winShare.pointEstimate ?? 0));
+  const top = rankedLeaders[0], bottom = rankedLeaders.at(-1)!;
+  const shareSummary = top.winShare.pointEstimate === null || bottom.winShare.pointEstimate === null
+    ? '本批没有足够的完成局来计算领袖胜率；先解决运行健康问题，再解读平衡指标。'
+    : `本批描述性胜利份额最高为 ${top.leaderId}（${(top.winShare.pointEstimate * 100).toFixed(2)}%），最低为 ${bottom.leaderId}（${(bottom.winShare.pointEstimate * 100).toFixed(2)}%）。两者的 Wilson 区间存在重叠或接近，且只有 ${report.metadata.config.seeds} 个地图种子，因此这只能作为下一批扩样方向，不能推出强度结论。`;
   const startRows = a.startingBySeat.map(seat => `| ${seat.seat} | ${seat.observations} | ${formatNumber(seat.meanNearestRivalDistance)} | ${formatNumber(seat.meanBaseFood)} | ${formatNumber(seat.meanBaseProduction)} | ${formatNumber(seat.meanBaseGold)} | ${formatNumber(seat.meanBaseResearch)} | ${JSON.stringify(seat.starters)} |`).join('\n');
   return `# 领袖长期平衡诊断报告
 
@@ -390,16 +492,25 @@ const top = rankedLeaders[0], bottom = rankedLeaders.at(-1)!;
 - 地图：${report.metadata.config.width}×${report.metadata.config.height}，轮数上限 ${report.metadata.config.roundLimit}
 - 编排 SHA-256：\`${report.metadata.scheduleSha256}\`
 - 工具源码 SHA-256：\`${report.metadata.toolSha256}\`
-- 内容版本：${report.metadata.contentVersion}
+- 模式：${report.metadata.expansion ? '扩展 v1' : '旧版'}；种子范围 ${report.metadata.seedValues[0]}–${report.metadata.seedValues.at(-1)!}
+- 内容版本：${report.metadata.contentVersion}（SHA-256：${report.metadata.contentSha256}）
+
+## 预注册验收
+
+验收结论：**${acceptance.status === 'pass' ? '通过' : '未通过'}**。这些阈值是运行前设定的机械检查；Wilson 区间和座位轮换仅作描述，不能当作独立样本显著性证明。
+
+| 检查 | 阈值 | 实际值 | 结果 | 未达标领袖 |
+| --- | ---: | ---: | --- | --- |
+${acceptanceRows}
 
 ## 本批观察
 
-本批描述性胜利份额最高为 ${top.leaderId}（${(top.winShare.pointEstimate! * 100).toFixed(2)}%），最低为 ${bottom.leaderId}（${(bottom.winShare.pointEstimate! * 100).toFixed(2)}%）。两者的 Wilson 区间存在重叠或接近，且只有 ${report.metadata.config.seeds} 个地图种子，因此这只能作为下一批扩样方向，不能推出强度结论。
+${shareSummary}
 
 ## 领袖汇总
 
-| 领袖 | 完成观测 | 胜利份额（描述性 95% Wilson 区间） | 平均终局分 | 平均排名 | 平均城市 | 峰值城市 | 被淘汰 |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 领袖 | 完成观测 | 胜利份额（描述性 95% Wilson 区间） | 平均终局分 | 平均排名 | 平均城市 | 峰值城市 | 平均技能 | 平均招募 | 平均建筑 | 被淘汰 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 ${rows}
 
 ## 性格分层
@@ -412,7 +523,7 @@ ${personalityRows}
 
 - 完成/缺陷/中止：${a.completedGames} / ${a.defectGames} / ${a.abortedGames}
 - 平分胜利局数：${a.splitWinGames}
-- 结局分布：征服 ${a.outcomeKinds.conquest}，计分 ${a.outcomeKinds.score}，人类失败 ${a.outcomeKinds.playerDefeat}
+- 结局分布：征服 ${a.outcomeKinds.conquest}，计分 ${a.outcomeKinds.score}，人类失败 ${a.outcomeKinds.playerDefeat}，图鉴 ${a.outcomeKinds.pokedex}，起源 ${a.outcomeKinds.origin}，冠军 ${a.outcomeKinds.championship}
 - 拒绝命令：${a.rejections.total}（迷雾 ${a.rejections.fog}，缺陷 ${a.rejections.defect}）
 - 异常局数：${a.exceptionGames}
 - 平均结束轮：${formatNumber(a.meanEndRound.value)}

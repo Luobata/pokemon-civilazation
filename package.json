@@ -6,13 +6,14 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && tsc --noEmit -p tsconfig.core.json && vite build",
-    "lint": "eslint src tests *.ts *.js",
+    "lint": "eslint src server tests *.ts *.js",
     "test": "vitest",
     "test:e2e": "playwright test",
     "sim": "node tools/simulate.ts",
     "lint:tools": "eslint tools",
     "sim:explore": "node tools/explore.ts",
-    "sim:leaders": "node tools/leader-balance.ts"
+    "sim:leaders": "node tools/leader-balance.ts",
+    "server": "node server/main.ts"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

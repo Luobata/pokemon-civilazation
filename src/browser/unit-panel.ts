@@ -1,9 +1,10 @@
-import { CONTENT, unitDefinition } from '../content/units.ts';
+import { CONTENT as BASE_CONTENT, EXPANSION_CONTENT, unitDefinition } from '../content/units.ts';
 import type { BallId } from '../content/economy.ts';
 import type { CombatTarget, PlayerView } from '../core/model.ts';
 import { previewAttack, previewCapture } from '../core/preview.ts';
 import { hexDistance, hexToIndex } from '../core/hex.ts';
 import { pokemonSpritePath } from './sprites.ts';
+import { WORLD_DEFINITIONS } from '../content/world-systems.ts';
 
 export type ActionMode = 'move' | 'attack' | 'capture' | null;
 export type PendingTarget = CombatTarget & { index: number };
@@ -18,6 +19,7 @@ type Callbacks = {
 
 export function renderUnitPanel(view: PlayerView, selected: number | null, mode: ActionMode,
   target: PendingTarget | null, ballId: BallId, busy: boolean, callbacks: Callbacks): void {
+  const CONTENT = view.expansion ? EXPANSION_CONTENT : BASE_CONTENT;
   const root = document.querySelector<HTMLElement>('#unit-panel')!;
   const unit = view.units.find(unit => unit.id === selected && unit.ownerId === view.playerId);
   if (!unit) { root.innerHTML = ''; return; }
@@ -40,8 +42,9 @@ export function renderUnitPanel(view: PlayerView, selected: number | null, mode:
   }
   const definition = unitDefinition(unit, CONTENT), species = CONTENT.species[unit.speciesId];
   const evolution = species.evolution;
+  const stoneEvolution = view.expansion && WORLD_DEFINITIONS.stoneEvolutions.find(path => path.fromSpeciesId === unit.speciesId);
   const player = view.economy.player;
-  const canEvolve = evolution && unit.xp >= evolution.xp && player.gold >= evolution.gold
+  const canEvolve = evolution && !stoneEvolution && unit.xp >= evolution.xp && player.gold >= evolution.gold
     && (!evolution.requiresTraining || player.research.unlockedIds.includes('training'));
   const canCapture = player.research.unlockedIds.includes('domestication')
     && (player.ballInventory.pokeBall > 0 || (player.research.unlockedIds.includes('ballCraft') && player.ballInventory.greatBall > 0));
@@ -72,7 +75,7 @@ export function renderUnitPanel(view: PlayerView, selected: number | null, mode:
     <div class="unit-actions"><button id="move-unit" class="${mode === 'move' ? 'selected' : ''}" ${busy || !unit.actionLeft ? 'disabled' : ''}>${mode === 'move' ? '取消移动' : '移动'}</button><button id="attack-unit" class="${mode === 'attack' ? 'selected' : ''}" ${busy || !unit.actionLeft ? 'disabled' : ''}>攻击</button><button id="capture-unit" class="${mode === 'capture' ? 'selected' : ''}" ${busy || !unit.actionLeft || !canCapture ? 'disabled' : ''}>捕捉</button><button id="evolve-unit" ${busy || !unit.actionLeft || !canEvolve ? 'disabled' : ''}>${evolution ? `进化→${CONTENT.species[evolution.speciesId].name}` : '不可进化'}</button></div>
     ${!canCapture ? '<p class="unit-note">捕捉需要研究「驯化」，并在城市采购精灵球。</p>' : ''}
     ${mode && mode !== 'move' ? `<div class="action-config">${mode === 'capture' ? `<label>球种<select id="capture-ball"><option value="pokeBall" ${ballId === 'pokeBall' ? 'selected' : ''}>精灵球（${view.economy.player.ballInventory.pokeBall}）</option><option value="greatBall" ${ballId === 'greatBall' ? 'selected' : ''}>超级球（${view.economy.player.ballInventory.greatBall}）</option></select></label>` : ''}<button id="cancel-action">取消目标</button></div>${preview}<div class="action-confirm"><button id="confirm-action" class="primary" ${!target || (mode === 'attack' ? attackPreview?.ok !== true : capturePreview?.ok !== true) ? 'disabled' : ''}>确认${mode === 'attack' ? '攻击' : '捕捉'}</button></div>` : ''}
-    ${evolution ? `<p class="unit-note">进化条件：EXP ${evolution.xp} + ${evolution.gold} 金币${evolution.requiresTraining ? ' + 特训法' : ''}；经验、金币与科技条件需同时满足。</p>` : ''}</div>`;
+    ${stoneEvolution ? `<p class="unit-note">进化需要 ${WORLD_DEFINITIONS.stones[stoneEvolution.stoneId].name} + EXP ${stoneEvolution.requiredXp}，请在「树果、进化石与满意度」中使用。</p>` : evolution ? `<p class="unit-note">进化条件：EXP ${evolution.xp} + ${evolution.gold} 金币${evolution.requiresTraining ? ' + 特训法' : ''}；经验、金币与科技条件需同时满足。</p>` : ''}</div>`;
   root.querySelector('#move-unit')!.addEventListener('click', () => callbacks.mode(mode === 'move' ? null : 'move'));
   root.querySelector('#attack-unit')!.addEventListener('click', () => callbacks.mode(mode === 'attack' ? null : 'attack'));
   root.querySelector('#capture-unit')!.addEventListener('click', () => callbacks.mode(mode === 'capture' ? null : 'capture'));

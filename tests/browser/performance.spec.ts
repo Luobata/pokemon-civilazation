@@ -6,15 +6,18 @@ import { generateRealGame, realGameSave } from './fixtures/real-game.ts';
 const scenarios = [
   { name: 'default-384', seed: 7, width: 24 as const, height: 16 as const },
   { name: 'standard-600', seed: 8, width: 30 as const, height: 20 as const },
+  { name: 'large-1040', seed: 9, width: 40 as const, height: 26 as const },
 ];
 
 test.use({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 2 });
 
-test('measure Canvas2D draw time in two reachable late-game scenes', async ({ page, browser }) => {
+test('measure Canvas2D draw time in three reachable late-game scenes', async ({ page, browser }) => {
   test.setTimeout(180_000);
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
   const results = [];
   for (const scenario of scenarios) {
-    const game = generateRealGame({ ...scenario, personalities: ['expansion', 'expansion', 'expansion', 'expansion'] });
+    const game = generateRealGame({ ...scenario, expansionVersion: 1, leaderIds: ['oak', 'lance', 'jenny', 'joy'], personalities: ['expansion', 'expansion', 'expansion', 'expansion'] });
     expect(game.finalState.outcome).not.toBeNull();
     expect(game.invalid).toBe(0);
     expect(game.maxUnits).toBeGreaterThanOrEqual(40);
@@ -50,7 +53,9 @@ test('measure Canvas2D draw time in two reachable late-game scenes', async ({ pa
       };
     });
     results.push({ scenario: scenario.name, seed: scenario.seed, round: game.maxState.round,
-      commandSeq: game.maxState.commandSeq, ...measured });
+      commandSeq: game.maxState.commandSeq, expansionVersion: game.setup.expansionVersion,
+      contentVersion: game.maxState.contentVersion, ...measured });
+    expect(errors).toEqual([]);
   }
   const output = {
     measuredAt: new Date().toISOString(),

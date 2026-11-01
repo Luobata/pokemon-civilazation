@@ -1,6 +1,7 @@
+import { consumeCivilizationProduction } from './civilization-systems.ts';
 import { createMapUnit, registerSpecies } from './unit.ts';
 import { isMapUnit } from './model.ts';
-import { CONTENT, unitDefinition } from '../content/units.ts';
+import { EXPANSION_CONTENT, CONTENT, unitDefinition } from '../content/units.ts';
 import type { Content, UnitIdentity } from '../content/units.ts';
 import { hexToIndex, neighbors } from './hex.ts';
 import { canEnter } from './movement.ts';
@@ -27,7 +28,7 @@ function deploy(state: GameState, city: CityState, pending: PendingDeployment, c
   return true;
 }
 // Only the implemented M2 stages. The snapshot fixes their shared input (D30).
-export function resolveEconomy(state: GameState, content: Content = CONTENT): EconomyEvent[] {
+export function resolveEconomy(state: GameState, content: Content = state.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT): EconomyEvent[] {
   const events: EconomyEvent[] = [];
   const allCities = Object.values(state.cities).filter((city): city is CityState & { ownerId: number } => city.ownerId !== null).sort((a, b) => a.id - b.id);
   for (const city of allCities) cleanWork(state, city, content);
@@ -53,6 +54,7 @@ export function resolveEconomy(state: GameState, content: Content = CONTENT): Ec
     city.pendingDeployments = city.pendingDeployments.filter(pending => !deploy(state, city, pending, content, events));
     const order = city.queue[0];
     if (!order) continue;
+    consumeCivilizationProduction(state, city.id);
     order.progress += output.get(city.id)!.production;
     const cost = productionCost(order.item, content);
     if (order.progress < cost) continue;

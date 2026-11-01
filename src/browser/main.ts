@@ -1,3 +1,4 @@
+import { renderExpansionPanel } from './expansion-panel.ts';
 import { renderEconomyPanel } from './economy-panel.ts';
 import { AUDIT_SNAPSHOT_KEY } from '../audit/sandbox.ts';
 import { renderUnitPanel } from './unit-panel.ts';
@@ -13,7 +14,7 @@ import type { AiPersonality, CitySummary, Command, GameSetup } from '../core/mod
 import '../styles.css';
 import { GameSession } from '../app/session.ts';
 import type { PlayerSession } from '../app/session.ts';
-import { CONTENT, unitDefinition } from '../content/units.ts';
+import { CONTENT as BASE_CONTENT, EXPANSION_CONTENT, unitDefinition } from '../content/units.ts';
 import type { StarterId } from '../content/units.ts';
 import type { BallId } from '../content/economy.ts';
 import { LEADER_IDS } from '../content/leaders.ts';
@@ -101,6 +102,7 @@ function summary(payload: VisibleEvent['payload']) {
   }
 }
 export function battleActivityText(payload: BattlePayload, view: PlayerView): string {
+  const CONTENT = view.expansion ? EXPANSION_CONTENT : BASE_CONTENT;
   const unitLabel = (id: number) => {
     const unit = view.units.find(candidate => candidate.id === id);
     if (!unit) return '未知单位';
@@ -137,6 +139,7 @@ function recordActivity(payload: VisibleEvent['payload']) {
 }
 function controls() {
   const view = session.getView();
+  const CONTENT = view.expansion ? EXPANSION_CONTENT : BASE_CONTENT;
   const ended = view.outcome !== null, pendingPeace = hasPendingPeace(view);
   if (selected !== null && !view.units.some(unit => unit.id === selected && unit.ownerId === view.playerId)) {
     selected = null; resetAction();
@@ -169,6 +172,7 @@ function controls() {
   sequence.max = String(driver.exportLog().commands.length);
   renderSelectionPanel(view, selected, selectedCity, { unit: selectUnit, city: selectCity, clear: clearSelection }, busy());
   renderLeaderPanel(view);
+  renderExpansionPanel(view, selected, selectedCity, issue, busy() || ended || pendingPeace);
   document.querySelector<HTMLElement>('#selection-empty')!.hidden = selected !== null || selectedCity !== null || neutralCity !== null;
   renderUnitPanel(view, selected, actionMode, pendingTarget, selectedBall, busy() || ended || pendingPeace, {
     mode: mode => { actionMode = mode; pendingTarget = null; notice = ''; controls(); requestFrame(); },
@@ -223,6 +227,7 @@ function confirmAction() {
 }
 function evolveSelected() {
   const view = session.getView(), unit = view.units.find(unit => unit.id === selected && unit.kind === 'pokemon');
+  const CONTENT = view.expansion ? EXPANSION_CONTENT : BASE_CONTENT;
   const evolution = unit?.kind === 'pokemon' ? CONTENT.species[unit.speciesId].evolution : null;
   if (unit && evolution) issue({ type: 'Evolve', unitId: unit.id, intoSpeciesId: evolution.speciesId });
 }
@@ -282,7 +287,7 @@ function frame(now: number) {
     : actionMode === 'capture' ? view.units.filter(unit => unit.ownerId === null).map(unit => hexToIndex(unit.position, view.map)!) : [];
   const drawStarted = performance.now();
   drawMap(canvas, import.meta.env.DEV && god.checked ? developerAdapter.getDebugView() : view,
-    camera, selected, Object.keys(paths).map(Number), pose, keyboardIndex, effect, actionMode, targets, pendingTarget?.index, selectedCity);
+    camera, selected, Object.keys(paths).map(Number), pose, keyboardIndex, effect, actionMode, targets, pendingTarget?.index, selectedCity, import.meta.env.DEV ? document.querySelector<HTMLSelectElement>('#debug-overlay')!.value as import('./canvas.ts').DebugOverlay : 'none');
   frameDurations.push(performance.now() - drawStarted);
   if (frameDurations.length > 240) frameDurations.shift();
   if (import.meta.env.DEV) {
@@ -336,7 +341,7 @@ function newGame() {
     const mapSizes = { '24x16': { width: 24, height: 16 }, '30x20': { width: 30, height: 20 }, '40x26': { width: 40, height: 26 } } as const;
     const sizeOption = document.querySelector<HTMLSelectElement>('#map-size')!.value as keyof typeof mapSizes;
     const size = mapSizes[sizeOption] ?? mapSizes['24x16'];
-    driver = new GameSession({ seed: Number(new URLSearchParams(location.search).get('seed') ?? '12345'), ...size,
+    driver = new GameSession({ expansionVersion: 1, seed: Number(new URLSearchParams(location.search).get('seed') ?? '12345'), ...size,
       roundLimit: Number(document.querySelector<HTMLSelectElement>('#round-limit')!.value) as GameSetup['roundLimit'], players });
     session = driver.asPlayerSession();
     active = null; presentationIndex = 0; selected = null; selectedCity = session.getView().economy.player.headquartersCityId; neutralCity = null; keyboardIndex = null; activityLog.length = 0;
@@ -453,6 +458,7 @@ canvas.addEventListener('keydown', event => {
 });
 endTurn.addEventListener('click', () => { if (!busy()) issue({ type: 'EndTurn' }); });
 document.querySelector('#skip')!.addEventListener('click', skip);
+document.querySelector('#debug-overlay')!.addEventListener('change', requestFrame);
 document.querySelector('#new-game')!.addEventListener('click', newGame);
 document.querySelector('#fit')!.addEventListener('click', fit);
 document.querySelector('#export')!.addEventListener('click', () => {

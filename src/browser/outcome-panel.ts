@@ -2,7 +2,7 @@ import type { GameOutcome, PlayerView } from '../core/model.ts';
 
 let shown = false;
 function kindName(kind: GameOutcome['kind']) {
-  return kind === 'conquest' ? '征服胜利' : kind === 'score' ? '轮上限计分' : '失败出局';
+  return { conquest: '征服胜利', score: '轮上限计分', playerDefeat: '失败出局', pokedex: '图鉴胜利', origin: '起源胜利', championship: '冠军胜利' }[kind];
 }
 export function renderOutcome(view: PlayerView, newGame: () => void): void {
   const dialog = document.querySelector<HTMLDialogElement>('#gameover-dialog')!;

@@ -1,9 +1,10 @@
-import { CONTENT, unitDefinition } from '../content/units.ts';
+import { CONTENT as BASE_CONTENT, EXPANSION_CONTENT, unitDefinition } from '../content/units.ts';
 import type { PlayerView } from '../core/model.ts';
 
 let rendered = '';
 export function renderSelectionPanel(view: PlayerView, selectedUnit: number | null, selectedCity: number | null,
   callbacks: { unit: (id: number | null) => void; city: (id: number | null) => void; clear: () => void }, busy: boolean): void {
+  const CONTENT = view.expansion ? EXPANSION_CONTENT : BASE_CONTENT;
   const units = view.units.filter(unit => unit.ownerId === view.playerId);
   const cities = view.economy.cities;
   const signature = JSON.stringify([units, cities.map(city => [city.id, city.population]), selectedUnit, selectedCity, busy]);

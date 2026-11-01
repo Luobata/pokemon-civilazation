@@ -4,7 +4,7 @@ import type { RejectedCitySite } from '../ai/memory.ts';
 import { planNext } from '../ai/plan.ts';
 import { isMapUnit } from '../core/model.ts';
 import { deserializeSave, serializeSave } from './save.ts';
-import { CONTENT } from '../content/units.ts';
+import { EXPANSION_CONTENT, CONTENT } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
 import { createGame } from '../core/game.ts';
 import { cityCounterAttack } from '../core/city.ts';
@@ -12,10 +12,13 @@ import type { Command, GameSetup, GameState, PlayerView, StepResult, VisibleEven
 import { observe, projectEvents } from '../core/vision.ts';
 import { step } from '../core/step.ts';
 import { canonicalSerialize } from '../core/snapshot.ts';
+import { observeWorld } from '../core/world-systems.ts';
+import { observeCivilization } from '../core/civilization-systems.ts';
+import { CIVILIZATION_CONTENT } from '../content/civilization-systems.ts';
 
 export type CommandLog = { version: 1; schemaVersion: 4; rulesVersion: 'm5-v1'; contentVersion: string; setup: GameSetup; commands: Command[]; aiRejectedCitySites?: RejectedCitySite[] };
 
-export function replay(log: CommandLog, through = log.commands.length, checkpoint?: GameState, content: Content = CONTENT): GameState {
+export function replay(log: CommandLog, through = log.commands.length, checkpoint?: GameState, content: Content = log.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT): GameState {
   if (log.version !== 1 || log.schemaVersion !== 4 || log.rulesVersion !== 'm5-v1' || log.contentVersion !== content.version
     || !Number.isInteger(through) || through < 0 || through > log.commands.length) throw new Error('Unsupported log or replay sequence.');
   let state = createGame(log.setup, content);
@@ -48,25 +51,38 @@ export interface PlayerSession {
 }
 export class GameSession {
   private state: GameState;
+  private content: Content;
+  private observedState: GameState | null = null;
+  private cachedView: PlayerView | null = null;
   private commands: Command[] = [];
   private aiRejectedCitySites: RejectedCitySite[] = [];
   get playerId(): number { return this.state.setup.players.find(player => player.controller === 'human')!.id; }
   presentationQueue: VisibleEvent[] = [];
   lastRejected: { command: Command; reason: string } | null = null;
 
-  constructor(setup: GameSetup, private readonly content: Content = CONTENT) {
+  constructor(setup: GameSetup, content: Content = setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT) {
+    this.content = content;
     this.state = createGame(setup, content);
     this.endComputerTurns();
   }
   /** @deprecated Developer/test access only. Production UI must use getView or asPlayerSession. */
   getState(): DeveloperGameState { return JSON.parse(JSON.stringify(this.state)) as GameState; }
-  getView(): PlayerView { return observe(this.state, this.playerId, this.content); }
+  getView(): PlayerView {
+    if (this.observedState !== this.state || !this.cachedView) {
+      this.cachedView = observe(this.state, this.playerId, this.content);
+      this.observedState = this.state;
+    }
+    return JSON.parse(JSON.stringify(this.cachedView)) as PlayerView;
+  }
   /** Explicit developer omniscient view; never pass this to AI. */
   getDebugView(): PlayerView {
     const view = this.getView();
     const state = this.getState();
+    const allTiles = state.map.tiles.map((_, i) => i);
     return { ...view, map: state.map, visibleTileIds: state.map.tiles.map((_, i) => i),
       units: Object.values(state.units).filter(isMapUnit), cities: Object.values(state.cities),
+      ...(state.expansion ? { expansion: { ...view.expansion!, world: observeWorld(state, this.playerId, new Set(allTiles)),
+        civilization: observeCivilization(state, this.playerId, new Set(allTiles), { ...CIVILIZATION_CONTENT, world: this.content }) } } : {}),
       combat: {
         units: Object.fromEntries(Object.values(state.units).filter(isMapUnit).map(unit => [unit.id, { typeResearch: unit.ownerId !== null && state.players[unit.ownerId].research.unlockedIds.includes('typeResearch') }])),
         cities: Object.fromEntries(Object.values(state.cities).map(city => [city.id, { hp: city.hp, counterAttack: cityCounterAttack(city.ownerId === null ? undefined : state.players[city.ownerId], this.content) }])),
@@ -126,7 +142,9 @@ export class GameSession {
   }
   save(): string { return serializeSave(this.getState(), this.exportLog()); }
   load(text: string): void {
-    const save = deserializeSave(text, this.content);
+    const stock = this.content === CONTENT || this.content === EXPANSION_CONTENT;
+    const save = deserializeSave(text, stock ? undefined : this.content);
+    if (stock) this.content = save.state.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT;
     this.state = save.state;
     this.commands = save.log.commands;
     this.aiRejectedCitySites = save.log.aiRejectedCitySites ?? [];

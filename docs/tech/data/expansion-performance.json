@@ -1,0 +1,74 @@
+{
+  "measuredAt": "2026-11-01T12:09:25.590Z",
+  "environment": {
+    "platform": "darwin",
+    "release": "23.6.0",
+    "cpu": "Apple M2 Pro",
+    "chromium": "156.0.8078.4",
+    "node": "v25.8.1",
+    "playwrightDeviceScaleFactor": 2
+  },
+  "method": "Real planNext/step command replay; peak map-unit state loaded through the normal save importer; god view; 20 warm-up + 240 measured drawMap calls.",
+  "results": [
+    {
+      "scenario": "default-384",
+      "seed": 7,
+      "round": 92,
+      "commandSeq": 1312,
+      "expansionVersion": 1,
+      "contentVersion": "expansion-v1",
+      "mapTiles": 384,
+      "visibleUnits": 47,
+      "samples": 240,
+      "mean": 1.1016666665673256,
+      "p95": 1.399999976158142,
+      "max": 1.899999976158142,
+      "dpr": 2,
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.8078.4 Safari/537.36"
+    },
+    {
+      "scenario": "standard-600",
+      "seed": 8,
+      "round": 82,
+      "commandSeq": 938,
+      "expansionVersion": 1,
+      "contentVersion": "expansion-v1",
+      "mapTiles": 600,
+      "visibleUnits": 49,
+      "samples": 240,
+      "mean": 1.1762500000496705,
+      "p95": 1.399999976158142,
+      "max": 1.699999988079071,
+      "dpr": 2,
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.8078.4 Safari/537.36"
+    },
+    {
+      "scenario": "large-1040",
+      "seed": 9,
+      "round": 89,
+      "commandSeq": 1027,
+      "expansionVersion": 1,
+      "contentVersion": "expansion-v1",
+      "mapTiles": 1040,
+      "visibleUnits": 63,
+      "samples": 240,
+      "mean": 1.7649999998509884,
+      "p95": 2,
+      "max": 3.100000023841858,
+      "dpr": 2,
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.8078.4 Safari/537.36"
+    }
+  ]
+}

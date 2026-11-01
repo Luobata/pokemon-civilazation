@@ -1,4 +1,4 @@
-import { CONTENT } from '../content/units.ts';
+import { EXPANSION_CONTENT, CONTENT } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
 import type { BiomeId } from '../content/rules.ts';
 import type { SpeciesId } from '../content/species.ts';
@@ -18,7 +18,7 @@ function roulette<T extends string>(state: GameState, entries: [T, number][]): T
   for (const [id, weight] of entries) { if (roll < weight) return id; roll -= weight; }
   throw new Error('Empty roulette');
 }
-export function spawnWild(state: GameState, initial = false, content: Content = CONTENT): EventPayload[] {
+export function spawnWild(state: GameState, initial = false, content: Content = state.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT): EventPayload[] {
   const events: EventPayload[] = [], regionColumns = Math.ceil(state.map.width / 8);
   const regionCount = regionColumns * Math.ceil(state.map.height / 8);
   const regionOf = (index: number) => Math.floor(Math.floor(index / state.map.width) / 8) * regionColumns + Math.floor(index % state.map.width / 8);
@@ -45,11 +45,11 @@ export function spawnWild(state: GameState, initial = false, content: Content = 
   }
   return events;
 }
-export function actWild(state: GameState, content: Content = CONTENT): EventPayload[] {
+export function actWild(state: GameState, content: Content = state.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT): EventPayload[] {
   const events: EventPayload[] = [];
   for (const id of Object.values(state.units).filter(unit => unit.ownerId === null).map(unit => unit.id).sort((a, b) => a - b)) {
     const unit = state.units[id];
-    if (!unit || !isMapUnit(unit) || unit.kind !== 'pokemon') continue;
+    if (!unit || !isMapUnit(unit) || unit.kind !== 'pokemon' || state.expansion?.world.rampagingUnitIds.includes(id)) continue;
     if (WANDERERS.includes(unit.speciesId)) {
       const occupied = new Set(Object.values(state.units).filter(isMapUnit).map(other => hexToIndex(other.position, state.map)));
       const candidates = neighbors(unit.position).filter(position => {
@@ -69,6 +69,6 @@ export function actWild(state: GameState, content: Content = CONTENT): EventPayl
   }
   return events;
 }
-export function resolveWild(state: GameState, content: Content = CONTENT): EventPayload[] {
+export function resolveWild(state: GameState, content: Content = state.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT): EventPayload[] {
   return [...spawnWild(state, false, content), ...actWild(state, content)];
 }

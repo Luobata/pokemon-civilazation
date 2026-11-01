@@ -3,8 +3,17 @@ import type { Content } from '../src/content/units.ts';
 import { scorePlayer } from '../src/core/victory.ts';
 import type { Command, GameEvent, GameState, KnockdownRecord, Score } from '../src/core/model.ts';
 
+const EXPANSION_ACTION_TYPES = new Set<Command['action']['type']>([
+  'UseLeaderAbility', 'RecruitLeaderUnit', 'BuildLeaderBuilding',
+  'ClearNest', 'OfferToOverlord', 'HarvestResource', 'UseEvolutionStone',
+  'MakeOffering', 'SummonPhantom', 'ActivatePhantom', 'EstablishSanctuary', 'ChallengeGuardian',
+  'RegisterChampionshipTeam', 'ProposeAlliance', 'RespondAlliance', 'DissolveAlliance',
+  'ProposeTrade', 'RespondTrade', 'BetrayAlliance',
+]);
+
 export type SeatActivity = { commands: Record<string, number>; citiesFounded: number; settlersProduced: number;
   attacks: number; cityAttacks: number; captureAttempts: number; captureSuccesses: number; evolves: number;
+  activeAbilities: number; recruitedLeaderUnits: number; leaderBuildings: number; expansionActions: number;
   idleUnitRounds: number; availableUnitRounds: number; peakCities: number; peakCombatUnits: number };
 export type RoundSnapshot = { round: number; players: { id: number; eliminated: boolean; score: Score; gold: number;
   cities: number; population: number; combatUnits: number; recovering: number; upkeep: number; techs: number }[] };
@@ -26,7 +35,7 @@ export function uniqueScoreLeader(snapshot: RoundSnapshot): number | null {
 export function createTelemetry(state: { players: object; schemaVersion: GameState['schemaVersion']; rulesVersion: GameState['rulesVersion'] }, content: Content = CONTENT) {
   return {
     activity: Object.fromEntries(Object.keys(state.players).map(id => [Number(id), { commands: {}, citiesFounded: 0, settlersProduced: 0, attacks: 0, cityAttacks: 0,
-      captureAttempts: 0, captureSuccesses: 0, evolves: 0, idleUnitRounds: 0, availableUnitRounds: 0, peakCities: 1, peakCombatUnits: 1 }])) as Record<number, SeatActivity>,
+      captureAttempts: 0, captureSuccesses: 0, evolves: 0, activeAbilities: 0, recruitedLeaderUnits: 0, leaderBuildings: 0, expansionActions: 0, idleUnitRounds: 0, availableUnitRounds: 0, peakCities: 1, peakCombatUnits: 1 }])) as Record<number, SeatActivity>,
     settlerOrders: [] as number[], rounds: [] as RoundSnapshot[], round30Leader: null as number | null, reachedRound30End: false,
     knockdowns: [] as (KnockdownRecord & { round: number; seq: number })[],
     captureEvents: [] as { round: number; playerId: number; probability: number; success: boolean }[],
@@ -38,6 +47,7 @@ export function collectTelemetry(data: Telemetry, before: GameState, after: Game
   const actor = data.activity[command.actorId], action = command.action;
   actor.commands[action.type] = (actor.commands[action.type] ?? 0) + 1;
   if (action.type === 'Attack') { actor.attacks++; if (action.target.kind === 'city') actor.cityAttacks++; }
+  if (EXPANSION_ACTION_TYPES.has(action.type)) actor.expansionActions++;
   if (action.type === 'EndTurn') {
     const units = Object.values(before.units).filter(unit => unit.ownerId === command.actorId && unit.location === 'map');
     actor.availableUnitRounds += units.length; actor.idleUnitRounds += units.filter(unit => unit.actionLeft > 0).length;
@@ -50,9 +60,12 @@ export function collectTelemetry(data: Telemetry, before: GameState, after: Game
       data.captureEvents.push({ round: before.round, playerId: payload.playerId, probability: payload.probability, success: payload.success });
     }
     if (payload.type === 'Evolved') data.activity[payload.playerId].evolves++;
+    if (payload.type === 'LeaderAbilityUsed') data.activity[payload.playerId].activeAbilities++;
+    if (payload.type === 'LeaderUnitRecruited') data.activity[payload.playerId].recruitedLeaderUnits++;
+    if (payload.type === 'LeaderBuildingBuilt') data.activity[payload.playerId].leaderBuildings++;
     const settlerOrder = payload.type === 'UnitTrained' && payload.unit.kind === 'logistics' ? payload.orderId
       : payload.type === 'ProductionWaiting' && payload.definitionId === 'settler' ? payload.sourceOrderId : null;
-    if (settlerOrder !== null && !data.settlerOrders.includes(settlerOrder) && 'playerId' in payload) {
+    if (settlerOrder !== null && !data.settlerOrders.includes(settlerOrder) && 'playerId' in payload && payload.playerId !== null) {
       data.settlerOrders.push(settlerOrder); data.activity[payload.playerId].settlersProduced++;
     }
     if (payload.type === 'RoundEnded') {

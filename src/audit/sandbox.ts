@@ -3,17 +3,18 @@ import type { CommandLog } from '../app/session.ts';
 import { rememberCityRejection } from '../ai/memory.ts';
 import { planNext } from '../ai/plan.ts';
 import { RULE_QUERIES } from '../ai/query.ts';
-import { CONTENT } from '../content/units.ts';
 import { createGame } from '../core/game.ts';
 import type { Command, GameEvent, GameState } from '../core/model.ts';
 import { step } from '../core/step.ts';
 import { observe } from '../core/vision.ts';
+import { CONTENT, EXPANSION_CONTENT } from '../content/units.ts';
+import type { Content } from '../content/units.ts';
 import { parseAuditAction } from './commands.ts';
 
 export const AUDIT_SNAPSHOT_KEY = 'pokemon-civilization:audit-snapshot';
 export type AuditTrace = { command: Command; accepted: boolean; reason?: string; events: GameEvent[] };
 const defaultSetup = {
-  seed: 12345, width: 24, height: 16, roundLimit: 100 as const,
+  expansionVersion: 1 as const, seed: 12345, width: 24, height: 16, roundLimit: 100 as const,
   players: [
     { id: 0, controller: 'human' as const, starterId: 'bulbasaur' as const, leaderId: 'oak' as const },
     { id: 1, controller: 'ai' as const, personality: 'expansion' as const, leaderId: 'lance' as const },
@@ -27,6 +28,7 @@ export class AuditSandbox {
   private state: GameState;
   private log: CommandLog;
   private baseline: string;
+  private content: Content;
   private history: { save: string; trace: AuditTrace[] }[] = [];
   trace: AuditTrace[] = [];
 
@@ -34,11 +36,13 @@ export class AuditSandbox {
     if (text) {
       const save = deserializeSave(text);
       this.state = save.state;
+      this.content = this.state.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT;
       this.log = { ...save.log, commands: save.log.commands.slice(0, save.state.commandSeq),
         aiRejectedCitySites: (save.log.aiRejectedCitySites ?? []).filter(site => site.seq < save.state.commandSeq) };
     } else {
       this.state = createGame(defaultSetup);
-      this.log = { version: 1, schemaVersion: 4, rulesVersion: 'm5-v1', contentVersion: CONTENT.version,
+      this.content = EXPANSION_CONTENT;
+      this.log = { version: 1, schemaVersion: 4, rulesVersion: 'm5-v1', contentVersion: this.state.contentVersion,
         setup: structuredClone(defaultSetup), commands: [], aiRejectedCitySites: [] };
     }
     this.baseline = this.save();
@@ -48,7 +52,7 @@ export class AuditSandbox {
   save(): string { return serializeSave(this.state, this.log); }
   get canUndo(): boolean { return this.history.length > 0; }
   execute(action: Command['action'], preview = false) {
-    const command: Command = { actorId: this.state.activePlayerId, expectedSeq: this.state.commandSeq, action: parseAuditAction(action) };
+    const command: Command = { actorId: this.state.activePlayerId, expectedSeq: this.state.commandSeq, action: parseAuditAction(action, this.content) };
     const result = step(this.state, command);
     if (!preview) {
       this.history.push({ save: this.save(), trace: structuredClone(this.trace) });

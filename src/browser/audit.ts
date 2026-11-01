@@ -1,9 +1,10 @@
 import '../audit.css';
+import { EXPANSION_ACTION_FIELDS, expansionActionType } from '../core/expansion-commands.ts';
 import { AUDIT_SYSTEMS } from '../audit/catalog.ts';
 import { inspectSystem } from '../audit/inspect.ts';
 import { AUDIT_SNAPSHOT_KEY, AuditSandbox } from '../audit/sandbox.ts';
 import { parseAuditAction } from '../audit/commands.ts';
-import { CONTENT, unitDefinition } from '../content/units.ts';
+import { CONTENT as BASE_CONTENT, EXPANSION_CONTENT, unitDefinition } from '../content/units.ts';
 import type { SpeciesId } from '../content/units.ts';
 import { BALLS, BUILDINGS, TECHS } from '../content/economy.ts';
 import type { BallId, BuildingId, TechId } from '../content/economy.ts';
@@ -18,7 +19,7 @@ export const auditAdapter = { getState: () => sandbox.getState(), save: () => sa
 let source = '默认测试局';
 const systemFromUrl = () => AUDIT_SYSTEMS.find(system => system.id === new URLSearchParams(location.search).get('system')) ?? AUDIT_SYSTEMS[0];
 let current = systemFromUrl();
-const commandNames: Record<Command['action']['type'], string> = {
+const commandNames: Partial<Record<Command['action']['type'], string>> = {
   EndTurn: '结束回合 / 触发轮结算', Move: '移动单位', FoundCity: '开拓队建城', SetProductionQueue: '设置生产队列',
   AssignWork: '分配工作地块', SetResearch: '选择研究', BuyBall: '购买精灵球', Attack: '攻击单位或城市',
   Capture: '捕捉野生宝可梦', Evolve: '进化单位', DeclareWar: '宣战', MakePeace: '提出停战', RespondPeace: '回应停战',
@@ -68,7 +69,7 @@ function renderSystem() {
   element('debug-guidance').textContent = planned ? '此系统尚未接入规则引擎。当前仅提供需求和实施缺口，不提供模拟生效的调试操作。'
     : '命令使用正式规则校验。先检查条件，再执行；执行结果只保存在本页副本中。AI 决策一步也可以用于当前人类文明的代理试验。';
   const actionTypes: Command['action']['type'][] = current.actionTypes.length ? current.actionTypes : ['EndTurn'];
-  element<HTMLSelectElement>('debug-command').innerHTML = actionTypes.map(type => `<option value="${type}">${commandNames[type]}</option>`).join('');
+  element<HTMLSelectElement>('debug-command').innerHTML = actionTypes.map(type => `<option value="${type}">${commandNames[type] ?? type}</option>`).join('');
   element('debug-result').textContent = '';
   renderState(); renderFields();
   document.title = `${current.name} · 系统审计台`;
@@ -86,12 +87,21 @@ function input(name: string, label: string, value: string | number = '', numeric
 function renderFields() {
   if (current.status === 'planned') return;
   const state = sandbox.getState(), type = element<HTMLSelectElement>('debug-command').value;
+  const CONTENT = state.expansion ? EXPANSION_CONTENT : BASE_CONTENT;
   const units = Object.values(state.units).filter(unit => unit.ownerId === state.activePlayerId && unit.location === 'map')
     .map(unit => ({ id: unit.id, label: `#${unit.id} ${unitDefinition(unit, CONTENT).name} · HP ${unit.hp} · 行动 ${unit.actionLeft}` }));
   const cities = Object.values(state.cities).filter(city => city.ownerId === state.activePlayerId).map(city => ({ id: city.id, label: `城市 #${city.id} · 人口 ${city.population}` }));
   const others = Object.values(state.players).filter(player => player.id !== state.activePlayerId && !player.eliminated).map(player => ({ id: player.id, label: `文明 ${player.id + 1}` }));
   const species = Object.entries(CONTENT.species).map(([id, def]) => ({ id, label: def.name }));
   let fields = '';
+  if (expansionActionType(type)) {
+    for (const [key, rule] of Object.entries(EXPANSION_ACTION_FIELDS[type])) {
+      fields += Array.isArray(rule) ? select(key, key, rule.map(id => ({ id, label: id })))
+        : rule === 'boolean' ? select(key, key, [{ id: 'true', label: '接受' }, { id: 'false', label: '拒绝' }])
+        : rule === 'id' ? input(key, key, key === 'cityId' ? cities[0]?.id ?? 0 : key === 'unitId' ? units[0]?.id ?? 0 : 0)
+        : input(key, rule === 'ids' ? `${key}（逗号分隔）` : key, '', false);
+    }
+  }
   if (['Move', 'FoundCity', 'Attack', 'Capture', 'Evolve'].includes(type)) fields += select('unitId', '己方单位', units);
   if (['SetProductionQueue', 'AssignWork', 'BuyBall'].includes(type)) fields += select('cityId', '己方城市', cities);
   if (type === 'Move') fields += input('q', '目标 q', 0) + input('r', '目标 r', 0);
@@ -118,6 +128,14 @@ function buildAction(): Command['action'] {
   const value = (name: string) => element('command-fields').querySelector<HTMLInputElement | HTMLSelectElement>(`[name="${name}"]`)?.value ?? '';
   const number = (name: string) => { const raw = value(name); const number = Number(raw); if (!raw.trim() || !Number.isSafeInteger(number)) throw new Error(`${name} 需要整数`); return number; };
   const ids = (name: string) => value(name).trim() ? value(name).split(/[,，\s]+/).map(raw => { if (!/^\d+$/.test(raw)) throw new Error('地块 ID 需要非负整数'); return Number(raw); }) : [];
+  if (expansionActionType(type)) {
+    const payload: Record<string, unknown> = { type };
+    for (const [key, rule] of Object.entries(EXPANSION_ACTION_FIELDS[type])) {
+      if (type === 'ActivatePhantom' && key !== 'phantomId' && !value(key)) continue;
+      payload[key] = rule === 'id' ? number(key) : rule === 'ids' ? ids(key) : rule === 'boolean' ? value(key) === 'true' : value(key);
+    }
+    return parseAuditAction(payload);
+  }
   switch (type) {
     case 'EndTurn': return { type };
     case 'Move': return { type, unitId: number('unitId'), to: { q: number('q'), r: number('r') } };

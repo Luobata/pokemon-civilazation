@@ -1,0 +1,46 @@
+import type { ExpansionAction } from './expansion-model.ts';
+import { EXPANSION_CONTENT } from '../content/units.ts';
+import type { Content } from '../content/units.ts';
+
+type Fields = Record<string, 'id' | 'ids' | 'string' | 'boolean' | readonly string[]>;
+export function expansionActionFields(content: Content = EXPANSION_CONTENT): Record<ExpansionAction['type'], Fields> {
+  return {
+  UseLeaderAbility: {}, RecruitLeaderUnit: { cityId: 'id' }, BuildLeaderBuilding: { cityId: 'id' },
+  ClearNest: { unitId: 'id', nestId: 'id' },
+  OfferToOverlord: { overlordId: 'id', cityId: 'id', currency: ['food', 'gold'] },
+  HarvestResource: { unitId: 'id', tileIndex: 'id' },
+  UseEvolutionStone: { unitId: 'id', intoSpeciesId: Object.keys(content.species), stoneId: ['fireStone', 'waterStone', 'leafStone', 'thunderStone', 'moonStone'] },
+  MakeOffering: { cityId: 'id', resource: ['food', 'gold'] },
+  SummonPhantom: { category: ['scientist', 'engineer', 'merchant', 'general', 'artist'] },
+  ActivatePhantom: { phantomId: 'string', cityId: 'id', techId: Object.keys(content.techs), unitIds: 'ids' },
+  EstablishSanctuary: { siteId: 'string', unitId: 'id' },
+  ChallengeGuardian: { siteId: 'string', unitIds: 'ids' },
+  RegisterChampionshipTeam: { unitIds: 'ids' },
+  ProposeAlliance: { targetPlayerId: 'id' }, RespondAlliance: { targetPlayerId: 'id', accept: 'boolean' },
+  DissolveAlliance: { targetPlayerId: 'id' }, BetrayAlliance: { targetPlayerId: 'id' },
+    ProposeTrade: { targetPlayerId: 'id' }, RespondTrade: { targetPlayerId: 'id', accept: 'boolean' },
+  };
+}
+export const EXPANSION_ACTION_FIELDS: Record<ExpansionAction['type'], Fields> = expansionActionFields();
+export function expansionActionType(type: unknown): type is ExpansionAction['type'] {
+  return typeof type === 'string' && Object.hasOwn(EXPANSION_ACTION_FIELDS, type);
+}
+export function isExpansionAction(action: { type: unknown }): action is ExpansionAction {
+  return expansionActionType(action.type);
+}
+export function parseExpansionAction(input: unknown, content: Content = EXPANSION_CONTENT): ExpansionAction {
+  if (!input || typeof input !== 'object' || Array.isArray(input) || !('type' in input) || !expansionActionType(input.type)) throw new Error('Unknown expansion action');
+  const value = input as Record<string, unknown>, fields = expansionActionFields(content)[input.type];
+  const output: Record<string, unknown> = { type: input.type };
+  for (const [key, rule] of Object.entries(fields)) {
+    const item = value[key];
+    if (input.type === 'ActivatePhantom' && key !== 'phantomId' && item === undefined) continue;
+    const id = (v: unknown) => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0;
+    const valid = rule === 'id' ? id(item) : rule === 'ids' ? Array.isArray(item) && item.length <= 6 && item.every(id) && new Set(item).size === item.length
+      : rule === 'string' ? typeof item === 'string' && item.length > 0 && item.length <= 100
+      : rule === 'boolean' ? typeof item === 'boolean' : typeof item === 'string' && rule.includes(item);
+    if (!valid) throw new Error(`Invalid expansion action field: ${key}`);
+    output[key] = item;
+  }
+  return JSON.parse(JSON.stringify(output)) as ExpansionAction;
+}

@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-11-01T12:11:43.087Z",
+  "reviewedBaseHead": "adb8ac10c1e755202cfa42ee63a615562253a441",
+  "localGate": {
+    "runId": "f52acd29e1206fd8d2821100",
+    "gate": "pass",
+    "rawGate": "pass",
+    "blockMerge": false,
+    "executionComplete": true,
+    "blockingExecutionComplete": true,
+    "qualityConfidence": "full",
+    "incompleteEngines": [],
+    "actionableBlocks": 0,
+    "advisory": 0,
+    "shadow": 0,
+    "deferred": 0,
+    "waived": 0,
+    "matchedScriptRules": 0,
+    "typescriptGameplayRules": 0,
+    "repairRounds": 0,
+    "guardStopReasons": [],
+    "mutationStatus": "not_applicable",
+    "mutationExecuted": false,
+    "mutationPolicy": "disabled_by_default"
+  },
+  "semantic": {
+    "status": "completed",
+    "jobId": "dual-semantic:Luobata/pokemon-civilazation:qgcf_657e71aa088d34ead2d56c775056ac2a8e7c8643f83d4ef45f1cbb8786802cdd",
+    "fingerprint": "qgcf_657e71aa088d34ead2d56c775056ac2a8e7c8643f83d4ef45f1cbb8786802cdd",
+    "targets": [
+      {
+        "path": "package.json",
+        "rules": [
+          "GEC-TYPED-CONFIGURATION-CONTRACT"
+        ]
+      },
+      {
+        "path": "public/sprites/gen3/manifest.json",
+        "rules": [
+          "GEC-TYPED-CONFIGURATION-CONTRACT"
+        ]
+      },
+      {
+        "path": "tsconfig.json",
+        "rules": [
+          "GEC-TYPED-CONFIGURATION-CONTRACT"
+        ]
+      }
+    ],
+    "completedModelShards": 2,
+    "findingCount": 0,
+    "rejectedFindingCount": 0,
+    "needsContract": 0,
+    "semanticRepairRoundUsed": false,
+    "repairMethod": "none",
+    "snapshotSourceFiles": 81,
+    "coverage": "JSON configuration rule only; no TypeScript gameplay semantic rules"
+  },
+  "registration": {
+    "ready": false,
+    "reason": "central_registration_required; unknown domain: microservice-backend; direct source-bundle review nevertheless accepted and completed"
+  },
+  "feedback": {
+    "status": "skipped",
+    "engineStarted": false,
+    "reason": "No script rules matched; checkpoint exceeded max_files 30",
+    "reportOnly": true
+  },
+  "independentReviews": [
+    "docs/tech/expansion-core-review.md",
+    "docs/tech/expansion-network-review.md"
+  ]
+}

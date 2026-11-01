@@ -1,4 +1,4 @@
-import { TYPE_CHART } from '../content/combat.ts';
+import { FULL_TYPE_CHART, TYPE_CHART } from '../content/combat.ts';
 import type { TypeId } from '../content/species.ts';
 import type { BiomeId } from '../content/rules.ts';
 
@@ -6,6 +6,15 @@ export function effectiveness(attackType: TypeId, defenseType: TypeId, immunitie
   if (immunities.includes(attackType)) return 0;
   const multiplier = TYPE_CHART[attackType]?.[defenseType] ?? 1000;
   return multiplier === 2000 && researched ? 220 : multiplier / 10;
+}
+/** Multiply both defensive types exactly, then floor once. Research boosts each weakness. */
+export function dualEffectiveness(attackType: TypeId, defenseTypes: readonly TypeId[], researched = false): number {
+  let product = 100;
+  for (const type of [...new Set(defenseTypes)]) {
+    const multiplier = FULL_TYPE_CHART[attackType][type] ?? 1000;
+    product = product * (multiplier === 2000 && researched ? 2200 : multiplier) / 1000;
+  }
+  return Math.floor(product);
 }
 export function terrainMultiplier(attacker: BiomeId, defender: BiomeId): number {
   return defender === 'forest' || defender === 'mountain' ? 80 : attacker === 'mountain' ? 120 : 100;

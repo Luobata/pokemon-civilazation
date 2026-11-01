@@ -398,3 +398,11 @@ button.danger { border-color: var(--danger); background: #9E4B43; color: var(--o
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation: none !important; transition: none !important; }
 }
+
+#expansion-panel > h2 { margin: 0; padding: 13px 14px 0; color: var(--ink); font-size: var(--text-body); letter-spacing: .05em; }
+#expansion-panel > p { padding: 0 14px; color: var(--ink-muted); }
+#expansion-panel details { border-top: 1px solid var(--border); padding: 11px 14px; }
+#expansion-panel summary { cursor: pointer; font-size: var(--text-md); font-weight: 650; }
+#expansion-panel p { font-size: .75rem; line-height: 1.65; overflow-wrap: anywhere; }
+#expansion-panel button { margin: .2rem .3rem .2rem 0; font-size: .75rem; }
+#expansion-panel a { color: #86CDB8; text-underline-offset: 3px; }

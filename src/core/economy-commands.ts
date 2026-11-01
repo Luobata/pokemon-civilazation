@@ -1,5 +1,5 @@
 import { isMapUnit } from './model.ts';
-import { CONTENT } from '../content/units.ts';
+import { EXPANSION_CONTENT, CONTENT } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
 import type { TechId } from '../content/economy.ts';
 import { hexDistance, hexToIndex } from './hex.ts';
@@ -12,7 +12,7 @@ export function canResearch(player: PlayerState, techId: TechId, content: Conten
   const tier = content.techs[techId].tier;
   return tier === 1 || player.research.unlockedIds.some(id => content.techs[id].tier === tier - 1);
 }
-export function validateEconomyAction(state: GameState, actor: number, action: EconomyAction, content: Content = CONTENT): Rejection | null {
+export function validateEconomyAction(state: GameState, actor: number, action: EconomyAction, content: Content = state.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT): Rejection | null {
   const player = state.players[actor];
   if (action.type === 'FoundCity') {
     const unit = state.units[action.unitId];
@@ -61,7 +61,7 @@ export function validateEconomyAction(state: GameState, actor: number, action: E
   }
   return null;
 }
-export function applyEconomyAction(state: GameState, actor: number, action: EconomyAction, content: Content = CONTENT): EconomyEvent[] {
+export function applyEconomyAction(state: GameState, actor: number, action: EconomyAction, content: Content = state.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT): EconomyEvent[] {
   const player = state.players[actor];
   if (action.type === 'FoundCity') {
     const unit = state.units[action.unitId], id = state.nextEntityId++;

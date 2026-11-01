@@ -1,4 +1,4 @@
-import { CONTENT } from '../content/units.ts';
+import { EXPANSION_CONTENT, CONTENT } from '../content/units.ts';
 import { leaderEffects } from '../content/leaders.ts';
 import type { Content } from '../content/units.ts';
 import type { BallId } from '../content/economy.ts';
@@ -12,7 +12,7 @@ export type AttackPreview = { ok: true; damage: { min: number; max: number };
   knockdown: 'guaranteed' | 'possible' | 'none' } | { ok: false; reason: string };
 export type CapturePreview = { ok: true; probability: number } | { ok: false; reason: string };
 // Queries consume only the observation, never state, RNG, or last-known entities as live targets.
-export function previewAttack(view: PlayerView, unitId: number, target: CombatTarget, content: Content = CONTENT): AttackPreview {
+export function previewAttack(view: PlayerView, unitId: number, target: CombatTarget, content: Content = view.expansion ? EXPANSION_CONTENT : CONTENT): AttackPreview {
   const unit = view.units.find(unit => unit.id === unitId && unit.ownerId === view.playerId);
   const defender = target.kind === 'unit' ? view.units.find(unit => unit.id === target.id) : view.cities.find(city => city.id === target.id);
   if (!unit || unit.kind !== 'pokemon' || !unit.actionLeft || view.outcome || view.activePlayerId !== view.playerId || !defender) return { ok: false, reason: 'attack-unavailable' };
@@ -22,15 +22,16 @@ export function previewAttack(view: PlayerView, unitId: number, target: CombatTa
   const from = view.map.tiles[hexToIndex(unit.position, view.map)!], to = view.map.tiles[hexToIndex(defender.position, view.map)!];
   if (!from || !to || distance < 1 || distance > range || ('kind' in defender && defender.kind === 'logistics' && distance !== 1)) return { ok: false, reason: 'out-of-range' };
   const techs = view.economy.player.research.unlockedIds;
-  const attackMultiplier = leaderEffects(view.economy.player.leaderId).activeAttackMultiplier;
+  const baseMultiplier = leaderEffects(view.economy.player.leaderId).activeAttackMultiplier;
+  const attackMultiplier = view.economy.player.leaderId === 'lance' && (view.expansion?.leaders.activeUntilRound ?? 0) >= view.round ? Math.floor(baseMultiplier * 1150 / 1000) : baseMultiplier;
   let min: number, max: number, counter = 0, canCounter: boolean, hp: number;
   if (target.kind === 'unit') {
     const defendingUnit = view.units.find(unit => unit.id === target.id)!;
     hp = defendingUnit.hp;
-    min = unitDamage(unit, defendingUnit, from, to, techs.includes('typeResearch'), 85, false, content, attackMultiplier);
-    max = unitDamage(unit, defendingUnit, from, to, techs.includes('typeResearch'), 100, false, content, attackMultiplier);
+    min = unitDamage(unit, defendingUnit, from, to, techs.includes('typeResearch'), 85, false, content, attackMultiplier, Boolean(view.expansion));
+    max = unitDamage(unit, defendingUnit, from, to, techs.includes('typeResearch'), 100, false, content, attackMultiplier, Boolean(view.expansion));
     canCounter = defendingUnit.kind === 'pokemon' && distance <= content.species[defendingUnit.speciesId].range;
-    if (canCounter) counter = unitDamage(defendingUnit, unit, to, from, view.combat.units[defendingUnit.id].typeResearch, 100, true, content);
+    if (canCounter) counter = unitDamage(defendingUnit, unit, to, from, view.combat.units[defendingUnit.id].typeResearch, 100, true, content, 1000, Boolean(view.expansion));
   } else {
     const city = view.combat.cities[defender.id]; hp = city.hp;
     min = cityDamage(unit, from, to, techs.includes('siegeCraft'), 85, content, attackMultiplier);
@@ -42,7 +43,7 @@ export function previewAttack(view: PlayerView, unitId: number, target: CombatTa
   return { ok: true, damage: { min, max }, counter: { trigger, damage: trigger === 'never' ? 0 : counter },
     knockdown: min >= hp ? 'guaranteed' : max >= hp ? 'possible' : 'none' };
 }
-export function previewCapture(view: PlayerView, unitId: number, targetUnitId: number, ballId: BallId, content: Content = CONTENT): CapturePreview {
+export function previewCapture(view: PlayerView, unitId: number, targetUnitId: number, ballId: BallId, content: Content = view.expansion ? EXPANSION_CONTENT : CONTENT): CapturePreview {
   const unit = view.units.find(unit => unit.id === unitId && unit.ownerId === view.playerId), target = view.units.find(unit => unit.id === targetUnitId);
   const player = view.economy.player;
   if (!unit || unit.kind !== 'pokemon' || !unit.actionLeft || view.outcome || view.activePlayerId !== view.playerId || !target || target.kind !== 'pokemon'

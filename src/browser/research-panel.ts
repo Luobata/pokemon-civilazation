@@ -1,10 +1,15 @@
-import { CONTENT } from '../content/units.ts';
+import { CONTENT as BASE_CONTENT, EXPANSION_CONTENT } from '../content/units.ts';
 import type { TechId } from '../content/economy.ts';
 import { canResearch } from '../core/economy-commands.ts';
 import type { Command, PlayerView } from '../core/model.ts';
 
 let rendered = '';
+export function resetResearchPanel(): void {
+  rendered = '';
+  document.querySelector<HTMLElement>('#research-panel')!.innerHTML = '';
+}
 export function renderResearchPanel(view: PlayerView, issue: (action: Command['action']) => void, disabled: boolean): void {
+  const CONTENT = view.expansion ? EXPANSION_CONTENT : BASE_CONTENT;
   const player = view.economy.player;
   const signature = JSON.stringify([player.research, disabled]);
   if (signature === rendered) return;

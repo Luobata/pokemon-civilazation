@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { generateRealGame } from './fixtures/real-game.ts';
+import { generateRealGame, realGameLog } from './fixtures/real-game.ts';
+import { createGame } from '../../src/core/game.ts';
+import { serializeSave } from '../../src/app/save.ts';
 
 const screenshots = process.env.E2E_SCREENSHOT_DIR ?? 'test-results/screenshots';
 const acceptance = process.env.M6_UI_REPORT_DIR ?? screenshots;
@@ -23,6 +25,11 @@ test('complete small-map game with milestone screenshots and identical command r
   await page.locator('#ai-personality').selectOption('aggressive');
   await page.locator('#new-game').click();
   await page.locator('#animate').uncheck();
+  // Keep this classic war/peace milestone regression on its original rules pack.
+  // New games now default to expansion-v1, exercised by crossenv and expansion.spec.
+  const opening = serializeSave(createGame(game.setup), realGameLog(game, []));
+  await page.locator('#import-save').setInputFiles({ name: 'classic-opening.json', mimeType: 'application/json', buffer: Buffer.from(opening) });
+  await expect(page.locator('#action-notice')).toContainText('读档完成');
 
   const taken = new Set<string>();
   const visualChecks: unknown[] = [];

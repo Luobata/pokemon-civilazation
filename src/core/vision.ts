@@ -1,28 +1,41 @@
+import { CIVILIZATION_CONTENT } from '../content/civilization-systems.ts';
+import { observeWorld, worldVisionSources } from './world-systems.ts';
+import { observeCivilization } from './civilization-systems.ts';
+import { leaderVisionBonus, observeLeaders } from './leader-systems.ts';
 import { isMapUnit } from './model.ts';
 import { cityCounterAttack, cityYield, workCandidates, workRadius } from './city.ts';
 import { leaderEffects } from '../content/leaders.ts';
-import { CONTENT, unitDefinition } from '../content/units.ts';
+import { EXPANSION_CONTENT, CONTENT, unitDefinition } from '../content/units.ts';
 import type { Content, UnitIdentity } from '../content/units.ts';
-import { hexDistance, hexToIndex, indexToHex } from './hex.ts';
+import { hexDistance, hexToIndex } from './hex.ts';
 import type { GameState, PlayerView, KnowledgeState, MapUnit, GameEvent, VisibleEvent, Diplomacy } from './model.ts';
 
 export function unitIdentity(unit: UnitIdentity): UnitIdentity {
-  return unit.kind === 'pokemon' ? { kind: 'pokemon', speciesId: unit.speciesId }
+  return unit.kind === 'pokemon' ? { kind: 'pokemon', speciesId: unit.speciesId, ...(unit.uniqueLeader ? { uniqueLeader: unit.uniqueLeader } : {}) }
     : { kind: 'logistics', role: unit.role };
 }
 export function emptyKnowledge(): KnowledgeState {
   return { exploredTileIds: [], rememberedTiles: {}, lastKnownUnits: {}, lastKnownCities: {} };
 }
-export function visibleTiles(state: GameState, playerId: number, content: Content = CONTENT): Set<number> {
+export function visibleTiles(state: GameState, playerId: number, content: Content = state.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT): Set<number> {
   const sources = Object.values(state.cities).filter(city => city.ownerId === playerId)
-    .map(city => ({ position: city.position, radius: 2 + leaderEffects(state.players[playerId].leaderId).cityVision }));
+    .map(city => ({ position: city.position, radius: 2 + leaderEffects(state.players[playerId].leaderId).cityVision + leaderVisionBonus(state, playerId, city.id) }));
+  sources.push(...worldVisionSources(state, playerId));
+  sources.push(...(state.expansion?.civilization?.sanctuaries ?? []).filter(site => site.ownerId === playerId).map(site => ({ position: site.position, radius: 2 })));
   for (const unit of Object.values(state.units).filter(isMapUnit).filter(unit => unit.ownerId === playerId)) {
     const index = hexToIndex(unit.position, state.map)!;
     sources.push({ position: unit.position,
       radius: unitDefinition(unit, content).vision + (state.map.tiles[index] === 'mountain' ? 1 : 0) });
   }
-  return new Set(state.map.tiles.flatMap((_, index) =>
-    sources.some(source => hexDistance(source.position, indexToHex(index, state.map)) <= source.radius) ? [index] : []));
+  const visible = new Set<number>();
+  for (const { position, radius } of sources) for (let r = position.r - radius; r <= position.r + radius; r++) {
+    for (let q = position.q - radius; q <= position.q + radius; q++) {
+      if (hexDistance(position, { q, r }) > radius) continue;
+      const index = hexToIndex({ q, r }, state.map);
+      if (index !== null) visible.add(index);
+    }
+  }
+  return new Set([...visible].sort((a, b) => a - b));
 }
 
 // D39: territory is the union of civilization city radii, not exclusive worked-tile ownership.
@@ -41,7 +54,7 @@ function territoryOwners(state: GameState): number[][] {
 }
 
 // Called only on the new authoritative state, never as a side effect of observe.
-export function refreshKnowledge(state: GameState, content: Content = CONTENT): void {
+export function refreshKnowledge(state: GameState, content: Content = state.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT): void {
   const territory = territoryOwners(state);
   for (const playerId of state.turnOrder) {
     const visible = visibleTiles(state, playerId, content);
@@ -76,13 +89,14 @@ function projectDiplomacy(pair: Diplomacy, playerId: number): Diplomacy {
     citiesLostSinceWar: involved ? { [playerId]: pair.citiesLostSinceWar[playerId] ?? 0 } : {} };
 }
 
-export function observe(state: GameState, playerId: number, content: Content = CONTENT): PlayerView {
+export function observe(state: GameState, playerId: number, content: Content = state.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT): PlayerView {
   const visible = visibleTiles(state, playerId, content);
   const knowledge = JSON.parse(JSON.stringify(state.knowledge[playerId])) as KnowledgeState;
   const territory = territoryOwners(state);
   const copyUnit = (unit: MapUnit): MapUnit => ({ ...JSON.parse(JSON.stringify(unit)),
     wildHome: unit.ownerId === playerId ? unit.wildHome && { ...unit.wildHome } : null });
   return {
+    ...(state.expansion ? { expansion: { version: 1 as const, world: observeWorld(state, playerId, visible), civilization: observeCivilization(state, playerId, visible, { ...CIVILIZATION_CONTENT, world: content }), leaders: observeLeaders(state, playerId) } } : {}),
     playerId, seed: state.setup.seed, round: state.round, activePlayerId: state.activePlayerId, commandSeq: state.commandSeq,
     map: { width: state.map.width, height: state.map.height,
       tiles: state.map.tiles.map((biome, i) => visible.has(i) ? biome : knowledge.rememberedTiles[i]?.biomeId ?? null) },
@@ -109,7 +123,7 @@ export function observe(state: GameState, playerId: number, content: Content = C
 }
 
 export function projectEvents(before: GameState, after: GameState, events: readonly GameEvent[],
-  playerId: number, content: Content = CONTENT): VisibleEvent[] {
+  playerId: number, content: Content = before.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT): VisibleEvent[] {
   const visible = new Set([...visibleTiles(before, playerId, content), ...visibleTiles(after, playerId, content)]);
   const projected: VisibleEvent[] = [];
   for (const event of events) {
@@ -117,8 +131,10 @@ export function projectEvents(before: GameState, after: GameState, events: reado
       projected.push({ seq: event.seq, payload: { type: 'DiplomacyChanged', relation: projectDiplomacy(event.payload.relation, playerId) } });
       continue;
     }
-    if ('playerId' in event.payload && event.payload.playerId !== playerId) continue;
+    if ('playerId' in event.payload && !('public' in event.payload && event.payload.public) && event.payload.playerId !== playerId) continue;
+    if ((event.payload.type === 'AllianceChanged' || event.payload.type === 'TradeChanged') && !event.payload.public && !event.payload.playerIds.includes(playerId)) continue;
     if (event.payload.type === 'BattleResolved' && !event.payload.positions.every(position => visible.has(hexToIndex(position, before.map)!))) continue;
+    if (event.payload.type.startsWith('World') && 'position' in event.payload && !visible.has(hexToIndex(event.payload.position, before.map)!)) continue;
     if (event.payload.type === 'WildSpawned' && !visible.has(hexToIndex(event.payload.position, before.map)!)) continue;
     if (event.payload.type !== 'Moved') {
       projected.push({ seq: event.seq, payload: JSON.parse(JSON.stringify(event.payload)) });

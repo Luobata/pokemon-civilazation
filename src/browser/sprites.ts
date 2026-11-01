@@ -1,6 +1,7 @@
 import type { SpeciesId } from '../content/species.ts';
 
 const POKEDEX: Record<SpeciesId, number> = {
+  clefable: 36, sandshrew: 27, ekans: 23, caterpie: 10, swinub: 220, magnemite: 81, umbreon: 197, clefairy: 35,
   bulbasaur: 1, ivysaur: 2, venusaur: 3, charmander: 4, charmeleon: 5, charizard: 6,
   squirtle: 7, wartortle: 8, blastoise: 9, pikachu: 25, raichu: 26,
   rattata: 19, raticate: 20, meowth: 52, snorlax: 143, machop: 66, machoke: 67, machamp: 68,

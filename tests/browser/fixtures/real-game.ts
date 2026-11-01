@@ -1,4 +1,4 @@
-import { CONTENT } from '../../../src/content/units.ts';
+import { CONTENT, EXPANSION_CONTENT } from '../../../src/content/units.ts';
 import type { LeaderId } from '../../../src/content/leaders.ts';
 import { RULE_QUERIES } from '../../../src/ai/query.ts';
 import { planNext } from '../../../src/ai/plan.ts';
@@ -19,6 +19,7 @@ export type RealGameOptions = {
   personalities: AiPersonality[];
   roundLimit?: 100 | 200 | 300;
   leaderIds?: LeaderId[];
+  expansionVersion?: 1;
 };
 
 export type RealGame = {
@@ -35,13 +36,15 @@ export type RealGame = {
 export function generateRealGame(options: RealGameOptions): RealGame {
   const setup: GameSetup = {
     seed: options.seed, width: options.width, height: options.height, roundLimit: options.roundLimit ?? 100,
+    ...(options.expansionVersion ? { expansionVersion: options.expansionVersion } : {}),
     players: [
       { id: 0, controller: 'human', starterId: 'bulbasaur', ...(options.leaderIds?.[0] ? { leaderId: options.leaderIds[0] } : {}) },
       ...options.personalities.slice(1).map((personality, index) => ({ id: index + 1, controller: 'ai' as const, personality,
         ...(options.leaderIds?.[index + 1] ? { leaderId: options.leaderIds[index + 1] } : {}) })),
     ],
   };
-  let state = createGame(setup, CONTENT);
+  const content = setup.expansionVersion ? EXPANSION_CONTENT : CONTENT;
+  let state = createGame(setup, content);
   let maxState = state;
   let maxCommands: Command[] = [];
   let maxUnits = 0;
@@ -51,16 +54,16 @@ export function generateRealGame(options: RealGameOptions): RealGame {
   const milestones: Record<string, number> = {};
   const first = (name: string) => { if (milestones[name] === undefined) milestones[name] = commands.length - 1; };
   while (!state.outcome && state.commandSeq < 100_000) {
-    const view = observe(state, state.activePlayerId, CONTENT);
-    const command = planNext(view, { ...RULE_QUERIES, content: CONTENT }, memory);
-    const result = step(state, command, CONTENT);
+    const view = observe(state, state.activePlayerId, content);
+    const command = planNext(view, { ...RULE_QUERIES, content }, memory);
+    const result = step(state, command, content);
     let accepted = result;
     let acceptedCommand = command;
     if (!result.ok) {
       invalid++;
       rememberCityRejection(memory, view, command, result.reason);
       acceptedCommand = { actorId: view.playerId, expectedSeq: view.commandSeq, action: { type: 'EndTurn' } };
-      accepted = step(state, acceptedCommand, CONTENT);
+      accepted = step(state, acceptedCommand, content);
     }
     if (!accepted.ok) throw new Error(`Unable to advance real-game fixture: ${accepted.reason}`);
     state = accepted.state;
@@ -83,7 +86,7 @@ export function generateRealGame(options: RealGameOptions): RealGame {
 }
 
 export function realGameLog(game: RealGame, commands = game.commands): CommandLog {
-  return { version: 1, schemaVersion: 4, rulesVersion: 'm5-v1', contentVersion: CONTENT.version,
+  return { version: 1, schemaVersion: 4, rulesVersion: 'm5-v1', contentVersion: game.finalState.contentVersion,
     setup: game.setup, commands: structuredClone(commands) };
 }
 

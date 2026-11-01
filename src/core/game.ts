@@ -1,9 +1,10 @@
+import { initializeExpansion } from './expansion.ts';
 import { spawnWild } from './wild.ts';
 import { isLeaderId } from '../content/leaders.ts';
 import { createMapUnit } from './unit.ts';
 import type { TechId } from '../content/economy.ts';
 import { assignNewWorkers, createCity } from './city.ts';
-import { CONTENT, STARTER_IDS } from '../content/units.ts';
+import { EXPANSION_CONTENT, CONTENT, STARTER_IDS } from '../content/units.ts';
 import type { Content, StarterId } from '../content/units.ts';
 import { generateMap } from './map.ts';
 import { indexToHex } from './hex.ts';
@@ -12,7 +13,7 @@ import { initialUnitPosition } from './movement.ts';
 import { emptyKnowledge, refreshKnowledge } from './vision.ts';
 import type { GameSetup, GameState } from './model.ts';
 
-export function createGame(setup: GameSetup, content: Content = CONTENT): GameState {
+export function createGame(setup: GameSetup, content: Content = setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT): GameState {
   if (setup.players.some(player => player.leaderId !== undefined && !isLeaderId(player.leaderId))) {
     throw new Error('Unknown leader.');
   }
@@ -20,7 +21,9 @@ export function createGame(setup: GameSetup, content: Content = CONTENT): GameSt
     || setup.players.length < 2 || setup.players.length > 4
     || new Set(setup.players.map(player => player.id)).size !== setup.players.length
     || setup.players.some(player => !Number.isSafeInteger(player.id) || player.id < 0)
-    || setup.players.filter(player => player.controller === 'human').length > 1
+    || (setup.expansionVersion !== undefined && setup.expansionVersion !== 1)
+    || (setup.multiplayer !== undefined && setup.multiplayer !== true)
+    || (!setup.multiplayer && setup.players.filter(player => player.controller === 'human').length > 1)
     || setup.players.some(player => player.controller === 'human' && !STARTER_IDS.includes(player.starterId))) {
     throw new Error('Expected 2–4 distinct players and at most one human with a chosen starter.');
   }
@@ -58,6 +61,7 @@ export function createGame(setup: GameSetup, content: Content = CONTENT): GameSt
   }
   for (const city of Object.values(state.cities)) assignNewWorkers(state, city, city.population, content);
   spawnWild(state, true, content);
+  if (setup.expansionVersion === 1) initializeExpansion(state, content);
   refreshKnowledge(state, content);
   return state;
 }

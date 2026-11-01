@@ -1,0 +1,32 @@
+.multiplayer-shell{min-height:100vh;background:#0b1417;color:#f7f1de;display:grid;grid-template-columns:minmax(320px,420px) minmax(0,1fr);gap:16px;padding:16px}
+.multiplayer-aside,.multiplayer-main{border:1px solid #2e4440;background:#101d21;border-radius:14px;padding:15px;min-width:0}
+.multiplayer-aside{display:flex;flex-direction:column;gap:12px}
+.multiplayer-shell h1{margin:0;font-size:22px}.multiplayer-shell h2{margin:0 0 8px;font-size:17px}
+.multiplayer-shell label{display:grid;gap:4px;font-size:13px;color:#a9bbb2}
+.multiplayer-shell input,.multiplayer-shell select,.multiplayer-shell textarea{border:1px solid #395650;background:#071013;color:#e7f4ea;border-radius:7px;padding:7px 9px;font:inherit;min-width:0}
+.multiplayer-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
+.multiplayer-actions{display:flex;flex-wrap:wrap;gap:8px}
+#map{width:100%;height:min(72vh,760px);display:block;border-radius:12px;background:#0a1518;touch-action:none}
+#invite-list{margin:0;padding-left:20px;word-break:break-all;color:#c8d8cf;font-size:12px}
+#action-json{min-height:175px;font-family:ui-monospace,monospace;font-size:13px;line-height:1.45;white-space:pre}
+#network-notice{min-height:22px;font-weight:650}#network-notice[data-state=error]{color:#ffb1a6}
+.status-card{border-left:3px solid #68b799;padding-left:10px}
+#faction-legend{margin:8px 0 0;padding-left:18px;color:#aebfB6;font-size:12px}
+@media(max-width:920px){.multiplayer-shell{grid-template-columns:1fr}#map{height:62vh}}
+.multiplayer-main{display:flex;flex-direction:column;min-width:0}
+.multiplayer-panels{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:12px;margin-top:12px;align-items:start}
+.multiplayer-panels > section{min-width:0;max-width:100%;overflow-x:auto}
+.multiplayer-developer{border:1px solid #2e4440;border-radius:10px;background:#0a1518;padding:10px}
+.multiplayer-developer > summary{cursor:pointer;color:#b9cbc2;font-weight:650}
+.multiplayer-developer[open]{padding-bottom:12px}
+@media(max-width:1120px){.multiplayer-panels{grid-template-columns:1fr}}
+@media(max-width:430px){
+  .multiplayer-shell{gap:10px;padding:10px}
+  .multiplayer-aside,.multiplayer-main{padding:11px;border-radius:11px}
+  #map{height:48vh;min-height:300px}
+  .multiplayer-actions>*{flex:1 1 140px}
+  .multiplayer-actions>button,.multiplayer-actions>label{width:100%}
+  .multiplayer-grid{grid-template-columns:1fr}
+  .multiplayer-panels{gap:10px;margin-top:10px}
+  .multiplayer-panels > section{overflow-x:auto}
+}

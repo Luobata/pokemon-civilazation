@@ -1,15 +1,17 @@
 import { eliminateCivilization } from './victory.ts';
+import { leaderAttackMultiplier } from './leader-systems.ts';
 import { leaderEffects } from '../content/leaders.ts';
+import { WORLD_DEFINITIONS } from '../content/world-systems.ts';
 import { relationFor } from './diplomacy.ts';
 import { unitDamage, cityDamage, cityCounterDamage } from './combat-query.ts';
-import { CONTENT } from '../content/units.ts';
+import { EXPANSION_CONTENT, CONTENT } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
 import type { TechId } from '../content/economy.ts';
 import { hexDistance, hexToIndex } from './hex.ts';
 import { isMapUnit } from './model.ts';
 import type { CombatAction, CombatEvent, CombatTarget, GameState, MapUnit, StepResult, KnockdownRecord, KnockdownCombatant } from './model.ts';
 import { assignNewWorkers, cityCounterAttack, cleanWork } from './city.ts';
-import { captureProbability, effectiveness } from './combat-math.ts';
+import { captureProbability, dualEffectiveness, effectiveness } from './combat-math.ts';
 import { randomBelow } from './rng.ts';
 import { registerSpecies } from './unit.ts';
 import { visibleTiles } from './vision.ts';
@@ -19,12 +21,13 @@ const hasTech = (state: GameState, owner: number | null, tech: TechId) => owner 
 export function atWar(state: GameState, a: number, b: number): boolean {
   return state.diplomacy.some(pair => pair.a === Math.min(a, b) && pair.b === Math.max(a, b) && pair.status === 'war');
 }
-export function validateCombatAction(state: GameState, actor: number, action: CombatAction, content: Content = CONTENT): Rejection | null {
+export function validateCombatAction(state: GameState, actor: number, action: CombatAction, content: Content = state.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT): Rejection | null {
   const unit = state.units[action.unitId];
   if (!unit || unit.ownerId !== actor || !isMapUnit(unit) || unit.kind !== 'pokemon') return 'unit-unavailable';
   if (!unit.actionLeft) return 'no-action';
   const definition = content.species[unit.speciesId], player = state.players[actor];
   if (action.type === 'Evolve') {
+    if (state.expansion && WORLD_DEFINITIONS.stoneEvolutions.some(path => path.fromSpeciesId === unit.speciesId)) return 'evolution-unavailable';
     const evolution = definition.evolution;
     return evolution && evolution.speciesId === action.intoSpeciesId && unit.xp >= evolution.xp && player.gold >= evolution.gold
       && (!evolution.requiresTraining || hasTech(state, actor, 'training')) ? null : 'evolution-unavailable';
@@ -70,19 +73,19 @@ function unitStrike(state: GameState, attacker: MapUnit, defender: MapUnit, coun
   const roll = counter ? 100 : 85 + randomBelow(state.rng, 16);
   const hit = unitDamage(attacker, defender, state.map.tiles[hexToIndex(attacker.position, state.map)!],
     state.map.tiles[hexToIndex(defender.position, state.map)!], hasTech(state, attacker.ownerId, 'typeResearch'), roll, counter, content,
-    leaderEffects(attacker.ownerId === null ? undefined : state.players[attacker.ownerId].leaderId).activeAttackMultiplier);
+    leaderAttackMultiplier(state, attacker.ownerId, leaderEffects(attacker.ownerId === null ? undefined : state.players[attacker.ownerId].leaderId).activeAttackMultiplier), Boolean(state.expansion));
   attacker.enraged = false;
   defender.hp = Math.max(0, defender.hp - hit);
   experience(state, attacker, (hit > 0 ? 10 : 0) + (defender.hp === 0 && d ? 40 * d.stage : 0));
   if (defender.hp === 0) {
     knockdowns.push({ source: combatant(attacker, content), target: combatant(defender, content), counter,
-      effectiveness: d ? effectiveness(content.species[attacker.speciesId].typeId, d.typeId, d.immunities, hasTech(state, attacker.ownerId, 'typeResearch')) : 100 });
+      effectiveness: d ? (state.expansion ? dualEffectiveness(content.species[attacker.speciesId].typeId, [d.typeId, ...(d.secondaryTypeId ? [d.secondaryTypeId] : [])], hasTech(state, attacker.ownerId, 'typeResearch')) : effectiveness(content.species[attacker.speciesId].typeId, d.typeId, d.immunities, hasTech(state, attacker.ownerId, 'typeResearch'))) : 100 });
     knockedDown(state, defender, attacker.ownerId, wildPhase, events);
   }
   return hit;
 }
 // Executes one validated battle, also used by neutral guards at stage 6.
-export function resolveAttack(state: GameState, unitId: number, target: CombatTarget, content: Content = CONTENT, wildPhase = false): CombatEvent[] {
+export function resolveAttack(state: GameState, unitId: number, target: CombatTarget, content: Content = state.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT, wildPhase = false): CombatEvent[] {
   const attacker = state.units[unitId];
   if (!isMapUnit(attacker) || attacker.kind !== 'pokemon') throw new Error('Expected deployed attacker');
   const defender = target.kind === 'unit' ? state.units[target.id] : state.cities[target.id];
@@ -103,7 +106,7 @@ export function resolveAttack(state: GameState, unitId: number, target: CombatTa
     const city = state.cities[target.id];
     hit = cityDamage(attacker, state.map.tiles[hexToIndex(attacker.position, state.map)!],
       state.map.tiles[hexToIndex(city.position, state.map)!], hasTech(state, attacker.ownerId, 'siegeCraft'), 85 + randomBelow(state.rng, 16), content,
-      leaderEffects(attacker.ownerId === null ? undefined : state.players[attacker.ownerId].leaderId).activeAttackMultiplier);
+      leaderAttackMultiplier(state, attacker.ownerId, leaderEffects(attacker.ownerId === null ? undefined : state.players[attacker.ownerId].leaderId).activeAttackMultiplier));
     attacker.enraged = false;
     city.hp = Math.max(0, city.hp - hit); experience(state, attacker, hit > 0 ? 10 : 0);
     if (city.hp === 0) {
@@ -112,6 +115,7 @@ export function resolveAttack(state: GameState, unitId: number, target: CombatTa
       const headquarters = previousOwner !== null && state.players[previousOwner].headquartersCityId === city.id;
       if (!headquarters) for (const unit of Object.values(state.units)) if (unit.location === 'recovering' && unit.cityId === city.id) delete state.units[unit.id];
       city.ownerId = attacker.ownerId!; city.hp = content.balance.city.capturedHp; city.capturedAtRound = state.round;
+      if (state.expansion) delete state.expansion.civilization.pendingProductionByCity[city.id];
       city.workedTileIds = []; city.lockedTileIds = [];
       for (const other of Object.values(state.cities)) cleanWork(state, other, content);
       assignNewWorkers(state, city, city.population, content);
@@ -136,7 +140,7 @@ export function resolveAttack(state: GameState, unitId: number, target: CombatTa
   events.unshift({ type: 'BattleResolved', attackerId: unitId, target: { ...target }, positions, damage: hit, counterDamage, capturedCity, knockedDownUnitIds, knockdowns });
   return events;
 }
-export function applyCombatAction(state: GameState, actor: number, action: CombatAction, content: Content = CONTENT): CombatEvent[] {
+export function applyCombatAction(state: GameState, actor: number, action: CombatAction, content: Content = state.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT): CombatEvent[] {
   if (action.type === 'Attack') return resolveAttack(state, action.unitId, action.target, content);
   const unit = state.units[action.unitId];
   if (!isMapUnit(unit) || unit.kind !== 'pokemon') throw new Error('Expected deployed pokemon');

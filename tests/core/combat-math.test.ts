@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { SPECIES, SPECIES_NAMES, speciesDisplay, validateSpecies } from '../../src/content/species.ts';
-import { captureProbability, damage, effectiveness, terrainMultiplier } from '../../src/core/combat-math.ts';
+import { captureProbability, damage, dualEffectiveness, effectiveness, terrainMultiplier } from '../../src/core/combat-math.ts';
+import { EXPANSION_CONTENT } from '../../src/content/units.ts';
 
 describe('GDD v0.6 integer fixtures', () => {
   test.each([
@@ -32,13 +33,13 @@ describe('GDD v0.6 integer fixtures', () => {
     });
 });
 
-test('39 species, budgets/costs, eight rare, D15 all same-stage pairs ≤60%', () => {
-  expect(Object.keys(SPECIES)).toHaveLength(39);
+test('47 species, budgets/costs, nine rare, legacy D15 all same-stage pairs ≤60%', () => {
+  expect(Object.keys(SPECIES)).toHaveLength(47);
   expect(Object.keys(SPECIES)).toEqual(Object.keys(SPECIES_NAMES));
   expect(() => validateSpecies(SPECIES)).not.toThrow();
   expect(() => validateSpecies({ ...SPECIES, bulbasaur: { ...SPECIES.bulbasaur, maxHp: 500 } })).toThrow();
   const definitions = Object.values(SPECIES);
-  expect(definitions.filter(d => d.rare)).toHaveLength(8);
+  expect(definitions.filter(d => d.rare)).toHaveLength(9);
   let maxRatio = 0;
   for (const attacker of definitions) for (const defender of definitions) {
     expect(attacker.power).toBe(10);
@@ -53,4 +54,15 @@ test('39 species, budgets/costs, eight rare, D15 all same-stage pairs ≤60%', (
   expect(SPECIES.dratini.spawnBiomes).toEqual(['snow']);
   expect(SPECIES.dratini.terrain).not.toContain('ocean');
   expect(speciesDisplay('dragonite')).toEqual({ name: '快龙', abbreviation: '快' });
+});
+
+test('expanded full-type researched dual weaknesses retain the same-stage D15 limit', () => {
+  const definitions = Object.values(EXPANSION_CONTENT.species);
+  for (const attacker of definitions) for (const defender of definitions) {
+    if (attacker.stage !== defender.stage) continue;
+    const types = defender.secondaryTypeId ? [defender.typeId, defender.secondaryTypeId] : [defender.typeId];
+    const multiplier = dualEffectiveness(attacker.typeId, types, true);
+    const hit = damage(attacker.attack, defender.defense, attacker.power, multiplier, 120, 100);
+    expect(hit * 100, `${attacker.name} → ${defender.name}`).toBeLessThanOrEqual(defender.maxHp * 60);
+  }
 });

@@ -1,3 +1,4 @@
+import type { ExpansionAction, ExpansionEvent, ExpansionState, ExpansionView } from './expansion-model.ts';
 import type { TypeId } from '../content/species.ts';
 import type { LeaderId } from '../content/leaders.ts';
 import type { BallId, BuildingId, TechId, Yield } from '../content/economy.ts';
@@ -9,7 +10,7 @@ import type { MapTerrain } from './map.ts';
 
 export type AiPersonality = 'expansion' | 'aggressive' | 'conservative';
 export type Score = { playerId: number; total: number; cities: number; population: number; species: number; techs: number; knockdowns: number };
-export type GameOutcome = { kind: 'conquest' | 'score' | 'playerDefeat'; winners: number[]; ranking: Score[]; round: number };
+export type GameOutcome = { kind: 'conquest' | 'score' | 'playerDefeat' | 'pokedex' | 'origin' | 'championship'; winners: number[]; ranking: Score[]; round: number };
 export type Diplomacy = { a: number; b: number; status: 'peace' | 'war'; changedAtRound: number; declaredBy: number | null;
   cooldownUntilRound: number; rejectedAtRound: Record<number, number>; citiesLostSinceWar: Record<number, number>;
   proposal: { proposerId: number; recipientId: number } | null };
@@ -18,6 +19,8 @@ export type DiplomacyAction = { type: 'DeclareWar'; targetPlayerId: number } | {
 export type DiplomacyEvent = { type: 'DiplomacyChanged'; relation: Diplomacy };
 export type GameSetup = GridSize & {
   seed: number;
+  expansionVersion?: 1;
+  multiplayer?: true;
   roundLimit?: 100 | 200 | 300;
   players: (({ id: number; controller: 'human'; starterId: StarterId }
     | { id: number; controller: 'ai'; personality?: AiPersonality }) & { leaderId?: LeaderId })[];
@@ -74,6 +77,7 @@ export type KnowledgeState = {
 };
 export type GameState = {
   schemaVersion: 4; rulesVersion: 'm5-v1'; contentVersion: string;
+  expansion?: ExpansionState;
   setup: GameSetup; rng: RngState; nextEntityId: number; commandSeq: number;
   round: number; activePlayerId: number; turnOrder: number[];
   map: MapTerrain;
@@ -84,6 +88,7 @@ export type GameState = {
   knowledge: Record<number, KnowledgeState>;
 };
 export type PlayerView = {
+  expansion?: ExpansionView;
   playerId: number; seed: number; round: number; activePlayerId: number; commandSeq: number;
   map: GridSize & { tiles: (BiomeId | null)[] };
   /** Per tile: sorted civilization IDs, [] observed unclaimed, null ownership never observed. */
@@ -114,9 +119,9 @@ export type CombatEvent =
 export type Command = { actorId: number; expectedSeq: number; action:
   | { type: 'Move'; unitId: number; to: Hex }
   | { type: 'EndTurn' }
-  | EconomyAction | CombatAction | DiplomacyAction
+  | EconomyAction | CombatAction | DiplomacyAction | ExpansionAction
 };
-export type EventPayload = EconomyEvent | CombatEvent | DiplomacyEvent
+export type EventPayload = EconomyEvent | CombatEvent | DiplomacyEvent | ExpansionEvent
   | { type: 'Moved'; unitId: number; path: Hex[] }
   | { type: 'RoundEnded'; round: number }
   | { type: 'TurnChanged'; activePlayerId: number; round: number };

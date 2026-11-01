@@ -1,4 +1,4 @@
-import { CONTENT } from '../content/units.ts';
+import { CONTENT as BASE_CONTENT, EXPANSION_CONTENT } from '../content/units.ts';
 import type { BallId, BuildingId } from '../content/economy.ts';
 import { growthThreshold, maxCityHp, productionCost } from '../core/city.ts';
 import type { Command, PlayerView, ProductionItem, ProductionOrder } from '../core/model.ts';
@@ -23,15 +23,16 @@ const buildingActions: Record<BuildingId, { label: string; section: CitySection;
 };
 function buildingEffect(id: BuildingId): string {
   if (id === 'headquarters') return '文明的联盟总部。失守后文明会被淘汰。';
-  const definition = CONTENT.buildings[id];
+  const definition = BASE_CONTENT.buildings[id];
   const labels = { food: '食物', production: '生产', gold: '金币', research: '科研' } as const;
   const yields = Object.entries(definition.yields).filter(([, amount]) => amount > 0)
     .map(([key, amount]) => `每轮${labels[key as keyof typeof labels]} +${amount}`);
   if (definition.trainedXp) yields.push(`新训练宝可梦经验 +${definition.trainedXp}`);
-  return [...yields, `城市最大 HP +${CONTENT.balance.city.buildingHp}`].join('；');
+  return [...yields, `城市最大 HP +${BASE_CONTENT.balance.city.buildingHp}`].join('；');
 }
 export function renderEconomyPanel(view: PlayerView, selectedCity: number | null,
   issue: (action: Command['action']) => void, disabled = false): void {
+  const CONTENT = view.expansion ? EXPANSION_CONTENT : BASE_CONTENT;
   if (selectedCity !== previousCity) { productionKind = 'building'; citySection = 'production'; selectedBuilding = null; previousCity = selectedCity; }
   const signature = JSON.stringify([view.economy, view.map.tiles, view.commandSeq, selectedCity, disabled, productionKind, selectedBuilding, citySection]);
   if (signature === rendered) return;
@@ -76,10 +77,10 @@ export function renderEconomyPanel(view: PlayerView, selectedCity: number | null
       <section class="production-section" ${citySection !== 'production' ? 'hidden' : ''}><p class="section-label">${selectedBuilding ? CONTENT.buildings[selectedBuilding].name : '城市生产'} · ${city.yields.production} 生产 / 轮</p>
       <div class="production-tabs" role="group" aria-label="生产类别">${(Object.keys(productionLabels) as ProductionItem['kind'][]).map(kind => `<button data-production-kind="${kind}" aria-pressed="${kind === productionKind}" ${disabled ? 'disabled' : ''}>${productionLabels[kind]}</button>`).join('')}</div>
       <p class="production-help">${productionKind === 'logistics' ? '训练完成后，开拓队出现在城市周围。选中它，前往新的土地建城。' : productionKind === 'pokemon' ? '训练已经登记的宝可梦。完成后在城市周围出场。' : '建筑留在这座城市内，建成后自动提供产出或训练效果。'}</p>
-      <div class="production-adder"><select id="production-item" aria-label="生产项目">${options.map((item, i) => `<option value="${i}">${itemName(item)} (${productionCost(item)})</option>`).join('')}</select>
+      <div class="production-adder"><select id="production-item" aria-label="生产项目">${options.map((item, i) => `<option value="${i}">${itemName(item)} (${productionCost(item, CONTENT)})</option>`).join('')}</select>
       <button id="add-production" ${disabled || city.queue.length >= 5 || !options.length ? 'disabled' : ''}>加入队列</button></div>
       <div id="production-preview"></div>
-      <p class="section-label queue-heading">生产队列 ${city.queue.length}/5 · 逐项完成</p><ol id="production-queue">${city.queue.map((order, i) => `<li><div class="queue-name"><span>${itemName(order.item)}</span><span>${order.progress}/${productionCost(order.item)}</span></div><div class="queue-progress"><span style="width:${Math.min(100, order.progress * 100 / productionCost(order.item))}%"></span></div><div class="queue-actions"><button data-up="${i}" ${i ? '' : 'disabled'}>上移</button><button data-down="${i}" ${i < city.queue.length - 1 ? '' : 'disabled'}>下移</button><button data-remove="${i}">取消</button></div></li>`).join('')}</ol>
+      <p class="section-label queue-heading">生产队列 ${city.queue.length}/5 · 逐项完成</p><ol id="production-queue">${city.queue.map((order, i) => `<li><div class="queue-name"><span>${itemName(order.item)}</span><span>${order.progress}/${productionCost(order.item, CONTENT)}</span></div><div class="queue-progress"><span style="width:${Math.min(100, order.progress * 100 / productionCost(order.item, CONTENT))}%"></span></div><div class="queue-actions"><button data-up="${i}" ${i ? '' : 'disabled'}>上移</button><button data-down="${i}" ${i < city.queue.length - 1 ? '' : 'disabled'}>下移</button><button data-remove="${i}">取消</button></div></li>`).join('')}</ol>
       ${city.queue.length ? '' : '<p class="empty-note">队列为空。选择一个项目开始生产。</p>'}
       <p id="pending-deployments">待出场 ${city.pendingDeployments.length}：${city.pendingDeployments.map(p => itemName(p.item)).join('、') || '无'}</p></section></div>
     <section ${citySection !== 'supplies' ? 'hidden' : ''}><div class="ball-shop"><label>球种<select id="ball-kind"><option value="pokeBall">精灵球 20金</option><option value="greatBall">超级球 45金</option></select></label>
@@ -108,7 +109,7 @@ export function renderEconomyPanel(view: PlayerView, selectedCity: number | null
   const showProduction = () => {
     const item = options[Number(root.querySelector<HTMLSelectElement>('#production-item')!.value)];
     root.querySelector('#production-preview')!.innerHTML = item
-      ? `${item.kind === 'building' ? `<img class="building-art production-building-art" src="${buildingArtPath(item.defId)}" width="72" height="60" alt="${itemName(item)}建筑预览">` : item.kind === 'pokemon' ? `<img src="${pokemonSpritePath(item.defId)}" width="48" height="48" alt="${itemName(item)}">` : ''}<p>${item.kind === 'building' ? buildingEffect(item.defId) : item.kind === 'logistics' ? '建立新城市 · 移动 2 · 无维护费' : `攻击 ${CONTENT.species[item.defId].attack} · 防御 ${CONTENT.species[item.defId].defense} · 维护 ${CONTENT.species[item.defId].upkeep} 金币 / 轮`}<br>需要 ${productionCost(item)} 生产${city.yields.production > 0 ? ` · 空队列约 ${Math.ceil(productionCost(item) / city.yields.production)} 轮` : ''}</p>`
+      ? `${item.kind === 'building' ? `<img class="building-art production-building-art" src="${buildingArtPath(item.defId)}" width="72" height="60" alt="${itemName(item)}建筑预览">` : item.kind === 'pokemon' ? `<img src="${pokemonSpritePath(item.defId)}" width="48" height="48" alt="${itemName(item)}">` : ''}<p>${item.kind === 'building' ? buildingEffect(item.defId) : item.kind === 'logistics' ? '建立新城市 · 移动 2 · 无维护费' : `攻击 ${CONTENT.species[item.defId].attack} · 防御 ${CONTENT.species[item.defId].defense} · 维护 ${CONTENT.species[item.defId].upkeep} 金币 / 轮`}<br>需要 ${productionCost(item, CONTENT)} 生产${city.yields.production > 0 ? ` · 空队列约 ${Math.ceil(productionCost(item, CONTENT) / city.yields.production)} 轮` : ''}</p>`
       : '<p>当前没有可建项目。研究新科技可解锁更多建筑。</p>';
   };
   root.querySelector('#production-item')!.addEventListener('change', showProduction);

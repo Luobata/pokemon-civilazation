@@ -1,8 +1,8 @@
-import { CONTENT } from '../content/units.ts';
+import { EXPANSION_CONTENT, CONTENT } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
-import type { CombatEvent, GameState, Score } from './model.ts';
+import type { CombatEvent, GameState, Score, GameOutcome } from './model.ts';
 
-export function scorePlayer(state: GameState, playerId: number, content: Content = CONTENT): Score {
+export function scorePlayer(state: GameState, playerId: number, content: Content = state.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT): Score {
   const player = state.players[playerId];
   if (player.frozenScore) return { ...player.frozenScore };
   const cities = Object.values(state.cities).filter(city => city.ownerId === playerId);
@@ -16,14 +16,14 @@ export function scorePlayer(state: GameState, playerId: number, content: Content
 export function compareScores(a: Score, b: Score): number {
   return b.total - a.total || b.cities - a.cities || b.population - a.population || b.techs - a.techs || b.knockdowns - a.knockdowns;
 }
-export function finishGame(state: GameState, kind: 'conquest' | 'score' | 'playerDefeat', winners?: number[], content: Content = CONTENT): CombatEvent[] {
+export function finishGame(state: GameState, kind: GameOutcome['kind'], winners?: number[], content: Content = state.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT): CombatEvent[] {
   const ranking = Object.keys(state.players).map(Number).map(id => scorePlayer(state, id, content)).sort((a, b) => compareScores(a, b) || a.playerId - b.playerId);
   const alive = ranking.filter(score => !state.players[score.playerId].eliminated);
   state.outcome = { kind, winners: winners ?? alive.filter(score => compareScores(score, alive[0]) === 0).map(score => score.playerId), ranking, round: state.round };
   return [{ type: 'GameEnded', outcome: JSON.parse(JSON.stringify(state.outcome)) }];
 }
 // Called only after HQ ownership transfer, inside step's unpublished transaction.
-export function eliminateCivilization(state: GameState, playerId: number, content: Content = CONTENT): CombatEvent[] {
+export function eliminateCivilization(state: GameState, playerId: number, content: Content = state.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT): CombatEvent[] {
   const player = state.players[playerId];
   for (const city of Object.values(state.cities)) if (city.ownerId === playerId) {
     city.ownerId = null; city.hp = 50; city.workedTileIds = []; city.lockedTileIds = [];
@@ -33,7 +33,7 @@ export function eliminateCivilization(state: GameState, playerId: number, conten
   state.turnOrder = state.turnOrder.filter(id => id !== playerId);
   for (const pair of state.diplomacy) if (pair.a === playerId || pair.b === playerId) pair.proposal = null;
   const events: CombatEvent[] = [{ type: 'CivilizationEliminated', eliminatedPlayerId: playerId }];
-  if (player.controller === 'human') events.push(...finishGame(state, 'playerDefeat', [], content));
+  if (player.controller === 'human' && !state.setup.multiplayer) events.push(...finishGame(state, 'playerDefeat', [], content));
   else if (state.turnOrder.length === 1) events.push(...finishGame(state, 'conquest', [...state.turnOrder], content));
   return events;
 }

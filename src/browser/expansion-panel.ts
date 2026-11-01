@@ -1,0 +1,90 @@
+import type { Command, PlayerView } from '../core/model.ts';
+import { LEADER_KITS } from '../core/leader-systems.ts';
+import { hexDistance } from '../core/hex.ts';
+import { CONTENT as BASE_CONTENT, EXPANSION_CONTENT, unitDefinition } from '../content/units.ts';
+import { CIVILIZATION_CONTENT } from '../content/civilization-systems.ts';
+import { WORLD_DEFINITIONS } from '../content/world-systems.ts';
+import { parseAuditAction } from '../audit/commands.ts';
+
+const escape = (value: unknown) => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+export function renderExpansionPanel(view: PlayerView, selectedUnitId: number | null, selectedCityId: number | null,
+  issue: (action: Command['action']) => void, disabled: boolean): void {
+  const CONTENT = view.expansion ? EXPANSION_CONTENT : BASE_CONTENT;
+  const root = document.querySelector<HTMLElement>('#expansion-panel')!;
+  if (!view.expansion) { root.innerHTML = '<p>此存档使用经典规则。新建对局可启用扩展系统。</p>'; return; }
+  const opened = new Set([...root.querySelectorAll<HTMLDetailsElement>('details[open]')].map(element => element.dataset.system));
+  const exp = view.expansion, player = view.economy.player;
+  const own = view.units.filter(unit => unit.ownerId === player.id && unit.kind === 'pokemon');
+  const unit = own.find(unit => unit.id === selectedUnitId) ?? own.find(unit => unit.actionLeft);
+  const city = view.economy.cities.find(city => city.id === selectedCityId) ?? view.economy.cities[0];
+  const actions: Command['action'][] = [];
+  const button = (label: string, action: Command['action'], available = true) => {
+    const id = actions.push(action) - 1;
+    return `<button type="button" data-expansion-action="${id}"${disabled || !available ? ' disabled' : ''}>${escape(label)}</button>`;
+  };
+  const card = (id: string, title: string, body: string) => `<details data-system="${id}"><summary>${title}</summary>${body}<p><a href="/audit.html?system=${id}" target="_blank" rel="noopener">规则与独立调试 ↗</a></p></details>`;
+  let html = '<h2>文明与探索</h2><p>地图标记：巢 · 暴走巢穴，霸 · 霸主，果 · 树果，石 · 矿脉，圣 / 碑 · 圣所与已取得石板。</p>';
+  const leader = player.leaderId && LEADER_KITS[player.leaderId];
+  if (leader) html += card('leaders-active', '领袖能力与专属内容', `<p>${escape(leader.description)}${exp.leaders.readyAtRound > view.round ? ` 下次可用：第 ${exp.leaders.readyAtRound} 轮。` : ''}</p>`
+    + button(leader.active, { type: 'UseLeaderAbility' }, player.gold >= 20 && exp.leaders.readyAtRound <= view.round)
+    + (city ? `<p>当前城市 #${city.id}：${escape(leader.building)}提供本城领袖专长产出 +2；专属部队拥有 +8 攻防和 +1 视野。</p>`
+      + button(`建造${leader.building} · 90 金`, { type: 'BuildLeaderBuilding', cityId: city.id }, player.gold >= 90 && !exp.leaders.uniqueCityIds.includes(city.id))
+      + button(`招募${unitDefinition({ kind: 'pokemon', speciesId: leader.unit }).name} · 100 金`, { type: 'RecruitLeaderUnit', cityId: city.id }, player.gold >= 100 && exp.leaders.recruited < 3 && player.research.unlockedIds.includes('training')) : ''));
+  const world = exp.world, records = Object.values(world.player?.pokedex ?? {});
+  html += card('s22-pokedex', '图鉴与探索胜利', `<p>完整记录 ${records.filter(record => record.observed && (record.battled || record.captured)).length}/${world.victory?.targetDocumentedSpecies ?? 18}。观察 ${records.filter(record => record.observed).length} · 对战 ${records.filter(record => record.battled).length} · 捕捉 ${records.filter(record => record.captured).length}。已观察且战斗或捕捉的物种计入完整记录。</p><p>${records.filter(record => record.observed).map(record => escape(CONTENT.species[record.speciesId].name)).join('、') || '尚未观察'}</p>`);
+  html += card('s18-nests', '暴走巢穴', '<p>靠近巢穴后派宝可梦清剿，消耗行动点；巢穴会周期性派出敌对野生单位。</p>'
+    + world.nests.map(nest => `<p>巢穴 #${nest.id} · (${nest.position.q},${nest.position.r}) · HP ${nest.hp}/${nest.maxHp} · 下次刷新 ${nest.nextSpawnRound}</p>`
+      + (unit ? button(`以 #${unit.id} 清剿`, { type: 'ClearNest', unitId: unit.id, nestId: nest.id }, Boolean(unit.actionLeft) && hexDistance(unit.position, nest.position) <= (unit.kind === 'pokemon' ? CONTENT.species[unit.speciesId].range : 1)) : '')).join(''));
+  html += card('s19-overlords', '霸主与羁绊', '<p>附近城市可用 10 食物或 20 金币供奉，每轮一次。羁绊 15/40/75 解锁视野与本地产出。</p>'
+    + world.overlords.map(site => `<p>${escape(CONTENT.species[site.speciesId].name)} #${site.id} · 羁绊 ${site.bond}</p>`
+      + (city ? button('供奉食物', { type: 'OfferToOverlord', overlordId: site.id, cityId: city.id, currency: 'food' }, site.lastOfferRound !== view.round && city.food >= 10 && hexDistance(city.position, site.position) <= WORLD_DEFINITIONS.overlords.reach)
+        + button('供奉金币', { type: 'OfferToOverlord', overlordId: site.id, cityId: city.id, currency: 'gold' }, site.lastOfferRound !== view.round && player.gold >= 20 && hexDistance(city.position, site.position) <= WORLD_DEFINITIONS.overlords.reach) : '')).join(''));
+  html += card('s20-berries', '树果、进化石与满意度', `<p>满意度 ${world.player?.satisfaction ?? 0}/100。移动到资源地块后采集；树果提供食物与满意度，石头存入库存。</p>`
+    + world.resources.map(site => `<p>${escape(site.definitionId)} · (${site.position.q},${site.position.r}) · 剩余 ${site.remaining}</p>`
+      + (unit ? button('采集', { type: 'HarvestResource', unitId: unit.id, tileIndex: site.tileIndex }, Boolean(unit.actionLeft) && site.remaining > 0 && hexDistance(unit.position, site.position) === 0) : '')).join('')
+    + `<p>进化石：${escape(JSON.stringify(world.player?.stoneInventory ?? {}))}</p>`
+    + (unit?.kind === 'pokemon' ? WORLD_DEFINITIONS.stoneEvolutions.filter(path => path.fromSpeciesId === unit.speciesId).map(path => button(`${CONTENT.species[path.intoSpeciesId].name} · ${path.stoneId}`, { type: 'UseEvolutionStone', unitId: unit.id, intoSpeciesId: path.intoSpeciesId, stoneId: path.stoneId }, Boolean(unit.actionLeft) && (world.player?.stoneInventory[path.stoneId] ?? 0) > 0 && unit.xp >= path.requiredXp)).join('') : ''));
+  const civ = exp.civilization, faith = civ.player;
+  html += card('s23-faith', '供奉与传奇训练家', `<p>供奉点 ${faith.offeringPoints} · 下次召唤 ${faith.nextPhantomCost}。控制圣所后，每城每轮可用 10 食物或 20 金币换 5 点。</p>`
+    + (city ? button('供奉食物', { type: 'MakeOffering', cityId: city.id, resource: 'food' }, city.food >= 10 && !faith.offeredThisRoundByCity[city.id] && civ.sanctuaries.some(site => site.ownerId === player.id))
+      + button('供奉金币', { type: 'MakeOffering', cityId: city.id, resource: 'gold' }, player.gold >= 20 && !faith.offeredThisRoundByCity[city.id] && civ.sanctuaries.some(site => site.ownerId === player.id)) : '')
+    + '<p>幻影仅能使用一次，召唤费用每次 +15；效果与名人堂可在审计台逐项查看。</p>'
+    + CIVILIZATION_CONTENT.phantoms.definitions.filter(definition => !faith.summonedPhantomIds.includes(definition.id)).map(definition =>
+      button(`召唤${definition.name}`, { type: 'SummonPhantom', category: definition.id }, faith.offeringPoints >= faith.nextPhantomCost)).join('')
+    + faith.activePhantoms.map(phantomId => {
+      const action: Command['action'] = { type: 'ActivatePhantom', phantomId,
+        ...((phantomId === 'engineer' || phantomId === 'artist') && city ? { cityId: city.id } : {}),
+        ...(phantomId === 'general' ? { unitIds: own.slice(0, 6).map(unit => unit.id) } : {}) };
+      return button(`发动${CIVILIZATION_CONTENT.phantoms.definitions.find(definition => definition.id === phantomId)?.name ?? phantomId}`, action,
+        phantomId !== 'scientist' || player.research.techId !== null);
+    }).join('') + `<p>名人堂：${escape(faith.hallOfFame.join('、') || '暂无')}</p>`);
+  html += card('s24-sanctuaries', '圣所挑战与起源胜利', '<p>派单位抵达圣所，支付 80 金币建立。部署最多三只宝可梦在两格内挑战守卫，队伍消耗行动并承受战损；集齐四块石板获得起源胜利。</p>'
+    + civ.sanctuaries.map(site => {
+      const onSite = own.find(unit => hexDistance(unit.position, site.position) === 0);
+      const team = own.filter(unit => unit.actionLeft && hexDistance(unit.position, site.position) <= 2).sort((a, b) => Number(b.id === onSite?.id) - Number(a.id === onSite?.id) || a.id - b.id).slice(0, 3);
+      return `<p>${escape(site.name)} · (${site.position.q},${site.position.r}) · ${site.ownerId === null ? '未控制' : `文明 ${site.ownerId + 1}`} · ${site.guardianDefeated ? '石板已获得' : escape(site.guardianName)}</p>`
+        + (site.ownerId === null && onSite ? button('建立圣所 · 80 金', { type: 'EstablishSanctuary', siteId: site.id, unitId: onSite.id }, player.gold >= 80 && Boolean(onSite.actionLeft)) : '')
+        + (site.ownerId === player.id && !site.guardianDefeated ? button('挑战守卫', { type: 'ChallengeGuardian', siteId: site.id, unitIds: team.map(unit => unit.id) }, Boolean(onSite?.actionLeft) && team.length > 0) : '');
+    }).join('') + `<p>已知石板：${Object.entries(civ.tabletOwners).map(([tablet, owner]) => `${escape(tablet)} → 文明 ${owner + 1}`).join('、') || '无'}</p>`);
+  const peaceful = !view.diplomacy.some(pair => pair.status === 'war' && [pair.a, pair.b].includes(player.id));
+  html += card('s27-championship', '六只队伍与联盟大会', `<p>下一届：第 ${civ.championship.nextRound} 轮。六只宝可梦报名，六队锦标赛、前两名轮空，获得两届冠军即胜利。大会战损会写回参赛单位，HP 至少保留 1，并消耗行动。</p><p>当前冠军数 ${civ.championship.titlesByPlayer[player.id] ?? 0} · ${civ.championship.registration ? '已报名' : '未报名'}</p>`
+    + button('报名当前六只宝可梦', { type: 'RegisterChampionshipTeam', unitIds: own.slice(0, 6).map(unit => unit.id) }, peaceful && own.length >= 6 && !civ.championship.registration)
+    + `<p>阵容：${own.slice(0, 6).map(unit => `#${unit.id} ${unit.kind === 'pokemon' ? CONTENT.species[unit.speciesId].name : ''}`).join('、')}</p><p>最近冠军：${civ.championship.history.map(season => `第${season.season}届 ${season.championPlayerId === null ? 'NPC' : `文明${season.championPlayerId + 1}`}`).join('；') || '尚未举办'}</p>`);
+  html += card('s28-deep-diplomacy', '联盟、贸易与信任', '<p>和平时期可提议结盟与贸易。贸易每五轮给双方 4 金币并增进信任；背叛需 20 金币，信任降至 -50 并进入冷却。</p>'
+    + civ.relations.filter(relation => !view.civilizations.find(civ => civ.id === relation.targetPlayerId)?.eliminated).map(relation => {
+      const targetPlayerId = relation.targetPlayerId;
+      const canPropose = (last: number | null, rejected: number | null) => relation.atPeace
+        && view.round > (last ?? -Infinity) + CIVILIZATION_CONTENT.diplomacy.rejectionCooldownRounds
+        && view.round > (rejected ?? -Infinity) + CIVILIZATION_CONTENT.diplomacy.rejectionCooldownRounds;
+      let controls = `<p>文明 ${targetPlayerId + 1} · 信任 ${relation.trust} · ${relation.allianceSinceRound !== null ? '同盟' : '无同盟'} · ${relation.tradeSinceRound !== null ? '贸易生效' : '无贸易'}</p>`;
+      if (relation.allianceProposal?.proposerId === targetPlayerId) controls += button('接受同盟', { type: 'RespondAlliance', targetPlayerId, accept: true }, relation.atPeace) + button('拒绝同盟', { type: 'RespondAlliance', targetPlayerId, accept: false }, relation.atPeace);
+      else if (relation.allianceSinceRound === null) controls += button('提议同盟', { type: 'ProposeAlliance', targetPlayerId }, relation.allianceProposal === null && view.round >= relation.betrayalCooldownUntilRound && canPropose(relation.allianceLastProposalRound, relation.allianceLastRejectedRound));
+      else controls += button('解散同盟', { type: 'DissolveAlliance', targetPlayerId }) + button('背叛 · 20 金', { type: 'BetrayAlliance', targetPlayerId }, player.gold >= 20);
+      if (relation.tradeProposal?.proposerId === targetPlayerId) controls += button('接受贸易', { type: 'RespondTrade', targetPlayerId, accept: true }, relation.atPeace) + button('拒绝贸易', { type: 'RespondTrade', targetPlayerId, accept: false }, relation.atPeace);
+      else if (relation.tradeSinceRound === null) controls += button('提议贸易', { type: 'ProposeTrade', targetPlayerId }, relation.tradeProposal === null && canPropose(relation.tradeLastProposalRound, relation.tradeLastRejectedRound));
+      return controls;
+    }).join(''));
+  root.innerHTML = html;
+  root.querySelectorAll<HTMLDetailsElement>('details').forEach(element => { element.open = opened.has(element.dataset.system); });
+  root.querySelectorAll<HTMLButtonElement>('[data-expansion-action]').forEach(element => element.addEventListener('click', () => issue(parseAuditAction(actions[Number(element.dataset.expansionAction)]))));
+}

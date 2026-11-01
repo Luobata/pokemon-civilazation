@@ -1,4 +1,4 @@
-import { CONTENT } from '../content/units.ts';
+import { EXPANSION_CONTENT, CONTENT } from '../content/units.ts';
 import { leaderEffects } from '../content/leaders.ts';
 import type { Content } from '../content/units.ts';
 import { hexDistance, hexToIndex, neighbors } from './hex.ts';
@@ -8,7 +8,7 @@ import { canEnter } from './movement.ts';
 import { createMapUnit, maxUnitHp } from './unit.ts';
 import { workRadius } from './city.ts';
 
-export function resolveRecovery(state: GameState, content: Content = CONTENT): CombatEvent[] {
+export function resolveRecovery(state: GameState, content: Content = state.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT): CombatEvent[] {
   const events: CombatEvent[] = [];
   for (const unit of Object.values(state.units).sort((a, b) => a.id - b.id)) {
     if (unit.location !== 'recovering') continue;

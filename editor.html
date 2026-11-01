@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>内容编辑器 · 宝可梦 × 文明</title>
+<link rel="icon" href="data:,">
+</head>
+<body>
+<main class="editor-shell">
+  <aside class="editor-aside">
+    <div><h1>内容编辑器</h1><p>深拷贝、校验、导出，并在隔离引擎中试跑。</p></div>
+    <div class="editor-actions">
+      <button id="load-baseline" type="button">载入基线</button>
+      <label class="editor-label">导入 JSON<input id="import-content" type="file" accept="application/json,.json"></label>
+      <button id="validate-content" type="button">校验并应用</button>
+      <button id="export-content" type="button">导出</button>
+    </div>
+    <p id="editor-notice" role="status">已载入生产内容基线。</p>
+    <p id="validation-result"></p>
+    <div><span class="editor-label">隔离模拟</span><div class="editor-actions"><button id="reset-simulation" type="button">重置</button><button id="run-turn" type="button">结束当前回合</button></div></div>
+    <p id="simulation-result"></p>
+  </aside>
+  <section class="editor-main">
+    <label class="editor-label" for="content-editor">完整内容 JSON（物种 / 建筑 / 科技 / 精灵球 / 平衡）</label>
+    <textarea id="content-editor" spellcheck="false"></textarea>
+    <div style="margin-top:12px"><label class="editor-label" for="simulation-action">高级命令 JSON（只影响隔离沙箱）</label>
+      <textarea id="simulation-action" spellcheck="false"></textarea>
+      <div class="editor-actions" style="margin-top:8px"><button id="run-action" type="button">执行命令</button></div>
+    </div>
+  </section>
+</main>
+<script type="module" src="/src/browser/editor.ts"></script>
+</body>
+</html>

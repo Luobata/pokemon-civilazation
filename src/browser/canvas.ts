@@ -30,10 +30,14 @@ export type MapEffect = { kind: 'battle'; position: Hex; damage: number; counter
   | { kind: 'capture'; position: Hex; success: boolean; progress: number }
   | { kind: 'evolve'; position: Hex; progress: number };
 
+export type DebugOverlay = 'none' | 'tiles' | 'vision' | 'wild' | 'ai';
+const geometry = new Map<string, Point[]>();
+const corners = Array.from({ length: 6 }, (_, corner) => ({ x: Math.cos((corner * 60 - 30) * Math.PI / 180), y: Math.sin((corner * 60 - 30) * Math.PI / 180) }));
+
 export function drawMap(canvas: HTMLCanvasElement, view: PlayerView, camera: Camera,
   selected: number | null, reachable: readonly number[], pose?: AnimationPose, cursorIndex?: number | null,
   effect?: MapEffect, actionMode: 'move' | 'attack' | 'capture' | null = null,
-  actionTargets: readonly number[] = [], pendingTargetIndex?: number | null, selectedCity?: number | null): void {
+  actionTargets: readonly number[] = [], pendingTargetIndex?: number | null, selectedCity?: number | null, debugOverlay: DebugOverlay = 'none'): void {
   const context = canvas.getContext('2d')!;
   if (!context) throw new Error('当前浏览器不支持 Canvas 2D。');
   const width = canvas.clientWidth, height = canvas.clientHeight;
@@ -44,13 +48,17 @@ export function drawMap(canvas: HTMLCanvasElement, view: PlayerView, camera: Cam
   context.imageSmoothingEnabled = false;
   context.clearRect(0, 0, width, height);
   const radius = HEX_RADIUS * camera.zoom;
-  const centers = view.map.tiles.map((_, i) => toScreen(hexToWorld(indexToHex(i, view.map)), camera));
+  const geometryKey = `${view.map.width}:${view.map.height}`;
+  if (!geometry.has(geometryKey)) {
+    if (geometry.size >= 3) geometry.delete(geometry.keys().next().value!);
+    geometry.set(geometryKey, view.map.tiles.map((_, i) => hexToWorld(indexToHex(i, view.map))));
+  }
+  const centers = geometry.get(geometryKey)!.map(position => toScreen(position, camera));
   const onscreen = (p: Point) => p.x >= -radius && p.x <= width + radius && p.y >= -radius && p.y <= height + radius;
   function polygon(p: Point) {
     context!.beginPath();
     for (let corner = 0; corner < 6; corner++) {
-      const angle = (corner * 60 - 30) * Math.PI / 180;
-      const x = p.x + radius * Math.cos(angle), y = p.y + radius * Math.sin(angle);
+      const x = p.x + radius * corners[corner].x, y = p.y + radius * corners[corner].y;
       if (corner === 0) context!.moveTo(x, y); else context!.lineTo(x, y);
     }
     context!.closePath();
@@ -153,6 +161,23 @@ export function drawMap(canvas: HTMLCanvasElement, view: PlayerView, camera: Cam
       context!.strokeStyle = '#1D2B26'; context!.lineWidth = 4; context!.stroke();
       context!.strokeStyle = ownerColor(ownerId); context!.lineWidth = 2; context!.stroke();
     }
+  }
+
+  if (view.expansion) {
+    const siteMark = (position: Hex, label: string, color: string) => {
+      const index = hexToIndex(position, view.map);
+      if (index === null || !visible.has(index) || !onscreen(centers[index])) return;
+      const p = { x: centers[index].x, y: centers[index].y + radius * .62 };
+      const size = Math.max(10, radius * .38);
+      context.beginPath(); context.roundRect(p.x - size, p.y - size * .65, size * 2, size * 1.3, 3);
+      context.fillStyle = color; context.fill();
+      context.strokeStyle = '#F6EACA'; context.lineWidth = 1; context.stroke();
+      centeredText(label, p, '#FFF8E5', size);
+    };
+    for (const site of view.expansion.world.resources) siteMark(site.position, site.kind === 'berry' ? '果' : '石', site.remaining ? '#487744' : '#65706B');
+    for (const site of view.expansion.world.nests) siteMark(site.position, '巢', '#A34F3F');
+    for (const site of view.expansion.world.overlords) siteMark(site.position, '霸', '#8D6332');
+    for (const site of view.expansion.civilization.sanctuaries) siteMark(site.position, site.guardianDefeated ? '碑' : '圣', '#66518E');
   }
 
   for (const city of view.cities) {
@@ -335,6 +360,22 @@ export function drawMap(canvas: HTMLCanvasElement, view: PlayerView, camera: Cam
     context.fill();
   }
 
+  if (debugOverlay !== 'none') {
+    for (const [i, biome] of view.map.tiles.entries()) {
+      if (!biome || !onscreen(centers[i])) continue;
+      if (debugOverlay === 'tiles') {
+        const hex = indexToHex(i, view.map);
+        centeredText(`${i} (${hex.q},${hex.r})`, centers[i], '#fff', 9);
+      } else if (debugOverlay === 'vision') {
+        polygon(centers[i]); context.fillStyle = visible.has(i) ? '#38E0A438' : '#E0B03838'; context.fill();
+      }
+    }
+    if (debugOverlay === 'wild' || debugOverlay === 'ai') for (const unit of view.units) {
+      if ((debugOverlay === 'wild' && unit.ownerId !== null) || (debugOverlay === 'ai' && unit.ownerId === null)) continue;
+      const p = centers[hexToIndex(unit.position, view.map)!];
+      if (onscreen(p)) centeredText(`#${unit.id} A${unit.actionLeft}${unit.enraged ? ' 暴走' : ''}`, { x: p.x, y: p.y + radius * .75 }, '#fff', 9);
+    }
+  }
   if (effect) {
     const index = hexToIndex(effect.position, view.map)!, p = centers[index];
     if (onscreen(p)) {

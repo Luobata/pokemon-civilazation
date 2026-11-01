@@ -1,4 +1,6 @@
-import { CONTENT } from '../content/units.ts';
+import { createGame } from '../core/game.ts';
+import { step } from '../core/step.ts';
+import { EXPANSION_CONTENT, CONTENT } from '../content/units.ts';
 import { isLeaderId } from '../content/leaders.ts';
 import type { Content } from '../content/units.ts';
 import type { GameState } from '../core/model.ts';
@@ -15,8 +17,9 @@ export function serializeSave(state: GameState, log: CommandLog): string {
   return JSON.stringify({ formatVersion: 1, schemaVersion: state.schemaVersion, rulesVersion: state.rulesVersion,
     contentVersion: state.contentVersion, state, log } satisfies SaveFile, null, 2);
 }
-export function deserializeSave(text: string, content: Content = CONTENT): SaveFile {
+export function deserializeSave(text: string, content?: Content): SaveFile {
   const save = JSON.parse(text) as SaveFile;
+  content ??= save?.contentVersion === EXPANSION_CONTENT.version ? EXPANSION_CONTENT : CONTENT;
   if (save?.formatVersion !== 1 || save.schemaVersion !== 4 || save.rulesVersion !== 'm5-v1' || save.contentVersion !== content.version
     || save.state?.schemaVersion !== 4 || save.state.rulesVersion !== save.rulesVersion || save.state.contentVersion !== save.contentVersion
     || save.log?.version !== 1 || save.log.schemaVersion !== 4 || save.log.rulesVersion !== save.rulesVersion || save.log.contentVersion !== save.contentVersion) {
@@ -25,6 +28,16 @@ export function deserializeSave(text: string, content: Content = CONTENT): SaveF
   const state = save.state;
   if (!Array.isArray(save.log.commands) || !Number.isSafeInteger(state.commandSeq) || state.commandSeq < 0 || state.commandSeq > save.log.commands.length
     || canonicalSerialize(state.setup) !== canonicalSerialize(save.log.setup)) throw new Error('存档状态与命令日志不匹配。');
+  if (state.setup.expansionVersion !== undefined || state.expansion !== undefined) {
+    if (state.setup.expansionVersion !== 1 || state.expansion?.version !== 1 || save.log.commands.length > 100_000) throw new Error('扩展规则版本或日志大小无效。');
+    let verified = createGame(save.log.setup, content);
+    for (const command of save.log.commands.slice(0, state.commandSeq)) {
+      const result = step(verified, command, content);
+      if (!result.ok) throw new Error('扩展存档命令无法重放。');
+      verified = result.state;
+    }
+    if (canonicalSerialize(verified) !== canonicalSerialize(state)) throw new Error('扩展存档与权威重放不匹配。');
+  }
   const memory = save.log.aiRejectedCitySites;
   if (memory !== undefined && (!Array.isArray(memory) || memory.some(site => !site || typeof site !== 'object'
     || !Number.isSafeInteger(site.playerId) || !Object.hasOwn(state.players, site.playerId)

@@ -69,6 +69,8 @@ test('full browser game survives midgame save/load and reaches the same visible 
   const initial = (await snapshot(page)).state;
   expect(initial.setup).toMatchObject({ seed: 10, width: 24, height: 16, roundLimit: 100 });
   expect(initial.setup.players).toHaveLength(2);
+  expect(initial.setup.expansionVersion).toBe(1);
+  const expectedNode = finishInNode(initial.setup).getState();
   const finish = async () => {
     for (let turn = 0; turn < 100 && !(await snapshot(page)).state.outcome; turn++) {
       await page.locator('#end-turn').click();
@@ -78,7 +80,8 @@ test('full browser game survives midgame save/load and reaches the same visible 
     await expect(page.locator('#outcome-ranking tr')).toHaveCount(2);
     await expect(page.locator('#end-turn')).toBeDisabled();
     const result = await snapshot(page);
-    expect(result.state.outcome).toMatchObject({ kind: 'playerDefeat', round: 27 });
+    expect(result.state.outcome).toEqual(expectedNode.outcome);
+    expect(result.state.outcome?.kind).toBe('playerDefeat');
     return result;
   };
   const direct = await finish();

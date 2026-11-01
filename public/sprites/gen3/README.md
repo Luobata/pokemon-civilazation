@@ -1,6 +1,6 @@
 # 第三世代宝可梦贴图
 
-39 张 64×64 PNG 原图来自 [PokéAPI sprites](https://github.com/PokeAPI/sprites)，
+47 张 64×64 PNG 原图来自 [PokéAPI sprites](https://github.com/PokeAPI/sprites)，
 `sprites/pokemon/versions/generation-iii/emerald/`（《宝可梦 绿宝石》正面贴图）。
 来源提交：`1dd55c0436d2a5b6e324c0b780e1b1b416fbfb64`。
 全国图鉴编号、文件大小与 SHA-256 见 `manifest.json`。
