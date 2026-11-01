@@ -1,3 +1,4 @@
+import { trainableSpeciesIds } from './role-tactics.ts';
 import { isMapUnit } from './model.ts';
 import { EXPANSION_CONTENT, CONTENT } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
@@ -55,7 +56,7 @@ export function validateEconomyAction(state: GameState, actor: number, action: E
         || (def.requiredTech && !player.research.unlockedIds.includes(def.requiredTech))) return 'invalid-production';
       buildings.add(item.defId);
     } else if (item.kind === 'pokemon') {
-      if (!player.registeredSpeciesIds.includes(item.defId) || !Object.hasOwn(content.units, item.defId)) return 'invalid-production';
+      if (!trainableSpeciesIds(player, state.setup.eraProgression).includes(item.defId) || !Object.hasOwn(content.units, item.defId)) return 'invalid-production';
       if (content.species[item.defId].role === 'fast' && !player.research.unlockedIds.includes('riding')) return 'invalid-production';
     } else if (item.kind !== 'logistics' || item.defId !== 'settler') return 'invalid-production';
   }

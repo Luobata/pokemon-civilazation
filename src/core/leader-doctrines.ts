@@ -11,6 +11,8 @@ export type DoctrineEffects = {
   trainedXpBonus: number;
   territoryHealingBonus: number;
   fieldHealing: number;
+  /** Permille added to city damage for favored units in this window. */
+  cityDamageBonus: number;
 };
 
 export type UnitRole = 'ranged' | 'melee' | 'scout' | 'fast' | 'siege' | 'naval' | 'air';
@@ -35,6 +37,7 @@ const NO_EFFECTS: Readonly<DoctrineEffects> = {
   trainedXpBonus: 0,
   territoryHealingBonus: 0,
   fieldHealing: 0,
+  cityDamageBonus: 0,
 };
 
 const noEffects = (phase: DoctrinePhase, description: string): DoctrineDefinition => ({
@@ -82,7 +85,8 @@ export const LEADER_DOCTRINES: Record<LeaderId, LeaderDoctrine> = {
       phase: 'late',
       movementBonus: 1,
       trainedXpBonus: 25,
-      description: '终盘突击：快速、飞行或龙系宝可梦移动力 +1、训练经验 +25。',
+      cityDamageBonus: 150,
+      description: '终盘突击：快速、飞行或龙系宝可梦移动力 +1、训练经验 +25、攻击城市 +15%。',
       favoredRoles: ['fast', 'air'],
       favoredTypes: ['dragon'],
     },
@@ -97,8 +101,23 @@ export const LEADER_DOCTRINES: Record<LeaderId, LeaderDoctrine> = {
       favoredRoles: ['melee', 'siege'],
       favoredTypes: [],
     },
-    middle: noEffects('middle', '防线已经成型，君莎转向既有城市防御体系。'),
-    late: noEffects('late', '后期攻城更多依赖远程火力与补给推进。'),
+    middle: {
+      ...NO_EFFECTS,
+      phase: 'middle',
+      cityDamageBonus: 200,
+      trainedXpBonus: 10,
+      description: '警备队破门：攻城兵种攻击城市 +20%、训练经验 +10。',
+      favoredRoles: ['siege'],
+      favoredTypes: [],
+    },
+    late: {
+      ...NO_EFFECTS,
+      phase: 'late',
+      cityDamageBonus: 200,
+      description: '全面突入：近战与攻城兵种攻击城市 +20%。',
+      favoredRoles: ['melee', 'siege'],
+      favoredTypes: [],
+    },
   },
   joy: {
     early: noEffects('early', '野外护理车队尚未成形，早期仍依赖领地恢复。'),
@@ -128,6 +147,7 @@ function addEffects(base: DoctrineEffects, addition: Partial<DoctrineEffects>): 
     trainedXpBonus: base.trainedXpBonus + (addition.trainedXpBonus ?? 0),
     territoryHealingBonus: base.territoryHealingBonus + (addition.territoryHealingBonus ?? 0),
     fieldHealing: base.fieldHealing + (addition.fieldHealing ?? 0),
+    cityDamageBonus: base.cityDamageBonus + (addition.cityDamageBonus ?? 0),
   };
 }
 

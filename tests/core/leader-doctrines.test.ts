@@ -47,9 +47,9 @@ test('era progression validates and derives compact and full endpoints from comp
 
 test('undefined progression and missing leaders leave all doctrine effects inactive', () => {
   expect(doctrineEffects(player('oak', 2), undefined, identity('rattata'), EXPANSION_CONTENT))
-    .toEqual({ researchBonus: 0, movementBonus: 0, trainedXpBonus: 0, territoryHealingBonus: 0, fieldHealing: 0 });
+    .toEqual({ researchBonus: 0, movementBonus: 0, trainedXpBonus: 0, territoryHealingBonus: 0, fieldHealing: 0, cityDamageBonus: 0 });
   expect(doctrineEffects(player(undefined, 0), 'simple-v1', identity('rattata'), EXPANSION_CONTENT))
-    .toEqual({ researchBonus: 0, movementBonus: 0, trainedXpBonus: 0, territoryHealingBonus: 0, fieldHealing: 0 });
+    .toEqual({ researchBonus: 0, movementBonus: 0, trainedXpBonus: 0, territoryHealingBonus: 0, fieldHealing: 0, cityDamageBonus: 0 });
 });
 
 test('leaders have bounded phase windows and match actual roles or either species type', () => {

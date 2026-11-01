@@ -6,6 +6,7 @@ import type { CombatTarget, PlayerView } from './model.ts';
 import { hexDistance, hexToIndex } from './hex.ts';
 import { unitDamage, cityDamage, cityCounterDamage } from './combat-query.ts';
 import { captureProbability } from './combat-math.ts';
+import { cityAssaultMultiplier } from './role-tactics.ts';
 
 export type AttackPreview = { ok: true; damage: { min: number; max: number };
   counter: { trigger: 'always' | 'possible' | 'never'; damage: number };
@@ -34,8 +35,9 @@ export function previewAttack(view: PlayerView, unitId: number, target: CombatTa
     if (canCounter) counter = unitDamage(defendingUnit, unit, to, from, view.combat.units[defendingUnit.id].typeResearch, 100, true, content, 1000, Boolean(view.expansion));
   } else {
     const city = view.combat.cities[defender.id]; hp = city.hp;
-    min = cityDamage(unit, from, to, techs.includes('siegeCraft'), 85, content, attackMultiplier);
-    max = cityDamage(unit, from, to, techs.includes('siegeCraft'), 100, content, attackMultiplier);
+    const assault = cityAssaultMultiplier(view.economy.player, view.eraProgression, unit, content, distance, techs.includes('siegeCraft'));
+    min = cityDamage(unit, from, to, techs.includes('siegeCraft'), 85, content, attackMultiplier, assault);
+    max = cityDamage(unit, from, to, techs.includes('siegeCraft'), 100, content, attackMultiplier, assault);
     canCounter = distance <= 2 && city.counterAttack > 0;
     if (canCounter) counter = cityCounterDamage(city.counterAttack, unit, to, from, content);
   }

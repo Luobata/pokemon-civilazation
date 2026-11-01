@@ -13,10 +13,11 @@ export function unitDamage(attacker: MapUnit, defender: MapUnit, from: BiomeId, 
     dualTypes ? dualEffectiveness(a.typeId, [d.typeId, ...(d.secondaryTypeId ? [d.secondaryTypeId] : [])], researched) : effectiveness(a.typeId, d.typeId, d.immunities, researched), terrainMultiplier(from, to), roll,
     (attacker.enraged ? 1200 : 1000) * (counter ? 1000 : activeAttackMultiplier) / 1000);
 }
-export function cityDamage(attacker: MapUnit, from: BiomeId, to: BiomeId, siegeTech: boolean, roll: number, content: Content = CONTENT, activeAttackMultiplier = 1000): number {
+/** `assaultMultiplier` (era mode only) replaces the legacy siege-only multiplier with a role doctrine. */
+export function cityDamage(attacker: MapUnit, from: BiomeId, to: BiomeId, siegeTech: boolean, roll: number, content: Content = CONTENT, activeAttackMultiplier = 1000, assaultMultiplier: number | null = null): number {
   if (attacker.kind !== 'pokemon') return 0;
   const a = content.species[attacker.speciesId];
-  const siege = a.role === 'siege' && siegeTech ? content.balance.effects.siegeMultiplier : 1000;
+  const siege = assaultMultiplier ?? (a.role === 'siege' && siegeTech ? content.balance.effects.siegeMultiplier : 1000);
   return damage(a.attack + (attacker.uniqueLeader ? 8 : 0), content.balance.city.defense, a.power, 100, terrainMultiplier(from, to), roll,
     siege * (attacker.enraged ? 1200 : 1000) * activeAttackMultiplier / 1_000_000);
 }

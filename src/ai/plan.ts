@@ -19,6 +19,8 @@ import type { AiThresholds } from './thresholds.ts';
 import { seekUnknownHeadquarters } from './targets.ts';
 import { AI_STRATEGIES } from './strategies.ts';
 import { campaignPlan, eraCivilizationPolicy, hasEraProgression } from './war-plan.ts';
+import { leaderResearchBonus, roleCaptureBonus, roleTrainingBonus } from './role-plan.ts';
+import { trainableSpeciesIds } from '../core/role-tactics.ts';
 import type { Goal } from './strategies.ts';
 type Candidate = { action: Command['action']; goal: Goal; benefit: number; ownId: number; targetId: number };
 export const CANDIDATE_BUDGET = 256; // 32 representatives for each of eight goals, never a time budget.
@@ -140,7 +142,7 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
   }
   if (player.research.techId === null) for (const [i, techId] of (Object.keys(content.techs) as TechId[]).entries()) {
     const unlocksLeaderUnit = view.expansion && player.leaderId && techId === 'training' && view.expansion.leaders.recruited === 0;
-    if (query.research(player, techId, content)) add({ type: 'SetResearch', techId }, 'research', unlocksLeaderUnit ? 1000 : 100 - content.techs[techId].cost, 0, i);
+    if (query.research(player, techId, content)) add({ type: 'SetResearch', techId }, 'research', unlocksLeaderUnit ? 1000 : 100 - content.techs[techId].cost + leaderResearchBonus(view, techId), 0, i);
   }
   const income = cities.reduce((sum, city) => sum + city.yields.gold, 0);
   const upkeep = [...units, ...view.recoveringUnits].reduce((sum, unit) => sum + unitDefinition(unit, content).upkeep, 0);
@@ -157,11 +159,12 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
       queue({ kind: 'building', defId: id }, 'economy', (y.food + y.production * 2 + y.gold * 2 + y.research * 2) * 100 - building.cost, i);
     }
     if (combat.length < Math.max(4, cities.length * 2) && (income > upkeep || player.gold >= 80)) {
-      for (const [i, id] of [...player.registeredSpeciesIds].sort().entries()) {
+      for (const [i, id] of trainableSpeciesIds(player, view.eraProgression).entries()) {
         const species = content.species[id];
         if (species.role === 'fast' && !player.research.unlockedIds.includes('riding')) continue;
         queue({ kind: 'pokemon', defId: id }, 'military', species.attack + species.defense - species.trainCost
-          + (preparingSiege && species.role === 'siege' && strategy.siegeTrainingBonus !== null ? ai[strategy.siegeTrainingBonus] : 0), i);
+          + (preparingSiege && species.role === 'siege' && strategy.siegeTrainingBonus !== null ? ai[strategy.siegeTrainingBonus] : 0)
+          + roleTrainingBonus(view, id, content, preparingSiege), i);
       }
     }
   }
@@ -182,7 +185,7 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
         if (canCaptureByPersonality(view, target, query)) for (const ballId of ['pokeBall', 'greatBall'] as BallId[]) {
           const preview = query.capture(view, unit.id, target.id, ballId, content);
           if (preview.ok) add({ type: 'Capture', unitId: unit.id, targetUnitId: target.id, ballId }, 'capture', preview.probability
-            + captureBonus(target) + siegeCaptureBonus(target), unit.id, target.id);
+            + captureBonus(target) + siegeCaptureBonus(target) + (target.kind === 'pokemon' ? roleCaptureBonus(view, target.speciesId, content) : 0), unit.id, target.id);
         }
         const preview = query.attack(view, unit.id, { kind: 'unit', id: target.id }, content);
         if (preview.ok && preview.damage.min > 0 && (target.ownerId === null || !strategy.defendTerritoryOnly || canSiege(view, target.ownerId, ai)
@@ -228,7 +231,7 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
         if (!canCaptureByPersonality(view, target, query) || !player.research.unlockedIds.includes('domestication') || player.ballInventory.pokeBall + player.ballInventory.greatBall === 0) continue;
         const distance = hexDistance(to, target.position);
         if (distance < hexDistance(unit.position, target.position)) add(action, 'capture', 10 - distance
-          + captureBonus(target) + siegeCaptureBonus(target), unit.id, index);
+          + captureBonus(target) + siegeCaptureBonus(target) + (target.kind === 'pokemon' ? roleCaptureBonus(view, target.speciesId, content) : 0), unit.id, index);
       }
       const radius = unitDefinition(unit, content).vision + (view.map.tiles[index] === 'mountain' ? 1 : 0);
       const gain = view.map.tiles.reduce((sum, _, tile) => sum + (!explored.has(tile) && hexDistance(to, indexToHex(tile, view.map)) <= radius ? 1 : 0), 0);

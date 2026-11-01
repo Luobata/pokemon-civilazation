@@ -1,3 +1,4 @@
+import { trainableSpeciesIds } from '../core/role-tactics.ts';
 import { CONTENT as BASE_CONTENT, EXPANSION_CONTENT } from '../content/units.ts';
 import type { BallId, BuildingId } from '../content/economy.ts';
 import { growthThreshold, maxCityHp, productionCost } from '../core/city.ts';
@@ -52,7 +53,7 @@ export function renderEconomyPanel(view: PlayerView, selectedCity: number | null
       return def.cost !== null && !city.buildingIds.includes(id) && !city.queue.some(order => order.item.kind === 'building' && order.item.defId === id)
         && (!def.requiredTech || player.research.unlockedIds.includes(def.requiredTech));
     }).map(defId => ({ kind: 'building' as const, defId })),
-    ...player.registeredSpeciesIds.map(defId => ({ kind: 'pokemon' as const, defId })),
+    ...trainableSpeciesIds(player, view.eraProgression).map(defId => ({ kind: 'pokemon' as const, defId })),
     { kind: 'logistics', defId: 'settler' },
   ];
   const options = allOptions.filter(item => item.kind === productionKind);

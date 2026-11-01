@@ -40,6 +40,7 @@ function unitEffectLabels(definition: DoctrineDefinition): string[] {
   if (definition.trainedXpBonus) labels.push(`训练经验 +${definition.trainedXpBonus}`);
   if (definition.territoryHealingBonus) labels.push(`领地恢复 +${definition.territoryHealingBonus}`);
   if (definition.fieldHealing) labels.push(`野外恢复 +${definition.fieldHealing}`);
+  if (definition.cityDamageBonus) labels.push(`攻击城市 +${definition.cityDamageBonus / 10}%`);
   return labels;
 }
 

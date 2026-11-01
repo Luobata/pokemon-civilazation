@@ -1,0 +1,191 @@
+{
+ "note": "Seeds 31-34, simple-v1, 24x16, 100 rounds; baseline = c8a830c, candidate = role assault + garrison recruits + role-aware AI",
+ "baseline": {
+  "metadata": {
+   "gitHead": "c8a830c4e72841f3196d1e0f8c26094fcdc31986",
+   "command": [
+    "node",
+    "tools/leader-balance.ts",
+    "--seeds",
+    "4",
+    "--seed-start",
+    "31",
+    "--expansion",
+    "true",
+    "--eras",
+    "simple",
+    "--round-limit",
+    "100",
+    "--out",
+    "/tmp/role-baseline.json"
+   ],
+   "toolSha256": "2fa75682f8c2b106f4a22558975cbb518832ce34a76e5ba9dfcc11b09ec5134c",
+   "seedValues": [
+    31,
+    32,
+    33,
+    34
+   ]
+  },
+  "outcomeKinds": {
+   "conquest": 8,
+   "score": 38,
+   "playerDefeat": 0,
+   "pokedex": 2,
+   "origin": 0,
+   "championship": 0
+  },
+  "meanEndRound": 96.5625,
+  "cityAttacksByRole": {
+   "ranged": 1067,
+   "melee": 90,
+   "scout": 37,
+   "fast": 0,
+   "siege": 0,
+   "naval": 0,
+   "air": 4
+  },
+  "cityCapturesByRole": {
+   "ranged": 122,
+   "melee": 7,
+   "scout": 4,
+   "fast": 0,
+   "siege": 0,
+   "naval": 0,
+   "air": 0
+  },
+  "eliminationEvents": 62,
+  "gamesWithHQCapture": 40,
+  "meanPeakCombatUnitsByRole": {
+   "ranged": 4.734375,
+   "melee": 0.6770833333333334,
+   "scout": 0.3177083333333333,
+   "fast": 0.010416666666666666,
+   "siege": 0.057291666666666664,
+   "naval": 0.07291666666666667,
+   "air": 0.08854166666666667
+  },
+  "leaders": [
+   {
+    "leaderId": "oak",
+    "wins": 22,
+    "n": 48,
+    "meanScore": 708.7083333333334
+   },
+   {
+    "leaderId": "lance",
+    "wins": 11,
+    "n": 48,
+    "meanScore": 450.6875
+   },
+   {
+    "leaderId": "jenny",
+    "wins": 6,
+    "n": 48,
+    "meanScore": 351.5833333333333
+   },
+   {
+    "leaderId": "joy",
+    "wins": 9,
+    "n": 48,
+    "meanScore": 436.0833333333333
+   }
+  ],
+  "defectGames": 0,
+  "abortedGames": 0
+ },
+ "candidate": {
+  "metadata": {
+   "gitHead": "c8a830c4e72841f3196d1e0f8c26094fcdc31986",
+   "command": [
+    "node",
+    "tools/leader-balance.ts",
+    "--seeds",
+    "4",
+    "--seed-start",
+    "31",
+    "--expansion",
+    "true",
+    "--eras",
+    "simple",
+    "--round-limit",
+    "100",
+    "--out",
+    "/tmp/role-new.json"
+   ],
+   "toolSha256": "2fa75682f8c2b106f4a22558975cbb518832ce34a76e5ba9dfcc11b09ec5134c",
+   "seedValues": [
+    31,
+    32,
+    33,
+    34
+   ]
+  },
+  "outcomeKinds": {
+   "conquest": 6,
+   "score": 32,
+   "playerDefeat": 0,
+   "pokedex": 10,
+   "origin": 0,
+   "championship": 0
+  },
+  "meanEndRound": 96.27083333333333,
+  "cityAttacksByRole": {
+   "ranged": 976,
+   "melee": 49,
+   "scout": 82,
+   "fast": 113,
+   "siege": 175,
+   "naval": 0,
+   "air": 4
+  },
+  "cityCapturesByRole": {
+   "ranged": 84,
+   "melee": 12,
+   "scout": 6,
+   "fast": 12,
+   "siege": 8,
+   "naval": 0,
+   "air": 1
+  },
+  "eliminationEvents": 60,
+  "gamesWithHQCapture": 40,
+  "meanPeakCombatUnitsByRole": {
+   "ranged": 3.25,
+   "melee": 0.5625,
+   "scout": 0.5364583333333334,
+   "fast": 0.7291666666666666,
+   "siege": 1.0989583333333333,
+   "naval": 0.036458333333333336,
+   "air": 0.06770833333333333
+  },
+  "leaders": [
+   {
+    "leaderId": "oak",
+    "wins": 24,
+    "n": 48,
+    "meanScore": 682.8125
+   },
+   {
+    "leaderId": "lance",
+    "wins": 9,
+    "n": 48,
+    "meanScore": 451.1875
+   },
+   {
+    "leaderId": "jenny",
+    "wins": 8,
+    "n": 48,
+    "meanScore": 330.7916666666667
+   },
+   {
+    "leaderId": "joy",
+    "wins": 7,
+    "n": 48,
+    "meanScore": 446.7083333333333
+   }
+  ],
+  "defectGames": 0,
+  "abortedGames": 0
+ }
+}
