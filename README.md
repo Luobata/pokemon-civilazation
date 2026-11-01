@@ -39,6 +39,14 @@ npm run dev
 - `Ctrl + Enter`：结束回合
 - `?`：打开界面内的键盘帮助
 
+## 系统说明与调试后台
+
+访问 `/audit.html`，或从游戏底部「开发、命令回放与调试 → 系统说明与审计后台」打开当前对局的副本。每个系统都有独立地址、规则说明、实现状态、当前数据和相关调试操作；后续系统明确标为待实现。
+
+后台支持条件预检查、执行正式命令、AI 单步、撤销、重置和导出审计记录。操作在独立沙盒中执行，不自动写回原对局。[使用说明与推进顺序](docs/tech/system-audit.md)。
+
+领袖受控对局模拟：`npm run sim:leaders -- --seeds 10 --round-limit 100 --out /tmp/pokemon-leaders.json`。[120 局实测报告与样本边界](docs/design/leader-balance-report.md)。
+
 ## 胜利条件
 
 - **征服胜利**：攻下其他所有文明的联盟总部。自己的联盟总部失守即失败。

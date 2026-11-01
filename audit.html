@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="data:," />
+    <title>系统审计台 · 宝可梦 × 文明</title>
+  </head>
+  <body>
+    <div class="audit-shell">
+      <aside class="audit-sidebar">
+        <a class="audit-brand" href="/">原野研究局 <span>POKÉMON / CIVILIZATION</span></a>
+        <div class="catalog-heading"><span>系统档案</span><small id="system-count"></small></div>
+        <label class="search-label" for="system-search">检索系统</label>
+        <input id="system-search" type="search" placeholder="名称、状态或规则…" />
+        <nav id="system-nav" aria-label="系统目录"></nav>
+        <p class="sidebar-note">每个系统独立说明、检查数据与调试。后续系统保留缺口和实施顺序。</p>
+      </aside>
+      <main class="audit-main">
+        <header class="audit-topbar"><span>FIELD NOTES / SYSTEM AUDIT</span><a href="/">返回游戏 ↗</a></header>
+        <section class="audit-intro">
+          <p class="eyebrow">开发与规则核对</p><h1>系统审计台<span>把每条规则，放到数据旁边。</span></h1>
+          <p>在独立沙盒中核对规则、试执行命令，并导出可复现的审计记录。此处显示包含迷雾后的完整开发数据。</p>
+        </section>
+        <section class="sandbox-bar" aria-label="审计沙盒控制">
+          <div><strong id="snapshot-source">默认测试局</strong><p id="snapshot-info"></p></div>
+          <div class="toolbar-actions"><label class="file-button">导入存档<input id="audit-import" type="file" accept=".json,application/json" /></label><button id="sandbox-reset">重置副本</button><button id="sandbox-undo">撤销一步</button><button id="export-audit">导出审计记录</button><button id="export-sandbox">导出副本存档</button></div>
+        </section>
+        <p id="audit-notice" role="status" aria-live="polite"></p>
+        <article>
+          <header class="system-heading"><div><p id="system-number" class="eyebrow"></p><h2 id="system-title"></h2></div><span id="system-status" class="status"></span></header>
+          <p id="system-summary" class="system-summary"></p>
+          <div class="audit-columns">
+            <section class="audit-section"><h3><span>01</span> 规则说明</h3><ul id="system-rules" class="rule-list"></ul><h4>审计关注点</h4><ul id="system-checks" class="check-list"></ul><details class="source-details"><summary>实现与设计依据</summary><ul id="system-sources"></ul></details></section>
+            <section class="audit-section state-section"><h3><span>02</span> 当前数据</h3><dl id="system-metrics" class="metrics"></dl><details open><summary>系统数据快照</summary><pre id="system-data" tabindex="0"></pre></details></section>
+          </div>
+          <section class="audit-section debug-section"><h3><span>03</span> 系统调试</h3><p id="debug-guidance">命令使用正式规则校验。先检查条件，再执行；执行结果只保存在本页副本中。</p><div id="debug-controls"><label>操作<select id="debug-command"></select></label><div id="command-fields" class="command-fields"></div><div class="debug-actions"><button id="preview-command">检查条件</button><button id="execute-command" class="primary">在副本执行</button><button id="ai-step">AI 决策一步</button><button id="advance-turn">结束当前文明回合</button></div><details><summary>高级命令 JSON</summary><label for="command-json">仅接受 Command.action，仍经过引擎校验</label><textarea id="command-json" rows="5" spellcheck="false"></textarea><button id="execute-json">执行 JSON 命令</button></details></div><p id="debug-result" role="status"></p><details><summary>本页操作记录 <span id="trace-count">0</span></summary><pre id="debug-trace" tabindex="0">[]</pre></details></section>
+        </article>
+        <footer>本地审计副本 · 不自动写入游戏存档 · 导出文件包含完整对局数据</footer>
+      </main>
+    </div>
+    <script type="module" src="/src/browser/audit.ts"></script>
+  </body>
+</html>

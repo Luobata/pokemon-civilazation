@@ -1,4 +1,5 @@
 import { renderEconomyPanel } from './economy-panel.ts';
+import { AUDIT_SNAPSHOT_KEY } from '../audit/sandbox.ts';
 import { renderUnitPanel } from './unit-panel.ts';
 import { renderSelectionPanel } from './selection-panel.ts';
 import { renderResearchPanel } from './research-panel.ts';
@@ -36,6 +37,15 @@ const god = document.querySelector<HTMLInputElement>('#god')!;
 const starter = document.querySelector<HTMLSelectElement>('#starter')!;
 const sequence = document.querySelector<HTMLInputElement>('#sequence')!;
 const endTurn = document.querySelector<HTMLButtonElement>('#end-turn')!;
+document.querySelector<HTMLAnchorElement>('#open-audit')!.addEventListener('click', event => {
+  event.preventDefault();
+  try {
+    sessionStorage.setItem(AUDIT_SNAPSHOT_KEY, driver.save());
+    const auditWindow = window.open('/audit.html', '_blank');
+    if (auditWindow) auditWindow.opener = null;
+    else { notice = '请允许打开审计页面，或在新标签页访问 /audit.html 并导入存档。'; controls(); }
+  } catch (error) { notice = `无法打开审计副本：${String(error)}`; controls(); }
+});
 type MovedPayload = Extract<VisibleEvent['payload'], { type: 'Moved' }>;
 type BattlePayload = Extract<VisibleEvent['payload'], { type: 'BattleResolved' }>;
 type CapturePayload = Extract<VisibleEvent['payload'], { type: 'Captured' }>;

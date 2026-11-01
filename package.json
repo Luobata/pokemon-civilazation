@@ -11,7 +11,8 @@
     "test:e2e": "playwright test",
     "sim": "node tools/simulate.ts",
     "lint:tools": "eslint tools",
-    "sim:explore": "node tools/explore.ts"
+    "sim:explore": "node tools/explore.ts",
+    "sim:leaders": "node tools/leader-balance.ts"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

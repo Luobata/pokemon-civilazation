@@ -83,6 +83,14 @@ node tools/compare-games.ts "$sim_root/m6-release-201-300" /tmp/pokemon-release-
 
 归档后仍可从 `tools/archive/b7-report.ts` 导入 `assessD45` 复算当时的 11 项条件。共享 `reports/sim/m6-proof/report.mjs` 等历史脚本若仍导入 `tools/b7-report.ts`，在当前代码上使用时需把导入路径改成 `tools/archive/b7-report.ts`；其余历史输入和口径也需匹配，不能把 B7 报告 CLI 当成通用发布报告入口。
 
+## 领袖受控对局
+
+```sh
+npm run sim:leaders -- --seeds 10 --round-limit 100 --out /tmp/pokemon-leaders.json
+```
+
+每个种子按三种 AI 性格分组，每组四局轮换四位领袖的座位。每局四方使用相同性格，记录胜利份额、终局分数、开局条件、缺陷与迷雾拒绝。支持 100/200/300 轮；样本数等于种子数 ×12。输出包括逐局数据、版本和源码哈希；不修改生产数值。[120 局诊断报告](../docs/design/leader-balance-report.md)说明了观测相关性和样本边界。
+
 ## 归档与验证
 
 B3–B7 报告、诊断及早期一次性工具移到 [archive/](archive/README.md)，对应测试移到 `tests/tools/archive/`，仍由 `npm test -- --run` 执行。仅调整位置、导入和命令提示；通用模拟模块、历史补丁 JSON 与游戏规则不变。
