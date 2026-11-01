@@ -1,3 +1,4 @@
+import { doctrineEffects } from './leader-doctrines.ts';
 import { EXPANSION_CONTENT, CONTENT } from '../content/units.ts';
 import { leaderEffects } from '../content/leaders.ts';
 import type { Content } from '../content/units.ts';
@@ -28,11 +29,15 @@ export function resolveRecovery(state: GameState, content: Content = state.setup
     events.push({ type: 'UnitRecovered', playerId: unit.ownerId!, unitId: unit.id, position: { ...position } });
   }
   for (const unit of Object.values(state.units).filter(isMapUnit)) {
-    if (unit.ownerId === null || !Object.values(state.cities).some(city => city.ownerId === unit.ownerId
-      && hexDistance(city.position, unit.position) <= workRadius(city))) continue;
+    if (unit.ownerId === null) continue;
     const player = state.players[unit.ownerId];
-    const heal = (player.research.unlockedIds.includes('medicine') ? 10 : 5)
-      + (unit.kind === 'pokemon' ? leaderEffects(player.leaderId).territoryHealing : 0);
+    const inTerritory = Object.values(state.cities).some(city => city.ownerId === unit.ownerId
+      && hexDistance(city.position, unit.position) <= workRadius(city));
+    const doctrine = doctrineEffects(player, state.setup.eraProgression, unit, content);
+    const heal = inTerritory
+      ? (player.research.unlockedIds.includes('medicine') ? 10 : 5)
+        + (unit.kind === 'pokemon' ? leaderEffects(player.leaderId).territoryHealing : 0) + doctrine.territoryHealingBonus
+      : doctrine.fieldHealing;
     unit.hp = Math.min(maxUnitHp(unit, content), unit.hp + heal);
   }
   return events;

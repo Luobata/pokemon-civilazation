@@ -97,6 +97,7 @@ export function observe(state: GameState, playerId: number, content: Content = s
     wildHome: unit.ownerId === playerId ? unit.wildHome && { ...unit.wildHome } : null });
   return {
     ...(state.expansion ? { expansion: { version: 1 as const, world: observeWorld(state, playerId, visible), civilization: observeCivilization(state, playerId, visible, { ...CIVILIZATION_CONTENT, world: content }), leaders: observeLeaders(state, playerId) } } : {}),
+    ...(state.setup.eraProgression ? { eraProgression: state.setup.eraProgression } : {}),
     playerId, seed: state.setup.seed, round: state.round, activePlayerId: state.activePlayerId, commandSeq: state.commandSeq,
     map: { width: state.map.width, height: state.map.height,
       tiles: state.map.tiles.map((biome, i) => visible.has(i) ? biome : knowledge.rememberedTiles[i]?.biomeId ?? null) },

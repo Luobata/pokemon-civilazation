@@ -33,6 +33,31 @@ async function payload(response: Response): Promise<Record<string, unknown>> {
 }
 
 describe('authoritative local multiplayer rooms', () => {
+  test('room eras and per-seat leaders survive join, refresh, save and load', async () => {
+    const server = createNetworkServer({ persistenceDirectory: directory });
+    for (const eraProgression of ['simple-v1', 'full-v1'] as const) {
+      const created = await payload(await post(server, '/api/rooms', {
+        seed: 23456, seats: 2, eraProgression, leaderIds: ['joy', 'lance'],
+      })) as unknown as RoomCreateResponse;
+      const joined = await payload(await post(server, `/api/rooms/${created.roomId}/join`, {
+        seatId: 0, joinToken: created.seats[0].joinToken,
+      })) as unknown as JoinResponse;
+      expect(joined.view.eraProgression).toBe(eraProgression);
+      expect(joined.view.economy.player.leaderId).toBe('joy');
+      expect((await post(server, `/api/rooms/${created.roomId}/owner/save`, { slot: 'slot-1' }, created.ownerToken)).status).toBe(200);
+      expect((await post(server, `/api/rooms/${created.roomId}/commands`, { expectedSeq: 0, action: { type: 'EndTurn' } }, joined.seatToken)).status).toBe(200);
+      expect((await post(server, `/api/rooms/${created.roomId}/owner/load`, { slot: 'slot-1' }, created.ownerToken)).status).toBe(200);
+      const refreshed = await payload(await get(server, `/api/rooms/${created.roomId}/state`, joined.seatToken)) as unknown as StateResponse;
+      expect(refreshed.view).toMatchObject({ eraProgression, commandSeq: 0, economy: { player: { leaderId: 'joy' } } });
+      const exported = await payload(await post(server, `/api/rooms/${created.roomId}/owner/export`, {}, created.ownerToken)) as unknown as SaveFile;
+      expect(exported.state.setup).toMatchObject({ eraProgression, roundLimit: 100 });
+      expect(exported.state.setup.players.map(player => player.leaderId)).toEqual(['joy', 'lance']);
+    }
+    for (const bad of [{ eraProgression: 'unknown' }, { leaderIds: ['joy'] }, { leaderIds: ['joy', 'unknown'] }]) {
+      expect((await post(server, '/api/rooms', { seed: 23456, seats: 2, ...bad })).status).toBe(400);
+    }
+  });
+
   test('two clients authenticate, reject wrong seat and stale sequence, and receive only PlayerView', async () => {
     const server = createNetworkServer({ persistenceDirectory: null, now: () => 1700000000000 });
     const createdResponse = await post(server, '/api/rooms', { seed: 12345, seats: 2, ownerName: 'host' });

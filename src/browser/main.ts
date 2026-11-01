@@ -1,3 +1,5 @@
+import { renderEraPanel } from './era-panel.ts';
+import type { EraProgression } from '../content/eras.ts';
 import { renderExpansionPanel } from './expansion-panel.ts';
 import { renderEconomyPanel } from './economy-panel.ts';
 import { AUDIT_SNAPSHOT_KEY } from '../audit/sandbox.ts';
@@ -170,6 +172,7 @@ function controls() {
   debug.textContent = `seed=${view.seed} round=${view.round} activePlayer=${view.activePlayerId} commandSeq=${view.commandSeq}\n最近拒绝：${driver.lastRejected ? JSON.stringify(driver.lastRejected) : '无'}${notice ? '\n' + notice : ''}`;
   sequence.max = String(driver.exportLog().commands.length);
   renderSelectionPanel(view, selected, selectedCity, { unit: selectUnit, city: selectCity, clear: clearSelection }, busy());
+  document.querySelector<HTMLElement>('#era-panel')!.innerHTML = renderEraPanel(view);
   renderLeaderPanel(view);
   renderExpansionPanel(view, selected, selectedCity, issue, busy() || ended || pendingPeace);
   document.querySelector<HTMLElement>('#selection-empty')!.hidden = selected !== null || selectedCity !== null || neutralCity !== null;
@@ -189,7 +192,7 @@ function controls() {
   document.querySelector('#activity-list')!.innerHTML = activityLog.length ? activityLog.map(text => `<li>${text}</li>`).join('') : '<li>暂无动态</li>';
   if (busy() || ended || pendingPeace) for (const element of document.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLSelectElement>('#economy button, #economy input, #economy select')) element.disabled = true;
   for (const element of document.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLSelectElement>('#controls button, #controls input, #controls select, #dev-drawer button, #dev-drawer input, #skip')) {
-    const newGameSetting = element.matches('#leader-setup input, #starter, #map-size, #round-limit, #ai-count, #ai-personality');
+    const newGameSetting = element.matches('#leader-setup input, #starter, #map-size, #round-limit, #ai-count, #ai-personality, #era-progression');
     const transition = pendingPeace && !ended && (newGameSetting || ['new-game', 'load-game', 'import-save', 'replay', 'resume'].includes(element.id));
     element.disabled = element.id === 'skip' ? !busy()
       : element.id === 'new-game' || newGameSetting ? busy() || transition : busy() || ended || transition;
@@ -340,7 +343,8 @@ function newGame() {
     const mapSizes = { '24x16': { width: 24, height: 16 }, '30x20': { width: 30, height: 20 }, '40x26': { width: 40, height: 26 } } as const;
     const sizeOption = document.querySelector<HTMLSelectElement>('#map-size')!.value as keyof typeof mapSizes;
     const size = mapSizes[sizeOption] ?? mapSizes['24x16'];
-    driver = new GameSession({ expansionVersion: 1, seed: Number(new URLSearchParams(location.search).get('seed') ?? '12345'), ...size,
+    const eraProgression = document.querySelector<HTMLSelectElement>('#era-progression')!.value as EraProgression;
+    driver = new GameSession({ expansionVersion: 1, eraProgression, seed: Number(new URLSearchParams(location.search).get('seed') ?? '12345'), ...size,
       roundLimit: Number(document.querySelector<HTMLSelectElement>('#round-limit')!.value) as GameSetup['roundLimit'], players });
     session = driver.asPlayerSession();
     active = null; presentationIndex = 0; selected = null; selectedCity = session.getView().economy.player.headquartersCityId; neutralCity = null; keyboardIndex = null; activityLog.length = 0;

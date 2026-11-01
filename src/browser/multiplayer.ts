@@ -1,3 +1,6 @@
+import { renderEraPanel } from './era-panel.ts';
+import { LEADERS, LEADER_IDS, type LeaderId } from '../content/leaders.ts';
+import type { EraProgression } from '../content/eras.ts';
 import { EXPANSION_ACTION_FIELDS } from '../core/expansion-commands.ts';
 import { CONTENT as BASE_CONTENT, EXPANSION_CONTENT } from '../content/units.ts';
 import { hexToIndex, indexToHex } from '../core/hex.ts';
@@ -150,7 +153,7 @@ function render(): void {
     mapNotice.textContent = '未连接。';
     selectedUnit = null; selectedCity = null; resetAction();
     targetList.innerHTML = '';
-    for (const selector of ['#unit-panel', '#economy', '#diplomacy', '#expansion-panel']) document.querySelector<HTMLElement>(selector)!.innerHTML = '';
+    for (const selector of ['#era-panel', '#unit-panel', '#economy', '#diplomacy', '#expansion-panel']) document.querySelector<HTMLElement>(selector)!.innerHTML = '';
     resetResearchPanel();
     updateOwnerControls();
     return;
@@ -191,6 +194,7 @@ function render(): void {
   renderEconomyPanel(currentView, selectedCity, issue, disabled);
   renderResearchPanel(currentView, issue, disabled);
   renderDiplomacyPanel(currentView, !active || ended, issue);
+  document.querySelector<HTMLElement>('#era-panel')!.innerHTML = renderEraPanel(currentView);
   renderExpansionPanel(currentView, selectedUnit, selectedCity, issue, disabled);
   const paths = unit && actionMode === 'move' ? reachablePaths(currentView, unit.id) : {};
   const targets = actionMode === 'attack'
@@ -321,12 +325,23 @@ async function syncOwnerRoom(): Promise<void> {
     // Owner controls are optional for seated play; state refresh will surface connection failures.
   }
 }
+function renderRoomLeaderOptions(): void {
+  const current = [...document.querySelectorAll<HTMLSelectElement>('[data-seat-leader]')].map(select => select.value);
+  const seats = Number(document.querySelector<HTMLSelectElement>('#room-seats')!.value);
+  document.querySelector<HTMLElement>('#room-leader-options')!.innerHTML = Array.from({ length: seats }, (_, seat) =>
+    `<label>座位 ${seat + 1}<select data-seat-leader="${seat}">${LEADER_IDS.map(id =>
+      `<option value="${id}"${id === (current[seat] ?? LEADER_IDS[seat]) ? ' selected' : ''}>${LEADERS[id].name}</option>`).join('')}</select></label>`).join('');
+}
+document.querySelector<HTMLSelectElement>('#room-seats')!.addEventListener('change', renderRoomLeaderOptions);
+renderRoomLeaderOptions();
 document.querySelector<HTMLButtonElement>('#create-room')!.addEventListener('click', async () => {
   try {
     const seed = Number(document.querySelector<HTMLInputElement>('#room-seed')!.value || '12345');
     const seats = Number(document.querySelector<HTMLSelectElement>('#room-seats')!.value) as 2 | 3 | 4;
     apiBaseUrl = document.querySelector<HTMLInputElement>('#api-base-url')!.value.trim() || location.origin;
-    const created = await NetworkClient.createRoom(apiBaseUrl, { seed, seats, ownerName: 'host' });
+    const eraProgression = document.querySelector<HTMLSelectElement>('#room-era-mode')!.value as EraProgression;
+    const leaderIds = [...document.querySelectorAll<HTMLSelectElement>('[data-seat-leader]')].map(select => select.value as LeaderId);
+    const created = await NetworkClient.createRoom(apiBaseUrl, { seed, seats, ownerName: 'host', eraProgression, leaderIds });
     roomCreation = created;
     ownerToken = created.ownerToken;
     ownerRoomId = created.roomId;

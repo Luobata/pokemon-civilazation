@@ -1,3 +1,4 @@
+import type { EraProgression } from '../content/eras.ts';
 import type { ExpansionAction, ExpansionEvent, ExpansionState, ExpansionView } from './expansion-model.ts';
 import type { TypeId } from '../content/species.ts';
 import type { LeaderId } from '../content/leaders.ts';
@@ -20,6 +21,7 @@ export type DiplomacyEvent = { type: 'DiplomacyChanged'; relation: Diplomacy };
 export type GameSetup = GridSize & {
   seed: number;
   expansionVersion?: 1;
+  eraProgression?: EraProgression;
   multiplayer?: true;
   roundLimit?: 100 | 200 | 300;
   players: (({ id: number; controller: 'human'; starterId: StarterId }
@@ -88,6 +90,7 @@ export type GameState = {
   knowledge: Record<number, KnowledgeState>;
 };
 export type PlayerView = {
+  eraProgression?: EraProgression;
   expansion?: ExpansionView;
   playerId: number; seed: number; round: number; activePlayerId: number; commandSeq: number;
   map: GridSize & { tiles: (BiomeId | null)[] };

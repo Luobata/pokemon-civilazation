@@ -91,6 +91,12 @@ npm run sim:leaders -- --seeds 10 --round-limit 100 --out /tmp/pokemon-leaders.j
 
 每个种子按三种 AI 性格分组，每组四局轮换四位领袖的座位。每局四方使用相同性格，记录胜利份额、终局分数、开局条件、缺陷与迷雾拒绝。支持 100/200/300 轮；样本数等于种子数 ×12。输出包括逐局数据、版本和源码哈希；不修改生产数值。[120 局诊断报告](../docs/design/leader-balance-report.md)说明了观测相关性和样本边界。
 
+新增 `--expansion true --eras simple` 启用精简时代，`--eras full` 启用完整世代；`--eras none` 或省略保持原规则。报告新增真实城市/HQ 攻击和占领、战争段和停战、攻城科技与首次攻击轮次、角色构成、实际时代到达轮次。`early/middle/late` 的科技数量诊断分段独立于正式时代，不能当作完整模式的时代统计。城市占领包含中立营地，需结合 `cityEvents[].defenderId` 区分敌方城市；HQ 占领只统计原拥有者的总部。每局城市详细事件最多 2000 条，超过时 `cityEventLogTruncated=true`，汇总计数继续完整记录。
+
+```sh
+node tools/leader-balance.ts --seeds 4 --seed-start 21 --expansion true --eras simple --round-limit 100 --out /tmp/pokemon-era-simple.json
+```
+
 ## 归档与验证
 
 B3–B7 报告、诊断及早期一次性工具移到 [archive/](archive/README.md)，对应测试移到 `tests/tools/archive/`，仍由 `npm test -- --run` 执行。仅调整位置、导入和命令提示；通用模拟模块、历史补丁 JSON 与游戏规则不变。

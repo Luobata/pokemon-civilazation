@@ -1,3 +1,4 @@
+import { doctrineEffects } from './leader-doctrines.ts';
 import type { LeaderId } from '../content/leaders.ts';
 import { CONTENT, EXPANSION_CONTENT } from '../content/units.ts';
 import type { Content, SpeciesId } from '../content/units.ts';
@@ -58,7 +59,8 @@ export function applyLeaderAction(state: GameState, actor: number, action: Leade
   player.gold -= 100; ledger.recruited++;
   const identity = { kind: 'pokemon' as const, speciesId: LEADER_KITS[leaderId].unit, uniqueLeader: leaderId };
   const id = state.nextEntityId++, position = initialUnitPosition(state, city.position, identity, content);
-  state.units[id] = createMapUnit(identity, id, actor, position, content, 20, 0);
+  const xp = 20 + doctrineEffects(player, state.setup.eraProgression, identity, content).trainedXpBonus;
+  state.units[id] = createMapUnit(identity, id, actor, position, content, xp, 0);
   if (!player.registeredSpeciesIds.includes(identity.speciesId)) player.registeredSpeciesIds.push(identity.speciesId);
   return [{ type: 'LeaderUnitRecruited', playerId: actor, leaderId, cityId: city.id, unitId: id }];
 }

@@ -18,6 +18,7 @@ import type { AiThresholds } from './thresholds.ts';
 
 import { seekUnknownHeadquarters } from './targets.ts';
 import { AI_STRATEGIES } from './strategies.ts';
+import { campaignPlan, eraCivilizationPolicy, hasEraProgression } from './war-plan.ts';
 import type { Goal } from './strategies.ts';
 type Candidate = { action: Command['action']; goal: Goal; benefit: number; ownId: number; targetId: number };
 export const CANDIDATE_BUDGET = 256; // 32 representatives for each of eight goals, never a time budget.
@@ -81,7 +82,9 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
   if (leaderAction) return result(leaderAction);
   const worldAction = planWorldAction(view, { base: content, world: WORLD_DEFINITIONS });
   if (worldAction) return result(worldAction);
-  const civilizationAction = view.expansion ? planCivilizationAction(view.expansion.civilization, { ...CIVILIZATION_CONTENT, world: content }) : null;
+  const civilizationAction = view.expansion
+    ? planCivilizationAction(view.expansion.civilization, { ...CIVILIZATION_CONTENT, world: content }, eraCivilizationPolicy(view))
+    : null;
   if (civilizationAction) return result(civilizationAction);
   const units = view.units.filter(unit => unit.ownerId === actorId).sort((a, b) => a.id - b.id);
   const combat = units.filter(unit => unit.kind === 'pokemon');
@@ -94,7 +97,8 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
         - Math.min(...combat.map(unit => hexDistance(unit.position, b.position))) || a.id.localeCompare(b.id))[0];
   const sanctuaryTeam = sanctuary ? [...combat].sort((a, b) => hexDistance(a.position, sanctuary.position)
     - hexDistance(b.position, sanctuary.position) || a.id - b.id).slice(0, 3).map(unit => unit.id) : [];
-  const objectives = siegeObjectives(view, ai), preparingSiege = objectives.hqs.length > 0 || objectives.searching;
+  const eraCampaign = campaignPlan(view), campaignActive = eraCampaign !== null;
+  const objectives = siegeObjectives(view, ai), preparingSiege = objectives.hqs.length > 0 || objectives.searching || campaignActive;
   const captureRadius = strategy.capturePriorityRadius === null ? null : ai[strategy.capturePriorityRadius];
   const captureBonus = (target: MapUnit) => captureRadius !== null
     && cities.some(city => hexDistance(city.position, target.position) <= captureRadius) ? strategy.capturePriorityBonus : 0;
@@ -116,13 +120,21 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
     const enemy = pair.a === actorId ? pair.b : pair.a;
     if (view.civilizations.find(civ => civ.id === enemy)?.eliminated) continue;
     const lost = pair.citiesLostSinceWar[actorId] ?? 0;
-    if (pair.proposal?.recipientId === actorId) add({ type: 'RespondPeace', targetPlayerId: enemy, accept: strategy.peaceCitiesLost === null || lost >= ai[strategy.peaceCitiesLost] }, 'diplomacy', 1000, actorId, enemy);
+    const relationCampaign = eraCampaign?.target.ownerId === enemy ? eraCampaign : null;
+    if (pair.proposal?.recipientId === actorId) add({ type: 'RespondPeace', targetPlayerId: enemy, accept: relationCampaign === null && (strategy.peaceCitiesLost === null || lost >= ai[strategy.peaceCitiesLost]) }, 'diplomacy', 1000, actorId, enemy);
     else if (pair.status === 'war' && !pair.proposal && view.round - pair.changedAtRound >= 5
       && (pair.rejectedAtRound[actorId] === undefined || view.round - pair.rejectedAtRound[actorId] >= 5)
+      && relationCampaign === null
       && (strategy.peaceCitiesLost === null || lost >= ai[strategy.peaceCitiesLost])) add({ type: 'MakePeace', targetPlayerId: enemy }, 'diplomacy', 100, actorId, enemy);
     else if (pair.status === 'peace' && !view.expansion?.civilization.relations.some(relation => relation.targetPlayerId === enemy && relation.allianceSinceRound !== null) && view.round >= pair.cooldownUntilRound && declaration !== null && (declaration.enabled === null || ai[declaration.enabled])
       && combat.length * 1000 >= knownCombatCount(view, enemy) * ai[declaration.strength]
       && known.some(city => city.ownerId === enemy && units.some(unit => hexDistance(unit.position, city.position) <= ai[declaration.borderDistance]))) {
+      add({ type: 'DeclareWar', targetPlayerId: enemy }, 'diplomacy', 10, actorId, enemy);
+    } else if (pair.status === 'peace' && !view.expansion?.civilization.relations.some(relation => relation.targetPlayerId === enemy && relation.allianceSinceRound !== null)
+      && hasEraProgression(view) && declaration === null && player.personality === 'expansion'
+      && view.round >= pair.cooldownUntilRound
+      && combat.length * 1000 >= ai.expansionSiegeStrength * knownCombatCount(view, enemy)
+      && known.some(city => city.ownerId === enemy && units.some(unit => hexDistance(unit.position, city.position) <= ai.expansionBorderDistance))) {
       add({ type: 'DeclareWar', targetPlayerId: enemy }, 'diplomacy', 10, actorId, enemy);
     }
   }
@@ -181,12 +193,12 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
       }
       for (const city of view.cities) if (city.ownerId !== actorId && canSiege(view, city.ownerId, ai)) {
         const preview = query.attack(view, unit.id, { kind: 'city', id: city.id }, content);
-        if (preview.ok) add({ type: 'Attack', unitId: unit.id, target: { kind: 'city', id: city.id } }, 'military', 300 + preview.damage.min - preview.counter.damage, unit.id, city.id);
+        if (preview.ok) add({ type: 'Attack', unitId: unit.id, target: { kind: 'city', id: city.id } }, 'military', 300 + preview.damage.min - preview.counter.damage + (eraCampaign?.target.id === city.id ? 200 : 0), unit.id, city.id);
       }
     }
     const paths = query.paths(view, unit.id, content);
     const sites = unit.kind === 'logistics' ? view.map.tiles.flatMap((_, index) => citySite(indexToHex(index, view.map)) ? [indexToHex(index, view.map)] : []) : [];
-    const targetHq = [...objectives.hqs].sort((a, b) => hexDistance(unit.position, a.position) - hexDistance(unit.position, b.position) || a.id - b.id)[0];
+    const targetHq = eraCampaign?.target ?? [...objectives.hqs].sort((a, b) => hexDistance(unit.position, a.position) - hexDistance(unit.position, b.position) || a.id - b.id)[0];
     const seek = unit.kind === 'pokemon' && objectives.searching ? seekUnknownHeadquarters(view, unit, paths) : null;
     for (const [indexText, path] of Object.entries(paths)) {
       // A visible route cannot hit a hidden first-step blocker and be rejected.

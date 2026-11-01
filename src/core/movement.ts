@@ -1,3 +1,4 @@
+import { doctrineEffects } from './leader-doctrines.ts';
 import { isMapUnit } from './model.ts';
 import { CONTENT, EXPANSION_CONTENT, unitDefinition } from '../content/units.ts';
 import type { Content, UnitIdentity } from '../content/units.ts';
@@ -36,7 +37,8 @@ export function reachablePaths(view: PlayerView, unitId: number,
   const costs = new Map([[origin, 0]]);
   const paths: Record<number, Hex[]> = { [origin]: [{ ...unit.position }] };
   const pending = new Set([origin]);
-  const budget = unitDefinition(unit, content).move;
+  const budget = unitDefinition(unit, content).move
+    + doctrineEffects(view.economy.player, view.eraProgression, unit, content).movementBonus;
   while (pending.size) {
     const current = [...pending].sort((a, b) => costs.get(a)! - costs.get(b)! || a - b)[0];
     pending.delete(current);

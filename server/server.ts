@@ -111,6 +111,7 @@ function buildSetup(request: ValidRoomCreateRequest): GameSetup {
     id: index,
     controller: 'human' as const,
     starterId: starters[index % starters.length],
+    leaderId: request.leaderIds[index],
   }));
   return {
     seed: request.seed,
@@ -118,6 +119,7 @@ function buildSetup(request: ValidRoomCreateRequest): GameSetup {
     height: request.height,
     roundLimit: request.roundLimit,
     expansionVersion: request.expansionVersion,
+    eraProgression: request.eraProgression,
     multiplayer: true,
     players,
   } as GameSetup;

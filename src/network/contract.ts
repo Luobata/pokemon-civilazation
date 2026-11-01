@@ -1,3 +1,5 @@
+import { isEraProgression, type EraProgression } from '../content/eras.ts';
+import { isLeaderId, LEADER_IDS, type LeaderId } from '../content/leaders.ts';
 import { canonicalSerialize, type JsonValue } from '../core/snapshot.ts';
 import { parseAuditAction } from '../audit/commands.ts';
 import { EXPANSION_CONTENT } from '../content/units.ts';
@@ -12,6 +14,8 @@ export type RoomCreateRequest = {
   seats?: 2 | 3 | 4;
   ownerName?: string;
   expansionVersion?: 1;
+  eraProgression?: EraProgression;
+  leaderIds?: LeaderId[];
 };
 
 export type SeatInvite = {
@@ -130,12 +134,12 @@ export function validateCommandRequest(value: unknown, content: Content = EXPANS
   return { expectedSeq, action: value.action };
 }
 
-export type ValidRoomCreateRequest = Required<Pick<RoomCreateRequest, 'seed' | 'seats' | 'expansionVersion'>>
+export type ValidRoomCreateRequest = Required<Pick<RoomCreateRequest, 'seed' | 'seats' | 'expansionVersion' | 'eraProgression' | 'leaderIds'>>
   & Pick<RoomCreateRequest, 'width' | 'height' | 'roundLimit' | 'ownerName'>;
 
 export function validateRoomCreateRequest(value: unknown): ValidRoomCreateRequest | null {
   if (!isRecord(value)) return null;
-  const allowed = new Set(['seed', 'width', 'height', 'roundLimit', 'seats', 'ownerName', 'expansionVersion']);
+  const allowed = new Set(['seed', 'width', 'height', 'roundLimit', 'seats', 'ownerName', 'expansionVersion', 'eraProgression', 'leaderIds']);
   if ([...Object.keys(value)].some(key => !allowed.has(key))) return null;
   const seed = value.seed;
   if (typeof seed !== 'number' || !Number.isSafeInteger(seed) || seed < 0) return null;
@@ -153,5 +157,9 @@ export function validateRoomCreateRequest(value: unknown): ValidRoomCreateReques
   if (ownerName !== undefined && (typeof ownerName !== 'string' || ownerName.length > 32)) return null;
   const expansionVersion = value.expansionVersion ?? 1;
   if (expansionVersion !== 1) return null;
-  return { seed, seats, width: rawWidth, height: rawHeight, roundLimit, ownerName, expansionVersion };
+  const eraProgression = value.eraProgression ?? 'simple-v1';
+  if (!isEraProgression(eraProgression)) return null;
+  const leaderIds = value.leaderIds ?? LEADER_IDS.slice(0, seats);
+  if (!Array.isArray(leaderIds) || leaderIds.length !== seats || !leaderIds.every(isLeaderId)) return null;
+  return { seed, seats, width: rawWidth, height: rawHeight, roundLimit, ownerName, expansionVersion, eraProgression, leaderIds: [...leaderIds] };
 }

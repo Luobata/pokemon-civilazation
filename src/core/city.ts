@@ -1,3 +1,4 @@
+import { doctrineEffects } from './leader-doctrines.ts';
 import { worldCityYield } from './world-systems.ts';
 import { leaderCityYield } from './leader-systems.ts';
 import { EXPANSION_CONTENT, CONTENT } from '../content/units.ts';
@@ -71,6 +72,7 @@ export function cityYield(state: GameState, city: CityState, content: Content = 
     for (const key of ['food', 'production', 'gold', 'research'] as const) result[key] += addition[key];
   }
   if (state.players[city.ownerId].starterId === 'bulbasaur') result.food = Math.floor(result.food * 1100 / 1000);
+  result.research += doctrineEffects(player, state.setup.eraProgression).researchBonus;
   const leader = leaderEffects(player.leaderId);
   result.research += leader.cityResearch + (city.buildingIds.includes('observatory') ? leader.laboratoryResearch : 0);
   return result;

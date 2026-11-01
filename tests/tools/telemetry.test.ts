@@ -4,7 +4,7 @@ import { createMapUnit } from '../../src/core/unit.ts';
 import { eligibleKnockdown, withoutTypeAdvantage, eligibleSnowball, summarizeGames } from '../../tools/summary.ts';
 import type { GameMetrics } from '../../tools/summary.ts';
 import type { KnockdownRecord } from '../../src/core/model.ts';
-import { createTelemetry, uniqueScoreLeader, roundSnapshot } from '../../tools/telemetry.ts';
+import { collectTelemetry, createTelemetry, finalizeTelemetry, roundSnapshot, uniqueScoreLeader } from '../../tools/telemetry.ts';
 
 const kill: KnockdownRecord = { source: { id: 10, ownerId: 0, kind: 'pokemon', typeId: 'fire' },
   target: { id: 11, ownerId: null, kind: 'pokemon', typeId: 'water' }, effectiveness: 50, counter: false };
@@ -69,4 +69,132 @@ test('D38 retains fog-rejected completed games and excludes defect games separat
   expect(summary.valid).toBe(1); expect(summary.snowball.n).toBe(1);
   expect(summary.aborted).toMatchObject({ numerator: 1, n: 3 });
   expect(summary).toMatchObject({ defectGameCount: 1, fogRejectionCount: 1, defectRejectionCount: 1 });
+});
+
+test('war telemetry counts resolved city pressure, siege timing, elimination and role evidence', () => {
+  const state = combatFixture();
+  state.round = 7;
+  state.activePlayerId = 0;
+  state.players[0].research.unlockedIds.push('siegeCraft');
+  const telemetry = createTelemetry(state);
+  collectTelemetry(telemetry, state, state, { actorId: 0, expectedSeq: 0, action: { type: 'EndTurn' } }, [
+    { seq: 1, index: 0, payload: { type: 'TechCompleted', playerId: 0, techId: 'siegeCraft' } },
+  ]);
+  const declared = issue(state, { type: 'DeclareWar', targetPlayerId: 1 });
+  if (!declared.ok) throw new Error(declared.reason);
+  collectTelemetry(telemetry, state, declared.state, { actorId: 0, expectedSeq: 0, action: { type: 'DeclareWar', targetPlayerId: 1 } }, declared.events);
+  const battleBefore = declared.state;
+  battleBefore.cities[2].hp = 1;
+  pokemon(battleBefore, 10, 'geodude', 0, 9, 2);
+  const battle = issue(battleBefore, { type: 'Attack', unitId: 10, target: { kind: 'city', id: 2 } });
+  if (!battle.ok) throw new Error(battle.reason);
+  collectTelemetry(telemetry, battleBefore, battle.state, { actorId: 0, expectedSeq: 1, action: { type: 'Attack', unitId: 10, target: { kind: 'city', id: 2 } } }, battle.events);
+  finalizeTelemetry(telemetry, battle.state);
+
+  expect(telemetry.activity[0]).toMatchObject({
+    resolvedCityAttacks: 1, cityCaptures: 1, hqAttacks: 1, hqCaptures: 1,
+    firstCityAttackRound: 7, firstHQAttackRound: 7, siegeCraftRound: 7, warDeclarations: 1,
+    cityAttacksByRole: expect.objectContaining({ siege: 1 }), cityCapturesByRole: expect.objectContaining({ siege: 1 }),
+    cityAttacksByProgressionBand: expect.objectContaining({ early: 1 }),
+  });
+  expect(telemetry.activity[1]).toMatchObject({ cityLosses: 1 });
+  expect(telemetry.cityEvents[0]).toMatchObject({
+    round: 7, attackerId: 0, defenderId: 1, cityId: 2, wasHeadquarters: true, captured: true,
+    newOwnerId: 0, attackerRole: 'siege', attackerTechCount: 1, attackerHasSiegeCraft: true, progressionBand: 'early',
+  });
+  expect(telemetry.eliminations).toEqual([{ round: 7, seq: 2, playerId: 1 }]);
+  expect(telemetry.warEpisodes).toEqual([
+    { a: 0, b: 1, declaredBy: 0, startRound: 7, endRound: 7, status: 'eliminated', rounds: 0 },
+  ]);
+  expect(telemetry.activeWarsAtEnd).toBe(0);
+});
+
+test('war episodes close on peace and attribute one agreement to each side', () => {
+  const before = combatFixture();
+  before.round = 4;
+  const afterDeclaration = structuredClone(before);
+  const relation = afterDeclaration.diplomacy[0];
+  relation.status = 'war'; relation.changedAtRound = 4; relation.declaredBy = 0;
+  const telemetry = createTelemetry(before);
+  collectTelemetry(telemetry, before, afterDeclaration, { actorId: 0, expectedSeq: 0, action: { type: 'DeclareWar', targetPlayerId: 1 } }, [
+    { seq: 1, index: 0, payload: { type: 'DiplomacyChanged', relation: structuredClone(relation) } },
+  ]);
+  const afterPeace = structuredClone(afterDeclaration);
+  afterPeace.diplomacy[0] = { ...afterPeace.diplomacy[0], status: 'peace', changedAtRound: 9, declaredBy: null, proposal: null };
+  collectTelemetry(telemetry, afterDeclaration, afterPeace, { actorId: 1, expectedSeq: 1, action: { type: 'RespondPeace', targetPlayerId: 0, accept: true } }, [
+    { seq: 2, index: 0, payload: { type: 'DiplomacyChanged', relation: structuredClone(afterPeace.diplomacy[0]) } },
+  ]);
+  finalizeTelemetry(telemetry, afterPeace);
+  expect(telemetry.warEpisodes).toEqual([
+    { a: 0, b: 1, declaredBy: 0, startRound: 4, endRound: 9, status: 'peace', rounds: 5 },
+  ]);
+  expect(telemetry.activity[0].peaceAgreements).toBe(1);
+  expect(telemetry.activity[1].peaceAgreements).toBe(1);
+  expect(telemetry.activeWarsAtEnd).toBe(0);
+});
+
+test('actual era arrivals use command transitions and include every crossed era', () => {
+  const initial = combatFixture();
+  initial.setup.expansionVersion = 1;
+  initial.setup.eraProgression = 'full-v1';
+  initial.players[0].research.unlockedIds.length = 0;
+  initial.round = 1;
+  const telemetry = createTelemetry(initial);
+  collectTelemetry(telemetry, initial, initial, { actorId: 0, expectedSeq: 0, action: { type: 'SetResearch', techId: 'typeResearch' } }, []);
+
+  const advanced = structuredClone(initial);
+  initial.round = 9;
+  advanced.round = 9;
+  advanced.players[0].research.unlockedIds.push('typeResearch', 'riding', 'medicine', 'training', 'siegeCraft');
+  collectTelemetry(telemetry, initial, advanced, { actorId: 0, expectedSeq: 1, action: { type: 'SetResearch', techId: 'typeResearch' } }, []);
+
+  expect(telemetry.rounds).toEqual([]);
+  expect(telemetry.activity[0].eraArrivalRounds).toEqual({ 0: 1, 1: 9, 2: 9, 3: 9, 4: 9 });
+});
+
+test('final combat roles use the final state even after a mid-round clear', () => {
+  const before = combatFixture();
+  before.round = 5;
+  pokemon(before, 10, 'geodude', 0, 3, 3);
+  const roundEnded = structuredClone(before);
+  const telemetry = createTelemetry(before);
+  collectTelemetry(telemetry, before, roundEnded, { actorId: 0, expectedSeq: 0, action: { type: 'EndTurn' } }, [
+    { seq: 1, index: 0, payload: { type: 'RoundEnded', round: 5 } },
+  ]);
+  expect(telemetry.activity[0].combatUnitsByRole).toMatchObject({ siege: 1 });
+
+  const final = structuredClone(roundEnded);
+  delete final.units[10];
+  finalizeTelemetry(telemetry, final);
+  expect(telemetry.activity[0].combatUnitsByRole).toMatchObject({ siege: 0 });
+  expect(telemetry.activity[0].peakCombatUnitsByRole).toMatchObject({ siege: 1 });
+});
+
+test('elimination closes active war episodes and stops war-round accrual for dead seats', () => {
+  const before = combatFixture();
+  before.round = 6;
+  const afterDeclaration = structuredClone(before);
+  const relation = afterDeclaration.diplomacy[0];
+  relation.status = 'war'; relation.changedAtRound = 4; relation.declaredBy = 0;
+  const telemetry = createTelemetry(before);
+  collectTelemetry(telemetry, before, afterDeclaration, { actorId: 0, expectedSeq: 0, action: { type: 'DeclareWar', targetPlayerId: 1 } }, [
+    { seq: 1, index: 0, payload: { type: 'DiplomacyChanged', relation: structuredClone(relation) } },
+  ]);
+  const afterElimination = structuredClone(afterDeclaration);
+  afterElimination.round = 6;
+  afterElimination.players[1].eliminated = true;
+  afterElimination.turnOrder = [0];
+  collectTelemetry(telemetry, afterDeclaration, afterElimination, { actorId: 0, expectedSeq: 1, action: { type: 'Attack', unitId: 10, target: { kind: 'city', id: 2 } } }, [
+    { seq: 2, index: 0, payload: { type: 'CivilizationEliminated', eliminatedPlayerId: 1 } },
+  ]);
+  collectTelemetry(telemetry, afterElimination, afterElimination, { actorId: 0, expectedSeq: 2, action: { type: 'EndTurn' } }, [
+    { seq: 3, index: 0, payload: { type: 'RoundEnded', round: 6 } },
+  ]);
+  finalizeTelemetry(telemetry, afterElimination);
+  expect(telemetry.warEpisodes).toEqual([
+    { a: 0, b: 1, declaredBy: 0, startRound: 4, endRound: 6, status: 'eliminated', rounds: 2 },
+  ]);
+  expect(telemetry.activeWarsAtEnd).toBe(0);
+  expect(telemetry.activity[0].warRounds).toBe(0);
+  expect(telemetry.activity[1].warRounds).toBe(0);
 });

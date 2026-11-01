@@ -1,3 +1,4 @@
+import { doctrineEffects } from './leader-doctrines.ts';
 import { consumeCivilizationProduction } from './civilization-systems.ts';
 import { createMapUnit, registerSpecies } from './unit.ts';
 import { isMapUnit } from './model.ts';
@@ -20,7 +21,8 @@ function deploy(state: GameState, city: CityState, pending: PendingDeployment, c
   }).sort((a, b) => hexToIndex(a, state.map)! - hexToIndex(b, state.map)!)[0];
   if (!position) return false;
   const id = state.nextEntityId++;
-  const xp = city.buildingIds.reduce((total, building) => total + content.buildings[building].trainedXp, 0);
+  const xp = city.buildingIds.reduce((total, building) => total + content.buildings[building].trainedXp, 0)
+    + doctrineEffects(state.players[city.ownerId], state.setup.eraProgression, identity, content).trainedXpBonus;
   state.units[id] = createMapUnit(identity, id, city.ownerId, position, content, xp);
   registerSpecies(state.players[city.ownerId], state.units[id]);
   events.push({ type: 'UnitTrained', playerId: city.ownerId, cityId: city.id, orderId: pending.sourceOrderId,

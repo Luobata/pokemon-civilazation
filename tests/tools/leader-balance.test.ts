@@ -62,8 +62,17 @@ test('arguments are bounded and default to a manageable legacy batch', () => {
   expect(parseLeaderBalanceArgs(['--seeds', '2', '--seed-start', '11', '--expansion', 'true', '--round-limit', '100']).config).toEqual({
     seeds: 2, seedStart: 11, expansionVersion: 1, roundLimit: 100, width: 24, height: 16,
   });
+  expect(parseLeaderBalanceArgs(['--seeds', '2', '--seed-start', '11', '--expansion', 'true', '--eras', 'simple', '--round-limit', '100']).config).toEqual({
+    seeds: 2, seedStart: 11, expansionVersion: 1, eraProgression: 'simple-v1', roundLimit: 100, width: 24, height: 16,
+  });
+  expect(parseLeaderBalanceArgs(['--seeds', '1', '--expansion', 'true', '--eras', 'none', '--round-limit', '100']).config).toEqual({
+    seeds: 1, seedStart: 1, expansionVersion: 1, roundLimit: 100, width: 24, height: 16,
+  });
+  expect(leaderBalanceCases({ seeds: 1, expansionVersion: 1, eraProgression: 'simple-v1', roundLimit: 100, width: 24, height: 16 })[0].setup)
+    .toMatchObject({ expansionVersion: 1, eraProgression: 'simple-v1' });
+  expect(() => parseLeaderBalanceArgs(['--seeds', '1', '--expansion', 'false', '--eras', 'simple', '--round-limit', '100'])).toThrow(/requires --expansion true/);
   for (const args of [
-    ['--seeds', '0'], ['--seed-start', '0'], ['--expansion', 'yes'], ['--round-limit', '150'], ['--unknown', '1'], ['--seeds'],
+    ['--seeds', '0'], ['--seed-start', '0'], ['--expansion', 'yes'], ['--eras', 'later'], ['--round-limit', '150'], ['--unknown', '1'], ['--seeds'],
   ]) expect(() => parseLeaderBalanceArgs(args)).toThrow(/Usage|Expected --seeds/);
 });
 
@@ -86,6 +95,36 @@ test('telemetry counts real leader events and valid expansion commands', () => {
   expect(telemetry.activity[0].expansionActions).toBe(2);
 });
 
+test('rotated games attribute seat scores and telemetry to the actual leader', () => {
+  const match = leaderBalanceCases(config).find(item => item.rotation === 1)!;
+  const result = simulateLeaderCase(match);
+  expect(Object.keys(match.leaderBySeat).map(Number)).toEqual([0, 1, 2, 3]);
+  for (const [seatText, leaderId] of Object.entries(match.leaderBySeat)) {
+    const seat = Number(seatText);
+    expect(result.scoreByLeader[leaderId]).toMatchObject({ playerId: seat, seat });
+    expect(result.activityByLeader[leaderId]).toEqual(expect.objectContaining({
+      peakCities: expect.any(Number),
+      resolvedCityAttacks: expect.any(Number),
+    }));
+  }
+  // The old fixed mapping would assign Oak to seat 0 for every rotation.
+  expect(result.scoreByLeader.oak.playerId).not.toBe(0);
+  expect(result.activityByLeader.oak).toBeDefined();
+
+  const noTiming = structuredClone(result);
+  for (const leaderId of LEADER_IDS) {
+    noTiming.activityByLeader[leaderId].firstCityAttackRound = null;
+    noTiming.activityByLeader[leaderId].firstHQAttackRound = null;
+    noTiming.activityByLeader[leaderId].siegeCraftRound = null;
+  }
+  const timingAggregate = aggregateLeaderGames([noTiming]);
+  for (const leader of timingAggregate.leaders) {
+    expect(leader.meanFirstCityAttackRound).toEqual({ n: 0, independentSeeds: 0, value: null });
+    expect(leader.meanFirstHQAttackRound).toEqual({ n: 0, independentSeeds: 0, value: null });
+    expect(leader.meanSiegeCraftRound).toEqual({ n: 0, independentSeeds: 0, value: null });
+  }
+}, 30_000);
+
 test('one deterministic full game produces leader scores and honest report warnings', () => {
   const first = simulateLeaderCase(leaderBalanceCases(config)[0]);
   const second = simulateLeaderCase(leaderBalanceCases(config)[0]);
@@ -101,13 +140,25 @@ test('one deterministic full game produces leader scores and honest report warni
   expect(acceptance.status).toBe('fail');
   expect(acceptance.checks.map(item => item.id)).toContain('win-share-spread');
   expect(aggregate.leaders.reduce((sum, leader) => sum + leader.winShare.numerator, 0)).toBeCloseTo(1);
+  const warAggregate = aggregateLeaderGames([{
+    ...first,
+    warEpisodes: [
+      { a: 0, b: 1, declaredBy: 0, startRound: 2, endRound: 10, status: 'active-at-end', rounds: 8 },
+      { a: 0, b: 2, declaredBy: 0, startRound: 3, endRound: 6, status: 'eliminated', rounds: 3 },
+    ],
+  }]);
+  expect(warAggregate.war).toMatchObject({ episodes: 2, endedEpisodes: 1, activeWarsAtEnd: 1 });
   const markdown = renderLeaderBalanceMarkdown({
     schemaVersion: 1,
-    metadata: { command: ['node', 'tools/leader-balance.ts'], nodeVersion: 'test', gitHead: 'test', config, seedStart: 1, seedValues: [1], expansion: false, gamesPlanned: 1, scheduleSha256: 'test', toolSha256: 'test', contentVersion: 'test', contentSha256: 'test', deterministic: true },
+    metadata: { command: ['node', 'tools/leader-balance.ts'], nodeVersion: 'test', gitHead: 'test', config, seedStart: 1, seedValues: [1], expansion: false, eraProgression: 'none', gamesPlanned: 1, scheduleSha256: 'test', toolSha256: 'test', contentVersion: 'test', contentSha256: 'test', deterministic: true },
     aggregate, warnings: ['样本仅诊断使用。'], games: [first],
   });
   expect(markdown).toContain('预注册验收');
   expect(markdown).toContain('验收结论：**未通过**');
   expect(markdown).toContain('这不是平衡通过结论');
   expect(markdown).toContain('样本仅诊断使用');
+  expect(markdown).toContain('征服瓶颈诊断');
+  expect(markdown).toContain('战争持续时间诊断');
+  expect(markdown).toContain('科技数量分段诊断（非实际时代）');
+  expect(markdown).toContain('实际时代到达诊断');
 }, 30_000);

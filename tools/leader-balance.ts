@@ -13,6 +13,7 @@ import { rememberCityRejection } from '../src/ai/memory.ts';
 import type { RejectedCitySite } from '../src/ai/memory.ts';
 import { planNext } from '../src/ai/plan.ts';
 import { createGame } from '../src/core/game.ts';
+import type { EraProgression } from '../src/content/eras.ts';
 import { observe } from '../src/core/vision.ts';
 import { step } from '../src/core/step.ts';
 import { hexDistance, hexToIndex } from '../src/core/hex.ts';
@@ -20,15 +21,21 @@ import { compareScores, scorePlayer } from '../src/core/victory.ts';
 import { canonicalSerialize } from '../src/core/snapshot.ts';
 import type { AiPersonality, Command, GameSetup, GameState, Score, GameOutcome } from '../src/core/model.ts';
 import { classifyRejection } from './rejections.ts';
-import { collectTelemetry, createTelemetry } from './telemetry.ts';
+import { collectTelemetry, createTelemetry, finalizeTelemetry } from './telemetry.ts';
+import type { CityAttackEvent, CombatRole, ProgressionBand, WarEpisode } from './telemetry.ts';
+import { COMBAT_ROLES, emptyBandCounts, emptyRoleByBandCounts, emptyRoleCounts, PROGRESSION_BANDS } from './telemetry.ts';
 import { mean, ratio, wilson95 } from './statistics.ts';
 
 export type RoundLimit = 100 | 200 | 300;
 export const PERSONALITIES: AiPersonality[] = ['expansion', 'aggressive', 'conservative'];
+export type EraCliOption = 'none' | EraProgression;
+const eraProgressionValue = (value: 'none' | 'simple' | 'full'): EraProgression | null => value === 'none' ? null : value === 'simple' ? 'simple-v1' : 'full-v1';
+const eraCliValue = (value: EraProgression | undefined): EraCliOption => value ?? 'none';
 export type LeaderBalanceConfig = {
   seeds: number;
   seedStart?: number;
   expansionVersion?: 1;
+  eraProgression?: EraProgression;
   roundLimit: RoundLimit;
   width: number;
   height: number;
@@ -76,7 +83,54 @@ export type LeaderGameResult = {
   startingBySeat: StartingPosition[];
   rejections: RejectionSummary;
   exception: string | null;
-  activityByLeader: Record<LeaderId, { peakCities: number; attacks: number; captureAttempts: number; captureSuccesses: number; activeAbilities: number; recruitedLeaderUnits: number; leaderBuildings: number }>;
+  activityByLeader: Record<LeaderId, LeaderActivityMetrics>;
+  cityEvents: CityAttackEvent[];
+  cityEventLogTruncated: boolean;
+  warEpisodes: WarEpisode[];
+  eliminations: { round: number; seq: number; playerId: number }[];
+  progressionBySeat: ProgressionSeatResult[];
+  eraProgression: EraCliOption;
+};
+
+export type LeaderActivityMetrics = {
+  peakCities: number;
+  attacks: number;
+  captureAttempts: number;
+  captureSuccesses: number;
+  activeAbilities: number;
+  recruitedLeaderUnits: number;
+  leaderBuildings: number;
+  resolvedCityAttacks: number;
+  cityCaptures: number;
+  cityLosses: number;
+  hqAttacks: number;
+  hqCaptures: number;
+  firstCityAttackRound: number | null;
+  firstHQAttackRound: number | null;
+  siegeCraftRound: number | null;
+  warDeclarations: number;
+  peaceAgreements: number;
+  warRounds: number;
+  cityAttacksByRole: Record<CombatRole, number>;
+  cityCapturesByRole: Record<CombatRole, number>;
+  cityAttacksByProgressionBand: Record<ProgressionBand, number>;
+  cityCapturesByProgressionBand: Record<ProgressionBand, number>;
+  cityAttacksByRoleAndProgressionBand: Record<ProgressionBand, Record<CombatRole, number>>;
+  finalCombatUnitsByRole: Record<CombatRole, number>;
+  peakCombatUnitsByRole: Record<CombatRole, number>;
+  eraArrivalRounds: Record<number, number>;
+};
+
+export type ProgressionSeatResult = {
+  seat: number;
+  leaderId: LeaderId;
+  techCount: number;
+  finalCombatUnitsByRole: Record<CombatRole, number>;
+  peakCombatUnitsByRole: Record<CombatRole, number>;
+  cityAttacksByProgressionBand: Record<ProgressionBand, number>;
+  cityCapturesByProgressionBand: Record<ProgressionBand, number>;
+  cityAttacksByRoleAndProgressionBand: Record<ProgressionBand, Record<CombatRole, number>>;
+  eraArrivalRounds: Record<number, number>;
 };
 
 export function leaderBalanceCases(config: LeaderBalanceConfig): LeaderBalanceCase[] {
@@ -95,6 +149,7 @@ export function leaderBalanceCases(config: LeaderBalanceConfig): LeaderBalanceCa
           setup: {
             seed,
             ...(config.expansionVersion === 1 ? { expansionVersion: 1 as const } : {}),
+            ...(config.expansionVersion === 1 && config.eraProgression !== undefined ? { eraProgression: config.eraProgression } : {}),
             width: config.width,
             height: config.height,
             roundLimit: config.roundLimit,
@@ -109,6 +164,34 @@ export function leaderBalanceCases(config: LeaderBalanceConfig): LeaderBalanceCa
 
 function emptyRejections(): RejectionSummary {
   return { total: 0, fog: 0, defect: 0, byReason: {}, examples: [] };
+}
+
+function emptyLeaderActivity(): LeaderActivityMetrics {
+  return {
+    peakCities: 0, attacks: 0, captureAttempts: 0, captureSuccesses: 0, activeAbilities: 0, recruitedLeaderUnits: 0, leaderBuildings: 0,
+    resolvedCityAttacks: 0, cityCaptures: 0, cityLosses: 0, hqAttacks: 0, hqCaptures: 0, firstCityAttackRound: null, firstHQAttackRound: null,
+    siegeCraftRound: null, warDeclarations: 0, peaceAgreements: 0, warRounds: 0, cityAttacksByRole: emptyRoleCounts(),
+    cityCapturesByRole: emptyRoleCounts(), cityAttacksByProgressionBand: emptyBandCounts(), cityCapturesByProgressionBand: emptyBandCounts(),
+    cityAttacksByRoleAndProgressionBand: emptyRoleByBandCounts(), finalCombatUnitsByRole: emptyRoleCounts(), peakCombatUnitsByRole: emptyRoleCounts(),
+    eraArrivalRounds: {},
+  };
+}
+function cloneRoleByBand(source: Record<ProgressionBand, Record<CombatRole, number>>): Record<ProgressionBand, Record<CombatRole, number>> {
+  return Object.fromEntries(PROGRESSION_BANDS.map(band => [band, { ...source[band] }])) as Record<ProgressionBand, Record<CombatRole, number>>;
+}
+function leaderActivity(source: ReturnType<typeof createTelemetry>['activity'][number]): LeaderActivityMetrics {
+  return {
+    peakCities: source.peakCities, attacks: source.attacks, captureAttempts: source.captureAttempts, captureSuccesses: source.captureSuccesses,
+    activeAbilities: source.activeAbilities, recruitedLeaderUnits: source.recruitedLeaderUnits, leaderBuildings: source.leaderBuildings,
+    resolvedCityAttacks: source.resolvedCityAttacks, cityCaptures: source.cityCaptures, cityLosses: source.cityLosses,
+    hqAttacks: source.hqAttacks, hqCaptures: source.hqCaptures, firstCityAttackRound: source.firstCityAttackRound,
+    firstHQAttackRound: source.firstHQAttackRound, siegeCraftRound: source.siegeCraftRound,
+    warDeclarations: source.warDeclarations, peaceAgreements: source.peaceAgreements, warRounds: source.warRounds,
+    cityAttacksByRole: { ...source.cityAttacksByRole }, cityCapturesByRole: { ...source.cityCapturesByRole },
+    cityAttacksByProgressionBand: { ...source.cityAttacksByProgressionBand }, cityCapturesByProgressionBand: { ...source.cityCapturesByProgressionBand },
+    cityAttacksByRoleAndProgressionBand: cloneRoleByBand(source.cityAttacksByRoleAndProgressionBand), eraArrivalRounds: { ...source.eraArrivalRounds },
+    finalCombatUnitsByRole: { ...source.combatUnitsByRole }, peakCombatUnitsByRole: { ...source.peakCombatUnitsByRole },
+  };
 }
 
 function addRejection(summary: RejectionSummary, item: { round: number; seq: number; actorId: number; actionType: Command['action']['type']; reason: string; category: 'fog' | 'defect' }): void {
@@ -162,7 +245,8 @@ export function simulateLeaderCase(match: LeaderBalanceCase): LeaderGameResult {
       id: match.id, seed: match.seed, personality: match.personality, rotation: match.rotation, leaderBySeat: match.leaderBySeat,
       status: 'defect', outcomeKind: null, winners: [], eliminatedSeats: [], round: 0, commandCount: 0, ranking: [], scoreByLeader: emptyScores,
       startingBySeat: [], rejections: emptyRejections(), exception: String(error),
-      activityByLeader: Object.fromEntries(LEADER_IDS.map(leaderId => [leaderId, { peakCities: 0, attacks: 0, captureAttempts: 0, captureSuccesses: 0, activeAbilities: 0, recruitedLeaderUnits: 0, leaderBuildings: 0 }])) as LeaderGameResult['activityByLeader'],
+      activityByLeader: Object.fromEntries(LEADER_IDS.map(leaderId => [leaderId, emptyLeaderActivity()])) as LeaderGameResult['activityByLeader'],
+      cityEvents: [], cityEventLogTruncated: false, warEpisodes: [], eliminations: [], progressionBySeat: [], eraProgression: eraCliValue(match.setup.eraProgression),
     };
   }
   const telemetry = createTelemetry(state, content), memory: RejectedCitySite[] = [], rejections = emptyRejections();
@@ -190,9 +274,10 @@ export function simulateLeaderCase(match: LeaderBalanceCase): LeaderGameResult {
   } catch (error) {
     exception = String(error);
   }
+  finalizeTelemetry(telemetry, state, content);
   const ranking = finalRanking(state, content);
-  const scoreByLeader = Object.fromEntries(LEADER_IDS.map((leaderId, seat) => {
-    const score = ranking.find(item => item.playerId === seat)!;
+  const scoreByLeader = Object.fromEntries(Object.entries(match.leaderBySeat).map(([seatText, leaderId]) => {
+    const seat = Number(seatText), score = ranking.find(item => item.playerId === seat)!;
     return [leaderId, { ...score, seat, rank: ranking.findIndex(item => item.playerId === seat) + 1, winCredit: state.outcome?.winners.includes(seat) ? 1 / state.outcome.winners.length : 0 }];
   })) as LeaderGameResult['scoreByLeader'];
   const commandLimitReached = !state.outcome && state.commandSeq >= 100_000;
@@ -202,11 +287,20 @@ export function simulateLeaderCase(match: LeaderBalanceCase): LeaderGameResult {
     status: commandLimitReached ? 'aborted' : hasDefect ? 'defect' : 'completed',
     outcomeKind: state.outcome?.kind ?? null, winners: state.outcome?.winners ?? [], eliminatedSeats: Object.values(state.players).filter(player => player.eliminated).map(player => player.id), round: state.round, commandCount: state.commandSeq,
     ranking, scoreByLeader, startingBySeat, rejections, exception,
-    activityByLeader: Object.fromEntries(LEADER_IDS.map((leaderId, seat) => [leaderId, {
-      peakCities: telemetry.activity[seat].peakCities, attacks: telemetry.activity[seat].attacks,
-      captureAttempts: telemetry.activity[seat].captureAttempts, captureSuccesses: telemetry.activity[seat].captureSuccesses,
-      activeAbilities: telemetry.activity[seat].activeAbilities, recruitedLeaderUnits: telemetry.activity[seat].recruitedLeaderUnits, leaderBuildings: telemetry.activity[seat].leaderBuildings,
-    }])) as LeaderGameResult['activityByLeader'],
+    activityByLeader: Object.fromEntries(Object.entries(match.leaderBySeat).map(([seatText, leaderId]) => [leaderId, leaderActivity(telemetry.activity[Number(seatText)])])) as LeaderGameResult['activityByLeader'],
+    cityEvents: telemetry.cityEvents, cityEventLogTruncated: telemetry.cityEventLogTruncated,
+    warEpisodes: telemetry.warEpisodes, eliminations: telemetry.eliminations,
+    progressionBySeat: Object.values(state.players).map(player => {
+      const source = telemetry.activity[player.id], score = ranking.find(item => item.playerId === player.id)!;
+      return {
+        seat: player.id, leaderId: player.leaderId!, techCount: score.techs,
+        finalCombatUnitsByRole: { ...source.combatUnitsByRole }, peakCombatUnitsByRole: { ...source.peakCombatUnitsByRole },
+        cityAttacksByProgressionBand: { ...source.cityAttacksByProgressionBand }, cityCapturesByProgressionBand: { ...source.cityCapturesByProgressionBand },
+        cityAttacksByRoleAndProgressionBand: cloneRoleByBand(source.cityAttacksByRoleAndProgressionBand),
+        eraArrivalRounds: { ...source.eraArrivalRounds },
+      };
+    }),
+    eraProgression: eraCliValue(match.setup.eraProgression),
   };
 }
 
@@ -224,6 +318,8 @@ type StartingAggregate = {
 type LeaderAggregate = {
   leaderId: LeaderId;
   observations: number;
+  conquest?: LeaderConquestAggregate;
+  eraArrivals?: Record<number, { reached: number; meanRound: number | null }>;
   winShare: ReturnType<typeof ratio>;
   wilson95: [number, number] | null;
   meanScore: ReturnType<typeof mean>;
@@ -236,11 +332,99 @@ type LeaderAggregate = {
   meanActiveAbilities: ReturnType<typeof mean>;
   meanRecruitedLeaderUnits: ReturnType<typeof mean>;
   meanLeaderBuildings: ReturnType<typeof mean>;
+  meanResolvedCityAttacks: ReturnType<typeof mean>;
+  meanCityCaptures: ReturnType<typeof mean>;
+  meanCityLosses: ReturnType<typeof mean>;
+  meanHQAttacks: ReturnType<typeof mean>;
+  meanHQCaptures: ReturnType<typeof mean>;
+  meanFirstCityAttackRound: ReturnType<typeof mean>;
+  meanFirstHQAttackRound: ReturnType<typeof mean>;
+  meanSiegeCraftRound: ReturnType<typeof mean>;
+  meanWarRounds: ReturnType<typeof mean>;
+  cityAttacksByRole: Record<CombatRole, number>;
+  cityCapturesByRole: Record<CombatRole, number>;
+  cityAttacksByProgressionBand: Record<ProgressionBand, number>;
+  cityCapturesByProgressionBand: Record<ProgressionBand, number>;
+  cityAttacksByRoleAndProgressionBand: Record<ProgressionBand, Record<CombatRole, number>>;
+  meanFinalCombatUnitsByRole: Record<CombatRole, number | null>;
+  meanPeakCombatUnitsByRole: Record<CombatRole, number | null>;
   eliminatedCount: number;
   splitWinCount: number;
   starting: StartingAggregate;
   byPersonality: Record<AiPersonality, { observations: number; winCredit: number; meanScore: number }>;
 };
+
+type EraArrivalAggregate = Record<number, { reached: number; meanRound: number | null }>;
+
+function aggregateEraArrivals(rows: Record<number, number>[]): EraArrivalAggregate {
+  const indices = [...new Set(rows.flatMap(row => Object.keys(row).map(Number)))].sort((a, b) => a - b);
+  return Object.fromEntries(indices.map(index => {
+    const rounds = rows.map(row => row[index]).filter((round): round is number => round !== undefined);
+    return [index, { reached: rounds.length, meanRound: rounds.length ? rounds.reduce((sum, round) => sum + round, 0) / rounds.length : null }];
+  }));
+}
+
+type LeaderConquestAggregate = {
+  meanResolvedCityAttacks: number | null;
+  meanCityCaptures: number | null;
+  meanCityLosses: number | null;
+  meanHQAttacks: number | null;
+  meanHQCaptures: number | null;
+  meanFirstCityAttackRound: number | null;
+  meanFirstHQAttackRound: number | null;
+  meanSiegeCraftRound: number | null;
+  meanWarRounds: number | null;
+  cityAttacksByRole: Record<CombatRole, number>;
+  cityCapturesByRole: Record<CombatRole, number>;
+  cityAttacksByProgressionBand: Record<ProgressionBand, number>;
+  cityCapturesByProgressionBand: Record<ProgressionBand, number>;
+  cityAttacksByRoleAndProgressionBand: Record<ProgressionBand, Record<CombatRole, number>>;
+  meanFinalCombatUnitsByRole: Record<CombatRole, number | null>;
+  meanPeakCombatUnitsByRole: Record<CombatRole, number | null>;
+};
+
+function sumRoleCounts(rows: Record<CombatRole, number>[]): Record<CombatRole, number> {
+  const output = emptyRoleCounts();
+  for (const row of rows) for (const role of COMBAT_ROLES) output[role] += row[role];
+  return output;
+}
+function sumBandCounts(rows: Record<ProgressionBand, number>[]): Record<ProgressionBand, number> {
+  const output = emptyBandCounts();
+  for (const row of rows) for (const band of PROGRESSION_BANDS) output[band] += row[band];
+  return output;
+}
+function sumRoleByBandCounts(rows: Record<ProgressionBand, Record<CombatRole, number>>[]): Record<ProgressionBand, Record<CombatRole, number>> {
+  const output = emptyRoleByBandCounts();
+  for (const row of rows) for (const band of PROGRESSION_BANDS) for (const role of COMBAT_ROLES) output[band][role] += row[band][role];
+  return output;
+}
+function meanRoleCounts(rows: Record<CombatRole, number>[]): Record<CombatRole, number | null> {
+  return Object.fromEntries(COMBAT_ROLES.map(role => [role, rows.length ? rows.reduce((sum, row) => sum + row[role], 0) / rows.length : null])) as Record<CombatRole, number | null>;
+}
+function leaderConquestAggregate(rows: LeaderActivityMetrics[]): LeaderConquestAggregate {
+  const average = (values: (number | null)[]) => {
+    const available = values.filter((value): value is number => value !== null);
+    return available.length ? available.reduce((sum, value) => sum + value, 0) / available.length : null;
+  };
+  return {
+    meanResolvedCityAttacks: average(rows.map(row => row.resolvedCityAttacks)),
+    meanCityCaptures: average(rows.map(row => row.cityCaptures)),
+    meanCityLosses: average(rows.map(row => row.cityLosses)),
+    meanHQAttacks: average(rows.map(row => row.hqAttacks)),
+    meanHQCaptures: average(rows.map(row => row.hqCaptures)),
+    meanFirstCityAttackRound: average(rows.map(row => row.firstCityAttackRound)),
+    meanFirstHQAttackRound: average(rows.map(row => row.firstHQAttackRound)),
+    meanSiegeCraftRound: average(rows.map(row => row.siegeCraftRound)),
+    meanWarRounds: average(rows.map(row => row.warRounds)),
+    cityAttacksByRole: sumRoleCounts(rows.map(row => row.cityAttacksByRole)),
+    cityCapturesByRole: sumRoleCounts(rows.map(row => row.cityCapturesByRole)),
+    cityAttacksByProgressionBand: sumBandCounts(rows.map(row => row.cityAttacksByProgressionBand)),
+    cityCapturesByProgressionBand: sumBandCounts(rows.map(row => row.cityCapturesByProgressionBand)),
+    cityAttacksByRoleAndProgressionBand: sumRoleByBandCounts(rows.map(row => row.cityAttacksByRoleAndProgressionBand)),
+    meanFinalCombatUnitsByRole: meanRoleCounts(rows.map(row => row.finalCombatUnitsByRole)),
+    meanPeakCombatUnitsByRole: meanRoleCounts(rows.map(row => row.peakCombatUnitsByRole)),
+  };
+}
 
 function aggregateStarting(samples: StartingPosition[]): StartingAggregate {
   const average = (key: NumericStartingKey) => samples.length ? samples.reduce((sum, sample) => sum + sample[key], 0) / samples.length : null;
@@ -265,6 +449,12 @@ export function aggregateLeaderGames(games: LeaderGameResult[]) {
   const valid = games.filter(game => game.status === 'completed');
   const leaders: LeaderAggregate[] = LEADER_IDS.map(leaderId => {
     const observations = valid.flatMap(game => game.scoreByLeader[leaderId] ? [{ game, score: game.scoreByLeader[leaderId] }] : []);
+    const activityRows = observations.map(({ game }) => game.activityByLeader[leaderId]);
+    const activityMean = (key: keyof Pick<LeaderActivityMetrics, 'resolvedCityAttacks' | 'cityCaptures' | 'cityLosses' | 'hqAttacks' | 'hqCaptures' | 'firstCityAttackRound' | 'firstHQAttackRound' | 'siegeCraftRound' | 'warRounds'>) =>
+      mean(observations.flatMap(({ game }) => {
+        const value = game.activityByLeader[leaderId][key];
+        return value === null ? [] : [{ seed: game.seed, value }];
+      }));
     const winSamples = observations.map(({ game, score }) => ({ seed: game.seed, successes: score.winCredit, trials: 1 }));
     const winShare = ratio(winSamples);
     const scoreSamples = observations.map(({ game, score }) => ({ seed: game.seed, value: score.total }));
@@ -285,6 +475,24 @@ export function aggregateLeaderGames(games: LeaderGameResult[]) {
       meanActiveAbilities: mean(observations.map(({ game }) => ({ seed: game.seed, value: game.activityByLeader[leaderId].activeAbilities }))),
       meanRecruitedLeaderUnits: mean(observations.map(({ game }) => ({ seed: game.seed, value: game.activityByLeader[leaderId].recruitedLeaderUnits }))),
       meanLeaderBuildings: mean(observations.map(({ game }) => ({ seed: game.seed, value: game.activityByLeader[leaderId].leaderBuildings }))),
+      conquest: leaderConquestAggregate(activityRows),
+      eraArrivals: aggregateEraArrivals(activityRows.map(row => row.eraArrivalRounds)),
+      meanResolvedCityAttacks: activityMean('resolvedCityAttacks'),
+      meanCityCaptures: activityMean('cityCaptures'),
+      meanCityLosses: activityMean('cityLosses'),
+      meanHQAttacks: activityMean('hqAttacks'),
+      meanHQCaptures: activityMean('hqCaptures'),
+      meanFirstCityAttackRound: activityMean('firstCityAttackRound'),
+      meanFirstHQAttackRound: activityMean('firstHQAttackRound'),
+      meanSiegeCraftRound: activityMean('siegeCraftRound'),
+      meanWarRounds: activityMean('warRounds'),
+      cityAttacksByRole: sumRoleCounts(activityRows.map(row => row.cityAttacksByRole)),
+      cityCapturesByRole: sumRoleCounts(activityRows.map(row => row.cityCapturesByRole)),
+      cityAttacksByProgressionBand: sumBandCounts(activityRows.map(row => row.cityAttacksByProgressionBand)),
+      cityCapturesByProgressionBand: sumBandCounts(activityRows.map(row => row.cityCapturesByProgressionBand)),
+      cityAttacksByRoleAndProgressionBand: sumRoleByBandCounts(activityRows.map(row => row.cityAttacksByRoleAndProgressionBand)),
+      meanFinalCombatUnitsByRole: meanRoleCounts(activityRows.map(row => row.finalCombatUnitsByRole)),
+      meanPeakCombatUnitsByRole: meanRoleCounts(activityRows.map(row => row.peakCombatUnitsByRole)),
       eliminatedCount: observations.filter(({ game }) => game.eliminatedSeats.includes(game.scoreByLeader[leaderId].seat)).length,
       splitWinCount: observations.filter(({ game, score }) => game.winners.length > 1 && game.winners.includes(score.seat)).length,
       starting: aggregateStarting(valid.flatMap(game => game.startingBySeat.filter(start => start.leaderId === leaderId))),
@@ -296,7 +504,38 @@ export function aggregateLeaderGames(games: LeaderGameResult[]) {
     for (const [reason, count] of Object.entries(game.rejections.byReason)) all[reason] = (all[reason] ?? 0) + count;
     return all;
   }, {} as Record<string, number>);
+  const allActivities = valid.flatMap(game => Object.values(game.activityByLeader));
+  const conquest = leaderConquestAggregate(allActivities);
+  const endedWars = valid.flatMap(game => game.warEpisodes.map(episode => ({ seed: game.seed, episode }))).filter(({ episode }) => episode.status !== 'active-at-end');
+  const conquestSummary = {
+    gamesWithCityAttack: valid.filter(game => Object.values(game.activityByLeader).some(row => row.resolvedCityAttacks > 0)).length,
+    gamesWithCityCapture: valid.filter(game => Object.values(game.activityByLeader).some(row => row.cityCaptures > 0)).length,
+    gamesWithHQAttack: valid.filter(game => Object.values(game.activityByLeader).some(row => row.hqAttacks > 0)).length,
+    gamesWithHQCapture: valid.filter(game => Object.values(game.activityByLeader).some(row => row.hqCaptures > 0)).length,
+    eliminationEvents: valid.reduce((sum, game) => sum + game.eliminations.length, 0),
+    cityEventLogTruncatedGames: valid.filter(game => game.cityEventLogTruncated).length,
+    ...conquest,
+  };
+  const warSummary = {
+    episodes: valid.reduce((sum, game) => sum + game.warEpisodes.length, 0),
+    declarations: valid.reduce((sum, game) => sum + Object.values(game.activityByLeader).reduce((inner, row) => inner + row.warDeclarations, 0), 0),
+    peaceAgreements: valid.reduce((sum, game) => sum + Object.values(game.activityByLeader).reduce((inner, row) => inner + row.peaceAgreements, 0) / 2, 0),
+    endedEpisodes: endedWars.length,
+    activeWarsAtEnd: valid.reduce((sum, game) => sum + game.warEpisodes.filter(episode => episode.status === 'active-at-end').length, 0),
+    meanWarRounds: conquest.meanWarRounds,
+    meanEpisodeDuration: mean(endedWars.map(({ seed, episode }) => ({ seed, value: episode.rounds! }))),
+  };
+  const progressionSummary = {
+    selectedEras: Object.fromEntries((['none', 'simple-v1', 'full-v1'] as const).map(option => [option, valid.filter(game => game.eraProgression === option).length])),
+    cityAttacksByProgressionBand: conquest.cityAttacksByProgressionBand,
+    cityCapturesByProgressionBand: conquest.cityCapturesByProgressionBand,
+    cityAttacksByRoleAndProgressionBand: conquest.cityAttacksByRoleAndProgressionBand,
+    eraArrivals: aggregateEraArrivals(valid.flatMap(game => game.progressionBySeat.map(seat => seat.eraArrivalRounds))),
+  };
   return {
+    conquest: conquestSummary,
+    war: warSummary,
+    progression: progressionSummary,
     attemptedGames: games.length,
     completedGames: valid.length,
     defectGames: games.filter(game => game.status === 'defect').length,
@@ -327,6 +566,7 @@ export type LeaderBalanceReport = {
     seedStart: number;
     seedValues: number[];
     expansion: boolean;
+    eraProgression: EraCliOption;
     gamesPlanned: number;
     scheduleSha256: string;
     toolSha256: string;
@@ -416,7 +656,8 @@ export function runLeaderBalance(config: LeaderBalanceConfig, context?: { comman
       command: context?.command ?? ['node', 'tools/leader-balance.ts', '--seeds', String(config.seeds), '--seed-start', String(seedStart), '--expansion', config.expansionVersion === 1 ? 'true' : 'false', '--round-limit', String(config.roundLimit)],
       nodeVersion: context?.nodeVersion ?? process.version,
       gitHead: context?.gitHead ?? null,
-      config, seedStart, seedValues: Array.from({ length: config.seeds }, (_, index) => seedStart + index), expansion: config.expansionVersion === 1, gamesPlanned: matches.length,
+      config, seedStart, seedValues: Array.from({ length: config.seeds }, (_, index) => seedStart + index), expansion: config.expansionVersion === 1,
+      eraProgression: eraCliValue(config.eraProgression), gamesPlanned: matches.length,
       scheduleSha256, toolSha256, contentVersion: content.version, contentSha256, deterministic: true,
     },
     aggregate,
@@ -425,6 +666,7 @@ export function runLeaderBalance(config: LeaderBalanceConfig, context?: { comman
       `样本仅 ${config.seeds} 个地图种子 × ${PERSONALITIES.length} 种性格 × ${LEADER_IDS.length} 个座位轮换，不能推断校准完成或长期平衡。`,
       '同一种子与性格的四局共享地形、初始位置和初始随机流；胜负观测不是互相独立的地图样本。',
       '本工具只诊断现有规则，不调整任何数值，也不覆盖不同人类操作、多人网络局或主动技能路线。',
+      ...(config.eraProgression === undefined ? [] : [`本批显式选择时代进度：${eraCliValue(config.eraProgression)}；时间分段基于科技完成数量，不等同于完整时代规则。`]),
     ],
     games,
   };
@@ -434,21 +676,25 @@ export function parseLeaderBalanceArgs(args: string[]): { config: LeaderBalanceC
   const flags: Record<string, string> = {};
   for (let index = 0; index < args.length; index += 2) {
     const key = args[index];
-    if (!['--seeds', '--seed-start', '--expansion', '--round-limit', '--out'].includes(key)
+    if (!['--seeds', '--seed-start', '--expansion', '--eras', '--round-limit', '--out'].includes(key)
       || !args[index + 1] || args[index + 1].startsWith('--') || Object.hasOwn(flags, key)) {
-      throw new Error('Usage: node tools/leader-balance.ts --seeds <1..100> [--seed-start <1..>] [--expansion <true|false>] --round-limit <100|200|300> [--out <file.json>]');
+      throw new Error('Usage: node tools/leader-balance.ts --seeds <1..100> [--seed-start <1..>] [--expansion <true|false>] [--eras <none|simple|full>] --round-limit <100|200|300> [--out <file.json>]');
     }
     flags[key] = args[index + 1];
   }
-  const seeds = Number(flags['--seeds'] ?? 2), seedStart = Number(flags['--seed-start'] ?? 1), roundLimit = Number(flags['--round-limit'] ?? 100), expansion = flags['--expansion'] ?? 'false';
+  const seeds = Number(flags['--seeds'] ?? 2), seedStart = Number(flags['--seed-start'] ?? 1), roundLimit = Number(flags['--round-limit'] ?? 100);
+  const expansion = flags['--expansion'] ?? 'false', era = flags['--eras'] ?? 'none';
   if (!Number.isSafeInteger(seeds) || seeds < 1 || seeds > 100 || !Number.isSafeInteger(seedStart) || seedStart < 1
     || !Number.isSafeInteger(seedStart + seeds - 1) || !['100', '200', '300'].includes(String(roundLimit))
-    || !['true', 'false'].includes(expansion)) {
-    throw new Error('Expected --seeds 1..100, --seed-start >=1, --expansion true|false, and --round-limit 100|200|300');
+    || !['true', 'false'].includes(expansion) || !['none', 'simple', 'full'].includes(era)) {
+    throw new Error('Expected --seeds 1..100, --seed-start >=1, --expansion true|false, --eras none|simple|full, and --round-limit 100|200|300');
   }
+  if (expansion === 'false' && era !== 'none') throw new Error('--eras simple|full requires --expansion true');
+  const eraProgression = eraProgressionValue(era as 'none' | 'simple' | 'full');
   return {
     config: {
-      seeds, seedStart, ...(expansion === 'true' ? { expansionVersion: 1 as const } : {}), roundLimit: roundLimit as RoundLimit, width: 24, height: 16,
+      seeds, seedStart, ...(expansion === 'true' ? { expansionVersion: 1 as const } : {}),
+      ...(eraProgression === null ? {} : { eraProgression }), roundLimit: roundLimit as RoundLimit, width: 24, height: 16,
     },
     output: flags['--out'],
   };
@@ -478,6 +724,50 @@ export function renderLeaderBalanceMarkdown(report: LeaderBalanceReport): string
   const shareSummary = top.winShare.pointEstimate === null || bottom.winShare.pointEstimate === null
     ? '本批没有足够的完成局来计算领袖胜率；先解决运行健康问题，再解读平衡指标。'
     : `本批描述性胜利份额最高为 ${top.leaderId}（${(top.winShare.pointEstimate * 100).toFixed(2)}%），最低为 ${bottom.leaderId}（${(bottom.winShare.pointEstimate * 100).toFixed(2)}%）。两者的 Wilson 区间存在重叠或接近，且只有 ${report.metadata.config.seeds} 个地图种子，因此这只能作为下一批扩样方向，不能推出强度结论。`;
+  const conquest = a.conquest;
+  const conquestSection = conquest ? `
+## 征服瓶颈诊断
+
+- 发生城市攻击/城市占领/HQ攻击/HQ占领的完成局：${conquest.gamesWithCityAttack} / ${conquest.gamesWithCityCapture} / ${conquest.gamesWithHQAttack} / ${conquest.gamesWithHQCapture}
+- 每个座位平均：城市攻击 ${formatNumber(conquest.meanResolvedCityAttacks)}，城市占领 ${formatNumber(conquest.meanCityCaptures)}，城市失去 ${formatNumber(conquest.meanCityLosses)}，HQ攻击 ${formatNumber(conquest.meanHQAttacks)}，HQ占领 ${formatNumber(conquest.meanHQCaptures)}
+- 首次城市攻击/HQ攻击/攻城科技平均轮次：${formatNumber(conquest.meanFirstCityAttackRound)} / ${formatNumber(conquest.meanFirstHQAttackRound)} / ${formatNumber(conquest.meanSiegeCraftRound)}
+- 淘汰事件：${conquest.eliminationEvents}；详细城市事件截断层：${conquest.cityEventLogTruncatedGames}
+- 城市攻击角色：${JSON.stringify(conquest.cityAttacksByRole)}；城市占领角色：${JSON.stringify(conquest.cityCapturesByRole)}
+
+这些是真实结算事件计数，不是从总攻击数反推。首次指标只对发生事件的座位取平均；没有事件时显示为空。` : '';
+  const war = a.war;
+  const warSection = war ? `
+## 战争持续时间诊断
+
+- 战争段/宣战/停战协议/终局仍处于战争：${war.episodes} / ${war.declarations} / ${formatNumber(war.peaceAgreements, 0)} / ${war.activeWarsAtEnd}
+- 已结束战争段平均持续：${formatNumber(war.meanEpisodeDuration.value)} 轮
+- 每个座位平均战争轮次：${formatNumber(war.meanWarRounds)}
+
+战争段由外交状态从和平转战争开始，由转和平或终局收束；终局未和约会标记为 active-at-end。` : '';
+  const progression = a.progression;
+  const actualEraSection = progression?.eraArrivals ? `
+## 实际时代到达诊断
+
+- 到达指标来自每回合 \`eraState(player, setup.eraProgression).index\` 的首次出现轮次；第 1 轮初始时代会记录为 round 1。
+- 全部座位到达汇总：${JSON.stringify(progression.eraArrivals)}
+- 各领袖平均到达轮次和到达人数见下表；未启用时代规则时为空。
+
+| 领袖 | ${Object.keys(progression.eraArrivals).map(index => `时代${index}`).join(' | ')} |
+| --- | ${Object.keys(progression.eraArrivals).map(() => ' --- ').join('|')} |
+${a.leaders.map(leader => `| ${leader.leaderId} | ${Object.keys(progression.eraArrivals).map(index => {
+    const item = leader.eraArrivals?.[Number(index)];
+    return item ? `${item.meanRound === null ? '—' : item.meanRound.toFixed(2)}（${item.reached}）` : '—';
+  }).join(' | ')} |`).join('\n')}
+` : '';
+  const progressionSection = progression ? `
+## 科技数量分段诊断（非实际时代）
+
+
+- 报告配置：${report.metadata.eraProgression === 'none' ? '未启用时代规则' : `时代规则 ${report.metadata.eraProgression}`}
+- 诊断分段按攻击方已完成科技数划分：0–3 项 early，4–6 项 middle，7 项及以上 late；这只是时间代理，明确不等同于实际时代。
+- 城市攻击分段：${JSON.stringify(progression.cityAttacksByProgressionBand)}；城市占领分段：${JSON.stringify(progression.cityCapturesByProgressionBand)}
+- 分段×角色城市攻击：${JSON.stringify(progression.cityAttacksByRoleAndProgressionBand)}
+` : '';
   const startRows = a.startingBySeat.map(seat => `| ${seat.seat} | ${seat.observations} | ${formatNumber(seat.meanNearestRivalDistance)} | ${formatNumber(seat.meanBaseFood)} | ${formatNumber(seat.meanBaseProduction)} | ${formatNumber(seat.meanBaseGold)} | ${formatNumber(seat.meanBaseResearch)} | ${JSON.stringify(seat.starters)} |`).join('\n');
   return `# 领袖长期平衡诊断报告
 
@@ -492,7 +782,7 @@ export function renderLeaderBalanceMarkdown(report: LeaderBalanceReport): string
 - 地图：${report.metadata.config.width}×${report.metadata.config.height}，轮数上限 ${report.metadata.config.roundLimit}
 - 编排 SHA-256：\`${report.metadata.scheduleSha256}\`
 - 工具源码 SHA-256：\`${report.metadata.toolSha256}\`
-- 模式：${report.metadata.expansion ? '扩展 v1' : '旧版'}；种子范围 ${report.metadata.seedValues[0]}–${report.metadata.seedValues.at(-1)!}
+- 模式：${report.metadata.expansion ? '扩展 v1' : '旧版'}；时代选项 ${report.metadata.eraProgression}；种子范围 ${report.metadata.seedValues[0]}–${report.metadata.seedValues.at(-1)!}
 - 内容版本：${report.metadata.contentVersion}（SHA-256：${report.metadata.contentSha256}）
 
 ## 预注册验收
@@ -505,7 +795,7 @@ ${acceptanceRows}
 
 ## 本批观察
 
-${shareSummary}
+${shareSummary}${conquestSection}${warSection}${actualEraSection}${progressionSection}
 
 ## 领袖汇总
 

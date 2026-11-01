@@ -182,6 +182,11 @@ export type CivilizationRelationView = CivilizationRelation & {
   atPeace: boolean;
   targetEliminated: boolean;
 };
+export type CivilizationPlanningPolicy = {
+  maximumAllies: number;
+  blockedAllianceTargetPlayerIds: readonly number[];
+};
+
 export type CivilizationView = {
   version: 1;
   playerId: number;
@@ -890,7 +895,8 @@ export function observeCivilization(state: CivilizationHost, playerId: number, v
   };
 }
 
-export function planCivilizationAction(view: CivilizationView, content: CivilizationContent = CIVILIZATION_CONTENT): CivilizationAction | null {
+export function planCivilizationAction(view: CivilizationView, content: CivilizationContent = CIVILIZATION_CONTENT,
+  policy?: CivilizationPlanningPolicy): CivilizationAction | null {
   const own = view.planning;
   const freeSanctuary = view.sanctuaries.find(site => site.ownerId === null);
   if (freeSanctuary) {
@@ -938,9 +944,19 @@ export function planCivilizationAction(view: CivilizationView, content: Civiliza
   const relationEligible = (relation: CivilizationRelationView) => relation.atPeace && !relation.targetEliminated;
   const proposalRoundAvailable = (round: number | null) =>
     view.round > (round === null ? -Infinity : round + content.diplomacy.rejectionCooldownRounds);
+  const activeAlliances = view.relations.filter(relation => !relation.targetEliminated && relation.allianceSinceRound !== null);
+  if (policy && policy.maximumAllies === 0 && view.relations.filter(relation => !relation.targetEliminated).length === 1) {
+    const lastAlliance = activeAlliances[0];
+    if (lastAlliance) return { type: 'DissolveAlliance', targetPlayerId: lastAlliance.targetPlayerId };
+  }
   const allianceResponse = view.relations.find(relation => relationEligible(relation)
     && relation.allianceProposal?.proposerId === relation.targetPlayerId);
-  if (allianceResponse) return { type: 'RespondAlliance', targetPlayerId: allianceResponse.targetPlayerId, accept: true };
+  if (allianceResponse) {
+    const policyRejects = policy !== undefined
+      && (activeAlliances.length >= policy.maximumAllies
+        || policy.blockedAllianceTargetPlayerIds.includes(allianceResponse.targetPlayerId));
+    return { type: 'RespondAlliance', targetPlayerId: allianceResponse.targetPlayerId, accept: !policyRejects };
+  }
   const tradeResponse = view.relations.find(relation => relationEligible(relation)
     && relation.tradeProposal?.proposerId === relation.targetPlayerId);
   if (tradeResponse) return { type: 'RespondTrade', targetPlayerId: tradeResponse.targetPlayerId, accept: true };
@@ -971,7 +987,10 @@ export function planCivilizationAction(view: CivilizationView, content: Civiliza
     && proposalRoundAvailable(relation.allianceLastProposalRound)
     && proposalRoundAvailable(relation.allianceLastRejectedRound)
     && view.round >= relation.betrayalCooldownUntilRound
-    && relation.trust >= 0);
+    && relation.trust >= 0
+    && (policy === undefined
+      || (activeAlliances.length < policy.maximumAllies
+        && !policy.blockedAllianceTargetPlayerIds.includes(relation.targetPlayerId))));
   if (allianceTarget) return { type: 'ProposeAlliance', targetPlayerId: allianceTarget.targetPlayerId };
   const tradeTarget = view.relations.find(relation => relationEligible(relation)
     && relation.tradeSinceRound === null

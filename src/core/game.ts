@@ -1,3 +1,4 @@
+import { isEraProgression } from '../content/eras.ts';
 import { initializeExpansion } from './expansion.ts';
 import { spawnWild } from './wild.ts';
 import { isLeaderId } from '../content/leaders.ts';
@@ -22,6 +23,7 @@ export function createGame(setup: GameSetup, content: Content = setup.expansionV
     || new Set(setup.players.map(player => player.id)).size !== setup.players.length
     || setup.players.some(player => !Number.isSafeInteger(player.id) || player.id < 0)
     || (setup.expansionVersion !== undefined && setup.expansionVersion !== 1)
+    || (setup.eraProgression !== undefined && (!isEraProgression(setup.eraProgression) || setup.expansionVersion !== 1))
     || (setup.multiplayer !== undefined && setup.multiplayer !== true)
     || (!setup.multiplayer && setup.players.filter(player => player.controller === 'human').length > 1)
     || setup.players.some(player => player.controller === 'human' && !STARTER_IDS.includes(player.starterId))) {

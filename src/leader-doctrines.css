@@ -1,0 +1,20 @@
+#era-panel { overflow: hidden; }
+.era-body { display: grid; gap: 10px; padding: 12px 14px; }
+.era-progress { width: 100%; height: 6px; overflow: hidden; border-radius: 2px; background: #0D1D21; box-shadow: inset 0 1px rgb(255 255 255 / 4%); }
+.era-progress > span { display: block; height: 100%; background: linear-gradient(90deg, #7A5B33, #E1B45D); }
+.era-next { margin: -2px 0 0; color: #D8E2D7; font-size: 11px; }
+.era-summary { display: flex; flex-wrap: wrap; gap: 6px 12px; margin: 0; color: #9FB5A7; font-size: 10px; }
+.era-summary dd { margin: 0; color: #E9F0E5; font-weight: 700; }
+.era-doctrine { display: grid; gap: 5px; padding: 9px 10px; border: 1px solid #415449; border-radius: 6px; background: #13262A; }
+.era-doctrine > strong { color: #F0DFA9; font-size: 11px; }
+.era-doctrine p, .era-window p { margin: 0; color: #BAC9BD; font-size: 10px; line-height: 1.5; }
+.era-windows { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.era-window { padding: 8px 9px; border: 1px solid #31443F; border-radius: 5px; background: #102224; }
+.era-window.active { border-color: #7A6438; background: #1B2A28; box-shadow: inset 2px 0 0 #D5AC58; }
+.era-window-head { display: flex; align-items: center; justify-content: space-between; gap: 7px; }
+.era-window-head > strong { color: #DCE7DC; font-size: 10px; }
+.era-active-pill { padding: 1px 5px; border-radius: 3px; background: #433721; color: #EDCD82; font-size: 9px; font-weight: 700; }
+.era-window dl { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; margin: 7px 0 0; }
+.era-window dt { color: #8EA896; font-size: 9px; }
+.era-window dd { margin: 0; color: #D5E2D1; font-size: 10px; }
+.era-window small { display: block; margin-top: 5px; color: #81998C; font-size: 9px; }

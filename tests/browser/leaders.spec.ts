@@ -42,11 +42,11 @@ test('all four leaders apply only to a new game and pair independently with the 
 test('leader research is reflected in the UI and leader identity survives save/load and replay', async ({ page }) => {
   await page.goto('/');
   await page.locator('#animate').uncheck();
-  await expect(page.locator('#hud-research')).toContainText('1');
+  await expect(page.locator('#hud-research')).toContainText('2');
   await page.locator('#research-topic').selectOption('domestication');
   await page.locator('#set-research').click();
   await page.locator('#end-turn').click();
-  expect((await state(page)).players[0].research.progressByTech.domestication).toBe(1);
+  expect((await state(page)).players[0].research.progressByTech.domestication).toBe(2);
   await page.locator('#save-game').click();
   const saved = await state(page);
   const log = await page.evaluate(async () => { const path = '/src/browser/main.ts'; return (await import(path)).developerAdapter.exportLog(); });
