@@ -142,6 +142,7 @@ function activityText(payload: VisibleEvent['payload']) {
     case 'TileWorked': return payload.completed ? `建成${IMPROVEMENTS[payload.kind].name}` : `施工${IMPROVEMENTS[payload.kind].name} ${payload.progress}/${payload.required}`;
     case 'WeatherSummoned': return `文明 ${payload.playerId + 1} 召唤了${WEATHERS[payload.weather].name}`;
     case 'EraAbilityUsed': return `文明 ${payload.playerId + 1} 发动${ERA_ABILITIES[payload.ability].name}${payload.typeId ? `（${TYPE_NAMES[payload.typeId]}）` : ''}`;
+    case 'CityDefected': return `城市 ${payload.cityId} 羁绊耗尽，脱离文明 ${payload.playerId + 1} 成为中立营地`;
     case 'GymBuilt': return `城市 ${payload.cityId} 建成${ESSENCES[payload.essence].name}道馆`;
     case 'CharterAdopted': return `文明 ${payload.playerId + 1} 确立规章「${CHARTERS[payload.charterId].name}」`;
     case 'PoliciesChanged': return `方针更新：${payload.policyIds.map(id => POLICIES[id].name).join('、') || '无'}${payload.goldCost ? `（${payload.goldCost} 金）` : ''}`;
@@ -208,7 +209,7 @@ function controls() {
   });
   renderEconomyPanel(view, selectedCity, issue, busy() || ended || pendingPeace);
   renderResearchPanel(view, issue, busy() || ended || pendingPeace);
-  renderNeutralPanel(view, neutralCity);
+  renderNeutralPanel(view, neutralCity, issue, busy() || ended || pendingPeace);
   renderDiplomacyPanel(view, busy() || ended, issue);
   renderOutcome(view, newGame);
   document.querySelector('#activity-list')!.innerHTML = activityLog.length ? activityLog.map(text => `<li>${text}</li>`).join('') : '<li>暂无动态</li>';
@@ -249,6 +250,8 @@ function turnReminders(view: PlayerView, content: typeof EXPANSION_CONTENT): { l
   if (player.research.techId === null && (Object.keys(content.techs) as TechId[]).some(id => canResearch(player, id))) items.push({ label: '选择研究', target: '#research-panel' });
   const policies = view.expansion?.policies;
   if (policies && policies.charterId === null && policies.adopted.length < Object.keys(CHARTERS).length) items.push({ label: '选择规章', target: '#policy-panel' });
+  const shaky = Object.values(view.expansion?.bonds ?? {}).filter(info => info.bond < 30 && info.pressure.total < 0).length;
+  if (shaky) items.push({ label: `${shaky} 城羁绊告急`, target: 'city' });
   const idleCities = view.economy.cities.filter(city => city.queue.length === 0).length;
   if (idleCities) items.push({ label: `${idleCities} 城空闲`, target: 'city' });
   const idleUnits = view.units.filter(unit => unit.ownerId === view.playerId && unit.actionLeft).length;

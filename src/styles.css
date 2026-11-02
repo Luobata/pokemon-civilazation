@@ -464,3 +464,11 @@ button.danger { border-color: var(--danger); background: #9E4B43; color: var(--o
 .era-ability-actions button, .tera-row button { min-height: 30px; padding: 4px 8px; border-color: #7A5A96; background: #2B2236; color: #EADBFF; font-size: 11px; }
 .tera-row { display: flex; gap: 6px; }
 .tera-row select { flex: 1; }
+.city-bond { display: grid; gap: 4px; margin: 4px 0 8px; }
+.city-bond .section-label { margin: 0; }
+.city-bond .unit-note { padding: 0; }
+.bond-bar { height: 5px; border-radius: 2px; background: #0D1D21; overflow: hidden; }
+.bond-bar > span { display: block; height: 100%; background: linear-gradient(90deg, #4E8A6A, #8CD3A2); }
+.city-bond.warn .bond-bar > span { background: linear-gradient(90deg, #8A6E34, #E1B45D); }
+.city-bond.danger .bond-bar > span { background: linear-gradient(90deg, #8A3A34, #E1705D); }
+.city-bond.danger .section-label { color: #F2A08F; }

@@ -1,3 +1,4 @@
+import { LATEST_GAMEPLAY_VERSION } from '../../src/content/eras.ts';
 import { expect, test } from 'vitest';
 import { CLASSIC_LEADER_IDS, LEADER_IDS } from '../../src/content/leaders.ts';
 import { createGame } from '../../src/core/game.ts';
@@ -63,7 +64,7 @@ test('arguments are bounded and default to a manageable legacy batch', () => {
     seeds: 2, seedStart: 11, expansionVersion: 1, roundLimit: 100, width: 24, height: 16,
   });
   expect(parseLeaderBalanceArgs(['--seeds', '2', '--seed-start', '11', '--expansion', 'true', '--eras', 'simple', '--round-limit', '100']).config).toEqual({
-    seeds: 2, seedStart: 11, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 5, roundLimit: 100, width: 24, height: 16,
+    seeds: 2, seedStart: 11, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: LATEST_GAMEPLAY_VERSION, roundLimit: 100, width: 24, height: 16,
   });
   expect(parseLeaderBalanceArgs(['--seeds', '1', '--expansion', 'true', '--eras', 'none', '--round-limit', '100']).config).toEqual({
     seeds: 1, seedStart: 1, expansionVersion: 1, roundLimit: 100, width: 24, height: 16,
@@ -135,7 +136,7 @@ test('one deterministic full game produces leader scores and honest report warni
   expect(Object.values(first.scoreByLeader).map(score => score.total)).toHaveLength(4);
   const aggregate = aggregateLeaderGames([first]);
   expect(aggregate.attemptedGames).toBe(1);
-  expect(Object.keys(aggregate.outcomeKinds)).toEqual(['conquest', 'score', 'playerDefeat', 'pokedex', 'origin', 'championship']);
+  expect(Object.keys(aggregate.outcomeKinds)).toEqual(['conquest', 'score', 'playerDefeat', 'pokedex', 'origin', 'championship', 'contest', 'faith']);
   const acceptance = evaluateLeaderBalanceAcceptance(aggregate, 1);
   expect(acceptance.status).toBe('fail');
   expect(acceptance.checks.map(item => item.id)).toContain('win-share-spread');

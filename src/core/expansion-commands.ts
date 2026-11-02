@@ -30,6 +30,7 @@ export function expansionActionFields(content: Content = EXPANSION_CONTENT): Rec
   SummonWeather: { cityId: 'id', weather: WEATHER_IDS },
   MegaEvolve: { unitId: 'id' }, PrimeZMove: { unitId: 'id' }, Dynamax: { unitId: 'id' },
   Terastallize: { unitId: 'id', typeId: Object.keys(TYPE_ESSENCE) },
+  ReclaimCity: { cityId: 'id' },
   };
 }
 export const EXPANSION_ACTION_FIELDS: Record<ExpansionAction['type'], Fields> = expansionActionFields();

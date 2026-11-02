@@ -714,6 +714,16 @@ export const AUDIT_SYSTEMS: readonly AuditSystem[] = [
     sources: ["src/content/era-abilities.ts", "src/core/era-abilities.ts", "src/ai/era-ability-plan.ts", "tests/core/era-abilities.test.ts"],
     actionTypes: ["SummonWeather", "MegaEvolve", "PrimeZMove", "Dynamax", "Terastallize", "Attack", "EndTurn"],
   }),
+  system({
+    id: "s37-bonds",
+    name: "城市羁绊（忠诚度）",
+    status: "implemented",
+    summary: "时代玩法 v6：每座城市羁绊 0–100，按距总部、是否新占领、满意度、驻军与建筑每轮变化；归零时城市脱离成为中立营地。",
+    rules: ["总部固定满羁绊；其他城市每轮基础 +2。", "距总部超过 6 格每多 1 格 −1（最多 −6）；占领后 10 轮内 −4；满意度低于 20 时 −2；5 格内每座外国城市 −1。", "宝可梦中心、属性道馆、相邻驻军各 +2。", "羁绊归零的非总部城市清空队列与道馆并成为中立营地；可在己方城市 6 格内花 80 金币和平收复，收复后羁绊 50。"],
+    checks: ["核对正式命令、成本、所有权、轮次与当前派生状态。", "验证观察隔离、事务拒绝、确定性和存档重放。"],
+    sources: ["src/core/bonds.ts", "src/ai/bond-plan.ts", "src/browser/neutral-panel.ts", "tests/core/bonds.test.ts"],
+    actionTypes: ["ReclaimCity", "EndTurn"],
+  }),
 ];
 
 export const AUDIT_SYSTEM_BY_ID: ReadonlyMap<string, AuditSystem> = new Map(AUDIT_SYSTEMS.map(item => [item.id, item]));

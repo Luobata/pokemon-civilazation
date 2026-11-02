@@ -11,7 +11,7 @@ import type { MapTerrain } from './map.ts';
 
 export type AiPersonality = 'expansion' | 'aggressive' | 'conservative';
 export type Score = { playerId: number; total: number; cities: number; population: number; species: number; techs: number; knockdowns: number };
-export type GameOutcome = { kind: 'conquest' | 'score' | 'playerDefeat' | 'pokedex' | 'origin' | 'championship'; winners: number[]; ranking: Score[]; round: number };
+export type GameOutcome = { kind: 'conquest' | 'score' | 'playerDefeat' | 'pokedex' | 'origin' | 'championship' | 'contest' | 'faith'; winners: number[]; ranking: Score[]; round: number };
 export type Diplomacy = { a: number; b: number; status: 'peace' | 'war'; changedAtRound: number; declaredBy: number | null;
   cooldownUntilRound: number; rejectedAtRound: Record<number, number>; citiesLostSinceWar: Record<number, number>;
   proposal: { proposerId: number; recipientId: number } | null };

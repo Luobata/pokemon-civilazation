@@ -552,7 +552,7 @@ export function aggregateLeaderGames(games: LeaderGameResult[]) {
     abortedGames: games.filter(game => game.status === 'aborted').length,
     exceptionGames: games.filter(game => game.exception !== null).length,
     splitWinGames: valid.filter(game => game.winners.length > 1).length,
-    outcomeKinds: Object.fromEntries((['conquest', 'score', 'playerDefeat', 'pokedex', 'origin', 'championship'] as const).map(kind => [kind, valid.filter(game => game.outcomeKind === kind).length])),
+    outcomeKinds: Object.fromEntries((['conquest', 'score', 'playerDefeat', 'pokedex', 'origin', 'championship', 'contest', 'faith'] as const).map(kind => [kind, valid.filter(game => game.outcomeKind === kind).length])),
     rejections: {
       total: games.reduce((sum, game) => sum + game.rejections.total, 0),
       fog: games.reduce((sum, game) => sum + game.rejections.fog, 0),
@@ -688,7 +688,7 @@ export function parseLeaderBalanceArgs(args: string[]): { config: LeaderBalanceC
     const key = args[index];
     if (!['--seeds', '--seed-start', '--expansion', '--eras', '--gameplay', '--round-limit', '--out'].includes(key)
       || !args[index + 1] || args[index + 1].startsWith('--') || Object.hasOwn(flags, key)) {
-      throw new Error('Usage: node tools/leader-balance.ts --seeds <1..100> [--seed-start <1..>] [--expansion <true|false>] [--eras <none|simple|full>] [--gameplay <0|1|2|3|4|5>] --round-limit <100|200|300> [--out <file.json>]');
+      throw new Error(`Usage: node tools/leader-balance.ts --seeds <1..100> [--seed-start <1..>] [--expansion <true|false>] [--eras <none|simple|full>] [--gameplay <0..${LATEST_GAMEPLAY_VERSION}>] --round-limit <100|200|300> [--out <file.json>]`);
     }
     flags[key] = args[index + 1];
   }
@@ -702,7 +702,7 @@ export function parseLeaderBalanceArgs(args: string[]): { config: LeaderBalanceC
   if (expansion === 'false' && era !== 'none') throw new Error('--eras simple|full requires --expansion true');
   const eraProgression = eraProgressionValue(era as 'none' | 'simple' | 'full');
   const gameplay = Number(flags['--gameplay'] ?? (eraProgression === null ? 0 : LATEST_GAMEPLAY_VERSION));
-  if (![0, 1, 2, 3, 4, 5].includes(gameplay) || (gameplay > 0 && eraProgression === null)) throw new Error('--gameplay 1|2|3|4|5 requires --eras simple|full');
+  if (!Number.isSafeInteger(gameplay) || gameplay < 0 || gameplay > LATEST_GAMEPLAY_VERSION || (gameplay > 0 && eraProgression === null)) throw new Error('--gameplay 1.. requires --eras simple|full');
   return {
     config: {
       seeds, seedStart, ...(expansion === 'true' ? { expansionVersion: 1 as const } : {}),

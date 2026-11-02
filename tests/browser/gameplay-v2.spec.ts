@@ -1,3 +1,4 @@
+import { LATEST_GAMEPLAY_VERSION } from '../../src/content/eras.ts';
 import { expect, test } from '@playwright/test';
 import type { GameState } from '../../src/core/model.ts';
 
@@ -12,7 +13,7 @@ async function selectStarter(page: import('@playwright/test').Page) {
 
 test('new games use gameplay v2: tile improvements, discoveries and field tactics are playable', async ({ page }) => {
   await page.goto('/');
-  expect((await state(page)).setup).toMatchObject({ eraProgression: 'simple-v1', gameplayVersion: 5 });
+  expect((await state(page)).setup).toMatchObject({ eraProgression: 'simple-v1', gameplayVersion: LATEST_GAMEPLAY_VERSION });
   await selectStarter(page);
   await expect(page.locator('#zoc-note')).toContainText('夹击');
   const farm = page.locator('[data-improve$=":berryFarm"]').first();

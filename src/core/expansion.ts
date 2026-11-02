@@ -6,6 +6,7 @@ import { expansionActionType, parseExpansionAction } from './expansion-commands.
 import { applyLeaderAction, initializeLeaders, isLeaderAction, validateLeaderAction } from './leader-systems.ts';
 import { applyWorldAction, initializeWorld, isWorldAction, resolveWorldRound, updateWorldRecords, validateWorldAction } from './world-systems.ts';
 import { initializeDiscoveries, recordDiscoveries } from './discoveries.ts';
+import { applyBondAction, initializeBonds, isBondAction, resolveBondRound, syncBonds, validateBondAction } from './bonds.ts';
 import { applyEraAbilityAction, initializeEraAbilities, isEraAbilityAction, resolveEraAbilityRound, validateEraAbilityAction } from './era-abilities.ts';
 import { applyEssenceAction, initializeEssences, isEssenceAction, resolveEssenceRound, validateEssenceAction } from './essences.ts';
 import { applyPolicyAction, initializePolicies, isPolicyAction, resolvePolicyRound, validatePolicyAction } from './policies.ts';
@@ -23,6 +24,7 @@ export function initializeExpansion(state: GameState, content: Content): void {
   initializePolicies(state);
   initializeEssences(state);
   initializeEraAbilities(state);
+  initializeBonds(state);
 }
 export function validateExpansionAction(state: GameState, actorId: number, action: Command['action'], content: Content): boolean {
   if (!state.expansion || !expansionActionType(action.type)) return false;
@@ -31,6 +33,7 @@ export function validateExpansionAction(state: GameState, actorId: number, actio
     if (isImprovementAction(clean)) return validateImprovementAction(state, actorId, clean) === null;
     if (isPolicyAction(clean)) return validatePolicyAction(state, actorId, clean) === null;
     if (isEssenceAction(clean)) return validateEssenceAction(state, actorId, clean) === null;
+    if (isBondAction(clean)) return validateBondAction(state, actorId, clean) === null;
     if (isEraAbilityAction(clean)) return validateEraAbilityAction(state, actorId, clean, content) === null;
     if (isLeaderAction(clean)) return validateLeaderAction(state, actorId, clean, content) === null;
     if (isWorldAction(clean)) return validateWorldAction(state, actorId, clean, content) === null;
@@ -42,6 +45,7 @@ export function applyExpansionAction(state: GameState, actorId: number, action: 
   if (isImprovementAction(action)) return applyImprovementAction(state, actorId, action, content);
   if (isPolicyAction(action)) return applyPolicyAction(state, actorId, action);
   if (isEssenceAction(action)) return applyEssenceAction(state, actorId, action);
+  if (isBondAction(action)) return applyBondAction(state, actorId, action);
   if (isEraAbilityAction(action)) return applyEraAbilityAction(state, actorId, action, content);
   if (isLeaderAction(action)) return applyLeaderAction(state, actorId, action, content);
   if (isWorldAction(action)) return applyWorldAction(state, actorId, action, content);
@@ -55,10 +59,12 @@ export function resolveExpansionRound(state: GameState, content: Content): Event
   if (!state.outcome) events.push(...resolvePolicyRound(state));
   if (!state.outcome) events.push(...resolveEssenceRound(state));
   if (!state.outcome) events.push(...resolveEraAbilityRound(state));
+  if (!state.outcome) events.push(...resolveBondRound(state));
   return events;
 }
 export function recordExpansion(before: GameState, after: GameState, command: Command, events: readonly EventPayload[], content: Content): EventPayload[] {
   if (!after.expansion) return [];
+  syncBonds(after);
   const world = updateWorldRecords(before, after, command, events, content);
   return [...world, ...recordDiscoveries(before, after, command, [...events, ...world], content)];
 }

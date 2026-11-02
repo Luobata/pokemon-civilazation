@@ -89,11 +89,12 @@ export function eraState(player: EraPlayer, mode?: EraProgression): EraState | n
  * 3: adds League charters and training policy cards.
  * 4: adds type essences, type gyms, terrain home defense and five more leaders.
  * 5: adds era abilities (day/night, weather, Mega, Z-Move, Dynamax, Terastal).
+ * 6: adds city bonds (loyalty) and cities defecting to neutral camps.
  */
-export type GameplayVersion = 1 | 2 | 3 | 4 | 5;
-export const LATEST_GAMEPLAY_VERSION: GameplayVersion = 5;
+export type GameplayVersion = 1 | 2 | 3 | 4 | 5 | 6;
+export const LATEST_GAMEPLAY_VERSION: GameplayVersion = 6;
 export function isGameplayVersion(value: unknown): value is GameplayVersion {
-  return value === 1 || value === 2 || value === 3 || value === 4 || value === 5;
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= LATEST_GAMEPLAY_VERSION;
 }
 export function gameplayAtLeast(source: { gameplayVersion?: GameplayVersion }, version: GameplayVersion): boolean {
   return (source.gameplayVersion ?? 0) >= version;

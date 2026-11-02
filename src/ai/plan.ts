@@ -26,6 +26,7 @@ import { usesTactics } from '../core/tactics.ts';
 import { planPolicyAction } from './policy-plan.ts';
 import { planEssenceAction, siteEssenceBonus } from './essence-plan.ts';
 import { planEraAbilityAction } from './era-ability-plan.ts';
+import { planBondAction, threatenedCityIds } from './bond-plan.ts';
 import type { Goal } from './strategies.ts';
 type Candidate = { action: Command['action']; goal: Goal; benefit: number; ownId: number; targetId: number };
 export const CANDIDATE_BUDGET = 256; // 32 representatives for each of eight goals, never a time budget.
@@ -91,6 +92,9 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
   if (essenceAction) return result(essenceAction);
   const eraAction = planEraAbilityAction(view, content);
   if (eraAction) return result(eraAction);
+  const bondAction = planBondAction(view);
+  if (bondAction) return result(bondAction);
+  const threatened = new Set(threatenedCityIds(view));
   const leaderAction = planLeaderAction(view, content);
   if (leaderAction) return result(leaderAction);
   const worldAction = planWorldAction(view, { base: content, world: WORLD_DEFINITIONS });
@@ -167,7 +171,8 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
       const building = content.buildings[id];
       if (building.cost === null || city.buildingIds.includes(id) || (building.requiredTech && !player.research.unlockedIds.includes(building.requiredTech))) continue;
       const y = building.yields;
-      queue({ kind: 'building', defId: id }, 'economy', (y.food + y.production * 2 + y.gold * 2 + y.research * 2) * 100 - building.cost, i);
+      queue({ kind: 'building', defId: id }, 'economy', (y.food + y.production * 2 + y.gold * 2 + y.research * 2) * 100 - building.cost
+        + (id === 'trainingGround' && threatened.has(city.id) ? 1000 : 0), i);
     }
     if (combat.length < Math.max(4, cities.length * 2) && (income > upkeep || player.gold >= 80)) {
       for (const [i, id] of trainableSpeciesIds(player, view.gameplayVersion).entries()) {
@@ -230,6 +235,11 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
       }
       if (seek && hexDistance(to, seek) < hexDistance(unit.position, seek)) {
         add(action, 'military', 100 - hexDistance(to, seek), unit.id, index);
+      }
+      if (unit.kind === 'pokemon' && threatened.size && !atWar) {
+        const city = view.economy.cities.filter(item => threatened.has(item.id)).sort((a, b) => hexDistance(unit.position, a.position) - hexDistance(unit.position, b.position) || a.id - b.id)[0];
+        const garrisoned = city && view.units.some(other => other.ownerId === actorId && other.id !== unit.id && hexDistance(other.position, city.position) <= 1);
+        if (city && !garrisoned && hexDistance(to, city.position) < hexDistance(unit.position, city.position)) add(action, 'economy', 90 - hexDistance(to, city.position), unit.id, index);
       }
       if (sanctuary && sanctuaryTeam.includes(unit.id)) {
         const before = hexDistance(unit.position, sanctuary.position), after = hexDistance(to, sanctuary.position);
