@@ -120,6 +120,7 @@ function buildSetup(request: ValidRoomCreateRequest): GameSetup {
     roundLimit: request.roundLimit,
     expansionVersion: request.expansionVersion,
     eraProgression: request.eraProgression,
+    gameplayVersion: request.gameplayVersion,
     multiplayer: true,
     players,
   } as GameSetup;

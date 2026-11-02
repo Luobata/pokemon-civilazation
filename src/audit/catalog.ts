@@ -654,6 +654,36 @@ export const AUDIT_SYSTEMS: readonly AuditSystem[] = [
     sources: ["src/content/species.ts", "src/content/combat.ts", "src/core/combat-math.ts", "tests/core/expansion-integration.test.ts"],
     actionTypes: ["Attack"],
   }),
+  system({
+    id: "s31-improvements",
+    name: "工作宝可梦与地块改良",
+    status: "implemented",
+    summary: "时代玩法 v2：宝可梦在己方领地内施工，建成树果田、矿坑、渔场或观测站，永久提升地块产出。",
+    rules: ["每次施工消耗行动点；熟练属性得 2 点、其他 1 点，累计 3 点完工，进度跨回合保留。", "须在己方城市领地内的非城市中心格；渔场在相邻陆地施工，其余需站在地块上。", "对应科技解锁后改良额外 +1 产出；城市工作该地块时计入产出与自动分配排序。", "进行中的工程只对施工方可见，建成后作为地图特征被他人观察记忆。"],
+    checks: ["核对正式命令、成本、所有权、轮次与当前派生状态。", "验证观察隔离、事务拒绝、确定性和存档重放。"],
+    sources: ["src/content/improvements.ts", "src/core/improvements.ts", "src/ai/improvement-plan.ts", "tests/core/improvements.test.ts"],
+    actionTypes: ["ImproveTile", "EndTurn"],
+  }),
+  system({
+    id: "s32-discoveries",
+    name: "图鉴发现（科研尤里卡）",
+    status: "implemented",
+    summary: "时代玩法 v2：每项科技对应一个探索/战斗/经营里程碑，首次达成时该课题进度 +40%。",
+    rules: ["里程碑只按权威事件与状态判定：捕捉、采集或改良、属性克制击倒、进化、休养归队、攻城、结盟或贸易、城市数、图鉴数、抵达雪原或火山。", "每名玩家每项最多触发一次；已研究的科技只记录、不加成。", "加成不会单独完成科技，最多到成本 −1，完成仍在轮末科研结算。", "发现记录只对本人可见。"],
+    checks: ["核对正式命令、成本、所有权、轮次与当前派生状态。", "验证观察隔离、事务拒绝、确定性和存档重放。"],
+    sources: ["src/content/discoveries.ts", "src/core/discoveries.ts", "src/browser/research-panel.ts", "tests/core/discoveries.test.ts"],
+    actionTypes: ["EndTurn"],
+  }),
+  system({
+    id: "s33-field-tactics",
+    name: "控制区与夹击",
+    status: "implemented",
+    summary: "时代玩法 v2：近战/快速宝可梦对交战敌军施加控制区；同时围住目标的友军提供夹击伤害。",
+    rules: ["敌方处于战争状态的近战或快速宝可梦相邻格是控制区；移动进入后本回合停止，可以进入但不能穿过。", "侦察、飞行与幽灵系无视控制区；只按移动方当前可见的敌军计算，迷雾不会泄露隐藏单位。", "主动攻击单位时，目标每有一只其他己方宝可梦相邻 +10% 伤害，最多 +30%；反击不享受夹击。", "预览与权威结算共用同一计算。"],
+    checks: ["核对正式命令、成本、所有权、轮次与当前派生状态。", "验证观察隔离、事务拒绝、确定性和存档重放。"],
+    sources: ["src/core/tactics.ts", "src/core/movement.ts", "src/core/combat-query.ts", "tests/core/tactics.test.ts"],
+    actionTypes: ["Move", "Attack"],
+  }),
 ];
 
 export const AUDIT_SYSTEM_BY_ID: ReadonlyMap<string, AuditSystem> = new Map(AUDIT_SYSTEMS.map(item => [item.id, item]));

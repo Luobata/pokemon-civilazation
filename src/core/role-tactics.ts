@@ -1,4 +1,4 @@
-import type { EraProgression } from '../content/eras.ts';
+import type { EraProgression, GameplayVersion } from '../content/eras.ts';
 import type { Content, SpeciesId, UnitIdentity } from '../content/units.ts';
 import type { TechId } from '../content/economy.ts';
 import type { DoctrinePlayer, UnitRole } from './leader-doctrines.ts';
@@ -22,9 +22,9 @@ export const ROLE_CITY_ASSAULT: Readonly<Record<UnitRole, { label: string; adjac
 export const ERA_SIEGE_TECH_MULTIPLIER = 1750;
 
 /** Combined role × leader-window multiplier for attacking a city; null in legacy games. */
-export function cityAssaultMultiplier(player: DoctrinePlayer | undefined, mode: EraProgression | undefined,
+export function cityAssaultMultiplier(player: DoctrinePlayer | undefined, mode: EraProgression | undefined, gameplay: GameplayVersion | undefined,
   identity: UnitIdentity, content: Content, distance: number, siegeTech: boolean): number | null {
-  if (mode === undefined || identity.kind !== 'pokemon') return null;
+  if (mode === undefined || gameplay === undefined || identity.kind !== 'pokemon') return null;
   const role = content.species[identity.speciesId].role;
   const table = ROLE_CITY_ASSAULT[role];
   const base = role === 'siege' && siegeTech ? ERA_SIEGE_TECH_MULTIPLIER : distance <= 1 ? table.adjacent : table.distant;
@@ -34,8 +34,8 @@ export function cityAssaultMultiplier(player: DoctrinePlayer | undefined, mode: 
 
 /**
  * Era-mode garrison recruits: researching a technology lets every city train one
- * regional species of a role the starter lines cannot fill. Legacy games keep the
- * registered-species-only rule.
+ * regional species of a role the starter lines cannot fill. Games without a gameplay
+ * pack keep the registered-species-only rule.
  */
 export const ERA_TECH_RECRUITS: Readonly<Partial<Record<TechId, SpeciesId>>> = {
   domestication: 'rattata',
@@ -45,9 +45,9 @@ export const ERA_TECH_RECRUITS: Readonly<Partial<Record<TechId, SpeciesId>>> = {
 };
 
 export function trainableSpeciesIds(player: { registeredSpeciesIds: readonly SpeciesId[]; research: { unlockedIds: readonly TechId[] } },
-  mode: EraProgression | undefined): SpeciesId[] {
+  gameplay: GameplayVersion | undefined): SpeciesId[] {
   const ids = new Set(player.registeredSpeciesIds);
-  if (mode !== undefined) for (const [techId, speciesId] of Object.entries(ERA_TECH_RECRUITS) as [TechId, SpeciesId][]) {
+  if (gameplay !== undefined) for (const [techId, speciesId] of Object.entries(ERA_TECH_RECRUITS) as [TechId, SpeciesId][]) {
     if (player.research.unlockedIds.includes(techId)) ids.add(speciesId);
   }
   return [...ids].sort();

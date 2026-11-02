@@ -1,5 +1,8 @@
+import { IMPROVEMENTS } from '../content/improvements.ts';
+import { DISCOVERIES } from '../content/discoveries.ts';
 import { renderEraPanel } from './era-panel.ts';
 import type { EraProgression } from '../content/eras.ts';
+import { LATEST_GAMEPLAY_VERSION } from '../content/eras.ts';
 import { renderExpansionPanel } from './expansion-panel.ts';
 import { renderEconomyPanel } from './economy-panel.ts';
 import { AUDIT_SNAPSHOT_KEY } from '../audit/sandbox.ts';
@@ -129,6 +132,8 @@ function activityText(payload: VisibleEvent['payload']) {
     case 'UnitTrained': return `文明 ${payload.playerId + 1} 训练单位`;
     case 'CivilizationEliminated': return `文明 ${payload.eliminatedPlayerId + 1} 出局`;
     case 'GameEnded': return '对局结束';
+    case 'TileWorked': return payload.completed ? `建成${IMPROVEMENTS[payload.kind].name}` : `施工${IMPROVEMENTS[payload.kind].name} ${payload.progress}/${payload.required}`;
+    case 'DiscoveryMade': return `★ 图鉴发现「${DISCOVERIES[payload.techId].name}」：${EXPANSION_CONTENT.techs[payload.techId].name} +${payload.bonus}`;
     default: return '';
   }
 }
@@ -183,6 +188,7 @@ function controls() {
     evolve: evolveSelected,
     ball: ballId => { selectedBall = ballId; controls(); requestFrame(); },
     found: () => { if (selected !== null) issue({ type: 'FoundCity', unitId: selected }); },
+    improve: (tileIndex, kind) => { if (selected !== null) issue({ type: 'ImproveTile', unitId: selected, tileIndex, kind }); },
   });
   renderEconomyPanel(view, selectedCity, issue, busy() || ended || pendingPeace);
   renderResearchPanel(view, issue, busy() || ended || pendingPeace);
@@ -344,7 +350,7 @@ function newGame() {
     const sizeOption = document.querySelector<HTMLSelectElement>('#map-size')!.value as keyof typeof mapSizes;
     const size = mapSizes[sizeOption] ?? mapSizes['24x16'];
     const eraProgression = document.querySelector<HTMLSelectElement>('#era-progression')!.value as EraProgression;
-    driver = new GameSession({ expansionVersion: 1, eraProgression, seed: Number(new URLSearchParams(location.search).get('seed') ?? '12345'), ...size,
+    driver = new GameSession({ expansionVersion: 1, eraProgression, gameplayVersion: LATEST_GAMEPLAY_VERSION, seed: Number(new URLSearchParams(location.search).get('seed') ?? '12345'), ...size,
       roundLimit: Number(document.querySelector<HTMLSelectElement>('#round-limit')!.value) as GameSetup['roundLimit'], players });
     session = driver.asPlayerSession();
     active = null; presentationIndex = 0; selected = null; selectedCity = session.getView().economy.player.headquartersCityId; neutralCity = null; keyboardIndex = null; activityLog.length = 0;

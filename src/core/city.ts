@@ -1,4 +1,5 @@
 import { doctrineEffects } from './leader-doctrines.ts';
+import { tileImprovementYield } from './improvements.ts';
 import { worldCityYield } from './world-systems.ts';
 import { leaderCityYield } from './leader-systems.ts';
 import { EXPANSION_CONTENT, CONTENT } from '../content/units.ts';
@@ -27,11 +28,17 @@ export function tileYield(biome: keyof Content['biomes'], player: PlayerState, c
   if ((biome === 'snow' || biome === 'volcano') && player.research.unlockedIds.includes('meteorology')) result.research += content.balance.effects.meteorologyResearch;
   return result;
 }
+/** Biome yield plus any completed improvement (gameplay v2); identical to tileYield otherwise. */
+export function workedTileYield(state: GameState, index: number, player: PlayerState, content: Content = CONTENT): Yield {
+  const result = tileYield(state.map.tiles[index], player, content), bonus = tileImprovementYield(state, index, player);
+  if (bonus) for (const key of ['food', 'production', 'gold', 'research'] as const) result[key] += bonus[key];
+  return result;
+}
 // Best first; fixed row-major index is (r,q) order on this map.
 export function compareWorkTiles(state: GameState, city: CityState, a: number, b: number, content: Content = state.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT): number {
   if (city.ownerId === null) return a - b;
   const player = state.players[city.ownerId];
-  const ya = tileYield(state.map.tiles[a], player, content), yb = tileYield(state.map.tiles[b], player, content);
+  const ya = workedTileYield(state, a, player, content), yb = workedTileYield(state, b, player, content);
   return yb.food - ya.food || yb.production - ya.production || yb.gold - ya.gold || yb.research - ya.research || a - b;
 }
 export function workCandidates(state: GameState, city: CityState, content: Content = state.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT): number[] {
@@ -67,7 +74,7 @@ export function cityYield(state: GameState, city: CityState, content: Content = 
   if (city.ownerId === null || city.capturedAtRound === state.round) return { food: 0, production: 0, gold: 0, research: 0 };
   const player = state.players[city.ownerId];
   const result = { food: 2, production: 1, gold: 1, research: city.population - city.workedTileIds.length };
-  for (const addition of [...city.workedTileIds.map(id => tileYield(state.map.tiles[id], player, content)),
+  for (const addition of [...city.workedTileIds.map(id => workedTileYield(state, id, player, content)),
     leaderCityYield(state, city.id), worldCityYield(state, city, content), ...city.buildingIds.map(id => content.buildings[id].yields)]) {
     for (const key of ['food', 'production', 'gold', 'research'] as const) result[key] += addition[key];
   }

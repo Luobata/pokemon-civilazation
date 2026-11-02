@@ -1,0 +1,70 @@
+import { DISCOVERIES, DISCOVERY_PERCENT } from '../content/discoveries.ts';
+import { gameplayAtLeast } from '../content/eras.ts';
+import type { TechId } from '../content/economy.ts';
+import type { Content } from '../content/units.ts';
+import { hexToIndex } from './hex.ts';
+import { isMapUnit } from './model.ts';
+import type { Command, EventPayload, GameState } from './model.ts';
+
+/** gameplayVersion >= 2: per player, discovered milestone tech IDs (sorted). */
+export type DiscoveryState = Record<number, TechId[]>;
+export type DiscoveryEvent = { type: 'DiscoveryMade'; playerId: number; techId: TechId; bonus: number; progress: number };
+
+export function usesDiscoveries(state: GameState): boolean {
+  return state.expansion !== undefined && gameplayAtLeast(state.setup, 2);
+}
+export function initializeDiscoveries(state: GameState): void {
+  if (usesDiscoveries(state)) state.expansion!.discoveries = Object.fromEntries(state.turnOrder.map(id => [id, []]));
+}
+const documented = (state: GameState, playerId: number) => Object.values(state.expansion?.world.players[playerId]?.pokedex ?? {});
+
+/** Milestones that are true after this transaction for `playerId`, derived from authoritative events and state. */
+function reached(before: GameState, next: GameState, playerId: number, events: readonly EventPayload[], content: Content): TechId[] {
+  const hits = new Set<TechId>();
+  const player = next.players[playerId];
+  const own = (id: number) => (before.units[id] ?? next.units[id])?.ownerId === playerId;
+  for (const event of events) {
+    if (event.type === 'Captured' && event.playerId === playerId && event.success) hits.add('domestication');
+    if (event.type === 'WorldResourceHarvested' && event.playerId === playerId) hits.add(event.resourceKind === 'berry' ? 'berryCultivation' : 'stoneCraft');
+    if (event.type === 'TileWorked' && event.playerId === playerId && event.completed) {
+      if (event.kind === 'berryFarm') hits.add('berryCultivation');
+      if (event.kind === 'mine') hits.add('stoneCraft');
+      if (event.kind === 'observatoryCamp') hits.add('fieldObservation');
+    }
+    if (event.type === 'BattleResolved' && own(event.attackerId)) {
+      if (event.target.kind === 'city' && before.cities[event.target.id]?.ownerId !== null && before.cities[event.target.id]?.ownerId !== playerId) hits.add('siegeCraft');
+      if ((event.knockdowns ?? []).some(record => record.source.ownerId === playerId && !record.counter && record.effectiveness > 100)) hits.add('typeResearch');
+    }
+    if ((event.type === 'Evolved' || event.type === 'WorldStoneEvolution') && event.playerId === playerId) hits.add('training');
+    if (event.type === 'UnitRecovered' && event.playerId === playerId) hits.add('medicine');
+    if ((event.type === 'AllianceChanged' || event.type === 'TradeChanged') && event.status === 'active' && event.playerIds.includes(playerId)) hits.add('leagueRules');
+  }
+  if (player.registeredSpeciesIds.length >= 4) hits.add('ballCraft');
+  if (Object.values(next.cities).filter(city => city.ownerId === playerId).length >= 3) hits.add('riding');
+  if (documented(next, playerId).filter(record => record.observed).length >= 10) hits.add('fieldObservation');
+  if (Object.values(next.units).some(unit => unit.ownerId === playerId && isMapUnit(unit) && ['snow', 'volcano'].includes(next.map.tiles[hexToIndex(unit.position, next.map)!]))) hits.add('meteorology');
+  void content;
+  return [...hits].filter(techId => Object.hasOwn(DISCOVERIES, techId)).sort();
+}
+/** Applies newly reached milestones. Unlocked techs are recorded but grant nothing. */
+export function recordDiscoveries(before: GameState, next: GameState, _command: Command, events: readonly EventPayload[], content: Content): EventPayload[] {
+  const ledger = next.expansion?.discoveries;
+  if (!ledger || next.outcome) return [];
+  const out: EventPayload[] = [];
+  for (const playerId of [...next.turnOrder].sort((a, b) => a - b)) {
+    const player = next.players[playerId];
+    if (player.eliminated) continue;
+    const known = new Set(ledger[playerId]);
+    for (const techId of reached(before, next, playerId, events, content)) {
+      if (known.has(techId)) continue;
+      known.add(techId);
+      if (player.research.unlockedIds.includes(techId)) continue;
+      const cost = content.techs[techId].cost, bonus = Math.floor(cost * DISCOVERY_PERCENT / 100);
+      // Never completes a technology on its own: completion still happens in round research settlement.
+      player.research.progressByTech[techId] = Math.min(cost - 1, player.research.progressByTech[techId] + bonus);
+      out.push({ type: 'DiscoveryMade', playerId, techId, bonus, progress: player.research.progressByTech[techId] });
+    }
+    ledger[playerId] = [...known].sort();
+  }
+  return out;
+}

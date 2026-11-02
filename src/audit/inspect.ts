@@ -1,3 +1,4 @@
+import { FLANK_MAX, FLANK_PER_UNIT, usesTactics } from '../core/tactics.ts';
 import { RULE_QUERIES } from '../ai/query.ts';
 import { knownCombatCount, planNext } from '../ai/plan.ts';
 import { CONTENT, EXPANSION_CONTENT, unitDefinition } from '../content/units.ts';
@@ -678,6 +679,20 @@ export function inspectSystem(systemId: string, state: GameState): AuditSystemIn
   }
   if (system.id === 's29-multiplayer') return { metrics: [metric('当前局模式', state.setup.multiplayer ? '多席位' : '单人本地'), metric('席位数', Object.keys(state.players).length)],
     data: { controllerByPlayer: state.setup.players, client: '/multiplayer.html', server: 'npm run server', authority: 'HTTP server authenticates each seat and returns only its projected view.', tokens: 'Never exposed by this local audit inspector.' } };
+  if (system.id === 's31-improvements') {
+    const improvements = state.expansion?.improvements;
+    return { metrics: [metric('当前规则', improvements ? '时代玩法 v2' : '本局未启用（需时代玩法 v2）'), metric('已建改良', improvements ? Object.keys(improvements.tiles).length : 0),
+      metric('施工中', improvements ? Object.keys(improvements.projects).length : 0)],
+      data: { improvements: improvements ?? null, setup: { gameplayVersion: state.setup.gameplayVersion ?? null } } };
+  }
+  if (system.id === 's32-discoveries') {
+    const discoveries = state.expansion?.discoveries;
+    return { metrics: [metric('当前规则', discoveries ? '时代玩法 v2' : '本局未启用（需时代玩法 v2）'),
+      metric('当前文明已发现', discoveries ? (discoveries[state.activePlayerId] ?? []).length : 0)],
+      data: { discoveries: discoveries ?? null } };
+  }
+  if (system.id === 's33-field-tactics') return { metrics: [metric('当前规则', usesTactics(state.setup) ? '时代玩法 v2' : '本局未启用（需时代玩法 v2）'),
+    metric('夹击上限', `+${FLANK_MAX / 10}%`)], data: { flankPerUnit: FLANK_PER_UNIT, flankMax: FLANK_MAX, zocRoles: ['melee', 'fast'], ignoresZoc: ['scout', 'air', 'ghost'] } };
   if (system.id === 's30-type-expansion') return { metrics: [metric('当前规则', state.expansion ? '18 属性、双属性防御' : '经典克制表'), metric('物种数', Object.keys(contentFor(state).species).length)],
     data: { species: contentFor(state).species, rule: 'Primary attack type; multiply defensive types; immunity zero; one final floor.' } };
   if (system.id === 'x11-content-editor') return { metrics: [metric('内容版本', contentFor(state).version), metric('物种数', Object.keys(contentFor(state).species).length)],

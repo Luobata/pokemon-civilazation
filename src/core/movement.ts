@@ -1,4 +1,5 @@
 import { doctrineEffects } from './leader-doctrines.ts';
+import { inZoc, usesTactics, zocTiles } from './tactics.ts';
 import { isMapUnit } from './model.ts';
 import { CONTENT, EXPANSION_CONTENT, unitDefinition } from '../content/units.ts';
 import type { Content, UnitIdentity } from '../content/units.ts';
@@ -39,9 +40,12 @@ export function reachablePaths(view: PlayerView, unitId: number,
   const pending = new Set([origin]);
   const budget = unitDefinition(unit, content).move
     + doctrineEffects(view.economy.player, view.eraProgression, unit, content).movementBonus;
+  // Gameplay v2: entering a visible hostile zone of control ends movement there.
+  const zoc = usesTactics(view) ? zocTiles(unit, view.units, view.diplomacy, content) : [];
   while (pending.size) {
     const current = [...pending].sort((a, b) => costs.get(a)! - costs.get(b)! || a - b)[0];
     pending.delete(current);
+    if (current !== origin && zoc.length && inZoc(indexToHex(current, view.map), zoc)) continue;
     for (const hex of neighbors(indexToHex(current, view.map))) {
       const index = hexToIndex(hex, view.map);
       if (index === null || blocked.has(index)) continue;

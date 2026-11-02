@@ -5,6 +5,8 @@ import type { ExpansionState } from './expansion-model.ts';
 import { expansionActionType, parseExpansionAction } from './expansion-commands.ts';
 import { applyLeaderAction, initializeLeaders, isLeaderAction, validateLeaderAction } from './leader-systems.ts';
 import { applyWorldAction, initializeWorld, isWorldAction, resolveWorldRound, updateWorldRecords, validateWorldAction } from './world-systems.ts';
+import { initializeDiscoveries, recordDiscoveries } from './discoveries.ts';
+import { applyImprovementAction, initializeImprovements, isImprovementAction, validateImprovementAction } from './improvements.ts';
 import { applyCivilizationAction, initializeCivilization, isCivilizationAction, resolveCivilizationRound, validateCivilizationAction } from './civilization-systems.ts';
 
 export function initializeExpansion(state: GameState, content: Content): void {
@@ -13,11 +15,14 @@ export function initializeExpansion(state: GameState, content: Content): void {
   initializeLeaders(state);
   initializeWorld(state, content);
   initializeCivilization(state, { ...CIVILIZATION_CONTENT, world: content });
+  initializeImprovements(state);
+  initializeDiscoveries(state);
 }
 export function validateExpansionAction(state: GameState, actorId: number, action: Command['action'], content: Content): boolean {
   if (!state.expansion || !expansionActionType(action.type)) return false;
   try {
     const clean = parseExpansionAction(action, content);
+    if (isImprovementAction(clean)) return validateImprovementAction(state, actorId, clean) === null;
     if (isLeaderAction(clean)) return validateLeaderAction(state, actorId, clean, content) === null;
     if (isWorldAction(clean)) return validateWorldAction(state, actorId, clean, content) === null;
     if (isCivilizationAction(clean)) return validateCivilizationAction(state, actorId, clean, { ...CIVILIZATION_CONTENT, world: content }) === null;
@@ -25,6 +30,7 @@ export function validateExpansionAction(state: GameState, actorId: number, actio
   return false;
 }
 export function applyExpansionAction(state: GameState, actorId: number, action: Command['action'], content: Content): EventPayload[] {
+  if (isImprovementAction(action)) return applyImprovementAction(state, actorId, action, content);
   if (isLeaderAction(action)) return applyLeaderAction(state, actorId, action, content);
   if (isWorldAction(action)) return applyWorldAction(state, actorId, action, content);
   if (isCivilizationAction(action)) return applyCivilizationAction(state, actorId, action, { ...CIVILIZATION_CONTENT, world: content });
@@ -37,5 +43,7 @@ export function resolveExpansionRound(state: GameState, content: Content): Event
   return events;
 }
 export function recordExpansion(before: GameState, after: GameState, command: Command, events: readonly EventPayload[], content: Content): EventPayload[] {
-  return after.expansion ? updateWorldRecords(before, after, command, events, content) : [];
+  if (!after.expansion) return [];
+  const world = updateWorldRecords(before, after, command, events, content);
+  return [...world, ...recordDiscoveries(before, after, command, [...events, ...world], content)];
 }

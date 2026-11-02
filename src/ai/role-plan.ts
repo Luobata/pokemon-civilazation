@@ -5,6 +5,8 @@ import { activeDoctrine, isDoctrineTarget, LEADER_DOCTRINES } from '../core/lead
 import type { PlayerView } from '../core/model.ts';
 import { hasEraProgression } from './war-plan.ts';
 
+const hasGameplayPack = (view: PlayerView) => hasEraProgression(view) && view.gameplayVersion !== undefined;
+
 /**
  * Era-mode army composition and research doctrine. Everything here reads the AI's own
  * observation only. Legacy games return zero so their planner output is unchanged.
@@ -18,14 +20,14 @@ const LEADER_TECH_FOCUS: Record<LeaderId, readonly TechId[]> = {
 
 export function leaderResearchBonus(view: PlayerView, techId: TechId): number {
   const leaderId = view.economy.player.leaderId;
-  if (!hasEraProgression(view) || leaderId === undefined) return 0;
+  if (!hasGameplayPack(view) || leaderId === undefined) return 0;
   const index = LEADER_TECH_FOCUS[leaderId].indexOf(techId);
   return index === -1 ? 0 : 60 - index * 15;
 }
 
 /** Benefit added to training a species: assault roles for sieges, plus the leader's active and next window. */
 export function roleTrainingBonus(view: PlayerView, speciesId: SpeciesId, content: Content, preparingSiege: boolean): number {
-  if (!hasEraProgression(view)) return 0;
+  if (!hasGameplayPack(view)) return 0;
   const player = view.economy.player, species = content.species[speciesId];
   const identity = { kind: 'pokemon' as const, speciesId };
   let bonus = 0;
@@ -45,7 +47,7 @@ export function roleTrainingBonus(view: PlayerView, speciesId: SpeciesId, conten
 
 /** Wild captures that fill missing assault roles become worth chasing in era mode. */
 export function roleCaptureBonus(view: PlayerView, speciesId: SpeciesId, content: Content): number {
-  if (!hasEraProgression(view)) return 0;
+  if (!hasGameplayPack(view)) return 0;
   const role = content.species[speciesId].role;
   if (role !== 'siege' && role !== 'melee') return 0;
   const owned = view.units.some(unit => unit.ownerId === view.playerId && unit.kind === 'pokemon' && content.species[unit.speciesId].role === role)

@@ -21,6 +21,8 @@ import { AI_STRATEGIES } from './strategies.ts';
 import { campaignPlan, eraCivilizationPolicy, hasEraProgression } from './war-plan.ts';
 import { leaderResearchBonus, roleCaptureBonus, roleTrainingBonus } from './role-plan.ts';
 import { trainableSpeciesIds } from '../core/role-tactics.ts';
+import { designatedWorkers, improvementSuggestions } from './improvement-plan.ts';
+import { usesTactics } from '../core/tactics.ts';
 import type { Goal } from './strategies.ts';
 type Candidate = { action: Command['action']; goal: Goal; benefit: number; ownId: number; targetId: number };
 export const CANDIDATE_BUDGET = 256; // 32 representatives for each of eight goals, never a time budget.
@@ -159,7 +161,7 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
       queue({ kind: 'building', defId: id }, 'economy', (y.food + y.production * 2 + y.gold * 2 + y.research * 2) * 100 - building.cost, i);
     }
     if (combat.length < Math.max(4, cities.length * 2) && (income > upkeep || player.gold >= 80)) {
-      for (const [i, id] of trainableSpeciesIds(player, view.eraProgression).entries()) {
+      for (const [i, id] of trainableSpeciesIds(player, view.gameplayVersion).entries()) {
         const species = content.species[id];
         if (species.role === 'fast' && !player.research.unlockedIds.includes('riding')) continue;
         queue({ kind: 'pokemon', defId: id }, 'military', species.attack + species.defense - species.trainCost
@@ -174,6 +176,8 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
     add({ type: 'BuyBall', cityId: cities[0].id, ballId: 'pokeBall', quantity: 1 }, 'capture', 20, cities[0].id);
   }
   const visible = new Set(view.visibleTileIds), explored = new Set(view.knowledge.exploredTileIds);
+  const atWar = view.diplomacy.some(pair => pair.status === 'war' && (pair.a === actorId || pair.b === actorId));
+  const workers = designatedWorkers(view, content, atWar || campaignActive || preparingSiege);
   for (const unit of units.filter(unit => unit.actionLeft)) {
     if (unit.kind === 'logistics') {
       if (citySite(unit.position)) add({ type: 'FoundCity', unitId: unit.id }, 'found', 1000, unit.id);
@@ -200,6 +204,7 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
       }
     }
     const paths = query.paths(view, unit.id, content);
+    if (workers.has(unit.id)) for (const suggestion of improvementSuggestions(view, unit, content, paths)) add(suggestion.action, 'economy', suggestion.benefit, unit.id);
     const sites = unit.kind === 'logistics' ? view.map.tiles.flatMap((_, index) => citySite(indexToHex(index, view.map)) ? [indexToHex(index, view.map)] : []) : [];
     const targetHq = eraCampaign?.target ?? [...objectives.hqs].sort((a, b) => hexDistance(unit.position, a.position) - hexDistance(unit.position, b.position) || a.id - b.id)[0];
     const seek = unit.kind === 'pokemon' && objectives.searching ? seekUnknownHeadquarters(view, unit, paths) : null;
@@ -225,7 +230,8 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
         const war = view.diplomacy.some(pair => pair.status === 'war' && ((pair.a === actorId && pair.b === target.ownerId) || (pair.b === actorId && pair.a === target.ownerId)));
         const defensive = cities.some(city => hexDistance(city.position, target.position) <= workRadius(city));
         if (war && (!strategy.defendTerritoryOnly || defensive || canSiege(view, target.ownerId, ai))
-          && hexDistance(to, target.position) < hexDistance(unit.position, target.position)) add(action, 'military', 150 - hexDistance(to, target.position), unit.id, index);
+          && hexDistance(to, target.position) < hexDistance(unit.position, target.position)) add(action, 'military', 150 - hexDistance(to, target.position)
+            + (usesTactics(view) && hexDistance(to, target.position) === 1 ? 5 * units.filter(own => own.id !== unit.id && hexDistance(own.position, target.position) === 1).length : 0), unit.id, index);
       }
       if (unit.kind === 'pokemon') for (const target of wild) {
         if (!canCaptureByPersonality(view, target, query) || !player.research.unlockedIds.includes('domestication') || player.ballInventory.pokeBall + player.ballInventory.greatBall === 0) continue;

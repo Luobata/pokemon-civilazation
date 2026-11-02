@@ -1,6 +1,7 @@
 import type { ExpansionAction } from './expansion-model.ts';
 import { EXPANSION_CONTENT } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
+import { IMPROVEMENT_IDS } from '../content/improvements.ts';
 
 type Fields = Record<string, 'id' | 'ids' | 'string' | 'boolean' | readonly string[]>;
 export function expansionActionFields(content: Content = EXPANSION_CONTENT): Record<ExpansionAction['type'], Fields> {
@@ -19,6 +20,7 @@ export function expansionActionFields(content: Content = EXPANSION_CONTENT): Rec
   ProposeAlliance: { targetPlayerId: 'id' }, RespondAlliance: { targetPlayerId: 'id', accept: 'boolean' },
   DissolveAlliance: { targetPlayerId: 'id' }, BetrayAlliance: { targetPlayerId: 'id' },
     ProposeTrade: { targetPlayerId: 'id' }, RespondTrade: { targetPlayerId: 'id', accept: 'boolean' },
+  ImproveTile: { unitId: 'id', tileIndex: 'id', kind: IMPROVEMENT_IDS },
   };
 }
 export const EXPANSION_ACTION_FIELDS: Record<ExpansionAction['type'], Fields> = expansionActionFields();

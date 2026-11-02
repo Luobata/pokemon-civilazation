@@ -7,6 +7,7 @@ import { hexDistance, hexToIndex } from './hex.ts';
 import { unitDamage, cityDamage, cityCounterDamage } from './combat-query.ts';
 import { captureProbability } from './combat-math.ts';
 import { cityAssaultMultiplier } from './role-tactics.ts';
+import { flankBonus } from './tactics.ts';
 
 export type AttackPreview = { ok: true; damage: { min: number; max: number };
   counter: { trigger: 'always' | 'possible' | 'never'; damage: number };
@@ -29,13 +30,14 @@ export function previewAttack(view: PlayerView, unitId: number, target: CombatTa
   if (target.kind === 'unit') {
     const defendingUnit = view.units.find(unit => unit.id === target.id)!;
     hp = defendingUnit.hp;
-    min = unitDamage(unit, defendingUnit, from, to, techs.includes('typeResearch'), 85, false, content, attackMultiplier, Boolean(view.expansion));
-    max = unitDamage(unit, defendingUnit, from, to, techs.includes('typeResearch'), 100, false, content, attackMultiplier, Boolean(view.expansion));
+    const flank = flankBonus(view, unit, defendingUnit, view.units);
+    min = unitDamage(unit, defendingUnit, from, to, techs.includes('typeResearch'), 85, false, content, attackMultiplier, Boolean(view.expansion), flank);
+    max = unitDamage(unit, defendingUnit, from, to, techs.includes('typeResearch'), 100, false, content, attackMultiplier, Boolean(view.expansion), flank);
     canCounter = defendingUnit.kind === 'pokemon' && distance <= content.species[defendingUnit.speciesId].range;
     if (canCounter) counter = unitDamage(defendingUnit, unit, to, from, view.combat.units[defendingUnit.id].typeResearch, 100, true, content, 1000, Boolean(view.expansion));
   } else {
     const city = view.combat.cities[defender.id]; hp = city.hp;
-    const assault = cityAssaultMultiplier(view.economy.player, view.eraProgression, unit, content, distance, techs.includes('siegeCraft'));
+    const assault = cityAssaultMultiplier(view.economy.player, view.eraProgression, view.gameplayVersion, unit, content, distance, techs.includes('siegeCraft'));
     min = cityDamage(unit, from, to, techs.includes('siegeCraft'), 85, content, attackMultiplier, assault);
     max = cityDamage(unit, from, to, techs.includes('siegeCraft'), 100, content, attackMultiplier, assault);
     canCounter = distance <= 2 && city.counterAttack > 0;

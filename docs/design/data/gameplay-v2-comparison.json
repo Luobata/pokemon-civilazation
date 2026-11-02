@@ -1,0 +1,203 @@
+{
+ "note": "Seeds 31-34, simple-v1, 24x16, 100 rounds, uncommitted working tree; v1 = role assault pack, v2 = + improvements, discoveries, ZOC/flanking",
+ "gameplayV1": {
+  "metadata": {
+   "gitHead": "71ebe7f3d87db855c073783a1cb6cd76bc382743",
+   "command": [
+    "node",
+    "tools/leader-balance.ts",
+    "--seeds",
+    "4",
+    "--seed-start",
+    "31",
+    "--expansion",
+    "true",
+    "--eras",
+    "simple",
+    "--gameplay",
+    "1",
+    "--round-limit",
+    "100",
+    "--out",
+    "/tmp/gp1.json"
+   ],
+   "toolSha256": "a4f2dd954795a4f3532af4e3fa4a6783751c414d72b197ddb8169bf04862589e",
+   "seedValues": [
+    31,
+    32,
+    33,
+    34
+   ]
+  },
+  "outcomeKinds": {
+   "conquest": 6,
+   "score": 32,
+   "playerDefeat": 0,
+   "pokedex": 10,
+   "origin": 0,
+   "championship": 0
+  },
+  "meanEndRound": 96.27083333333333,
+  "cityAttacksByRole": {
+   "ranged": 976,
+   "melee": 49,
+   "scout": 82,
+   "fast": 113,
+   "siege": 175,
+   "naval": 0,
+   "air": 4
+  },
+  "eliminationEvents": 60,
+  "gamesWithHQCapture": 40,
+  "eraArrivals": {
+   "0": {
+    "reached": 192,
+    "meanRound": 1
+   },
+   "1": {
+    "reached": 169,
+    "meanRound": 48.38461538461539
+   },
+   "2": {
+    "reached": 80,
+    "meanRound": 64.9625
+   }
+  },
+  "leaders": [
+   {
+    "leaderId": "oak",
+    "wins": 24,
+    "n": 48,
+    "meanScore": 682.8125,
+    "meanPopulation": 9.604166666666666,
+    "meanTechs": 10.6875
+   },
+   {
+    "leaderId": "lance",
+    "wins": 9,
+    "n": 48,
+    "meanScore": 451.1875,
+    "meanPopulation": 7.479166666666667,
+    "meanTechs": 5.229166666666667
+   },
+   {
+    "leaderId": "jenny",
+    "wins": 8,
+    "n": 48,
+    "meanScore": 330.7916666666667,
+    "meanPopulation": 4.666666666666667,
+    "meanTechs": 4.729166666666667
+   },
+   {
+    "leaderId": "joy",
+    "wins": 7,
+    "n": 48,
+    "meanScore": 446.7083333333333,
+    "meanPopulation": 8.5,
+    "meanTechs": 4.958333333333333
+   }
+  ],
+  "defectGames": 0,
+  "abortedGames": 0
+ },
+ "gameplayV2": {
+  "metadata": {
+   "gitHead": "71ebe7f3d87db855c073783a1cb6cd76bc382743",
+   "command": [
+    "node",
+    "tools/leader-balance.ts",
+    "--seeds",
+    "4",
+    "--seed-start",
+    "31",
+    "--expansion",
+    "true",
+    "--eras",
+    "simple",
+    "--gameplay",
+    "2",
+    "--round-limit",
+    "100",
+    "--out",
+    "/tmp/gp2.json"
+   ],
+   "toolSha256": "a4f2dd954795a4f3532af4e3fa4a6783751c414d72b197ddb8169bf04862589e",
+   "seedValues": [
+    31,
+    32,
+    33,
+    34
+   ]
+  },
+  "outcomeKinds": {
+   "conquest": 11,
+   "score": 31,
+   "playerDefeat": 0,
+   "pokedex": 6,
+   "origin": 0,
+   "championship": 0
+  },
+  "meanEndRound": 94.16666666666667,
+  "cityAttacksByRole": {
+   "ranged": 735,
+   "melee": 45,
+   "scout": 77,
+   "fast": 117,
+   "siege": 207,
+   "naval": 0,
+   "air": 0
+  },
+  "eliminationEvents": 68,
+  "gamesWithHQCapture": 40,
+  "eraArrivals": {
+   "0": {
+    "reached": 192,
+    "meanRound": 1
+   },
+   "1": {
+    "reached": 169,
+    "meanRound": 44.04733727810651
+   },
+   "2": {
+    "reached": 101,
+    "meanRound": 66.44554455445545
+   }
+  },
+  "leaders": [
+   {
+    "leaderId": "oak",
+    "wins": 19,
+    "n": 48,
+    "meanScore": 725.0208333333334,
+    "meanPopulation": 15.1875,
+    "meanTechs": 10.208333333333334
+   },
+   {
+    "leaderId": "lance",
+    "wins": 13,
+    "n": 48,
+    "meanScore": 569.3958333333334,
+    "meanPopulation": 13.333333333333334,
+    "meanTechs": 6.375
+   },
+   {
+    "leaderId": "jenny",
+    "wins": 8,
+    "n": 48,
+    "meanScore": 524.2916666666666,
+    "meanPopulation": 12.166666666666666,
+    "meanTechs": 6.291666666666667
+   },
+   {
+    "leaderId": "joy",
+    "wins": 8,
+    "n": 48,
+    "meanScore": 427.25,
+    "meanPopulation": 9.0625,
+    "meanTechs": 5.6875
+   }
+  ],
+  "defectGames": 0,
+  "abortedGames": 0
+ }
+}

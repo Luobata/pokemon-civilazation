@@ -81,3 +81,17 @@ export function eraState(player: EraPlayer, mode?: EraProgression): EraState | n
     overallProgressPercent: Math.max(0, Math.min(100, Math.round(completedTechs / eras[eras.length - 1].threshold * 100))),
   };
 }
+
+/**
+ * Additive gameplay packs inside era games. Absent = the original c8a830c era rules,
+ * so era saves and replays recorded before a pack existed keep their exact results.
+ * 1: role-based city assault and garrison recruits. 2: adds work Pokémon and tile improvements.
+ */
+export type GameplayVersion = 1 | 2;
+export const LATEST_GAMEPLAY_VERSION: GameplayVersion = 2;
+export function isGameplayVersion(value: unknown): value is GameplayVersion {
+  return value === 1 || value === 2;
+}
+export function gameplayAtLeast(source: { gameplayVersion?: GameplayVersion }, version: GameplayVersion): boolean {
+  return (source.gameplayVersion ?? 0) >= version;
+}

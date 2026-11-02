@@ -1,3 +1,4 @@
+import { IMPROVEMENTS } from '../content/improvements.ts';
 import type { BiomeId } from '../content/rules.ts';
 import type { UnitIdentity } from '../content/units.ts';
 import { speciesDisplay } from '../content/species.ts';
@@ -174,6 +175,14 @@ export function drawMap(canvas: HTMLCanvasElement, view: PlayerView, camera: Cam
       context.strokeStyle = '#F6EACA'; context.lineWidth = 1; context.stroke();
       centeredText(label, p, '#FFF8E5', size);
     };
+    for (const tile of view.expansion.improvements?.tiles ?? []) {
+      const index = hexToIndex(tile.position, view.map);
+      if (index === null || !onscreen(centers[index])) continue;
+      const p = { x: centers[index].x - radius * .55, y: centers[index].y + radius * .4 }, size = Math.max(8, radius * .3);
+      context.beginPath(); context.arc(p.x, p.y, size, 0, Math.PI * 2);
+      context.fillStyle = '#B9822F'; context.fill(); context.strokeStyle = '#F6EACA'; context.lineWidth = 1; context.stroke();
+      centeredText(IMPROVEMENTS[tile.kind].mark, p, '#FFF8E5', size * 1.2);
+    }
     for (const site of view.expansion.world.resources) siteMark(site.position, site.kind === 'berry' ? '果' : '石', site.remaining ? '#487744' : '#65706B');
     for (const site of view.expansion.world.nests) siteMark(site.position, '巢', '#A34F3F');
     for (const site of view.expansion.world.overlords) siteMark(site.position, '霸', '#8D6332');

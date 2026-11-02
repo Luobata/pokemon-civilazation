@@ -1,3 +1,5 @@
+import { improvementYield } from '../core/improvements.ts';
+import { IMPROVEMENTS } from '../content/improvements.ts';
 import { trainableSpeciesIds } from '../core/role-tactics.ts';
 import { CONTENT as BASE_CONTENT, EXPANSION_CONTENT } from '../content/units.ts';
 import type { BallId, BuildingId } from '../content/economy.ts';
@@ -53,7 +55,7 @@ export function renderEconomyPanel(view: PlayerView, selectedCity: number | null
       return def.cost !== null && !city.buildingIds.includes(id) && !city.queue.some(order => order.item.kind === 'building' && order.item.defId === id)
         && (!def.requiredTech || player.research.unlockedIds.includes(def.requiredTech));
     }).map(defId => ({ kind: 'building' as const, defId })),
-    ...trainableSpeciesIds(player, view.eraProgression).map(defId => ({ kind: 'pokemon' as const, defId })),
+    ...trainableSpeciesIds(player, view.gameplayVersion).map(defId => ({ kind: 'pokemon' as const, defId })),
     { kind: 'logistics', defId: 'settler' },
   ];
   const options = allOptions.filter(item => item.kind === productionKind);
@@ -72,8 +74,10 @@ export function renderEconomyPanel(view: PlayerView, selectedCity: number | null
     <div class="city-columns"><section class="work-management" ${citySection !== 'citizens' ? 'hidden' : ''}><p class="section-label">工作地块 ${city.workedTileIds.length}/${city.population} · 取消工作可改为观测者，提供科研。</p>
       <div class="work-list"><table><thead><tr><th>地块</th><th>食/产/金/研</th><th>工作</th><th>锁定</th></tr></thead><tbody>${tileIds.map(id => {
         const biome = view.map.tiles[id], worked = city.workedTileIds.includes(id), locked = city.lockedTileIds.includes(id);
-        const yieldText = biome ? Object.values(CONTENT.biomes[biome]).map((value, index) => value + (index === 3 && (biome === 'snow' || biome === 'volcano') && player.research.unlockedIds.includes('meteorology') ? 1 : 0)).join('/') : '—';
-        return `<tr><td>${id} ${biome ? BIOME_DISPLAY[biome].label : '未知地形'}</td><td>${yieldText}</td><td><input aria-label="工作地块 ${id}" type="checkbox" data-work="${id}" ${worked ? 'checked' : ''} ${!worked && city.workedTileIds.length >= city.population ? 'disabled' : ''}></td><td><input aria-label="锁定地块 ${id}" type="checkbox" data-lock="${id}" ${locked ? 'checked' : ''} ${worked ? '' : 'disabled'}></td></tr>`;
+        const improvement = view.expansion?.improvements?.tiles.find(tile => tile.tileIndex === id);
+        const bonus = improvement ? Object.values(improvementYield(improvement.kind, player)) : [0, 0, 0, 0];
+        const yieldText = biome ? Object.values(CONTENT.biomes[biome]).map((value, index) => value + bonus[index] + (index === 3 && (biome === 'snow' || biome === 'volcano') && player.research.unlockedIds.includes('meteorology') ? 1 : 0)).join('/') : '—';
+        return `<tr><td>${id} ${biome ? BIOME_DISPLAY[biome].label : '未知地形'}${improvement ? ` · ${IMPROVEMENTS[improvement.kind].name}` : ''}</td><td>${yieldText}</td><td><input aria-label="工作地块 ${id}" type="checkbox" data-work="${id}" ${worked ? 'checked' : ''} ${!worked && city.workedTileIds.length >= city.population ? 'disabled' : ''}></td><td><input aria-label="锁定地块 ${id}" type="checkbox" data-lock="${id}" ${locked ? 'checked' : ''} ${worked ? '' : 'disabled'}></td></tr>`;
       }).join('')}</tbody></table></div></section>
       <section class="production-section" ${citySection !== 'production' ? 'hidden' : ''}><p class="section-label">${selectedBuilding ? CONTENT.buildings[selectedBuilding].name : '城市生产'} · ${city.yields.production} 生产 / 轮</p>
       <div class="production-tabs" role="group" aria-label="生产类别">${(Object.keys(productionLabels) as ProductionItem['kind'][]).map(kind => `<button data-production-kind="${kind}" aria-pressed="${kind === productionKind}" ${disabled ? 'disabled' : ''}>${productionLabels[kind]}</button>`).join('')}</div>

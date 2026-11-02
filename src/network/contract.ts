@@ -1,4 +1,4 @@
-import { isEraProgression, type EraProgression } from '../content/eras.ts';
+import { isEraProgression, isGameplayVersion, LATEST_GAMEPLAY_VERSION, type EraProgression, type GameplayVersion } from '../content/eras.ts';
 import { isLeaderId, LEADER_IDS, type LeaderId } from '../content/leaders.ts';
 import { canonicalSerialize, type JsonValue } from '../core/snapshot.ts';
 import { parseAuditAction } from '../audit/commands.ts';
@@ -15,6 +15,7 @@ export type RoomCreateRequest = {
   ownerName?: string;
   expansionVersion?: 1;
   eraProgression?: EraProgression;
+  gameplayVersion?: GameplayVersion;
   leaderIds?: LeaderId[];
 };
 
@@ -134,12 +135,12 @@ export function validateCommandRequest(value: unknown, content: Content = EXPANS
   return { expectedSeq, action: value.action };
 }
 
-export type ValidRoomCreateRequest = Required<Pick<RoomCreateRequest, 'seed' | 'seats' | 'expansionVersion' | 'eraProgression' | 'leaderIds'>>
+export type ValidRoomCreateRequest = Required<Pick<RoomCreateRequest, 'seed' | 'seats' | 'expansionVersion' | 'eraProgression' | 'gameplayVersion' | 'leaderIds'>>
   & Pick<RoomCreateRequest, 'width' | 'height' | 'roundLimit' | 'ownerName'>;
 
 export function validateRoomCreateRequest(value: unknown): ValidRoomCreateRequest | null {
   if (!isRecord(value)) return null;
-  const allowed = new Set(['seed', 'width', 'height', 'roundLimit', 'seats', 'ownerName', 'expansionVersion', 'eraProgression', 'leaderIds']);
+  const allowed = new Set(['seed', 'width', 'height', 'roundLimit', 'seats', 'ownerName', 'expansionVersion', 'eraProgression', 'gameplayVersion', 'leaderIds']);
   if ([...Object.keys(value)].some(key => !allowed.has(key))) return null;
   const seed = value.seed;
   if (typeof seed !== 'number' || !Number.isSafeInteger(seed) || seed < 0) return null;
@@ -159,7 +160,9 @@ export function validateRoomCreateRequest(value: unknown): ValidRoomCreateReques
   if (expansionVersion !== 1) return null;
   const eraProgression = value.eraProgression ?? 'simple-v1';
   if (!isEraProgression(eraProgression)) return null;
+  const gameplayVersion = value.gameplayVersion ?? LATEST_GAMEPLAY_VERSION;
+  if (!isGameplayVersion(gameplayVersion)) return null;
   const leaderIds = value.leaderIds ?? LEADER_IDS.slice(0, seats);
   if (!Array.isArray(leaderIds) || leaderIds.length !== seats || !leaderIds.every(isLeaderId)) return null;
-  return { seed, seats, width: rawWidth, height: rawHeight, roundLimit, ownerName, expansionVersion, eraProgression, leaderIds: [...leaderIds] };
+  return { seed, seats, width: rawWidth, height: rawHeight, roundLimit, ownerName, expansionVersion, eraProgression, gameplayVersion, leaderIds: [...leaderIds] };
 }

@@ -13,7 +13,8 @@ import { rememberCityRejection } from '../src/ai/memory.ts';
 import type { RejectedCitySite } from '../src/ai/memory.ts';
 import { planNext } from '../src/ai/plan.ts';
 import { createGame } from '../src/core/game.ts';
-import type { EraProgression } from '../src/content/eras.ts';
+import type { EraProgression, GameplayVersion } from '../src/content/eras.ts';
+import { LATEST_GAMEPLAY_VERSION } from '../src/content/eras.ts';
 import { observe } from '../src/core/vision.ts';
 import { step } from '../src/core/step.ts';
 import { hexDistance, hexToIndex } from '../src/core/hex.ts';
@@ -36,6 +37,7 @@ export type LeaderBalanceConfig = {
   seedStart?: number;
   expansionVersion?: 1;
   eraProgression?: EraProgression;
+  gameplayVersion?: GameplayVersion;
   roundLimit: RoundLimit;
   width: number;
   height: number;
@@ -150,6 +152,7 @@ export function leaderBalanceCases(config: LeaderBalanceConfig): LeaderBalanceCa
             seed,
             ...(config.expansionVersion === 1 ? { expansionVersion: 1 as const } : {}),
             ...(config.expansionVersion === 1 && config.eraProgression !== undefined ? { eraProgression: config.eraProgression } : {}),
+            ...(config.expansionVersion === 1 && config.eraProgression !== undefined && config.gameplayVersion !== undefined ? { gameplayVersion: config.gameplayVersion } : {}),
             width: config.width,
             height: config.height,
             roundLimit: config.roundLimit,
@@ -676,9 +679,9 @@ export function parseLeaderBalanceArgs(args: string[]): { config: LeaderBalanceC
   const flags: Record<string, string> = {};
   for (let index = 0; index < args.length; index += 2) {
     const key = args[index];
-    if (!['--seeds', '--seed-start', '--expansion', '--eras', '--round-limit', '--out'].includes(key)
+    if (!['--seeds', '--seed-start', '--expansion', '--eras', '--gameplay', '--round-limit', '--out'].includes(key)
       || !args[index + 1] || args[index + 1].startsWith('--') || Object.hasOwn(flags, key)) {
-      throw new Error('Usage: node tools/leader-balance.ts --seeds <1..100> [--seed-start <1..>] [--expansion <true|false>] [--eras <none|simple|full>] --round-limit <100|200|300> [--out <file.json>]');
+      throw new Error('Usage: node tools/leader-balance.ts --seeds <1..100> [--seed-start <1..>] [--expansion <true|false>] [--eras <none|simple|full>] [--gameplay <0|1|2>] --round-limit <100|200|300> [--out <file.json>]');
     }
     flags[key] = args[index + 1];
   }
@@ -691,10 +694,12 @@ export function parseLeaderBalanceArgs(args: string[]): { config: LeaderBalanceC
   }
   if (expansion === 'false' && era !== 'none') throw new Error('--eras simple|full requires --expansion true');
   const eraProgression = eraProgressionValue(era as 'none' | 'simple' | 'full');
+  const gameplay = Number(flags['--gameplay'] ?? (eraProgression === null ? 0 : LATEST_GAMEPLAY_VERSION));
+  if (![0, 1, 2].includes(gameplay) || (gameplay > 0 && eraProgression === null)) throw new Error('--gameplay 1|2 requires --eras simple|full');
   return {
     config: {
       seeds, seedStart, ...(expansion === 'true' ? { expansionVersion: 1 as const } : {}),
-      ...(eraProgression === null ? {} : { eraProgression }), roundLimit: roundLimit as RoundLimit, width: 24, height: 16,
+      ...(eraProgression === null ? {} : { eraProgression }), ...(gameplay > 0 ? { gameplayVersion: gameplay as GameplayVersion } : {}), roundLimit: roundLimit as RoundLimit, width: 24, height: 16,
     },
     output: flags['--out'],
   };

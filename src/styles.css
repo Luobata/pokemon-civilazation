@@ -406,3 +406,9 @@ button.danger { border-color: var(--danger); background: #9E4B43; color: var(--o
 #expansion-panel p { font-size: .75rem; line-height: 1.65; overflow-wrap: anywhere; }
 #expansion-panel button { margin: .2rem .3rem .2rem 0; font-size: .75rem; }
 #expansion-panel a { color: #86CDB8; text-underline-offset: 3px; }
+
+.improvement-box { display: grid; gap: 6px; margin-top: 8px; }
+.improvement-box button { text-align: left; }
+.discovery-list { margin-top: 8px; font-size: 12px; }
+.discovery-list ul { margin: 6px 0 0; padding-left: 4px; list-style: none; display: grid; gap: 3px; }
+.discovery-list li.done { color: #E6B85C; }

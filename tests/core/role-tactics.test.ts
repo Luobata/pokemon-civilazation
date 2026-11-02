@@ -21,19 +21,19 @@ const pokemon = (speciesId: SpeciesId) => ({ kind: 'pokemon' as const, speciesId
 
 function setup(mode?: EraProgression, leaderId: LeaderId = 'jenny'): GameSetup {
   return { seed: 12345, width: 24, height: 16, expansionVersion: 1, multiplayer: true,
-    ...(mode ? { eraProgression: mode } : {}), players: [
+    ...(mode ? { eraProgression: mode, gameplayVersion: 1 as const } : {}), players: [
       { id: 0, controller: 'human', starterId: 'bulbasaur', leaderId },
       { id: 1, controller: 'human', starterId: 'charmander', leaderId: 'lance' },
     ] };
 }
 
 test('legacy games keep the original siege-only multiplier', () => {
-  expect(cityAssaultMultiplier(undefined, undefined, pokemon('machop'), EXPANSION_CONTENT, 1, false)).toBe(null);
+  expect(cityAssaultMultiplier(undefined, undefined, undefined, pokemon('machop'), EXPANSION_CONTENT, 1, false)).toBe(null);
 });
 
 test('era roles split city assault: ranged walls, melee breach, siege engines', () => {
   const player = { leaderId: 'oak' as const, research: { unlockedIds: [] as TechId[] } };
-  const m = (id: SpeciesId, distance: number, siegeTech = false) => cityAssaultMultiplier(player, 'simple-v1', pokemon(id), EXPANSION_CONTENT, distance, siegeTech)!;
+  const m = (id: SpeciesId, distance: number, siegeTech = false) => cityAssaultMultiplier(player, 'simple-v1', 1, pokemon(id), EXPANSION_CONTENT, distance, siegeTech)!;
   expect(m('bulbasaur', 2)).toBe(ROLE_CITY_ASSAULT.ranged.distant);
   expect(m('machop', 1)).toBeGreaterThan(m('bulbasaur', 1));
   expect(m('machop', 2)).toBe(1000);
@@ -45,12 +45,12 @@ test('era roles split city assault: ranged walls, melee breach, siege engines', 
 test('leader windows shift which roles break cities', () => {
   const jenny = (count: number) => ({ leaderId: 'jenny' as const, research: { unlockedIds: techs(count) } });
   // Early Jenny: no city bonus. Middle: siege +20%. Late: melee and siege +20%.
-  expect(cityAssaultMultiplier(jenny(0), 'simple-v1', pokemon('geodude'), EXPANSION_CONTENT, 2, false)).toBe(1300);
-  expect(cityAssaultMultiplier(jenny(3), 'simple-v1', pokemon('geodude'), EXPANSION_CONTENT, 2, false)).toBe(1560);
-  expect(cityAssaultMultiplier(jenny(3), 'simple-v1', pokemon('machop'), EXPANSION_CONTENT, 1, false)).toBe(1250);
-  expect(cityAssaultMultiplier(jenny(7), 'simple-v1', pokemon('machop'), EXPANSION_CONTENT, 1, false)).toBe(1500);
+  expect(cityAssaultMultiplier(jenny(0), 'simple-v1', 1, pokemon('geodude'), EXPANSION_CONTENT, 2, false)).toBe(1300);
+  expect(cityAssaultMultiplier(jenny(3), 'simple-v1', 1, pokemon('geodude'), EXPANSION_CONTENT, 2, false)).toBe(1560);
+  expect(cityAssaultMultiplier(jenny(3), 'simple-v1', 1, pokemon('machop'), EXPANSION_CONTENT, 1, false)).toBe(1250);
+  expect(cityAssaultMultiplier(jenny(7), 'simple-v1', 1, pokemon('machop'), EXPANSION_CONTENT, 1, false)).toBe(1500);
   const lance = { leaderId: 'lance' as const, research: { unlockedIds: techs(7) } };
-  expect(cityAssaultMultiplier(lance, 'simple-v1', pokemon('ponyta'), EXPANSION_CONTENT, 1, false)).toBe(1380);
+  expect(cityAssaultMultiplier(lance, 'simple-v1', 1, pokemon('ponyta'), EXPANSION_CONTENT, 1, false)).toBe(1380);
 });
 
 function warFixture(mode: EraProgression | undefined, attackerSpecies: SpeciesId): { state: GameState; attackerId: number; cityId: number } {
@@ -100,7 +100,7 @@ test('AI planning follows the leader window only in era mode', () => {
 test('era garrison recruits unlock with technology and are validated by authority', () => {
   const player = { registeredSpeciesIds: ['bulbasaur'] as SpeciesId[], research: { unlockedIds: ['stoneCraft', 'riding'] as TechId[] } };
   expect(trainableSpeciesIds(player, undefined)).toEqual(['bulbasaur']);
-  expect(trainableSpeciesIds(player, 'simple-v1')).toEqual(['bulbasaur', 'geodude', 'ponyta']);
+  expect(trainableSpeciesIds(player, 1)).toEqual(['bulbasaur', 'geodude', 'ponyta']);
   for (const mode of [undefined, 'simple-v1'] as const) {
     const state = createGame(setup(mode, 'jenny'));
     state.players[0].research.unlockedIds = ['stoneCraft'];
@@ -108,4 +108,15 @@ test('era garrison recruits unlock with technology and are validated by authorit
     const result = step(state, { actorId: 0, expectedSeq: 0, action: { type: 'SetProductionQueue', cityId, orders: [{ item: { kind: 'pokemon', defId: 'geodude' } }] } });
     expect(result.ok).toBe(mode !== undefined);
   }
+});
+
+test('era games without a gameplay pack keep the c8a830c assault and recruit rules', () => {
+  const player = { leaderId: 'jenny' as const, research: { unlockedIds: techs(7) } };
+  expect(cityAssaultMultiplier(player, 'simple-v1', undefined, pokemon('machop'), EXPANSION_CONTENT, 1, false)).toBe(null);
+  const state = createGame({ ...setup('simple-v1', 'jenny'), gameplayVersion: undefined });
+  delete state.setup.gameplayVersion;
+  state.players[0].research.unlockedIds = ['stoneCraft'];
+  const cityId = state.players[0].headquartersCityId;
+  expect(step(state, { actorId: 0, expectedSeq: 0, action: { type: 'SetProductionQueue', cityId, orders: [{ item: { kind: 'pokemon', defId: 'geodude' } }] } }).ok).toBe(false);
+  expect(() => createGame({ ...setup(undefined), gameplayVersion: 1 })).toThrow();
 });
