@@ -138,6 +138,43 @@ export const LEADER_DOCTRINES: Record<LeaderId, LeaderDoctrine> = {
       favoredTypes: ['grass', 'water', 'fairy'],
     },
   },
+} as Partial<Record<LeaderId, LeaderDoctrine>> as Record<LeaderId, LeaderDoctrine>;
+
+
+LEADER_DOCTRINES.brock = {
+  early: { ...NO_EFFECTS, phase: 'early', trainedXpBonus: 15, territoryHealingBonus: 2,
+    description: '开疆筑城：岩石、地面系训练经验 +15、领地内恢复 +2。', favoredRoles: [], favoredTypes: ['rock', 'ground'] },
+  middle: { ...NO_EFFECTS, phase: 'middle', cityDamageBonus: 150,
+    description: '岩崩攻势：攻城兵种攻击城市 +15%。', favoredRoles: ['siege'], favoredTypes: [] },
+  late: noEffects('late', '城池已稳，后期依靠前期积累的建设与人口。'),
+};
+LEADER_DOCTRINES.misty = {
+  early: { ...NO_EFFECTS, phase: 'early', movementBonus: 1, fieldHealing: 3,
+    description: '激流开局：水系与水面宝可梦移动力 +1、野外恢复 3 HP。', favoredRoles: ['naval'], favoredTypes: ['water'] },
+  middle: { ...NO_EFFECTS, phase: 'middle', trainedXpBonus: 15,
+    description: '水系特训：水、冰系训练经验 +15。', favoredRoles: [], favoredTypes: ['water', 'ice'] },
+  late: noEffects('late', '海域已定，后期优势让位给陆上强国。'),
+};
+LEADER_DOCTRINES.steven = {
+  early: noEffects('early', '还在各地寻找石头，早期没有额外效果。'),
+  middle: { ...NO_EFFECTS, phase: 'middle', trainedXpBonus: 15,
+    description: '钢铁收藏：钢、岩石系训练经验 +15。', favoredRoles: [], favoredTypes: ['steel', 'rock'] },
+  late: { ...NO_EFFECTS, phase: 'late', trainedXpBonus: 25, cityDamageBonus: 200, territoryHealingBonus: 3,
+    description: '冠军之力：钢、岩石、龙系训练经验 +25、攻击城市 +20%、领地恢复 +3。', favoredRoles: [], favoredTypes: ['steel', 'rock', 'dragon'] },
+};
+LEADER_DOCTRINES.jasmine = {
+  early: noEffects('early', '灯塔仍在修缮，早期依靠贸易被动。'),
+  middle: { ...NO_EFFECTS, phase: 'middle', researchBonus: 1, territoryHealingBonus: 3,
+    description: '灯塔航路：每城科研 +1，领地内恢复 +3。', favoredRoles: [], favoredTypes: ['steel', 'electric'] },
+  late: { ...NO_EFFECTS, phase: 'late', trainedXpBonus: 20, territoryHealingBonus: 4,
+    description: '钢之守护：钢、电系训练经验 +20，领地内恢复 +4。', favoredRoles: [], favoredTypes: ['steel', 'electric'] },
+};
+LEADER_DOCTRINES.giovanni = {
+  early: { ...NO_EFFECTS, phase: 'early', movementBonus: 1,
+    description: '组织扩张：侦察与快速宝可梦移动力 +1，便于搜捕。', favoredRoles: ['scout', 'fast'], favoredTypes: [] },
+  middle: { ...NO_EFFECTS, phase: 'middle', trainedXpBonus: 20, cityDamageBonus: 150,
+    description: '地面压制：地面、毒、恶系训练经验 +20、攻击城市 +15%。', favoredRoles: [], favoredTypes: ['ground', 'poison', 'dark'] },
+  late: noEffects('late', '组织已膨胀，后期没有额外窗口。'),
 };
 
 function addEffects(base: DoctrineEffects, addition: Partial<DoctrineEffects>): DoctrineEffects {

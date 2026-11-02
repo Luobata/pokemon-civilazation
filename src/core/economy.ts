@@ -1,3 +1,5 @@
+import { essenceTrainingBonus, gymTrainedXp } from './essences.ts';
+import { leaderEffects } from '../content/leaders.ts';
 import { doctrineEffects } from './leader-doctrines.ts';
 import { consumeCivilizationProduction } from './civilization-systems.ts';
 import { createMapUnit, registerSpecies } from './unit.ts';
@@ -24,7 +26,7 @@ function deploy(state: GameState, city: CityState, pending: PendingDeployment, c
   const id = state.nextEntityId++;
   const xp = city.buildingIds.reduce((total, building) => total + content.buildings[building].trainedXp, 0)
     + doctrineEffects(state.players[city.ownerId], state.setup.eraProgression, identity, content).trainedXpBonus
-    + (identity.kind === 'pokemon' ? playerPolicyEffects(state, city.ownerId).trainedXp : 0);
+    + (identity.kind === 'pokemon' ? playerPolicyEffects(state, city.ownerId).trainedXp + gymTrainedXp(state, city.id, identity, content) : 0);
   state.units[id] = createMapUnit(identity, id, city.ownerId, position, content, xp);
   registerSpecies(state.players[city.ownerId], state.units[id]);
   events.push({ type: 'UnitTrained', playerId: city.ownerId, cityId: city.id, orderId: pending.sourceOrderId,
@@ -59,8 +61,8 @@ export function resolveEconomy(state: GameState, content: Content = state.setup.
     const order = city.queue[0];
     if (!order) continue;
     consumeCivilizationProduction(state, city.id);
-    order.progress += output.get(city.id)!.production;
-    const cost = productionCost(order.item, content, playerPolicyEffects(state, city.ownerId).trainingDiscountPercent);
+    order.progress += output.get(city.id)!.production + essenceTrainingBonus(state, city, content, events as never);
+    const cost = productionCost(order.item, content, playerPolicyEffects(state, city.ownerId).trainingDiscountPercent, leaderEffects(state.players[city.ownerId].leaderId).settlerDiscountPercent);
     if (order.progress < cost) continue;
     if (order.item.kind === 'logistics') state.players[city.ownerId].lastSettlerProducedRound = state.round;
     const overflow = order.progress - cost;

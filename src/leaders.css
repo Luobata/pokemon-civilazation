@@ -10,7 +10,7 @@
 #leader-setup:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 #leader-setup legend { padding: 0 6px; color: #F1D18A; font-size: var(--text-body); font-weight: 750; letter-spacing: .06em; }
 #leader-setup-note { margin: 0 0 10px; color: #AFC2B6; font-size: 11px; }
-.leader-options { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; min-width: 0; }
+.leader-options { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 9px; min-width: 0; }
 #controls .leader-choice {
   position: relative;
   display: grid;
@@ -72,3 +72,4 @@
   .diplomacy-list li { flex-wrap: wrap; }
   .diplomacy-actions { margin-left: 53px; }
 }
+.leader-peak { margin-left: 6px; padding: 0 4px; border-radius: 3px; background: #2E3B32; color: #B9D7B1; font-size: 9px; font-style: normal; font-weight: 600; }

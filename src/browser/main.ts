@@ -1,3 +1,5 @@
+import { ESSENCE_IDS, ESSENCES } from '../content/essences.ts';
+import { TYPE_NAMES } from '../content/type-names.ts';
 import type { TechId } from '../content/economy.ts';
 import { canResearch } from '../core/economy-commands.ts';
 import { CHARTERS, POLICIES } from '../content/policies.ts';
@@ -137,6 +139,7 @@ function activityText(payload: VisibleEvent['payload']) {
     case 'CivilizationEliminated': return `文明 ${payload.eliminatedPlayerId + 1} 出局`;
     case 'GameEnded': return '对局结束';
     case 'TileWorked': return payload.completed ? `建成${IMPROVEMENTS[payload.kind].name}` : `施工${IMPROVEMENTS[payload.kind].name} ${payload.progress}/${payload.required}`;
+    case 'GymBuilt': return `城市 ${payload.cityId} 建成${ESSENCES[payload.essence].name}道馆`;
     case 'CharterAdopted': return `文明 ${payload.playerId + 1} 确立规章「${CHARTERS[payload.charterId].name}」`;
     case 'PoliciesChanged': return `方针更新：${payload.policyIds.map(id => POLICIES[id].name).join('、') || '无'}${payload.goldCost ? `（${payload.goldCost} 金）` : ''}`;
     case 'DiscoveryMade': return `★ 图鉴发现「${DISCOVERIES[payload.techId].name}」：${EXPANSION_CONTENT.techs[payload.techId].name} +${payload.bonus}`;
@@ -172,6 +175,8 @@ function controls() {
   document.querySelector('#hud-gold')!.innerHTML = `${player.gold} <span class="delta">${netGold >= 0 ? '+' : ''}${netGold}</span>`;
   document.querySelector('#hud-research')!.innerHTML = `${yields.research} <span class="delta">/ 轮</span>`;
   document.querySelector('#hud-upkeep')!.innerHTML = `−${upkeep} <span class="delta negative">金币</span>`;
+  const essences = view.expansion?.essences;
+  document.querySelector('#hud-essences')!.innerHTML = essences ? ESSENCE_IDS.map(id => `<span class="essence-chip" title="${ESSENCES[id].name}精华：${ESSENCES[id].types.map(type => TYPE_NAMES[type]).join('、')}系 · 来自${BIOME_DISPLAY[ESSENCES[id].biome].label}" style="--essence:${ESSENCES[id].color}"><b>${ESSENCES[id].mark}</b>${essences.stock[id]}<small>+${essences.perRound[id]}</small></span>`).join('') : '';
   const unit = view.units.find(unit => unit.id === selected);
   selection.textContent = unit ? `${unitDefinition(unit, CONTENT).name} · 行动点 ${unit.actionLeft} · ${unit.actionLeft ? '点击高亮格直接移动，或右键移动' : '本回合已行动'}`
     : selectedCity !== null ? `已选城市 ${selectedCity} · 在城市面板建造、训练或采购`
@@ -387,7 +392,11 @@ function newGame() {
     const aiCount = Number(document.querySelector<HTMLSelectElement>('#ai-count')!.value);
     const personality = document.querySelector<HTMLSelectElement>('#ai-personality')!.value as AiPersonality;
     const humanLeaderId = selectedLeaderId();
-    const aiLeaderIds = LEADER_IDS.filter(id => id !== humanLeaderId);
+    // Nine leaders: AI opponents are drawn without repeats from the rest, ordered by the map seed.
+    const seed = Number(new URLSearchParams(location.search).get('seed') ?? '12345');
+    const aiLeaderIds = LEADER_IDS.filter(id => id !== humanLeaderId)
+      .map((id, index) => ({ id, key: (Math.imul(seed + 1, 2654435761) ^ Math.imul(index + 7, 40503)) >>> 0 }))
+      .sort((a, b) => a.key - b.key || a.id.localeCompare(b.id)).map(item => item.id);
     const players: GameSetup['players'] = [{ id: 0, controller: 'human', starterId: starter.value as StarterId, leaderId: humanLeaderId },
       ...Array.from({ length: aiCount }, (_, index) => ({ id: index + 1, controller: 'ai' as const, personality, leaderId: aiLeaderIds[index] }))];
     const mapSizes = { '24x16': { width: 24, height: 16 }, '30x20': { width: 30, height: 20 }, '40x26': { width: 40, height: 26 } } as const;

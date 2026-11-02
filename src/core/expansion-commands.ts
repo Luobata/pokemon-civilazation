@@ -3,6 +3,7 @@ import { EXPANSION_CONTENT } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
 import { IMPROVEMENT_IDS } from '../content/improvements.ts';
 import { CHARTER_IDS, POLICY_IDS } from '../content/policies.ts';
+import { ESSENCE_IDS } from '../content/essences.ts';
 
 type Fields = Record<string, 'id' | 'ids' | 'string' | 'boolean' | 'policyIds' | readonly string[]>;
 export function expansionActionFields(content: Content = EXPANSION_CONTENT): Record<ExpansionAction['type'], Fields> {
@@ -24,6 +25,7 @@ export function expansionActionFields(content: Content = EXPANSION_CONTENT): Rec
   ImproveTile: { unitId: 'id', tileIndex: 'id', kind: IMPROVEMENT_IDS },
   SetCharter: { charterId: CHARTER_IDS },
   SetPolicies: { policyIds: 'policyIds' },
+  BuildGym: { cityId: 'id', essence: ESSENCE_IDS },
   };
 }
 export const EXPANSION_ACTION_FIELDS: Record<ExpansionAction['type'], Fields> = expansionActionFields();

@@ -1,7 +1,7 @@
 import { isEraProgression, isGameplayVersion } from '../content/eras.ts';
 import { initializeExpansion } from './expansion.ts';
 import { spawnWild } from './wild.ts';
-import { isLeaderId } from '../content/leaders.ts';
+import { CLASSIC_LEADER_IDS, isLeaderId } from '../content/leaders.ts';
 import { createMapUnit } from './unit.ts';
 import type { TechId } from '../content/economy.ts';
 import { assignNewWorkers, createCity } from './city.ts';
@@ -18,6 +18,8 @@ export function createGame(setup: GameSetup, content: Content = setup.expansionV
   if (setup.players.some(player => player.leaderId !== undefined && !isLeaderId(player.leaderId))) {
     throw new Error('Unknown leader.');
   }
+  if (setup.players.some(player => player.leaderId !== undefined && !(CLASSIC_LEADER_IDS as readonly string[]).includes(player.leaderId))
+    && (setup.gameplayVersion ?? 0) < 4) throw new Error('This leader requires gameplay v4.');
   if ((setup.roundLimit !== undefined && ![100, 200, 300].includes(setup.roundLimit))
     || setup.players.length < 2 || setup.players.length > 4
     || new Set(setup.players.map(player => player.id)).size !== setup.players.length

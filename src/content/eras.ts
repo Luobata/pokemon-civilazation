@@ -87,11 +87,12 @@ export function eraState(player: EraPlayer, mode?: EraProgression): EraState | n
  * so era saves and replays recorded before a pack existed keep their exact results.
  * 1: role-based city assault and garrison recruits. 2: adds work Pokémon, tile improvements, discoveries and ZOC.
  * 3: adds League charters and training policy cards.
+ * 4: adds type essences, type gyms, terrain home defense and five more leaders.
  */
-export type GameplayVersion = 1 | 2 | 3;
-export const LATEST_GAMEPLAY_VERSION: GameplayVersion = 3;
+export type GameplayVersion = 1 | 2 | 3 | 4;
+export const LATEST_GAMEPLAY_VERSION: GameplayVersion = 4;
 export function isGameplayVersion(value: unknown): value is GameplayVersion {
-  return value === 1 || value === 2 || value === 3;
+  return value === 1 || value === 2 || value === 3 || value === 4;
 }
 export function gameplayAtLeast(source: { gameplayVersion?: GameplayVersion }, version: GameplayVersion): boolean {
   return (source.gameplayVersion ?? 0) >= version;

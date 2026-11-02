@@ -11,7 +11,8 @@ import { planLeaderAction } from '../../src/core/leader-systems.ts';
 import { dualEffectiveness, effectiveness } from '../../src/core/combat-math.ts';
 import { previewAttack } from '../../src/core/preview.ts';
 import { createMapUnit } from '../../src/core/unit.ts';
-import { LEADER_IDS } from '../../src/content/leaders.ts';
+import { CLASSIC_LEADER_IDS, LEADER_IDS } from '../../src/content/leaders.ts';
+import type { LeaderId } from '../../src/content/leaders.ts';
 import { FULL_TYPE_CHART } from '../../src/content/combat.ts';
 import { EXPANSION_CONTENT } from '../../src/content/units.ts';
 import { GameSession, replay } from '../../src/app/session.ts';
@@ -20,6 +21,8 @@ import { parseAuditAction } from '../../src/audit/commands.ts';
 
 const setup: GameSetup = { seed: 77, width: 24, height: 16, expansionVersion: 1, multiplayer: true,
   players: [{ id: 0, controller: 'human', starterId: 'bulbasaur', leaderId: 'oak' }, { id: 1, controller: 'human', starterId: 'charmander', leaderId: 'lance' }] };
+/** Classic leaders keep the plain expansion setup; newer leaders need gameplay v4. */
+const leaderSetup = (leaderId: LeaderId): GameSetup => (CLASSIC_LEADER_IDS as readonly string[]).includes(leaderId) ? setup : { ...setup, eraProgression: 'simple-v1', gameplayVersion: 4 };
 function apply(state: GameState, action: Command['action']): GameState {
   const result = step(state, { actorId: state.activePlayerId, expectedSeq: state.commandSeq, action });
   if (!result.ok) throw new Error(`Rejected ${action.type}: ${result.reason}`);
@@ -51,7 +54,7 @@ describe('versioned expansion integration', () => {
     expect(state.cities[cityId].queue[0].progress).toBeLessThan(40);
   });
   it.each(LEADER_IDS)('prioritizes a legal first %s unique recruit over optional spending', leaderId => {
-    const state = createGame({ ...setup, players: [{ ...setup.players[0], leaderId }, setup.players[1]] });
+    const state = createGame({ ...leaderSetup(leaderId), players: [{ ...setup.players[0], leaderId }, setup.players[1]] });
     state.players[0].gold = 100; state.players[0].research.unlockedIds.push('training');
     const action = planLeaderAction(observe(state, 0));
     expect(action?.type).toBe('RecruitLeaderUnit');
@@ -109,12 +112,13 @@ describe('versioned expansion integration', () => {
     expect(session.getView().economy.player.gold).toBe(state.players[0].gold);
   });
   it.each(LEADER_IDS)('executes %s ability once per cooldown and rejects without mutation', leaderId => {
-    let state = createGame({ ...setup, players: [{ ...setup.players[0], leaderId }, setup.players[1]] });
+    let state = createGame({ ...leaderSetup(leaderId), players: [{ ...setup.players[0], leaderId }, setup.players[1]] });
     const before = canonicalSerialize(state), gold = state.players[0].gold;
     state = apply(state, { type: 'UseLeaderAbility' });
-    expect(state.players[0].gold).toBe(gold - 20);
+    // Jasmine's lighthouse refunds 8 gold per city on top of the 20-gold cost.
+    expect(state.players[0].gold).toBe(gold - 20 + (leaderId === 'jasmine' ? 8 : 0));
     expect(state.expansion!.leaders.players[0]).toMatchObject({ readyAtRound: 9, activeUntilRound: 2 });
-    expect(canonicalSerialize(createGame({ ...setup, players: [{ ...setup.players[0], leaderId }, setup.players[1]] }))).toBe(before);
+    expect(canonicalSerialize(createGame({ ...leaderSetup(leaderId), players: [{ ...setup.players[0], leaderId }, setup.players[1]] }))).toBe(before);
     const once = canonicalSerialize(state);
     expect(step(state, { actorId: 0, expectedSeq: state.commandSeq, action: { type: 'UseLeaderAbility' } }).ok).toBe(false);
     expect(canonicalSerialize(state)).toBe(once);

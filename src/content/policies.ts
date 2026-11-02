@@ -52,6 +52,11 @@ export const LEADER_POLICY_AFFINITY: Record<LeaderId, readonly PolicyId[]> = {
   lance: ['gymChallenge', 'fieldDrill', 'conscription'],
   jenny: ['rangerPatrol', 'masterBuilders', 'conscription'],
   joy: ['nurseCorps', 'harvestFestival', 'marketDay'],
+  brock: ['masterBuilders', 'professorNetwork', 'harvestFestival'],
+  misty: ['rangerPatrol', 'nurseCorps', 'marketDay'],
+  steven: ['gymChallenge', 'researchGrant', 'professorNetwork'],
+  jasmine: ['marketDay', 'pokeMart', 'conscription'],
+  giovanni: ['safariZone', 'pokeMart', 'fieldDrill'],
 };
 /** Policies can be changed for free when a charter completes or the era changes; otherwise each change costs gold. */
 export const POLICY_SWAP_GOLD = 30;

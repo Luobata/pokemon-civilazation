@@ -1,5 +1,5 @@
 import { eliminateCivilization } from './victory.ts';
-import { leaderAttackMultiplier } from './leader-systems.ts';
+import { leaderAttackMultiplier, leaderCaptureBonus, evolutionGold, mistyWaterMultiplier } from './leader-systems.ts';
 import { leaderEffects } from '../content/leaders.ts';
 import { WORLD_DEFINITIONS } from '../content/world-systems.ts';
 import { relationFor } from './diplomacy.ts';
@@ -14,6 +14,7 @@ import { assignNewWorkers, cityCounterAttack, cleanWork } from './city.ts';
 import { cityAssaultMultiplier } from './role-tactics.ts';
 import { flankBonus } from './tactics.ts';
 import { playerPolicyEffects } from './policies.ts';
+import { clearGym, homeDefenseMultiplier, usesEssences } from './essences.ts';
 import { captureProbability, dualEffectiveness, effectiveness } from './combat-math.ts';
 import { randomBelow } from './rng.ts';
 import { registerSpecies } from './unit.ts';
@@ -32,7 +33,7 @@ export function validateCombatAction(state: GameState, actor: number, action: Co
   if (action.type === 'Evolve') {
     if (state.expansion && WORLD_DEFINITIONS.stoneEvolutions.some(path => path.fromSpeciesId === unit.speciesId)) return 'evolution-unavailable';
     const evolution = definition.evolution;
-    return evolution && evolution.speciesId === action.intoSpeciesId && unit.xp >= evolution.xp && player.gold >= evolution.gold
+    return evolution && evolution.speciesId === action.intoSpeciesId && unit.xp >= evolution.xp && player.gold >= evolutionGold(player, evolution.gold)
       && (!evolution.requiresTraining || hasTech(state, actor, 'training')) ? null : 'evolution-unavailable';
   }
   const target = action.type === 'Capture' ? state.units[action.targetUnitId]
@@ -77,7 +78,9 @@ function unitStrike(state: GameState, attacker: MapUnit, defender: MapUnit, coun
   const hit = unitDamage(attacker, defender, state.map.tiles[hexToIndex(attacker.position, state.map)!],
     state.map.tiles[hexToIndex(defender.position, state.map)!], hasTech(state, attacker.ownerId, 'typeResearch'), roll, counter, content,
     leaderAttackMultiplier(state, attacker.ownerId, leaderEffects(attacker.ownerId === null ? undefined : state.players[attacker.ownerId].leaderId).activeAttackMultiplier), Boolean(state.expansion),
-    counter ? 0 : flankBonus(state.setup, attacker, defender, Object.values(state.units).filter(isMapUnit)));
+    counter ? 0 : flankBonus(state.setup, attacker, defender, Object.values(state.units).filter(isMapUnit)),
+    mistyWaterMultiplier(state, attacker.ownerId, attacker, content)
+      * homeDefenseMultiplier(usesEssences(state), defender, state.map.tiles[hexToIndex(defender.position, state.map)!], content) / 1000);
   attacker.enraged = false;
   defender.hp = Math.max(0, defender.hp - hit);
   experience(state, attacker, (hit > 0 ? 10 : 0) + (defender.hp === 0 && d ? 40 * d.stage : 0));
@@ -122,6 +125,7 @@ export function resolveAttack(state: GameState, unitId: number, target: CombatTa
       if (!headquarters) for (const unit of Object.values(state.units)) if (unit.location === 'recovering' && unit.cityId === city.id) delete state.units[unit.id];
       city.ownerId = attacker.ownerId!; city.hp = content.balance.city.capturedHp; city.capturedAtRound = state.round;
       if (state.expansion) delete state.expansion.civilization.pendingProductionByCity[city.id];
+      clearGym(state, city.id);
       city.workedTileIds = []; city.lockedTileIds = [];
       for (const other of Object.values(state.cities)) cleanWork(state, other, content);
       assignNewWorkers(state, city, city.population, content);
@@ -154,7 +158,7 @@ export function applyCombatAction(state: GameState, actor: number, action: Comba
   const player = state.players[actor];
   if (action.type === 'Evolve') {
     const before = content.species[unit.speciesId], after = content.species[action.intoSpeciesId];
-    player.gold -= before.evolution!.gold;
+    player.gold -= evolutionGold(player, before.evolution!.gold);
     unit.hp = Math.max(1, Math.floor(unit.hp * after.maxHp / before.maxHp));
     unit.speciesId = action.intoSpeciesId; unit.xp = 0; registerSpecies(player, unit);
     return [{ type: 'Evolved', playerId: actor, unitId: unit.id, speciesId: unit.speciesId }];
@@ -163,10 +167,11 @@ export function applyCombatAction(state: GameState, actor: number, action: Comba
   if (target.kind !== 'pokemon') throw new Error('Expected wild pokemon');
   const definition = content.species[target.speciesId];
   const probability = Math.min(100, captureProbability(definition.maxHp, target.hp, action.ballId === 'greatBall' ? 1500 : 1000,
-    hasTech(state, actor, 'fieldObservation'), definition.rare) + playerPolicyEffects(state, actor).captureBonus);
+    hasTech(state, actor, 'fieldObservation'), definition.rare) + playerPolicyEffects(state, actor).captureBonus
+    + leaderCaptureBonus(state, actor));
   player.ballInventory[action.ballId]--;
   const success = randomBelow(state.rng, 100) < probability;
-  if (success) { target.ownerId = actor; target.actionLeft = 0; target.wildHome = null; registerSpecies(player, target); }
+  if (success) { target.ownerId = actor; target.actionLeft = 0; target.wildHome = null; registerSpecies(player, target); player.gold += leaderEffects(player.leaderId).captureGold; }
   else target.enraged = true;
   return [{ type: 'Captured', playerId: actor, unitId: unit.id, targetUnitId: target.id, success, probability }];
 }

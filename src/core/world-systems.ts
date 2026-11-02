@@ -415,7 +415,7 @@ export function applyWorldAction(state: GameState, actorId: number, action: Worl
       }];
     }
     const stoneId = resource.definitionId as StoneId;
-    playerState.stoneInventory[stoneId]++;
+    playerState.stoneInventory[stoneId] += state.players[actorId].leaderId === 'steven' ? 2 : 1;
     return [{
       type: 'WorldResourceHarvested', playerId: actorId, unitId: unit.id, resourceTileIndex: resource.tileIndex,
       position: { ...resource.position }, resourceKind: 'stone', definitionId: stoneId, amount: 1,

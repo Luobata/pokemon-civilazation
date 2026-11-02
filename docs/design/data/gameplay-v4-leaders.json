@@ -1,0 +1,301 @@
+{
+ "note": "Seeds 31-34, simple-v1, 24x16, 100 rounds, uncommitted working tree; 9 leaders cyclic over 4 seats x 3 personalities = 108 games. first = initial values; tuned = after Steven/Giovanni/Jasmine adjustments (shipped).",
+ "first": {
+  "metadata": {
+   "gitHead": "d82690742c10bff468cfa2c140364c3ed27e3478",
+   "command": [
+    "node",
+    "tools/leader-balance.ts",
+    "--seeds",
+    "4",
+    "--seed-start",
+    "31",
+    "--expansion",
+    "true",
+    "--eras",
+    "simple",
+    "--gameplay",
+    "4",
+    "--round-limit",
+    "100",
+    "--out",
+    "/tmp/gp4.json"
+   ],
+   "seedValues": [
+    31,
+    32,
+    33,
+    34
+   ]
+  },
+  "games": 108,
+  "outcomeKinds": {
+   "pokedex": 9,
+   "score": 66,
+   "conquest": 28,
+   "championship": 5
+  },
+  "meanEndRound": 93.70370370370371,
+  "leaders": [
+   {
+    "leaderId": "oak",
+    "wins": 12,
+    "n": 48,
+    "wilson95": [
+     0.1492063367379791,
+     0.3878437280950796
+    ],
+    "meanScore": 762.9375,
+    "meanPopulation": 15.4375,
+    "meanTechs": 11
+   },
+   {
+    "leaderId": "lance",
+    "wins": 15,
+    "n": 48,
+    "wilson95": [
+     0.19945683446587817,
+     0.4533307141589159
+    ],
+    "meanScore": 688.4166666666666,
+    "meanPopulation": 16.916666666666668,
+    "meanTechs": 6.708333333333333
+   },
+   {
+    "leaderId": "jenny",
+    "wins": 9,
+    "n": 48,
+    "wilson95": [
+     0.10191390954847647,
+     0.31939867149284695
+    ],
+    "meanScore": 532.625,
+    "meanPopulation": 14.583333333333334,
+    "meanTechs": 6.25
+   },
+   {
+    "leaderId": "joy",
+    "wins": 12,
+    "n": 48,
+    "wilson95": [
+     0.1492063367379791,
+     0.3878437280950796
+    ],
+    "meanScore": 585.9583333333334,
+    "meanPopulation": 17.125,
+    "meanTechs": 6.333333333333333
+   },
+   {
+    "leaderId": "brock",
+    "wins": 12,
+    "n": 48,
+    "wilson95": [
+     0.1492063367379791,
+     0.3878437280950796
+    ],
+    "meanScore": 649.6875,
+    "meanPopulation": 19.666666666666668,
+    "meanTechs": 7.25
+   },
+   {
+    "leaderId": "misty",
+    "wins": 16,
+    "n": 48,
+    "wilson95": [
+     0.21676780694818568,
+     0.4745989029405201
+    ],
+    "meanScore": 669.6458333333334,
+    "meanPopulation": 18.145833333333332,
+    "meanTechs": 6.625
+   },
+   {
+    "leaderId": "steven",
+    "wins": 8,
+    "n": 48,
+    "wilson95": [
+     0.08695513576485567,
+     0.295778284012556
+    ],
+    "meanScore": 545.1041666666666,
+    "meanPopulation": 11.770833333333334,
+    "meanTechs": 9.125
+   },
+   {
+    "leaderId": "jasmine",
+    "wins": 16,
+    "n": 48,
+    "wilson95": [
+     0.21676780694818568,
+     0.4745989029405201
+    ],
+    "meanScore": 716.8541666666666,
+    "meanPopulation": 16.833333333333332,
+    "meanTechs": 6.958333333333333
+   },
+   {
+    "leaderId": "giovanni",
+    "wins": 8,
+    "n": 48,
+    "wilson95": [
+     0.08695513576485567,
+     0.295778284012556
+    ],
+    "meanScore": 526.8125,
+    "meanPopulation": 12.583333333333334,
+    "meanTechs": 6
+   }
+  ],
+  "defectGames": 0,
+  "abortedGames": 0
+ },
+ "tuned": {
+  "metadata": {
+   "gitHead": "d82690742c10bff468cfa2c140364c3ed27e3478",
+   "command": [
+    "node",
+    "tools/leader-balance.ts",
+    "--seeds",
+    "4",
+    "--seed-start",
+    "31",
+    "--expansion",
+    "true",
+    "--eras",
+    "simple",
+    "--gameplay",
+    "4",
+    "--round-limit",
+    "100",
+    "--out",
+    "/tmp/gp4b.json"
+   ],
+   "seedValues": [
+    31,
+    32,
+    33,
+    34
+   ]
+  },
+  "games": 108,
+  "outcomeKinds": {
+   "pokedex": 7,
+   "score": 70,
+   "conquest": 27,
+   "championship": 4
+  },
+  "meanEndRound": 94.55555555555556,
+  "leaders": [
+   {
+    "leaderId": "oak",
+    "wins": 16,
+    "n": 48,
+    "wilson95": [
+     0.21676780694818568,
+     0.4745989029405201
+    ],
+    "meanScore": 827.4583333333334,
+    "meanPopulation": 17.583333333333332,
+    "meanTechs": 11.145833333333334
+   },
+   {
+    "leaderId": "lance",
+    "wins": 13,
+    "n": 48,
+    "wilson95": [
+     0.1656595762745644,
+     0.40996964982240613
+    ],
+    "meanScore": 657.9791666666666,
+    "meanPopulation": 16.375,
+    "meanTechs": 6.395833333333333
+   },
+   {
+    "leaderId": "jenny",
+    "wins": 8,
+    "n": 48,
+    "wilson95": [
+     0.08695513576485567,
+     0.295778284012556
+    ],
+    "meanScore": 507.3333333333333,
+    "meanPopulation": 13.395833333333334,
+    "meanTechs": 5.9375
+   },
+   {
+    "leaderId": "joy",
+    "wins": 13,
+    "n": 48,
+    "wilson95": [
+     0.1656595762745644,
+     0.40996964982240613
+    ],
+    "meanScore": 647.5625,
+    "meanPopulation": 18.3125,
+    "meanTechs": 6.75
+   },
+   {
+    "leaderId": "brock",
+    "wins": 14,
+    "n": 48,
+    "wilson95": [
+     0.18241578926516536,
+     0.431792598095717
+    ],
+    "meanScore": 680.3125,
+    "meanPopulation": 21,
+    "meanTechs": 7.208333333333333
+   },
+   {
+    "leaderId": "misty",
+    "wins": 19,
+    "n": 48,
+    "wilson95": [
+     0.2702082786059137,
+     0.5368959150745274
+    ],
+    "meanScore": 720.0625,
+    "meanPopulation": 19.729166666666668,
+    "meanTechs": 6.5
+   },
+   {
+    "leaderId": "steven",
+    "wins": 7,
+    "n": 48,
+    "wilson95": [
+     0.07248249326603709,
+     0.27167176524746284
+    ],
+    "meanScore": 638.8125,
+    "meanPopulation": 13.145833333333334,
+    "meanTechs": 10.645833333333334
+   },
+   {
+    "leaderId": "jasmine",
+    "wins": 11,
+    "n": 48,
+    "wilson95": [
+     0.13307826266911232,
+     0.3653926409000346
+    ],
+    "meanScore": 608.6666666666666,
+    "meanPopulation": 13.541666666666666,
+    "meanTechs": 6.645833333333333
+   },
+   {
+    "leaderId": "giovanni",
+    "wins": 7,
+    "n": 48,
+    "wilson95": [
+     0.07248249326603709,
+     0.27167176524746284
+    ],
+    "meanScore": 527.3125,
+    "meanPopulation": 11.791666666666666,
+    "meanTechs": 6.666666666666667
+   }
+  ],
+  "defectGames": 0,
+  "abortedGames": 0
+ }
+}

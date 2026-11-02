@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { LEADER_IDS } from '../../src/content/leaders.ts';
+import { CLASSIC_LEADER_IDS, LEADER_IDS } from '../../src/content/leaders.ts';
 import { createGame } from '../../src/core/game.ts';
 import type { Command, GameEvent } from '../../src/core/model.ts';
 import { collectTelemetry, createTelemetry } from '../../tools/telemetry.ts';
@@ -22,9 +22,9 @@ test('leader schedule rotates every leader through every seat for every personal
       const group = cases.filter(item => item.seed === seed && item.personality === personality);
       expect(group).toHaveLength(4);
       for (const seat of [0, 1, 2, 3]) {
-        expect(new Set(group.map(item => item.leaderBySeat[seat]))).toEqual(new Set(LEADER_IDS));
+        expect(new Set(group.map(item => item.leaderBySeat[seat]))).toEqual(new Set(CLASSIC_LEADER_IDS));
       }
-      for (const leaderId of LEADER_IDS) {
+      for (const leaderId of CLASSIC_LEADER_IDS) {
         expect(new Set(group.map(item => Number(Object.entries(item.leaderBySeat).find(([, id]) => id === leaderId)![0])))).toEqual(new Set([0, 1, 2, 3]));
       }
     }
@@ -63,7 +63,7 @@ test('arguments are bounded and default to a manageable legacy batch', () => {
     seeds: 2, seedStart: 11, expansionVersion: 1, roundLimit: 100, width: 24, height: 16,
   });
   expect(parseLeaderBalanceArgs(['--seeds', '2', '--seed-start', '11', '--expansion', 'true', '--eras', 'simple', '--round-limit', '100']).config).toEqual({
-    seeds: 2, seedStart: 11, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 3, roundLimit: 100, width: 24, height: 16,
+    seeds: 2, seedStart: 11, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 4, roundLimit: 100, width: 24, height: 16,
   });
   expect(parseLeaderBalanceArgs(['--seeds', '1', '--expansion', 'true', '--eras', 'none', '--round-limit', '100']).config).toEqual({
     seeds: 1, seedStart: 1, expansionVersion: 1, roundLimit: 100, width: 24, height: 16,
@@ -112,7 +112,7 @@ test('rotated games attribute seat scores and telemetry to the actual leader', (
   expect(result.activityByLeader.oak).toBeDefined();
 
   const noTiming = structuredClone(result);
-  for (const leaderId of LEADER_IDS) {
+  for (const leaderId of CLASSIC_LEADER_IDS) {
     noTiming.activityByLeader[leaderId].firstCityAttackRound = null;
     noTiming.activityByLeader[leaderId].firstHQAttackRound = null;
     noTiming.activityByLeader[leaderId].siegeCraftRound = null;
@@ -162,3 +162,11 @@ test('one deterministic full game produces leader scores and honest report warni
   expect(markdown).toContain('科技数量分段诊断（非实际时代）');
   expect(markdown).toContain('实际时代到达诊断');
 }, 30_000);
+
+test('gameplay v4 rotates all nine leaders through four seats', () => {
+  const cases = leaderBalanceCases({ ...config, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 4 });
+  expect(cases).toHaveLength(3 * LEADER_IDS.length);
+  const group = cases.filter(item => item.personality === 'expansion');
+  for (const seat of [0, 1, 2, 3]) expect(new Set(group.map(item => item.leaderBySeat[seat]))).toEqual(new Set(LEADER_IDS));
+  for (const item of group) expect(new Set(Object.values(item.leaderBySeat)).size).toBe(4);
+});

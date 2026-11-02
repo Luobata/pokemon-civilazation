@@ -85,10 +85,12 @@ export function cityYield(state: GameState, city: CityState, content: Content = 
   result.food += policy.cityFood; result.production += policy.cityProduction; result.gold += policy.cityGold; result.research += policy.cityResearch;
   const leader = leaderEffects(player.leaderId);
   result.research += leader.cityResearch + (city.buildingIds.includes('observatory') ? leader.laboratoryResearch : 0);
+  result.gold += city.population >= 3 ? leader.cityGold : 0;
   return result;
 }
-export function productionCost(item: ProductionItem, content: Content = CONTENT, trainingDiscountPercent = 0): number {
+export function productionCost(item: ProductionItem, content: Content = CONTENT, trainingDiscountPercent = 0, settlerDiscountPercent = 0): number {
   if (item.kind === 'building') return content.buildings[item.defId].cost!;
+  if (item.kind === 'logistics' && settlerDiscountPercent) return Math.max(1, Math.ceil(content.units[item.defId].trainCost * (100 - settlerDiscountPercent) / 100));
   const base = content.units[item.defId].trainCost;
   return item.kind === 'pokemon' && trainingDiscountPercent ? Math.max(1, Math.ceil(base * (100 - trainingDiscountPercent) / 100)) : base;
 }

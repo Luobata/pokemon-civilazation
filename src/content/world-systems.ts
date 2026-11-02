@@ -3,6 +3,7 @@ import type { Content } from './units.ts';
 import type { SpeciesId } from './species.ts';
 
 export type StoneId = 'fireStone' | 'waterStone' | 'leafStone' | 'thunderStone' | 'moonStone';
+export const STONE_IDS: readonly StoneId[] = ['fireStone', 'waterStone', 'leafStone', 'thunderStone', 'moonStone'];
 export type BerryId = 'oranBerry' | 'sitrusBerry' | 'lumBerry' | 'nanabBerry';
 
 export type BerryDefinition = {

@@ -1,3 +1,4 @@
+import { leaderEffects } from '../content/leaders.ts';
 import { IMPROVEMENT_IDS, IMPROVEMENT_WORK, IMPROVEMENTS } from '../content/improvements.ts';
 import type { ImprovementId } from '../content/improvements.ts';
 import { gameplayAtLeast } from '../content/eras.ts';
@@ -81,7 +82,7 @@ export function applyImprovementAction(state: GameState, actorId: number, action
   unit.actionLeft = 0;
   const previous = improvements.projects[action.tileIndex];
   const base = previous && previous.kind === action.kind && previous.playerId === actorId ? previous.progress : 0;
-  const progress = Math.min(IMPROVEMENT_WORK.required, base + crewPoints(unit, content, action.kind) + playerPolicyEffects(state, actorId).workPointBonus);
+  const progress = Math.min(IMPROVEMENT_WORK.required, base + crewPoints(unit, content, action.kind) + playerPolicyEffects(state, actorId).workPointBonus + leaderEffects(state.players[actorId].leaderId).workPointBonus);
   const completed = progress >= IMPROVEMENT_WORK.required;
   if (completed) {
     delete improvements.projects[action.tileIndex];

@@ -16,6 +16,11 @@ const LEADER_TECH_FOCUS: Record<LeaderId, readonly TechId[]> = {
   lance: ['riding', 'training', 'typeResearch'],
   jenny: ['stoneCraft', 'siegeCraft', 'training'],
   joy: ['berryCultivation', 'medicine', 'training'],
+  brock: ['stoneCraft', 'domestication', 'siegeCraft'],
+  misty: ['domestication', 'ballCraft', 'typeResearch'],
+  steven: ['stoneCraft', 'training', 'meteorology'],
+  jasmine: ['leagueRules', 'berryCultivation', 'ballCraft'],
+  giovanni: ['domestication', 'ballCraft', 'fieldObservation'],
 };
 
 export function leaderResearchBonus(view: PlayerView, techId: TechId): number {

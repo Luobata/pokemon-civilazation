@@ -8,6 +8,8 @@ import { unitDamage, cityDamage, cityCounterDamage } from './combat-query.ts';
 import { captureProbability } from './combat-math.ts';
 import { cityAssaultMultiplier } from './role-tactics.ts';
 import { flankBonus } from './tactics.ts';
+import { mistyWaterMultiplier } from './leader-systems.ts';
+import { homeDefenseMultiplier } from './essences.ts';
 import { viewPolicyEffects } from './policies.ts';
 
 export type AttackPreview = { ok: true; damage: { min: number; max: number };
@@ -32,10 +34,15 @@ export function previewAttack(view: PlayerView, unitId: number, target: CombatTa
     const defendingUnit = view.units.find(unit => unit.id === target.id)!;
     hp = defendingUnit.hp;
     const flank = flankBonus(view, unit, defendingUnit, view.units);
-    min = unitDamage(unit, defendingUnit, from, to, techs.includes('typeResearch'), 85, false, content, attackMultiplier, Boolean(view.expansion), flank);
-    max = unitDamage(unit, defendingUnit, from, to, techs.includes('typeResearch'), 100, false, content, attackMultiplier, Boolean(view.expansion), flank);
+    const mapView = { map: view.map as never, expansion: view.expansion ? { leaders: { players: { [view.playerId]: view.expansion.leaders } } } as never : undefined, round: view.round,
+      players: Object.fromEntries(view.civilizations.map(civ => [civ.id, { leaderId: civ.leaderId }])) as never };
+    const home = (identity: import("../content/units.ts").UnitIdentity, biome: typeof to) => homeDefenseMultiplier(view.expansion?.essences !== undefined, identity, biome, content);
+    const side = mistyWaterMultiplier(mapView, unit.ownerId, unit, content) * home(defendingUnit, to) / 1000;
+    min = unitDamage(unit, defendingUnit, from, to, techs.includes('typeResearch'), 85, false, content, attackMultiplier, Boolean(view.expansion), flank, side);
+    max = unitDamage(unit, defendingUnit, from, to, techs.includes('typeResearch'), 100, false, content, attackMultiplier, Boolean(view.expansion), flank, side);
     canCounter = defendingUnit.kind === 'pokemon' && distance <= content.species[defendingUnit.speciesId].range;
-    if (canCounter) counter = unitDamage(defendingUnit, unit, to, from, view.combat.units[defendingUnit.id].typeResearch, 100, true, content, 1000, Boolean(view.expansion));
+    if (canCounter) counter = unitDamage(defendingUnit, unit, to, from, view.combat.units[defendingUnit.id].typeResearch, 100, true, content, 1000, Boolean(view.expansion), 0,
+      mistyWaterMultiplier(mapView, defendingUnit.ownerId, defendingUnit, content) * home(unit, from) / 1000);
   } else {
     const city = view.combat.cities[defender.id]; hp = city.hp;
     const assault = cityAssaultMultiplier(view.economy.player, view.eraProgression, view.gameplayVersion, unit, content, distance, techs.includes('siegeCraft'));
@@ -57,5 +64,6 @@ export function previewCapture(view: PlayerView, unitId: number, targetUnitId: n
     || player.ballInventory[ballId] < 1) return { ok: false, reason: 'capture-unavailable' };
   const definition = content.species[target.speciesId];
   return { ok: true, probability: Math.min(100, captureProbability(definition.maxHp, target.hp, ballId === 'greatBall' ? 1500 : 1000,
-    player.research.unlockedIds.includes('fieldObservation'), definition.rare) + viewPolicyEffects(view).captureBonus) };
+    player.research.unlockedIds.includes('fieldObservation'), definition.rare) + viewPolicyEffects(view).captureBonus + leaderEffects(player.leaderId).captureBonus
+    + (player.leaderId === 'giovanni' && (view.expansion?.leaders.activeUntilRound ?? 0) >= view.round ? 15 : 0)) };
 }

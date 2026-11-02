@@ -1,3 +1,4 @@
+import { observeEssences } from './essences.ts';
 import { observePolicies, playerPolicyEffects } from './policies.ts';
 import { observeImprovements } from './improvements.ts';
 import { CIVILIZATION_CONTENT } from '../content/civilization-systems.ts';
@@ -101,7 +102,8 @@ export function observe(state: GameState, playerId: number, content: Content = s
     ...(state.expansion ? { expansion: { version: 1 as const, world: observeWorld(state, playerId, visible), civilization: observeCivilization(state, playerId, visible, { ...CIVILIZATION_CONTENT, world: content }), leaders: observeLeaders(state, playerId),
       ...(state.expansion.improvements ? { improvements: observeImprovements(state, playerId, visible) } : {}),
       ...(state.expansion.discoveries ? { discoveries: [...(state.expansion.discoveries[playerId] ?? [])] } : {}),
-      ...(state.expansion.policies ? { policies: observePolicies(state, playerId) } : {}) } } : {}),
+      ...(state.expansion.policies ? { policies: observePolicies(state, playerId) } : {}),
+      ...(state.expansion.essences ? { essences: observeEssences(state, playerId) } : {}) } } : {}),
     ...(state.setup.eraProgression ? { eraProgression: state.setup.eraProgression } : {}),
     ...(state.setup.gameplayVersion ? { gameplayVersion: state.setup.gameplayVersion } : {}),
     playerId, seed: state.setup.seed, round: state.round, activePlayerId: state.activePlayerId, commandSeq: state.commandSeq,

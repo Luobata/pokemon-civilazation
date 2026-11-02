@@ -698,6 +698,11 @@ export function inspectSystem(systemId: string, state: GameState): AuditSystemIn
     return { metrics: [metric('当前规则', ledger ? '时代玩法 v3' : '本局未启用（需时代玩法 v3）'), metric('已确立规章', ledger?.adopted.length ?? 0), metric('已用方针卡', ledger?.slotted.length ?? 0)],
       data: { policies: state.expansion?.policies ?? null } };
   }
+  if (system.id === 's35-essences') {
+    const essences = state.expansion?.essences;
+    return { metrics: [metric('当前规则', essences ? '时代玩法 v4' : '本局未启用（需时代玩法 v4）'), metric('道馆数', essences ? Object.keys(essences.gyms).length : 0)],
+      data: { essences: essences ?? null } };
+  }
   if (system.id === 's30-type-expansion') return { metrics: [metric('当前规则', state.expansion ? '18 属性、双属性防御' : '经典克制表'), metric('物种数', Object.keys(contentFor(state).species).length)],
     data: { species: contentFor(state).species, rule: 'Primary attack type; multiply defensive types; immunity zero; one final floor.' } };
   if (system.id === 'x11-content-editor') return { metrics: [metric('内容版本', contentFor(state).version), metric('物种数', Object.keys(contentFor(state).species).length)],

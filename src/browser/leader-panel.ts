@@ -1,6 +1,7 @@
 import { LEADER_IDS, LEADERS } from '../content/leaders.ts';
 import type { LeaderId } from '../content/leaders.ts';
 import { speciesDisplay } from '../content/species.ts';
+import { LEADER_DOCTRINES } from '../core/leader-doctrines.ts';
 import type { PlayerView } from '../core/model.ts';
 import '../leaders.css';
 
@@ -10,7 +11,11 @@ export function renderLeaderSetup(): void {
   const root = document.querySelector<HTMLElement>('#leader-options')!;
   root.innerHTML = LEADER_IDS.map(id => {
     const leader = LEADERS[id];
-    return `<label class="leader-choice"><input type="radio" name="leader" value="${id}" data-leader-choice="${id}" aria-describedby="leader-setup-note" ${id === 'oak' ? 'checked' : ''}><img class="leader-choice-art" src="${leaderArtPath(id)}" width="64" height="64" alt="" aria-hidden="true"><span class="leader-choice-name">${leader.name}</span><span class="leader-choice-specialty">${leader.specialty} · ${leader.title}</span><strong class="leader-choice-ability">${leader.ability}</strong><span class="leader-choice-description">${leader.description}</span></label>`;
+    const peak = (['early', 'middle', 'late'] as const).filter(phase => {
+      const window = LEADER_DOCTRINES[id][phase];
+      return window.researchBonus || window.movementBonus || window.trainedXpBonus || window.territoryHealingBonus || window.fieldHealing || window.cityDamageBonus;
+    }).map(phase => ({ early: '早', middle: '中', late: '后' })[phase]).join('/');
+    return `<label class="leader-choice"><input type="radio" name="leader" value="${id}" data-leader-choice="${id}" aria-describedby="leader-setup-note" ${id === 'oak' ? 'checked' : ''}><img class="leader-choice-art" src="${leaderArtPath(id)}" width="64" height="64" alt="" aria-hidden="true"><span class="leader-choice-name">${leader.name}</span><span class="leader-choice-specialty">${leader.specialty} · ${leader.title}</span><strong class="leader-choice-ability">${leader.ability}${peak ? `<em class="leader-peak">发力 ${peak}期</em>` : ''}</strong><span class="leader-choice-description">${leader.description}</span></label>`;
   }).join('');
 }
 

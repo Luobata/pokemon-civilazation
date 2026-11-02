@@ -5,7 +5,7 @@ import { dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { CONTENT, EXPANSION_CONTENT } from '../src/content/units.ts';
 import type { Content } from '../src/content/units.ts';
-import { LEADER_IDS } from '../src/content/leaders.ts';
+import { CLASSIC_LEADER_IDS, LEADER_IDS } from '../src/content/leaders.ts';
 import type { LeaderId } from '../src/content/leaders.ts';
 import { AI_THRESHOLDS } from '../src/ai/thresholds.ts';
 import { RULE_QUERIES } from '../src/ai/query.ts';
@@ -135,13 +135,19 @@ export type ProgressionSeatResult = {
   eraArrivalRounds: Record<number, number>;
 };
 
+/** Classic four for older rules; all leaders from gameplay v4. */
+export function leaderRoster(config: Pick<LeaderBalanceConfig, 'gameplayVersion'>): readonly LeaderId[] {
+  return (config.gameplayVersion ?? 0) >= 4 ? LEADER_IDS : CLASSIC_LEADER_IDS;
+}
 export function leaderBalanceCases(config: LeaderBalanceConfig): LeaderBalanceCase[] {
   const cases: LeaderBalanceCase[] = [];
   const seedStart = config.seedStart ?? 1;
   for (let seed = seedStart; seed < seedStart + config.seeds; seed++) {
     for (const personality of PERSONALITIES) {
-      for (let rotation = 0; rotation < LEADER_IDS.length; rotation++) {
-        const leaderBySeat = Object.fromEntries(LEADER_IDS.map((leaderId, seat) => [seat, LEADER_IDS[(seat + rotation) % LEADER_IDS.length]])) as Record<number, LeaderId>;
+      // Cyclic design: table r seats roster[r..r+3]; every leader plays every seat exactly once.
+      const roster = leaderRoster(config);
+      for (let rotation = 0; rotation < roster.length; rotation++) {
+        const leaderBySeat = Object.fromEntries([0, 1, 2, 3].map(seat => [seat, roster[(seat + rotation) % roster.length]])) as Record<number, LeaderId>;
         cases.push({
           id: `leaders-s${seed}-${personality}-r${rotation}`,
           seed,
@@ -156,7 +162,7 @@ export function leaderBalanceCases(config: LeaderBalanceConfig): LeaderBalanceCa
             width: config.width,
             height: config.height,
             roundLimit: config.roundLimit,
-            players: LEADER_IDS.map((_, seat) => ({ id: seat, controller: 'ai' as const, personality, leaderId: leaderBySeat[seat] })),
+            players: [0, 1, 2, 3].map(seat => ({ id: seat, controller: 'ai' as const, personality, leaderId: leaderBySeat[seat] })),
           },
         });
       }
@@ -450,7 +456,8 @@ function emptyPersonalityRecord(): Record<AiPersonality, { observations: number;
 
 export function aggregateLeaderGames(games: LeaderGameResult[]) {
   const valid = games.filter(game => game.status === 'completed');
-  const leaders: LeaderAggregate[] = LEADER_IDS.map(leaderId => {
+  const present = LEADER_IDS.filter(leaderId => valid.some(game => game.scoreByLeader[leaderId]));
+  const leaders: LeaderAggregate[] = (present.length ? present : CLASSIC_LEADER_IDS).map(leaderId => {
     const observations = valid.flatMap(game => game.scoreByLeader[leaderId] ? [{ game, score: game.scoreByLeader[leaderId] }] : []);
     const activityRows = observations.map(({ game }) => game.activityByLeader[leaderId]);
     const activityMean = (key: keyof Pick<LeaderActivityMetrics, 'resolvedCityAttacks' | 'cityCaptures' | 'cityLosses' | 'hqAttacks' | 'hqCaptures' | 'firstCityAttackRound' | 'firstHQAttackRound' | 'siegeCraftRound' | 'warRounds'>) =>
@@ -666,7 +673,7 @@ export function runLeaderBalance(config: LeaderBalanceConfig, context?: { comman
     aggregate,
     acceptance: evaluateLeaderBalanceAcceptance(aggregate, matches.length),
     warnings: [
-      `样本仅 ${config.seeds} 个地图种子 × ${PERSONALITIES.length} 种性格 × ${LEADER_IDS.length} 个座位轮换，不能推断校准完成或长期平衡。`,
+      `样本仅 ${config.seeds} 个地图种子 × ${PERSONALITIES.length} 种性格 × ${leaderRoster(config).length} 个座位轮换，不能推断校准完成或长期平衡。`,
       '同一种子与性格的四局共享地形、初始位置和初始随机流；胜负观测不是互相独立的地图样本。',
       '本工具只诊断现有规则，不调整任何数值，也不覆盖不同人类操作、多人网络局或主动技能路线。',
       ...(config.eraProgression === undefined ? [] : [`本批显式选择时代进度：${eraCliValue(config.eraProgression)}；时间分段基于科技完成数量，不等同于完整时代规则。`]),
@@ -681,7 +688,7 @@ export function parseLeaderBalanceArgs(args: string[]): { config: LeaderBalanceC
     const key = args[index];
     if (!['--seeds', '--seed-start', '--expansion', '--eras', '--gameplay', '--round-limit', '--out'].includes(key)
       || !args[index + 1] || args[index + 1].startsWith('--') || Object.hasOwn(flags, key)) {
-      throw new Error('Usage: node tools/leader-balance.ts --seeds <1..100> [--seed-start <1..>] [--expansion <true|false>] [--eras <none|simple|full>] [--gameplay <0|1|2|3>] --round-limit <100|200|300> [--out <file.json>]');
+      throw new Error('Usage: node tools/leader-balance.ts --seeds <1..100> [--seed-start <1..>] [--expansion <true|false>] [--eras <none|simple|full>] [--gameplay <0|1|2|3|4>] --round-limit <100|200|300> [--out <file.json>]');
     }
     flags[key] = args[index + 1];
   }
@@ -695,7 +702,7 @@ export function parseLeaderBalanceArgs(args: string[]): { config: LeaderBalanceC
   if (expansion === 'false' && era !== 'none') throw new Error('--eras simple|full requires --expansion true');
   const eraProgression = eraProgressionValue(era as 'none' | 'simple' | 'full');
   const gameplay = Number(flags['--gameplay'] ?? (eraProgression === null ? 0 : LATEST_GAMEPLAY_VERSION));
-  if (![0, 1, 2, 3].includes(gameplay) || (gameplay > 0 && eraProgression === null)) throw new Error('--gameplay 1|2|3 requires --eras simple|full');
+  if (![0, 1, 2, 3, 4].includes(gameplay) || (gameplay > 0 && eraProgression === null)) throw new Error('--gameplay 1|2|3|4 requires --eras simple|full');
   return {
     config: {
       seeds, seedStart, ...(expansion === 'true' ? { expansionVersion: 1 as const } : {}),

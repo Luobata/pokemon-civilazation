@@ -14,10 +14,10 @@ async function importSave(page: Page, text: string) {
   await expect(page.locator('#action-notice')).toContainText('读档完成');
 }
 
-test('all four leaders apply only to a new game and pair independently with the starter', async ({ page }) => {
+test('every leader applies only to a new game and pairs independently with the starter', async ({ page }) => {
   await page.goto('/');
   await page.locator('#animate').uncheck();
-  await expect(page.locator('input[name="leader"]')).toHaveCount(4);
+  await expect(page.locator('input[name="leader"]')).toHaveCount(LEADER_IDS.length);
   await page.locator('#starter').selectOption('charmander');
   for (const leaderId of LEADER_IDS) {
     const before = await state(page);
@@ -27,12 +27,14 @@ test('all four leaders apply only to a new game and pair independently with the 
     await page.locator('#new-game').click();
     const after = await state(page);
     expect(after.players[0]).toMatchObject({ starterId: 'charmander', leaderId });
-    expect(after.setup.players.map(player => player.leaderId)).toEqual([leaderId, ...LEADER_IDS.filter(id => id !== leaderId)]);
+    const seated = after.setup.players.map(player => player.leaderId);
+    expect(seated[0]).toBe(leaderId);
+    expect(seated.every(id => id !== undefined && LEADER_IDS.includes(id))).toBe(true);
     expect(new Set(Object.values(after.players).map(player => player.leaderId)).size).toBe(4);
     await expect(page.locator('#leader-panel')).toContainText(LEADERS[leaderId].ability);
     await expect(page.locator('#leader-panel')).toContainText(LEADERS[leaderId].description);
     await expect(page.locator('#leader-panel')).toContainText('小火龙');
-    for (const other of LEADER_IDS.filter(id => id !== leaderId)) await expect(page.locator('#diplomacy')).toContainText(LEADERS[other].name);
+    for (const other of seated.slice(1)) await expect(page.locator('#diplomacy')).toContainText(LEADERS[other!].name);
     const image = page.locator(`#leader-panel img[src$="/${leaderId}.svg"]`);
     await expect(image).toBeVisible();
     expect(await image.evaluate(element => (element as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
@@ -93,7 +95,7 @@ for (const width of [390, 768, 1280]) test(`leader cards and skill descriptions 
   await page.goto('/');
   await page.locator('#choose-leader').click();
   const choices = page.locator('input[name="leader"]');
-  await expect(choices).toHaveCount(4);
+  await expect(choices).toHaveCount(LEADER_IDS.length);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   for (const leaderId of LEADER_IDS) {
     const radio = page.locator(`input[name="leader"][value="${leaderId}"]`);

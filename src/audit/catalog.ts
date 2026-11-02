@@ -694,6 +694,16 @@ export const AUDIT_SYSTEMS: readonly AuditSystem[] = [
     sources: ["src/content/policies.ts", "src/core/policies.ts", "src/ai/policy-plan.ts", "src/browser/policy-panel.ts", "tests/core/policies.test.ts"],
     actionTypes: ["SetCharter", "SetPolicies", "EndTurn"],
   }),
+  system({
+    id: "s35-essences",
+    name: "属性精华、属性道馆与地形主场",
+    status: "implemented",
+    summary: "时代玩法 v4：每种地形产出一种属性精华，用于加速对应属性训练和建造属性道馆；宝可梦在本属性地形防守受伤 −10%。",
+    rules: ["7 种精华对应 7 种地形，18 种属性分组归入其中；城市中心格与每个耕作地块各产出 1 点，领袖偏好精华额外 +1。", "每种精华上限 50；训练对应属性宝可梦时每轮自动消耗 2 点，生产 +2（有同属性道馆时 +4）。", "每城最多一座道馆，花费 15 精华 + 40 金；同属性新单位出场经验 +20，城市每轮额外产出 1 点该精华；城市被占领后道馆失效。", "主场防守：防守方站在与其任一属性精华对应的地形上时受伤 ×0.9；预览与权威结算共用。"],
+    checks: ["核对正式命令、成本、所有权、轮次与当前派生状态。", "验证观察隔离、事务拒绝、确定性和存档重放。"],
+    sources: ["src/content/essences.ts", "src/core/essences.ts", "src/ai/essence-plan.ts", "tests/core/essences.test.ts"],
+    actionTypes: ["BuildGym", "Attack", "EndTurn"],
+  }),
 ];
 
 export const AUDIT_SYSTEM_BY_ID: ReadonlyMap<string, AuditSystem> = new Map(AUDIT_SYSTEMS.map(item => [item.id, item]));

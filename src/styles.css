@@ -442,3 +442,18 @@ button.danger { border-color: var(--danger); background: #9E4B43; color: var(--o
 #turn-reminders:empty { display: none; }
 #turn-reminders button { min-height: 20px; padding: 1px 6px; border-color: #7A6438; background: #2A281C; color: #EFD8A0; font-size: 10px; }
 @media (max-width: 480px) { .turn-block { width: 100%; justify-items: stretch; } #turn-reminders { justify-content: flex-start; max-width: none; } }
+
+.hud-essences { display: flex; flex-wrap: wrap; gap: 4px; max-width: 300px; }
+.hud-essences:empty { display: none; }
+.essence-chip { display: inline-flex; align-items: baseline; gap: 2px; padding: 2px 5px; border: 1px solid color-mix(in srgb, var(--essence) 55%, transparent); border-radius: 4px; background: color-mix(in srgb, var(--essence) 16%, #10201f); color: #EDF0E4; font-size: 11px; font-variant-numeric: tabular-nums; }
+.essence-chip b { color: var(--essence); font-size: 10px; }
+.essence-chip small { color: #9DB2A3; font-size: 9px; }
+.city-essences { display: grid; gap: 6px; margin: 4px 0 8px; }
+.city-essences .section-label { margin: 0; }
+.essence-row { display: flex; flex-wrap: wrap; gap: 4px; }
+.gym-status { margin: 0; color: #E6D5A6; font-size: 11px; }
+.gym-build { display: flex; flex-wrap: wrap; align-items: end; gap: 6px; }
+.gym-build label { display: grid; gap: 3px; flex: 1; font-size: 11px; }
+.gym-build button { min-height: 30px; font-size: 11px; }
+.city-essences .unit-note { padding: 0; }
+@media (max-width: 980px) { .hud-essences { max-width: none; } }

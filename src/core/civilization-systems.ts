@@ -815,11 +815,13 @@ export function resolveCivilizationRound(state: CivilizationHost, content: Civil
     }
     if (relation.tradeSinceRound !== null && state.round - relation.tradeSinceRound >= content.diplomacy.tradeIntervalRounds
       && (state.round - relation.tradeSinceRound) % content.diplomacy.tradeIntervalRounds === 0) {
-      state.players[a].gold += content.diplomacy.tradeIncome;
-      state.players[b].gold += content.diplomacy.tradeIncome;
+      const tradeA = content.diplomacy.tradeIncome * (state.players[a].leaderId === 'jasmine' ? 2 : 1);
+      const tradeB = content.diplomacy.tradeIncome * (state.players[b].leaderId === 'jasmine' ? 2 : 1);
+      state.players[a].gold += tradeA;
+      state.players[b].gold += tradeB;
       relation.trust = Math.min(content.diplomacy.maximumTrust, relation.trust + content.diplomacy.trustStep);
-      events.push({ type: 'TradeSettled', playerId: a, targetPlayerId: b, gold: content.diplomacy.tradeIncome, trust: relation.trust });
-      events.push({ type: 'TradeSettled', playerId: b, targetPlayerId: a, gold: content.diplomacy.tradeIncome, trust: relation.trust });
+      events.push({ type: 'TradeSettled', playerId: a, targetPlayerId: b, gold: tradeA, trust: relation.trust });
+      events.push({ type: 'TradeSettled', playerId: b, targetPlayerId: a, gold: tradeB, trust: relation.trust });
     }
   }
   if (state.round >= civilizationState.championship.nextRound) resolveChampionship(state, content, events);

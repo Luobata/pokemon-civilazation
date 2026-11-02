@@ -12,7 +12,7 @@ async function selectStarter(page: import('@playwright/test').Page) {
 
 test('new games use gameplay v2: tile improvements, discoveries and field tactics are playable', async ({ page }) => {
   await page.goto('/');
-  expect((await state(page)).setup).toMatchObject({ eraProgression: 'simple-v1', gameplayVersion: 3 });
+  expect((await state(page)).setup).toMatchObject({ eraProgression: 'simple-v1', gameplayVersion: 4 });
   await selectStarter(page);
   await expect(page.locator('#zoc-note')).toContainText('夹击');
   const farm = page.locator('[data-improve$=":berryFarm"]').first();

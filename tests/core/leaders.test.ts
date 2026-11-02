@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import { GameSession, replay } from '../../src/app/session.ts';
 import { deserializeSave } from '../../src/app/save.ts';
-import { LEADER_IDS } from '../../src/content/leaders.ts';
+import { CLASSIC_LEADER_IDS, LEADER_IDS } from '../../src/content/leaders.ts';
 import type { LeaderId } from '../../src/content/leaders.ts';
 import { CONTENT, STARTER_IDS } from '../../src/content/units.ts';
 import { cityCounterAttack, cityYield } from '../../src/core/city.ts';
@@ -23,7 +23,7 @@ const setup: GameSetup = { seed: 12345, width: 24, height: 16, players: [
 test('every leader pairs with every starter without changing map, spawns or RNG', () => {
   for (const starterId of STARTER_IDS) {
     const legacy = createGame({ ...setup, players: [{ id: 0, controller: 'human', starterId }, setup.players[1]] });
-    for (const leaderId of LEADER_IDS) {
+    for (const leaderId of CLASSIC_LEADER_IDS) {
       const current = createGame({ ...setup, players: [{ id: 0, controller: 'human', starterId, leaderId }, setup.players[1]] });
       expect(current.players[0]).toMatchObject({ starterId, leaderId });
       expect(current.map).toEqual(legacy.map);
@@ -34,10 +34,12 @@ test('every leader pairs with every starter without changing map, spawns or RNG'
 });
 
 test.each([...LEADER_IDS, undefined])('leader %s survives save/load and exact AI command replay', leaderId => {
-  const chosen: GameSetup = structuredClone(setup);
+  const classic = leaderId === undefined || (CLASSIC_LEADER_IDS as readonly string[]).includes(leaderId);
+  const chosen: GameSetup = structuredClone(classic ? setup : { ...setup, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 4 });
   if (leaderId !== undefined) {
+    const roster = classic ? CLASSIC_LEADER_IDS : LEADER_IDS;
     chosen.players[0].leaderId = leaderId;
-    chosen.players[1].leaderId = LEADER_IDS[(LEADER_IDS.indexOf(leaderId) + 1) % LEADER_IDS.length];
+    chosen.players[1].leaderId = roster[(roster.indexOf(leaderId as never) + 1) % roster.length];
   }
   const session = new GameSession(chosen);
   for (let i = 0; i < 3; i++) expect(session.issue({ type: 'EndTurn' }).ok).toBe(true);
@@ -169,4 +171,14 @@ test.each([false, true])('Joy reduces recovery only on knockout, wildPhase=%s', 
   resolveRecovery(state);
   expect(state.units[11].location).toBe(wildPhase ? 'map' : 'recovering');
   if (!wildPhase) expect(state.units[11]).toMatchObject({ roundsLeft: 1, hp: 1 });
+});
+
+test('newer leaders require gameplay v4 and pair with every starter there', () => {
+  for (const leaderId of LEADER_IDS.filter(id => !(CLASSIC_LEADER_IDS as readonly string[]).includes(id))) {
+    expect(() => createGame({ ...setup, players: [{ id: 0, controller: 'human', starterId: 'bulbasaur', leaderId }, setup.players[1]] })).toThrow('gameplay v4');
+    for (const starterId of STARTER_IDS) {
+      const v4 = createGame({ ...setup, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 4, players: [{ id: 0, controller: 'human', starterId, leaderId }, setup.players[1]] });
+      expect(v4.players[0]).toMatchObject({ starterId, leaderId });
+    }
+  }
 });

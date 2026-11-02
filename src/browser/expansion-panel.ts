@@ -29,7 +29,7 @@ export function renderExpansionPanel(view: PlayerView, selectedUnitId: number | 
     + button(leader.active, { type: 'UseLeaderAbility' }, player.gold >= 20 && exp.leaders.readyAtRound <= view.round)
     + (city ? `<p>当前城市 #${city.id}：${escape(leader.building)}提供本城领袖专长产出 +2；专属部队拥有 +8 攻防和 +1 视野。</p>`
       + button(`建造${leader.building} · 90 金`, { type: 'BuildLeaderBuilding', cityId: city.id }, player.gold >= 90 && !exp.leaders.uniqueCityIds.includes(city.id))
-      + button(`招募${unitDefinition({ kind: 'pokemon', speciesId: leader.unit }).name} · 100 金`, { type: 'RecruitLeaderUnit', cityId: city.id }, player.gold >= 100 && exp.leaders.recruited < 3 && player.research.unlockedIds.includes('training')) : ''));
+      + button(`招募${unitDefinition({ kind: 'pokemon', speciesId: leader.unit }, CONTENT).name} · 100 金`, { type: 'RecruitLeaderUnit', cityId: city.id }, player.gold >= 100 && exp.leaders.recruited < 3 && player.research.unlockedIds.includes('training')) : ''));
   const world = exp.world, records = Object.values(world.player?.pokedex ?? {});
   html += card('s22-pokedex', '图鉴与探索胜利', `<p>完整记录 ${records.filter(record => record.observed && (record.battled || record.captured)).length}/${world.victory?.targetDocumentedSpecies ?? 18}。观察 ${records.filter(record => record.observed).length} · 对战 ${records.filter(record => record.battled).length} · 捕捉 ${records.filter(record => record.captured).length}。已观察且战斗或捕捉的物种计入完整记录。</p><p>${records.filter(record => record.observed).map(record => escape(CONTENT.species[record.speciesId].name)).join('、') || '尚未观察'}</p>`);
   html += card('s18-nests', '暴走巢穴', '<p>靠近巢穴后派宝可梦清剿，消耗行动点；巢穴会周期性派出敌对野生单位。</p>'
