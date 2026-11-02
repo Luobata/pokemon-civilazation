@@ -13,6 +13,7 @@ import type { CombatAction, CombatEvent, CombatTarget, GameState, MapUnit, StepR
 import { assignNewWorkers, cityCounterAttack, cleanWork } from './city.ts';
 import { cityAssaultMultiplier } from './role-tactics.ts';
 import { flankBonus } from './tactics.ts';
+import { playerPolicyEffects } from './policies.ts';
 import { captureProbability, dualEffectiveness, effectiveness } from './combat-math.ts';
 import { randomBelow } from './rng.ts';
 import { registerSpecies } from './unit.ts';
@@ -161,8 +162,8 @@ export function applyCombatAction(state: GameState, actor: number, action: Comba
   const target = state.units[action.targetUnitId];
   if (target.kind !== 'pokemon') throw new Error('Expected wild pokemon');
   const definition = content.species[target.speciesId];
-  const probability = captureProbability(definition.maxHp, target.hp, action.ballId === 'greatBall' ? 1500 : 1000,
-    hasTech(state, actor, 'fieldObservation'), definition.rare);
+  const probability = Math.min(100, captureProbability(definition.maxHp, target.hp, action.ballId === 'greatBall' ? 1500 : 1000,
+    hasTech(state, actor, 'fieldObservation'), definition.rare) + playerPolicyEffects(state, actor).captureBonus);
   player.ballInventory[action.ballId]--;
   const success = randomBelow(state.rng, 100) < probability;
   if (success) { target.ownerId = actor; target.actionLeft = 0; target.wildHome = null; registerSpecies(player, target); }

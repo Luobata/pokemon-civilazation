@@ -1,0 +1,303 @@
+{
+ "note": "Seeds 31-34, simple-v1, 24x16, 100 rounds, uncommitted working tree. v3a = policies with Pokedex target 18; v3 = target 21 (shipped).",
+ "gameplayV2": {
+  "metadata": {
+   "gitHead": "863af38771a6a58b7be2b4c9a6609aa640b72e70",
+   "command": [
+    "node",
+    "tools/leader-balance.ts",
+    "--seeds",
+    "4",
+    "--seed-start",
+    "31",
+    "--expansion",
+    "true",
+    "--eras",
+    "simple",
+    "--gameplay",
+    "2",
+    "--round-limit",
+    "100",
+    "--out",
+    "/tmp/gp2b.json"
+   ],
+   "seedValues": [
+    31,
+    32,
+    33,
+    34
+   ]
+  },
+  "outcomeKinds": {
+   "conquest": 11,
+   "score": 31,
+   "playerDefeat": 0,
+   "pokedex": 6,
+   "origin": 0,
+   "championship": 0
+  },
+  "meanEndRound": 94.16666666666667,
+  "eliminationEvents": 68,
+  "leaders": [
+   {
+    "leaderId": "oak",
+    "wins": 19,
+    "n": 48,
+    "meanScore": 725.0208333333334,
+    "meanPopulation": 15.1875,
+    "meanTechs": 10.208333333333334
+   },
+   {
+    "leaderId": "lance",
+    "wins": 13,
+    "n": 48,
+    "meanScore": 569.3958333333334,
+    "meanPopulation": 13.333333333333334,
+    "meanTechs": 6.375
+   },
+   {
+    "leaderId": "jenny",
+    "wins": 8,
+    "n": 48,
+    "meanScore": 524.2916666666666,
+    "meanPopulation": 12.166666666666666,
+    "meanTechs": 6.291666666666667
+   },
+   {
+    "leaderId": "joy",
+    "wins": 8,
+    "n": 48,
+    "meanScore": 427.25,
+    "meanPopulation": 9.0625,
+    "meanTechs": 5.6875
+   }
+  ],
+  "defectGames": 0,
+  "abortedGames": 0
+ },
+ "gameplayV3TargetUnchanged": {
+  "metadata": {
+   "gitHead": "863af38771a6a58b7be2b4c9a6609aa640b72e70",
+   "command": [
+    "node",
+    "tools/leader-balance.ts",
+    "--seeds",
+    "4",
+    "--seed-start",
+    "31",
+    "--expansion",
+    "true",
+    "--eras",
+    "simple",
+    "--gameplay",
+    "3",
+    "--round-limit",
+    "100",
+    "--out",
+    "/tmp/gp3.json"
+   ],
+   "seedValues": [
+    31,
+    32,
+    33,
+    34
+   ]
+  },
+  "outcomeKinds": {
+   "conquest": 7,
+   "score": 15,
+   "playerDefeat": 0,
+   "pokedex": 25,
+   "origin": 0,
+   "championship": 1
+  },
+  "meanEndRound": 89.20833333333333,
+  "eliminationEvents": 56,
+  "leaders": [
+   {
+    "leaderId": "oak",
+    "wins": 13,
+    "n": 48,
+    "meanScore": 753.6458333333334,
+    "meanPopulation": 15.354166666666666,
+    "meanTechs": 10.958333333333334
+   },
+   {
+    "leaderId": "lance",
+    "wins": 16,
+    "n": 48,
+    "meanScore": 608.4375,
+    "meanPopulation": 14.375,
+    "meanTechs": 6.375
+   },
+   {
+    "leaderId": "jenny",
+    "wins": 11,
+    "n": 48,
+    "meanScore": 466.4375,
+    "meanPopulation": 11.395833333333334,
+    "meanTechs": 5.895833333333333
+   },
+   {
+    "leaderId": "joy",
+    "wins": 8,
+    "n": 48,
+    "meanScore": 545.8541666666666,
+    "meanPopulation": 14.833333333333334,
+    "meanTechs": 5.9375
+   }
+  ],
+  "defectGames": 0,
+  "abortedGames": 0
+ },
+ "gameplayV3Target24": {
+  "metadata": {
+   "gitHead": "863af38771a6a58b7be2b4c9a6609aa640b72e70",
+   "command": [
+    "node",
+    "tools/leader-balance.ts",
+    "--seeds",
+    "4",
+    "--seed-start",
+    "31",
+    "--expansion",
+    "true",
+    "--eras",
+    "simple",
+    "--gameplay",
+    "3",
+    "--round-limit",
+    "100",
+    "--out",
+    "/tmp/gp3b.json"
+   ],
+   "seedValues": [
+    31,
+    32,
+    33,
+    34
+   ]
+  },
+  "outcomeKinds": {
+   "conquest": 10,
+   "score": 36,
+   "playerDefeat": 0,
+   "pokedex": 1,
+   "origin": 0,
+   "championship": 1
+  },
+  "meanEndRound": 96.04166666666667,
+  "eliminationEvents": 67,
+  "leaders": [
+   {
+    "leaderId": "oak",
+    "wins": 17,
+    "n": 48,
+    "meanScore": 754.6875,
+    "meanPopulation": 15.291666666666666,
+    "meanTechs": 11.083333333333334
+   },
+   {
+    "leaderId": "lance",
+    "wins": 16,
+    "n": 48,
+    "meanScore": 749.625,
+    "meanPopulation": 18.9375,
+    "meanTechs": 7.375
+   },
+   {
+    "leaderId": "jenny",
+    "wins": 8,
+    "n": 48,
+    "meanScore": 511.6041666666667,
+    "meanPopulation": 12.645833333333334,
+    "meanTechs": 6.458333333333333
+   },
+   {
+    "leaderId": "joy",
+    "wins": 7,
+    "n": 48,
+    "meanScore": 600.875,
+    "meanPopulation": 16.6875,
+    "meanTechs": 6.625
+   }
+  ],
+  "defectGames": 0,
+  "abortedGames": 0
+ },
+ "gameplayV3": {
+  "metadata": {
+   "gitHead": "863af38771a6a58b7be2b4c9a6609aa640b72e70",
+   "command": [
+    "node",
+    "tools/leader-balance.ts",
+    "--seeds",
+    "4",
+    "--seed-start",
+    "31",
+    "--expansion",
+    "true",
+    "--eras",
+    "simple",
+    "--gameplay",
+    "3",
+    "--round-limit",
+    "100",
+    "--out",
+    "/tmp/gp3c.json"
+   ],
+   "seedValues": [
+    31,
+    32,
+    33,
+    34
+   ]
+  },
+  "outcomeKinds": {
+   "conquest": 9,
+   "score": 27,
+   "playerDefeat": 0,
+   "pokedex": 11,
+   "origin": 0,
+   "championship": 1
+  },
+  "meanEndRound": 94.27083333333333,
+  "eliminationEvents": 63,
+  "leaders": [
+   {
+    "leaderId": "oak",
+    "wins": 17,
+    "n": 48,
+    "meanScore": 764.0416666666666,
+    "meanPopulation": 15.6875,
+    "meanTechs": 11.0625
+   },
+   {
+    "leaderId": "lance",
+    "wins": 14,
+    "n": 48,
+    "meanScore": 695.1875,
+    "meanPopulation": 17.1875,
+    "meanTechs": 7.125
+   },
+   {
+    "leaderId": "jenny",
+    "wins": 10,
+    "n": 48,
+    "meanScore": 491.9791666666667,
+    "meanPopulation": 12,
+    "meanTechs": 6.25
+   },
+   {
+    "leaderId": "joy",
+    "wins": 7,
+    "n": 48,
+    "meanScore": 592.375,
+    "meanPopulation": 16.1875,
+    "meanTechs": 6.520833333333333
+   }
+  ],
+  "defectGames": 0,
+  "abortedGames": 0
+ }
+}

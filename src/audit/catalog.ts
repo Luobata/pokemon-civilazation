@@ -684,6 +684,16 @@ export const AUDIT_SYSTEMS: readonly AuditSystem[] = [
     sources: ["src/core/tactics.ts", "src/core/movement.ts", "src/core/combat-query.ts", "tests/core/tactics.test.ts"],
     actionTypes: ["Move", "Attack"],
   }),
+  system({
+    id: "s34-policies",
+    name: "联盟规章与训练方针卡",
+    status: "implemented",
+    summary: "时代玩法 v3：第二条进度线。规章点每轮累积确立规章，规章开放军事/经济/通配槽并解锁方针卡。",
+    rules: ["规章点 = 1 + 城市数 + 人口/3 + 改良数/2 + 满意度≥50 时 +2；未选规章时点数暂存。", "六项规章有前置关系；确立后开放槽位并解锁方针卡。", "方针卡放入对应槽，通配槽可放任意卡；确立新规章或进入新时代后免费更换一次，否则每次 30 金币。", "领袖偏好的卡效果 +50%（至少 +1）；效果作用于城市产出、训练、改良、捕捉、恢复、维护费、视野与精灵球价格。"],
+    checks: ["核对正式命令、成本、所有权、轮次与当前派生状态。", "验证观察隔离、事务拒绝、确定性和存档重放。"],
+    sources: ["src/content/policies.ts", "src/core/policies.ts", "src/ai/policy-plan.ts", "src/browser/policy-panel.ts", "tests/core/policies.test.ts"],
+    actionTypes: ["SetCharter", "SetPolicies", "EndTurn"],
+  }),
 ];
 
 export const AUDIT_SYSTEM_BY_ID: ReadonlyMap<string, AuditSystem> = new Map(AUDIT_SYSTEMS.map(item => [item.id, item]));

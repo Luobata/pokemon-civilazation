@@ -2,8 +2,9 @@ import type { ExpansionAction } from './expansion-model.ts';
 import { EXPANSION_CONTENT } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
 import { IMPROVEMENT_IDS } from '../content/improvements.ts';
+import { CHARTER_IDS, POLICY_IDS } from '../content/policies.ts';
 
-type Fields = Record<string, 'id' | 'ids' | 'string' | 'boolean' | readonly string[]>;
+type Fields = Record<string, 'id' | 'ids' | 'string' | 'boolean' | 'policyIds' | readonly string[]>;
 export function expansionActionFields(content: Content = EXPANSION_CONTENT): Record<ExpansionAction['type'], Fields> {
   return {
   UseLeaderAbility: {}, RecruitLeaderUnit: { cityId: 'id' }, BuildLeaderBuilding: { cityId: 'id' },
@@ -21,6 +22,8 @@ export function expansionActionFields(content: Content = EXPANSION_CONTENT): Rec
   DissolveAlliance: { targetPlayerId: 'id' }, BetrayAlliance: { targetPlayerId: 'id' },
     ProposeTrade: { targetPlayerId: 'id' }, RespondTrade: { targetPlayerId: 'id', accept: 'boolean' },
   ImproveTile: { unitId: 'id', tileIndex: 'id', kind: IMPROVEMENT_IDS },
+  SetCharter: { charterId: CHARTER_IDS },
+  SetPolicies: { policyIds: 'policyIds' },
   };
 }
 export const EXPANSION_ACTION_FIELDS: Record<ExpansionAction['type'], Fields> = expansionActionFields();
@@ -40,7 +43,9 @@ export function parseExpansionAction(input: unknown, content: Content = EXPANSIO
     const id = (v: unknown) => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0;
     const valid = rule === 'id' ? id(item) : rule === 'ids' ? Array.isArray(item) && item.length <= 6 && item.every(id) && new Set(item).size === item.length
       : rule === 'string' ? typeof item === 'string' && item.length > 0 && item.length <= 100
-      : rule === 'boolean' ? typeof item === 'boolean' : typeof item === 'string' && rule.includes(item);
+      : rule === 'boolean' ? typeof item === 'boolean'
+      : rule === 'policyIds' ? Array.isArray(item) && item.length <= 12 && item.every(value => typeof value === 'string' && (POLICY_IDS as readonly string[]).includes(value)) && new Set(item).size === item.length
+      : typeof item === 'string' && rule.includes(item);
     if (!valid) throw new Error(`Invalid expansion action field: ${key}`);
     output[key] = item;
   }

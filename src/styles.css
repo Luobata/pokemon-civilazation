@@ -407,8 +407,38 @@ button.danger { border-color: var(--danger); background: #9E4B43; color: var(--o
 #expansion-panel button { margin: .2rem .3rem .2rem 0; font-size: .75rem; }
 #expansion-panel a { color: #86CDB8; text-underline-offset: 3px; }
 
-.improvement-box { display: grid; gap: 6px; margin-top: 8px; }
-.improvement-box button { text-align: left; }
+.improvement-box { display: grid; gap: 6px; padding: 0 14px 13px; }
+.improvement-box .section-label { margin: 0; color: #C8D5CA; font-size: 11px; }
+.improvement-box .unit-note { padding: 0; }
+.improvement-box button { min-height: 32px; padding: 5px 9px; font-size: var(--text-sm); text-align: left; }
 .discovery-list { margin-top: 8px; font-size: 12px; }
 .discovery-list ul { margin: 6px 0 0; padding-left: 4px; list-style: none; display: grid; gap: 3px; }
 .discovery-list li.done { color: #E6B85C; }
+
+.policy-body { display: grid; gap: 10px; padding: 12px 14px; }
+.policy-status { margin: 0; color: #E6D5A6; font-size: 11px; }
+.charter-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.charter { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 9px; border: 1px solid #31443F; border-radius: 5px; background: #102224; }
+.charter strong { display: block; color: #DCE7DC; font-size: 11px; }
+.charter small { color: #8EA896; font-size: 10px; }
+.charter p { margin: 2px 0 0; color: #AFC0B3; font-size: 10px; }
+.charter.done { border-color: #4F6A45; opacity: .78; }
+.charter.active { border-color: #7A6438; box-shadow: inset 2px 0 0 #D5AC58; }
+.charter.locked { opacity: .5; }
+.charter button { flex: none; min-height: 28px; padding: 3px 8px; font-size: 10px; }
+#policy-cards > summary { cursor: pointer; color: #D8E2D7; font-size: 11px; }
+.policy-grid { display: grid; gap: 6px; margin-top: 8px; }
+.policy-card { display: flex; gap: 8px; align-items: flex-start; padding: 7px 9px; border: 1px solid #31443F; border-radius: 5px; background: #102224; color: #BAC9BD; font-size: 10px; cursor: pointer; }
+.policy-card.on { border-color: #B9822F; background: #2A2A1E; }
+.policy-card.military strong { color: #F0A78E; }
+.policy-card.economic strong { color: #9FD8A8; }
+.policy-card strong { display: block; font-size: 11px; }
+.policy-card small { display: block; color: #8EA896; font-size: 9px; }
+.policy-card input:disabled + span { opacity: .55; }
+.policy-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; color: #8EA896; font-size: 10px; }
+.needs-choice { margin-left: 6px; padding: 1px 5px; border-radius: 3px; background: #6B3B2C; color: #FFD9B8; font-size: 9px; font-style: normal; letter-spacing: 0; }
+.turn-block { display: grid; justify-items: end; gap: 4px; }
+#turn-reminders { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; max-width: 260px; margin: 0; }
+#turn-reminders:empty { display: none; }
+#turn-reminders button { min-height: 20px; padding: 1px 6px; border-color: #7A6438; background: #2A281C; color: #EFD8A0; font-size: 10px; }
+@media (max-width: 480px) { .turn-block { width: 100%; justify-items: stretch; } #turn-reminders { justify-content: flex-start; max-width: none; } }

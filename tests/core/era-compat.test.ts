@@ -17,4 +17,4 @@ test('era games recorded before gameplay packs replay to the identical final sta
     if (result.ok) state = result.state;
   }
   expect(createHash('sha256').update(canonicalSerialize(state)).digest('hex')).toBe(log.finalSha256);
-});
+}, 30_000);

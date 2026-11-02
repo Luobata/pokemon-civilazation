@@ -1,6 +1,10 @@
+import type { TechId } from '../content/economy.ts';
+import { canResearch } from '../core/economy-commands.ts';
+import { CHARTERS, POLICIES } from '../content/policies.ts';
 import { IMPROVEMENTS } from '../content/improvements.ts';
 import { DISCOVERIES } from '../content/discoveries.ts';
 import { renderEraPanel } from './era-panel.ts';
+import { renderPolicyPanel } from './policy-panel.ts';
 import type { EraProgression } from '../content/eras.ts';
 import { LATEST_GAMEPLAY_VERSION } from '../content/eras.ts';
 import { renderExpansionPanel } from './expansion-panel.ts';
@@ -133,6 +137,8 @@ function activityText(payload: VisibleEvent['payload']) {
     case 'CivilizationEliminated': return `文明 ${payload.eliminatedPlayerId + 1} 出局`;
     case 'GameEnded': return '对局结束';
     case 'TileWorked': return payload.completed ? `建成${IMPROVEMENTS[payload.kind].name}` : `施工${IMPROVEMENTS[payload.kind].name} ${payload.progress}/${payload.required}`;
+    case 'CharterAdopted': return `文明 ${payload.playerId + 1} 确立规章「${CHARTERS[payload.charterId].name}」`;
+    case 'PoliciesChanged': return `方针更新：${payload.policyIds.map(id => POLICIES[id].name).join('、') || '无'}${payload.goldCost ? `（${payload.goldCost} 金）` : ''}`;
     case 'DiscoveryMade': return `★ 图鉴发现「${DISCOVERIES[payload.techId].name}」：${EXPANSION_CONTENT.techs[payload.techId].name} +${payload.bonus}`;
     default: return '';
   }
@@ -167,7 +173,7 @@ function controls() {
   document.querySelector('#hud-research')!.innerHTML = `${yields.research} <span class="delta">/ 轮</span>`;
   document.querySelector('#hud-upkeep')!.innerHTML = `−${upkeep} <span class="delta negative">金币</span>`;
   const unit = view.units.find(unit => unit.id === selected);
-  selection.textContent = unit ? `${unitDefinition(unit, CONTENT).name} · 行动点 ${unit.actionLeft} · 点击高亮格移动`
+  selection.textContent = unit ? `${unitDefinition(unit, CONTENT).name} · 行动点 ${unit.actionLeft} · ${unit.actionLeft ? '点击高亮格直接移动，或右键移动' : '本回合已行动'}`
     : selectedCity !== null ? `已选城市 ${selectedCity} · 在城市面板建造、训练或采购`
     : '点选城市管理生产，点选单位执行行动；拖动地图平移，滚轮缩放。';
   actionNotice.textContent = notice || (pendingPeace ? '请先回应停战提议。' : actionMode === 'attack' ? '攻击模式：选择红色虚线目标，再确认攻击。'
@@ -178,6 +184,7 @@ function controls() {
   sequence.max = String(driver.exportLog().commands.length);
   renderSelectionPanel(view, selected, selectedCity, { unit: selectUnit, city: selectCity, clear: clearSelection }, busy());
   document.querySelector<HTMLElement>('#era-panel')!.innerHTML = renderEraPanel(view);
+  renderPolicyPanel(view, issue, busy() || ended || pendingPeace);
   renderLeaderPanel(view);
   renderExpansionPanel(view, selected, selectedCity, issue, busy() || ended || pendingPeace);
   document.querySelector<HTMLElement>('#selection-empty')!.hidden = selected !== null || selectedCity !== null || neutralCity !== null;
@@ -204,8 +211,41 @@ function controls() {
       : element.id === 'new-game' || newGameSetting ? busy() || transition : busy() || ended || transition;
   }
   endTurn.disabled = busy() || ended || pendingPeace;
+  document.querySelector('#turn-reminders')!.innerHTML = ended ? '' : turnReminders(view, CONTENT).map(item => `<button type="button" data-reminder="${item.target}">${item.label}</button>`).join('');
+  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-reminder]')) button.onclick = () => {
+    const kind = button.dataset.reminder!;
+    if (kind === 'city' || kind === 'unit') { cycleIdle(kind); return; }
+    const target = document.querySelector<HTMLElement>(kind);
+    if (target instanceof HTMLDetailsElement) target.open = true;
+    target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
 }
 
+/** Selects the next idle city or unit after the current selection, cycling. */
+function cycleIdle(kind: 'city' | 'unit') {
+  const view = session.getView();
+  if (kind === 'city') {
+    const ids = view.economy.cities.filter(city => city.queue.length === 0).map(city => city.id).sort((a, b) => a - b);
+    selectCity(ids.find(id => id > (selectedCity ?? -1)) ?? ids[0] ?? null);
+    document.querySelector('#economy')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } else {
+    const ids = view.units.filter(unit => unit.ownerId === view.playerId && unit.actionLeft).map(unit => unit.id).sort((a, b) => a - b);
+    selectUnit(ids.find(id => id > (selected ?? -1)) ?? ids[0] ?? null);
+  }
+}
+/** Non-blocking reminders for idle research, charters, cities or units (Civilization "needs orders"). */
+function turnReminders(view: PlayerView, content: typeof EXPANSION_CONTENT): { label: string; target: string }[] {
+  const items: { label: string; target: string }[] = [];
+  const player = view.economy.player;
+  if (player.research.techId === null && (Object.keys(content.techs) as TechId[]).some(id => canResearch(player, id))) items.push({ label: '选择研究', target: '#research-panel' });
+  const policies = view.expansion?.policies;
+  if (policies && policies.charterId === null && policies.adopted.length < Object.keys(CHARTERS).length) items.push({ label: '选择规章', target: '#policy-panel' });
+  const idleCities = view.economy.cities.filter(city => city.queue.length === 0).length;
+  if (idleCities) items.push({ label: `${idleCities} 城空闲`, target: 'city' });
+  const idleUnits = view.units.filter(unit => unit.ownerId === view.playerId && unit.actionLeft).length;
+  if (idleUnits) items.push({ label: `${idleUnits} 单位待命`, target: 'unit' });
+  return items;
+}
 function issue(action: Command['action']) {
   const view = session.getView();
   if (busy() || view.outcome) return;
@@ -259,8 +299,10 @@ function frame(now: number) {
     notice = summary(active.payload) || notice;
     active = null;
   }
-  while (!active && presentationIndex < session.presentationQueue.length) {
-    const event = session.presentationQueue[presentationIndex++]!;
+  // The player session returns a defensive copy; read it once per frame, not per event.
+  const queue = session.presentationQueue;
+  while (!active && presentationIndex < queue.length) {
+    const event = queue[presentationIndex++]!;
     recordActivity(event.payload);
     if (event.payload.type === 'Moved') active = { kind: 'move', payload: event.payload, started: now };
     else if (event.payload.type === 'BattleResolved') active = { kind: 'battle', payload: event.payload, started: now };
@@ -302,6 +344,8 @@ function frame(now: number) {
     const metrics = frameMetrics();
     frameMetricsElement.textContent = `帧绘制耗时（最近 ${metrics.samples} 帧）：${metrics.last.toFixed(2)} ms\n均值 ${metrics.mean.toFixed(2)} ms · p95 ${metrics.p95.toFixed(2)} ms · 最大 ${metrics.max.toFixed(2)} ms`;
   }
+  // Drop fully presented events so the queue (and its per-frame copy) stays small in long games.
+  if (!active && presentationIndex > 0 && presentationIndex >= queue.length) { session.skipAnimations(); presentationIndex = 0; }
   if (busy()) requestFrame(); else controls();
 }
 function skip() { finishPresentations(); controls(); requestFrame(); }

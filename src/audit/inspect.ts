@@ -693,6 +693,11 @@ export function inspectSystem(systemId: string, state: GameState): AuditSystemIn
   }
   if (system.id === 's33-field-tactics') return { metrics: [metric('当前规则', usesTactics(state.setup) ? '时代玩法 v2' : '本局未启用（需时代玩法 v2）'),
     metric('夹击上限', `+${FLANK_MAX / 10}%`)], data: { flankPerUnit: FLANK_PER_UNIT, flankMax: FLANK_MAX, zocRoles: ['melee', 'fast'], ignoresZoc: ['scout', 'air', 'ghost'] } };
+  if (system.id === 's34-policies') {
+    const ledger = state.expansion?.policies?.[state.activePlayerId];
+    return { metrics: [metric('当前规则', ledger ? '时代玩法 v3' : '本局未启用（需时代玩法 v3）'), metric('已确立规章', ledger?.adopted.length ?? 0), metric('已用方针卡', ledger?.slotted.length ?? 0)],
+      data: { policies: state.expansion?.policies ?? null } };
+  }
   if (system.id === 's30-type-expansion') return { metrics: [metric('当前规则', state.expansion ? '18 属性、双属性防御' : '经典克制表'), metric('物种数', Object.keys(contentFor(state).species).length)],
     data: { species: contentFor(state).species, rule: 'Primary attack type; multiply defensive types; immunity zero; one final floor.' } };
   if (system.id === 'x11-content-editor') return { metrics: [metric('内容版本', contentFor(state).version), metric('物种数', Object.keys(contentFor(state).species).length)],

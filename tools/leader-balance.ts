@@ -681,7 +681,7 @@ export function parseLeaderBalanceArgs(args: string[]): { config: LeaderBalanceC
     const key = args[index];
     if (!['--seeds', '--seed-start', '--expansion', '--eras', '--gameplay', '--round-limit', '--out'].includes(key)
       || !args[index + 1] || args[index + 1].startsWith('--') || Object.hasOwn(flags, key)) {
-      throw new Error('Usage: node tools/leader-balance.ts --seeds <1..100> [--seed-start <1..>] [--expansion <true|false>] [--eras <none|simple|full>] [--gameplay <0|1|2>] --round-limit <100|200|300> [--out <file.json>]');
+      throw new Error('Usage: node tools/leader-balance.ts --seeds <1..100> [--seed-start <1..>] [--expansion <true|false>] [--eras <none|simple|full>] [--gameplay <0|1|2|3>] --round-limit <100|200|300> [--out <file.json>]');
     }
     flags[key] = args[index + 1];
   }
@@ -695,7 +695,7 @@ export function parseLeaderBalanceArgs(args: string[]): { config: LeaderBalanceC
   if (expansion === 'false' && era !== 'none') throw new Error('--eras simple|full requires --expansion true');
   const eraProgression = eraProgressionValue(era as 'none' | 'simple' | 'full');
   const gameplay = Number(flags['--gameplay'] ?? (eraProgression === null ? 0 : LATEST_GAMEPLAY_VERSION));
-  if (![0, 1, 2].includes(gameplay) || (gameplay > 0 && eraProgression === null)) throw new Error('--gameplay 1|2 requires --eras simple|full');
+  if (![0, 1, 2, 3].includes(gameplay) || (gameplay > 0 && eraProgression === null)) throw new Error('--gameplay 1|2|3 requires --eras simple|full');
   return {
     config: {
       seeds, seedStart, ...(expansion === 'true' ? { expansionVersion: 1 as const } : {}),

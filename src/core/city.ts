@@ -1,5 +1,6 @@
 import { doctrineEffects } from './leader-doctrines.ts';
 import { tileImprovementYield } from './improvements.ts';
+import { playerPolicyEffects } from './policies.ts';
 import { worldCityYield } from './world-systems.ts';
 import { leaderCityYield } from './leader-systems.ts';
 import { EXPANSION_CONTENT, CONTENT } from '../content/units.ts';
@@ -80,10 +81,14 @@ export function cityYield(state: GameState, city: CityState, content: Content = 
   }
   if (state.players[city.ownerId].starterId === 'bulbasaur') result.food = Math.floor(result.food * 1100 / 1000);
   result.research += doctrineEffects(player, state.setup.eraProgression).researchBonus;
+  const policy = playerPolicyEffects(state, city.ownerId);
+  result.food += policy.cityFood; result.production += policy.cityProduction; result.gold += policy.cityGold; result.research += policy.cityResearch;
   const leader = leaderEffects(player.leaderId);
   result.research += leader.cityResearch + (city.buildingIds.includes('observatory') ? leader.laboratoryResearch : 0);
   return result;
 }
-export function productionCost(item: ProductionItem, content: Content = CONTENT): number {
-  return item.kind === 'building' ? content.buildings[item.defId].cost! : content.units[item.defId].trainCost;
+export function productionCost(item: ProductionItem, content: Content = CONTENT, trainingDiscountPercent = 0): number {
+  if (item.kind === 'building') return content.buildings[item.defId].cost!;
+  const base = content.units[item.defId].trainCost;
+  return item.kind === 'pokemon' && trainingDiscountPercent ? Math.max(1, Math.ceil(base * (100 - trainingDiscountPercent) / 100)) : base;
 }

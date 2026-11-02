@@ -1,3 +1,4 @@
+import { ballPrice, playerPolicyEffects } from './policies.ts';
 import { trainableSpeciesIds } from './role-tactics.ts';
 import { isMapUnit } from './model.ts';
 import { EXPANSION_CONTENT, CONTENT } from '../content/units.ts';
@@ -28,7 +29,7 @@ export function validateEconomyAction(state: GameState, actor: number, action: E
   if (!city || city.ownerId !== actor) return 'city-unavailable';
   if (action.type === 'BuyBall') {
     if (!Object.hasOwn(content.balls, action.ballId) || !Number.isSafeInteger(action.quantity) || action.quantity < 1) return 'purchase-unavailable';
-    const ball = content.balls[action.ballId], cost = ball.goldCost * action.quantity;
+    const ball = content.balls[action.ballId], cost = ballPrice(ball.goldCost, playerPolicyEffects(state, actor).ballDiscount) * action.quantity;
     return player.research.unlockedIds.includes('domestication') && player.research.unlockedIds.includes(ball.requiredTech)
       && Number.isSafeInteger(cost) && player.gold >= cost
       && Number.isSafeInteger(player.ballInventory[action.ballId] + action.quantity) ? null : 'purchase-unavailable';
@@ -89,7 +90,7 @@ export function applyEconomyAction(state: GameState, actor: number, action: Econ
     return [{ type: 'WorkAssigned', playerId: actor, cityId: city.id, workedTileIds: [...city.workedTileIds], lockedTileIds: [...city.lockedTileIds] }];
   }
   const goldBefore = player.gold, inventoryBefore = player.ballInventory[action.ballId];
-  player.gold -= content.balls[action.ballId].goldCost * action.quantity;
+  player.gold -= ballPrice(content.balls[action.ballId].goldCost, playerPolicyEffects(state, actor).ballDiscount) * action.quantity;
   player.ballInventory[action.ballId] += action.quantity;
   return [{ type: 'BallsPurchased', playerId: actor, cityId: city.id, ballId: action.ballId, quantity: action.quantity,
     goldBefore, goldAfter: player.gold, inventoryBefore, inventoryAfter: player.ballInventory[action.ballId] }];

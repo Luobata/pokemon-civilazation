@@ -6,6 +6,7 @@ import { EXPANSION_CONTENT, CONTENT, unitDefinition } from '../content/units.ts'
 import type { Content, UnitIdentity } from '../content/units.ts';
 import { hexToIndex, neighbors } from './hex.ts';
 import { canEnter } from './movement.ts';
+import { playerPolicyEffects } from './policies.ts';
 import { assignNewWorkers, cityYield, cleanWork, growthThreshold, productionCost, releaseWorker } from './city.ts';
 import type { CityState, EconomyEvent, GameState, PendingDeployment } from './model.ts';
 
@@ -22,7 +23,8 @@ function deploy(state: GameState, city: CityState, pending: PendingDeployment, c
   if (!position) return false;
   const id = state.nextEntityId++;
   const xp = city.buildingIds.reduce((total, building) => total + content.buildings[building].trainedXp, 0)
-    + doctrineEffects(state.players[city.ownerId], state.setup.eraProgression, identity, content).trainedXpBonus;
+    + doctrineEffects(state.players[city.ownerId], state.setup.eraProgression, identity, content).trainedXpBonus
+    + (identity.kind === 'pokemon' ? playerPolicyEffects(state, city.ownerId).trainedXp : 0);
   state.units[id] = createMapUnit(identity, id, city.ownerId, position, content, xp);
   registerSpecies(state.players[city.ownerId], state.units[id]);
   events.push({ type: 'UnitTrained', playerId: city.ownerId, cityId: city.id, orderId: pending.sourceOrderId,
@@ -58,7 +60,7 @@ export function resolveEconomy(state: GameState, content: Content = state.setup.
     if (!order) continue;
     consumeCivilizationProduction(state, city.id);
     order.progress += output.get(city.id)!.production;
-    const cost = productionCost(order.item, content);
+    const cost = productionCost(order.item, content, playerPolicyEffects(state, city.ownerId).trainingDiscountPercent);
     if (order.progress < cost) continue;
     if (order.item.kind === 'logistics') state.players[city.ownerId].lastSettlerProducedRound = state.round;
     const overflow = order.progress - cost;
@@ -83,7 +85,8 @@ export function resolveEconomy(state: GameState, content: Content = state.setup.
     const income = cities.filter(city => city.ownerId === player.id).reduce((sum, city) => sum + output.get(city.id)!.gold, 0);
     const units = Object.values(state.units).filter(unit => unit.ownerId === player.id)
       .sort((a, b) => unitDefinition(b, content).upkeep - unitDefinition(a, content).upkeep || b.id - a.id);
-    const upkeep = units.reduce((sum, unit) => sum + unitDefinition(unit, content).upkeep, 0);
+    const reduction = playerPolicyEffects(state, player.id).upkeepReduction * cities.filter(city => city.ownerId === player.id).length;
+    const upkeep = Math.max(0, units.reduce((sum, unit) => sum + unitDefinition(unit, content).upkeep, 0) - reduction);
     let refundedUpkeep = 0;
     player.gold += income - upkeep;
     for (const unit of units) {

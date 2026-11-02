@@ -1,3 +1,4 @@
+import { observePolicies, playerPolicyEffects } from './policies.ts';
 import { observeImprovements } from './improvements.ts';
 import { CIVILIZATION_CONTENT } from '../content/civilization-systems.ts';
 import { observeWorld, worldVisionSources } from './world-systems.ts';
@@ -20,7 +21,7 @@ export function emptyKnowledge(): KnowledgeState {
 }
 export function visibleTiles(state: GameState, playerId: number, content: Content = state.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT): Set<number> {
   const sources = Object.values(state.cities).filter(city => city.ownerId === playerId)
-    .map(city => ({ position: city.position, radius: 2 + leaderEffects(state.players[playerId].leaderId).cityVision + leaderVisionBonus(state, playerId, city.id) }));
+    .map(city => ({ position: city.position, radius: 2 + leaderEffects(state.players[playerId].leaderId).cityVision + leaderVisionBonus(state, playerId, city.id) + playerPolicyEffects(state, playerId).visionBonus }));
   sources.push(...worldVisionSources(state, playerId));
   sources.push(...(state.expansion?.civilization?.sanctuaries ?? []).filter(site => site.ownerId === playerId).map(site => ({ position: site.position, radius: 2 })));
   for (const unit of Object.values(state.units).filter(isMapUnit).filter(unit => unit.ownerId === playerId)) {
@@ -99,7 +100,8 @@ export function observe(state: GameState, playerId: number, content: Content = s
   return {
     ...(state.expansion ? { expansion: { version: 1 as const, world: observeWorld(state, playerId, visible), civilization: observeCivilization(state, playerId, visible, { ...CIVILIZATION_CONTENT, world: content }), leaders: observeLeaders(state, playerId),
       ...(state.expansion.improvements ? { improvements: observeImprovements(state, playerId, visible) } : {}),
-      ...(state.expansion.discoveries ? { discoveries: [...(state.expansion.discoveries[playerId] ?? [])] } : {}) } } : {}),
+      ...(state.expansion.discoveries ? { discoveries: [...(state.expansion.discoveries[playerId] ?? [])] } : {}),
+      ...(state.expansion.policies ? { policies: observePolicies(state, playerId) } : {}) } } : {}),
     ...(state.setup.eraProgression ? { eraProgression: state.setup.eraProgression } : {}),
     ...(state.setup.gameplayVersion ? { gameplayVersion: state.setup.gameplayVersion } : {}),
     playerId, seed: state.setup.seed, round: state.round, activePlayerId: state.activePlayerId, commandSeq: state.commandSeq,

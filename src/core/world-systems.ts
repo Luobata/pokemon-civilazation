@@ -1,3 +1,4 @@
+import { gameplayAtLeast } from '../content/eras.ts';
 import { resolveAttack } from './combat.ts';
 import { cityDamage } from './combat-query.ts';
 import { finishGame } from './victory.ts';
@@ -208,7 +209,8 @@ export function initializeWorld(state: GameState, content: Content = WORLD_CONTE
   const world: WorldState = {
     version: 'world-v1', initializedAtRound: state.round, nests: {}, rampagingUnitIds: [],
     overlords: {}, resources: {}, players,
-    victory: { targetDocumentedSpecies: definitions.pokedex.targetDocumentedSpecies, achievedAtRound: null },
+    // Gameplay v3 accelerates economies; the documented-species target rises so the Pokédex stays a long-game victory.
+    victory: { targetDocumentedSpecies: gameplayAtLeast(state.setup, 3) ? Math.min(Object.keys(content.species).length, definitions.pokedex.targetDocumentedSpecies + 3) : definitions.pokedex.targetDocumentedSpecies, achievedAtRound: null },
   };
   state.expansion.world = world;
 

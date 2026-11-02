@@ -8,6 +8,7 @@ import { unitDamage, cityDamage, cityCounterDamage } from './combat-query.ts';
 import { captureProbability } from './combat-math.ts';
 import { cityAssaultMultiplier } from './role-tactics.ts';
 import { flankBonus } from './tactics.ts';
+import { viewPolicyEffects } from './policies.ts';
 
 export type AttackPreview = { ok: true; damage: { min: number; max: number };
   counter: { trigger: 'always' | 'possible' | 'never'; damage: number };
@@ -55,6 +56,6 @@ export function previewCapture(view: PlayerView, unitId: number, targetUnitId: n
     || !player.research.unlockedIds.includes('domestication') || !player.research.unlockedIds.includes(content.balls[ballId].requiredTech)
     || player.ballInventory[ballId] < 1) return { ok: false, reason: 'capture-unavailable' };
   const definition = content.species[target.speciesId];
-  return { ok: true, probability: captureProbability(definition.maxHp, target.hp, ballId === 'greatBall' ? 1500 : 1000,
-    player.research.unlockedIds.includes('fieldObservation'), definition.rare) };
+  return { ok: true, probability: Math.min(100, captureProbability(definition.maxHp, target.hp, ballId === 'greatBall' ? 1500 : 1000,
+    player.research.unlockedIds.includes('fieldObservation'), definition.rare) + viewPolicyEffects(view).captureBonus) };
 }

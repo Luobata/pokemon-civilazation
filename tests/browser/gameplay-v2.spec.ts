@@ -12,7 +12,7 @@ async function selectStarter(page: import('@playwright/test').Page) {
 
 test('new games use gameplay v2: tile improvements, discoveries and field tactics are playable', async ({ page }) => {
   await page.goto('/');
-  expect((await state(page)).setup).toMatchObject({ eraProgression: 'simple-v1', gameplayVersion: 2 });
+  expect((await state(page)).setup).toMatchObject({ eraProgression: 'simple-v1', gameplayVersion: 3 });
   await selectStarter(page);
   await expect(page.locator('#zoc-note')).toContainText('夹击');
   const farm = page.locator('[data-improve$=":berryFarm"]').first();
@@ -32,4 +32,30 @@ test('new games use gameplay v2: tile improvements, discoveries and field tactic
   await page.locator('#discoveries summary').click();
   await expect(page.locator('#discoveries')).toContainText('图鉴发现 1/12');
   await expect(page.locator('#research-topic')).toContainText('树果培育 8/20 ★');
+});
+
+test('gameplay v3: charters, policy cards and end-turn reminders work in the page', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.locator('#turn-reminders')).toContainText('选择研究');
+  await expect(page.locator('#turn-reminders')).toContainText('选择规章');
+  await page.locator('[data-reminder="unit"]').click();
+  await expect(page.locator('#selection')).toContainText('行动点 1');
+  await page.locator('[data-charter="gymCode"]').click();
+  await expect(page.locator('#policy-panel')).toContainText('正在制定「道馆守则」');
+  await expect(page.locator('#turn-reminders')).not.toContainText('选择规章');
+  for (let turn = 0; turn < 40 && !(await state(page)).expansion!.policies![0].adopted.includes('gymCode'); turn++) {
+    await page.locator('#end-turn').click();
+    await expect(page.locator('#end-turn')).toBeEnabled();
+  }
+  await expect(page.locator('#activity-list')).toContainText('确立规章「道馆守则」');
+  await expect(page.locator('#policy-cards')).toBeVisible();
+  if (!(await page.locator('#policy-cards').evaluate(element => (element as HTMLDetailsElement).open))) await page.locator('#policy-cards summary').click();
+  await page.locator('[data-policy="researchGrant"]').check();
+  await expect(page.locator('[data-policy="harvestFestival"]')).toBeDisabled();
+  await page.locator('[data-policy="gymChallenge"]').check();
+  await expect(page.locator('#apply-policies')).toBeEnabled();
+  await page.locator('#apply-policies').click();
+  expect((await state(page)).expansion!.policies![0].slotted).toEqual(['gymChallenge', 'researchGrant']);
+  await expect(page.locator('#policy-cards')).toContainText('更换需 30 金币');
+  await expect(page.locator('#activity-list')).toContainText('方针更新');
 });

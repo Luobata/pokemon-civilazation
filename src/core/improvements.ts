@@ -9,6 +9,7 @@ import { workRadius } from './city.ts';
 import { isMapUnit } from './model.ts';
 import type { CityState, EventPayload, GameState, PlayerState, PlayerView } from './model.ts';
 import { visibleTiles } from './vision.ts';
+import { playerPolicyEffects } from './policies.ts';
 
 export type TileImprovement = { kind: ImprovementId; builtBy: number; builtAtRound: number };
 export type ImprovementProject = { kind: ImprovementId; playerId: number; progress: number };
@@ -80,7 +81,7 @@ export function applyImprovementAction(state: GameState, actorId: number, action
   unit.actionLeft = 0;
   const previous = improvements.projects[action.tileIndex];
   const base = previous && previous.kind === action.kind && previous.playerId === actorId ? previous.progress : 0;
-  const progress = Math.min(IMPROVEMENT_WORK.required, base + crewPoints(unit, content, action.kind));
+  const progress = Math.min(IMPROVEMENT_WORK.required, base + crewPoints(unit, content, action.kind) + playerPolicyEffects(state, actorId).workPointBonus);
   const completed = progress >= IMPROVEMENT_WORK.required;
   if (completed) {
     delete improvements.projects[action.tileIndex];

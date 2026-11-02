@@ -23,6 +23,7 @@ import { leaderResearchBonus, roleCaptureBonus, roleTrainingBonus } from './role
 import { trainableSpeciesIds } from '../core/role-tactics.ts';
 import { designatedWorkers, improvementSuggestions } from './improvement-plan.ts';
 import { usesTactics } from '../core/tactics.ts';
+import { planPolicyAction } from './policy-plan.ts';
 import type { Goal } from './strategies.ts';
 type Candidate = { action: Command['action']; goal: Goal; benefit: number; ownId: number; targetId: number };
 export const CANDIDATE_BUDGET = 256; // 32 representatives for each of eight goals, never a time budget.
@@ -82,6 +83,8 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
   const citySite = (position: MapUnit['position']) => !rejectedCitySite(memory, view, position) && query.citySite(view, position);
   const result = (action: Command['action']): Command => ({ actorId, expectedSeq: view.commandSeq, action });
   if (view.outcome || view.activePlayerId !== actorId || player.eliminated) return result({ type: 'EndTurn' });
+  const policyAction = planPolicyAction(view);
+  if (policyAction) return result(policyAction);
   const leaderAction = planLeaderAction(view, content);
   if (leaderAction) return result(leaderAction);
   const worldAction = planWorldAction(view, { base: content, world: WORLD_DEFINITIONS });

@@ -18,3 +18,6 @@
 .era-window dt { color: #8EA896; font-size: 9px; }
 .era-window dd { margin: 0; color: #D5E2D1; font-size: 10px; }
 .era-window small { display: block; margin-top: 5px; color: #81998C; font-size: 9px; }
+
+.era-windows-toggle > summary { cursor: pointer; color: #C7D5C9; font-size: 10px; }
+.era-windows-toggle[open] > summary { margin-bottom: 6px; }
