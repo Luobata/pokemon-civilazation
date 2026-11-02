@@ -25,6 +25,7 @@ import { designatedWorkers, improvementSuggestions } from './improvement-plan.ts
 import { usesTactics } from '../core/tactics.ts';
 import { planPolicyAction } from './policy-plan.ts';
 import { planEssenceAction, siteEssenceBonus } from './essence-plan.ts';
+import { planEraAbilityAction } from './era-ability-plan.ts';
 import type { Goal } from './strategies.ts';
 type Candidate = { action: Command['action']; goal: Goal; benefit: number; ownId: number; targetId: number };
 export const CANDIDATE_BUDGET = 256; // 32 representatives for each of eight goals, never a time budget.
@@ -88,6 +89,8 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
   if (policyAction) return result(policyAction);
   const essenceAction = planEssenceAction(view, content);
   if (essenceAction) return result(essenceAction);
+  const eraAction = planEraAbilityAction(view, content);
+  if (eraAction) return result(eraAction);
   const leaderAction = planLeaderAction(view, content);
   if (leaderAction) return result(leaderAction);
   const worldAction = planWorldAction(view, { base: content, world: WORLD_DEFINITIONS });

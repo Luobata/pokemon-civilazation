@@ -1,0 +1,189 @@
+{
+ "note": "Uncommitted working tree. simple = seeds 31-34 simple-v1; full = seed 29 full-v1 smoke. 24x16, 100 rounds, 9 leaders cyclic.",
+ "simple": {
+  "metadata": {
+   "gitHead": "b089694ab45b9ebbd4d016899be581a77789ee4e",
+   "command": [
+    "node",
+    "tools/leader-balance.ts",
+    "--seeds",
+    "4",
+    "--seed-start",
+    "31",
+    "--expansion",
+    "true",
+    "--eras",
+    "simple",
+    "--gameplay",
+    "5",
+    "--round-limit",
+    "100",
+    "--out",
+    "/tmp/gp5.json"
+   ],
+   "seedValues": [
+    31,
+    32,
+    33,
+    34
+   ]
+  },
+  "games": 108,
+  "outcomeKinds": {
+   "pokedex": 19,
+   "score": 55,
+   "championship": 5,
+   "conquest": 29
+  },
+  "meanEndRound": 91.78703703703704,
+  "leaders": [
+   {
+    "leaderId": "oak",
+    "wins": 15,
+    "n": 48,
+    "meanPopulation": 14.3125
+   },
+   {
+    "leaderId": "lance",
+    "wins": 14,
+    "n": 48,
+    "meanPopulation": 16.25
+   },
+   {
+    "leaderId": "jenny",
+    "wins": 8,
+    "n": 48,
+    "meanPopulation": 11.9375
+   },
+   {
+    "leaderId": "joy",
+    "wins": 13,
+    "n": 48,
+    "meanPopulation": 15.354166666666666
+   },
+   {
+    "leaderId": "brock",
+    "wins": 13,
+    "n": 48,
+    "meanPopulation": 17.229166666666668
+   },
+   {
+    "leaderId": "misty",
+    "wins": 12,
+    "n": 48,
+    "meanPopulation": 15.875
+   },
+   {
+    "leaderId": "steven",
+    "wins": 6,
+    "n": 48,
+    "meanPopulation": 9.958333333333334
+   },
+   {
+    "leaderId": "jasmine",
+    "wins": 17,
+    "n": 48,
+    "meanPopulation": 12.604166666666666
+   },
+   {
+    "leaderId": "giovanni",
+    "wins": 10,
+    "n": 48,
+    "meanPopulation": 10.770833333333334
+   }
+  ],
+  "defectGames": 0,
+  "abortedGames": 0
+ },
+ "full": {
+  "metadata": {
+   "gitHead": "b089694ab45b9ebbd4d016899be581a77789ee4e",
+   "command": [
+    "node",
+    "tools/leader-balance.ts",
+    "--seeds",
+    "1",
+    "--seed-start",
+    "29",
+    "--expansion",
+    "true",
+    "--eras",
+    "full",
+    "--gameplay",
+    "5",
+    "--round-limit",
+    "100",
+    "--out",
+    "/tmp/gp5full.json"
+   ],
+   "seedValues": [
+    29
+   ]
+  },
+  "games": 27,
+  "outcomeKinds": {
+   "score": 21,
+   "pokedex": 1,
+   "conquest": 5
+  },
+  "meanEndRound": 97.77777777777777,
+  "leaders": [
+   {
+    "leaderId": "oak",
+    "wins": 4,
+    "n": 12,
+    "meanPopulation": 14.166666666666666
+   },
+   {
+    "leaderId": "lance",
+    "wins": 0,
+    "n": 12,
+    "meanPopulation": 10.166666666666666
+   },
+   {
+    "leaderId": "jenny",
+    "wins": 5,
+    "n": 12,
+    "meanPopulation": 24.416666666666668
+   },
+   {
+    "leaderId": "joy",
+    "wins": 3,
+    "n": 12,
+    "meanPopulation": 21.25
+   },
+   {
+    "leaderId": "brock",
+    "wins": 3,
+    "n": 12,
+    "meanPopulation": 17.25
+   },
+   {
+    "leaderId": "misty",
+    "wins": 4,
+    "n": 12,
+    "meanPopulation": 15.166666666666666
+   },
+   {
+    "leaderId": "steven",
+    "wins": 1,
+    "n": 12,
+    "meanPopulation": 9.166666666666666
+   },
+   {
+    "leaderId": "jasmine",
+    "wins": 3,
+    "n": 12,
+    "meanPopulation": 12.583333333333334
+   },
+   {
+    "leaderId": "giovanni",
+    "wins": 4,
+    "n": 12,
+    "meanPopulation": 13.166666666666666
+   }
+  ],
+  "defectGames": 0,
+  "abortedGames": 0
+ }
+}

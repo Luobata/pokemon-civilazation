@@ -1,3 +1,4 @@
+import { ERA_ABILITIES, WEATHERS } from '../content/era-abilities.ts';
 import { ESSENCE_IDS, ESSENCES } from '../content/essences.ts';
 import { TYPE_NAMES } from '../content/type-names.ts';
 import type { TechId } from '../content/economy.ts';
@@ -139,6 +140,8 @@ function activityText(payload: VisibleEvent['payload']) {
     case 'CivilizationEliminated': return `文明 ${payload.eliminatedPlayerId + 1} 出局`;
     case 'GameEnded': return '对局结束';
     case 'TileWorked': return payload.completed ? `建成${IMPROVEMENTS[payload.kind].name}` : `施工${IMPROVEMENTS[payload.kind].name} ${payload.progress}/${payload.required}`;
+    case 'WeatherSummoned': return `文明 ${payload.playerId + 1} 召唤了${WEATHERS[payload.weather].name}`;
+    case 'EraAbilityUsed': return `文明 ${payload.playerId + 1} 发动${ERA_ABILITIES[payload.ability].name}${payload.typeId ? `（${TYPE_NAMES[payload.typeId]}）` : ''}`;
     case 'GymBuilt': return `城市 ${payload.cityId} 建成${ESSENCES[payload.essence].name}道馆`;
     case 'CharterAdopted': return `文明 ${payload.playerId + 1} 确立规章「${CHARTERS[payload.charterId].name}」`;
     case 'PoliciesChanged': return `方针更新：${payload.policyIds.map(id => POLICIES[id].name).join('、') || '无'}${payload.goldCost ? `（${payload.goldCost} 金）` : ''}`;
@@ -201,6 +204,7 @@ function controls() {
     ball: ballId => { selectedBall = ballId; controls(); requestFrame(); },
     found: () => { if (selected !== null) issue({ type: 'FoundCity', unitId: selected }); },
     improve: (tileIndex, kind) => { if (selected !== null) issue({ type: 'ImproveTile', unitId: selected, tileIndex, kind }); },
+    issue,
   });
   renderEconomyPanel(view, selectedCity, issue, busy() || ended || pendingPeace);
   renderResearchPanel(view, issue, busy() || ended || pendingPeace);

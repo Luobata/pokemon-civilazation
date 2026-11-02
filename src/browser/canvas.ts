@@ -1,8 +1,9 @@
+import { ERA_ABILITY_RULES, WEATHERS } from '../content/era-abilities.ts';
 import { IMPROVEMENTS } from '../content/improvements.ts';
 import type { BiomeId } from '../content/rules.ts';
 import type { UnitIdentity } from '../content/units.ts';
 import { speciesDisplay } from '../content/species.ts';
-import { hexToIndex, indexToHex, neighbors } from '../core/hex.ts';
+import { hexDistance, hexToIndex, indexToHex, neighbors } from '../core/hex.ts';
 import type { Hex } from '../core/hex.ts';
 import type { PlayerView } from '../core/model.ts';
 import { HEX_RADIUS, hexToWorld, toScreen } from './camera.ts';
@@ -288,8 +289,39 @@ export function drawMap(canvas: HTMLCanvasElement, view: PlayerView, camera: Cam
     }
   }
   // Only the authorized PlayerView supplies entities; hidden live units never enter a draw call.
+  const era = view.expansion?.eraAbilities;
+  if (era) {
+    // Weather tints its radius; night dims the whole visible map.
+    for (const field of era.fields) {
+      if (field.untilRound < view.round) continue;
+      const weather = WEATHERS[field.weather];
+      for (const index of visible) {
+        if (!onscreen(centers[index]) || hexDistance(indexToHex(index, view.map), field.center) > ERA_ABILITY_RULES.weatherRadius) continue;
+        polygon(centers[index]); context.fillStyle = `${weather.color}33`; context.fill();
+      }
+      const centerIndex = hexToIndex(field.center, view.map);
+      if (centerIndex !== null && visible.has(centerIndex) && onscreen(centers[centerIndex])) {
+        const p = { x: centers[centerIndex].x + radius * .6, y: centers[centerIndex].y + radius * .45 }, size = Math.max(9, radius * .32);
+        context.beginPath(); context.arc(p.x, p.y, size, 0, Math.PI * 2); context.fillStyle = weather.color; context.fill();
+        context.strokeStyle = '#F6EACA'; context.lineWidth = 1; context.stroke();
+        centeredText(weather.mark, p, '#10191B', size * 1.2);
+      }
+    }
+    if (era.night) { context.fillStyle = '#0A143066'; context.fillRect(0, 0, width, height); }
+  }
   for (const unit of view.units) if (unit.id !== pose?.unit.id) {
     unitMark(unit, centers[hexToIndex(unit.position, view.map)!], unit.actionLeft, unit.enraged);
+    const status = era?.units[unit.id];
+    if (status && (status.mega || status.tera || (status.dynamaxUntilRound ?? 0) >= view.round || status.zPrimed)) {
+      const p = centers[hexToIndex(unit.position, view.map)!];
+      if (onscreen(p)) {
+        const label = status.mega ? 'M' : (status.dynamaxUntilRound ?? 0) >= view.round ? '极' : status.tera ? '晶' : 'Z';
+        const q = { x: p.x - radius * .55, y: p.y - radius * .55 }, size = Math.max(8, radius * .28);
+        context.beginPath(); context.arc(q.x, q.y, size, 0, Math.PI * 2); context.fillStyle = '#B15AD6'; context.fill();
+        context.strokeStyle = '#F6EACA'; context.lineWidth = 1; context.stroke();
+        centeredText(label, q, '#FFF8E5', size * 1.1);
+      }
+    }
   }
   if (pose) unitMark(pose.unit, toScreen(pose.position, camera));
 

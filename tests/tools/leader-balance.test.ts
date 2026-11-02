@@ -63,7 +63,7 @@ test('arguments are bounded and default to a manageable legacy batch', () => {
     seeds: 2, seedStart: 11, expansionVersion: 1, roundLimit: 100, width: 24, height: 16,
   });
   expect(parseLeaderBalanceArgs(['--seeds', '2', '--seed-start', '11', '--expansion', 'true', '--eras', 'simple', '--round-limit', '100']).config).toEqual({
-    seeds: 2, seedStart: 11, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 4, roundLimit: 100, width: 24, height: 16,
+    seeds: 2, seedStart: 11, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 5, roundLimit: 100, width: 24, height: 16,
   });
   expect(parseLeaderBalanceArgs(['--seeds', '1', '--expansion', 'true', '--eras', 'none', '--round-limit', '100']).config).toEqual({
     seeds: 1, seedStart: 1, expansionVersion: 1, roundLimit: 100, width: 24, height: 16,

@@ -703,6 +703,11 @@ export function inspectSystem(systemId: string, state: GameState): AuditSystemIn
     return { metrics: [metric('当前规则', essences ? '时代玩法 v4' : '本局未启用（需时代玩法 v4）'), metric('道馆数', essences ? Object.keys(essences.gyms).length : 0)],
       data: { essences: essences ?? null } };
   }
+  if (system.id === 's36-era-abilities') {
+    const era = state.expansion?.eraAbilities;
+    return { metrics: [metric('当前规则', era ? '时代玩法 v5' : '本局未启用（需时代玩法 v5）'), metric('生效天气', era ? era.fields.filter(field => field.untilRound >= state.round).length : 0)],
+      data: { eraAbilities: era ?? null } };
+  }
   if (system.id === 's30-type-expansion') return { metrics: [metric('当前规则', state.expansion ? '18 属性、双属性防御' : '经典克制表'), metric('物种数', Object.keys(contentFor(state).species).length)],
     data: { species: contentFor(state).species, rule: 'Primary attack type; multiply defensive types; immunity zero; one final floor.' } };
   if (system.id === 'x11-content-editor') return { metrics: [metric('内容版本', contentFor(state).version), metric('物种数', Object.keys(contentFor(state).species).length)],

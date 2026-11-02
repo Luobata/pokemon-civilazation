@@ -3,7 +3,8 @@ import { EXPANSION_CONTENT } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
 import { IMPROVEMENT_IDS } from '../content/improvements.ts';
 import { CHARTER_IDS, POLICY_IDS } from '../content/policies.ts';
-import { ESSENCE_IDS } from '../content/essences.ts';
+import { ESSENCE_IDS, TYPE_ESSENCE } from '../content/essences.ts';
+import { WEATHER_IDS } from '../content/era-abilities.ts';
 
 type Fields = Record<string, 'id' | 'ids' | 'string' | 'boolean' | 'policyIds' | readonly string[]>;
 export function expansionActionFields(content: Content = EXPANSION_CONTENT): Record<ExpansionAction['type'], Fields> {
@@ -26,6 +27,9 @@ export function expansionActionFields(content: Content = EXPANSION_CONTENT): Rec
   SetCharter: { charterId: CHARTER_IDS },
   SetPolicies: { policyIds: 'policyIds' },
   BuildGym: { cityId: 'id', essence: ESSENCE_IDS },
+  SummonWeather: { cityId: 'id', weather: WEATHER_IDS },
+  MegaEvolve: { unitId: 'id' }, PrimeZMove: { unitId: 'id' }, Dynamax: { unitId: 'id' },
+  Terastallize: { unitId: 'id', typeId: Object.keys(TYPE_ESSENCE) },
   };
 }
 export const EXPANSION_ACTION_FIELDS: Record<ExpansionAction['type'], Fields> = expansionActionFields();

@@ -1,3 +1,8 @@
+import { ERA_ABILITIES, ERA_ABILITY_RULES } from '../content/era-abilities.ts';
+import { canMega, primaryEssence } from '../core/era-abilities.ts';
+import { TYPE_ESSENCE } from '../content/essences.ts';
+import { TYPE_NAMES } from '../content/type-names.ts';
+import type { TypeId } from '../content/species.ts';
 import { identityEssences } from '../core/essences.ts';
 import { ESSENCES } from '../content/essences.ts';
 const BIOME_LABEL = { grassland: '草原', forest: '森林', mountain: '山地', ocean: '海洋', desert: '荒漠', snow: '雪原', volcano: '火山' } as const;
@@ -9,7 +14,7 @@ import { IMPROVEMENT_WORK, IMPROVEMENTS } from '../content/improvements.ts';
 import type { ImprovementId } from '../content/improvements.ts';
 import { CONTENT as BASE_CONTENT, EXPANSION_CONTENT, unitDefinition } from '../content/units.ts';
 import type { BallId } from '../content/economy.ts';
-import type { CombatTarget, PlayerView } from '../core/model.ts';
+import type { Command, CombatTarget, PlayerView } from '../core/model.ts';
 import { previewAttack, previewCapture } from '../core/preview.ts';
 import { hexDistance, hexToIndex } from '../core/hex.ts';
 import { pokemonSpritePath } from './sprites.ts';
@@ -25,6 +30,7 @@ type Callbacks = {
   ball: (ballId: BallId) => void;
   found: () => void;
   improve?: (tileIndex: number, kind: ImprovementId) => void;
+  issue?: (action: Command['action']) => void;
 };
 
 export function renderUnitPanel(view: PlayerView, selected: number | null, mode: ActionMode,
@@ -85,6 +91,26 @@ export function renderUnitPanel(view: PlayerView, selected: number | null, mode:
   const improvementMarkup = view.expansion?.improvements ? `<section class="improvement-box" id="improvement-box" aria-label="地块改良"><p class="section-label">地块改良 · 己方领地内，${IMPROVEMENT_WORK.required} 点完工（熟练属性每次 ${IMPROVEMENT_WORK.crew} 点，其他 ${IMPROVEMENT_WORK.other} 点）</p>${options.length
     ? options.map(option => `<button type="button" data-improve="${option.tileIndex}:${option.kind}" ${busy ? 'disabled' : ''}>${IMPROVEMENTS[option.kind].name}（${yieldLabel(option.kind)}）· 进度 ${option.progress}/${IMPROVEMENT_WORK.required} +${option.points}</button>`).join('')
     : `<p class="unit-note">${unit.actionLeft ? '移到己方领地内的非城市地块（渔场可在相邻陆地施工）即可改良。' : '本回合行动点已用完。'}</p>`}</section>` : '';
+  const era = view.expansion?.eraAbilities, stock = view.expansion?.essences?.stock;
+  const essence = era && stock ? primaryEssence(unit, CONTENT) : null;
+  const status = era?.units[unit.id] ?? {};
+  const eraButtons: string[] = [];
+  const eraButton = (label: string, action: Command['action'], enabled: boolean, title: string) =>
+    eraButtons.push(`<button type="button" data-era-action='${JSON.stringify(action)}' title="${title}" ${busy || !enabled ? 'disabled' : ''}>${label}</button>`);
+  if (era && stock && essence) {
+    const has = (cost: number) => stock[essence] >= cost;
+    const name = `${ESSENCES[essence].name}（有 ${stock[essence]}）`;
+    if (era.unlocked.includes('mega') && canMega(unit, CONTENT)) eraButton(status.mega ? 'Mega 已激活' : `Mega 进化 · ${ERA_ABILITY_RULES.megaCost} ${name}`, { type: 'MegaEvolve', unitId: unit.id }, !status.mega && (era.own.megaUnitId === null) && has(ERA_ABILITY_RULES.megaCost), ERA_ABILITIES.mega.description);
+    if (era.unlocked.includes('zMove')) eraButton(status.zPrimed ? 'Z 招式待发' : `Z 招式 · ${ERA_ABILITY_RULES.zCost} ${name}${view.round < era.own.zReadyAtRound ? ` · 第 ${era.own.zReadyAtRound} 轮` : ''}`, { type: 'PrimeZMove', unitId: unit.id }, !status.zPrimed && view.round >= era.own.zReadyAtRound && has(ERA_ABILITY_RULES.zCost), ERA_ABILITIES.zMove.description);
+    if (era.unlocked.includes('dynamax')) eraButton((status.dynamaxUntilRound ?? 0) >= view.round ? `极巨化至第 ${status.dynamaxUntilRound} 轮` : `极巨化 · ${ERA_ABILITY_RULES.dynamaxCost} ${name}${view.round < era.own.dynamaxReadyAtRound ? ` · 第 ${era.own.dynamaxReadyAtRound} 轮` : ''}`, { type: 'Dynamax', unitId: unit.id }, (status.dynamaxUntilRound ?? 0) < view.round && view.round >= era.own.dynamaxReadyAtRound && has(ERA_ABILITY_RULES.dynamaxCost), ERA_ABILITIES.dynamax.description);
+  }
+  const teraOptions = era && stock && era.unlocked.includes('tera') && !status.tera && era.own.teraUnitId === null
+    ? (Object.keys(TYPE_ESSENCE) as TypeId[]).filter(type => stock[TYPE_ESSENCE[type]] >= ERA_ABILITY_RULES.teraCost) : [];
+  const eraMarkup = era ? `<section class="era-ability-box" id="era-ability-box"><p class="section-label">时代能力 · 第 ${era.generation} 世代${era.night ? ' · 夜晚' : ' · 白天'}</p>
+    ${eraButtons.length ? `<div class="era-ability-actions">${eraButtons.join('')}</div>` : ''}
+    ${status.tera ? `<p class="unit-note">太晶属性：${TYPE_NAMES[status.tera]}</p>` : teraOptions.length ? `<div class="tera-row"><select id="tera-type">${teraOptions.map(type => `<option value="${type}">${TYPE_NAMES[type]}（${ESSENCES[TYPE_ESSENCE[type]].name}）</option>`).join('')}</select><button type="button" id="terastallize" ${busy ? 'disabled' : ''} title="${ERA_ABILITIES.tera.description}">太晶化 · ${ERA_ABILITY_RULES.teraCost}</button></div>` : ''}
+    ${essence && stock && eraButtons.length ? `<p class="unit-note">消耗本属性精华「${ESSENCES[essence].name}」，来自${ESSENCES[essence].biome === 'ocean' ? '海洋' : ({ grassland: '草原', forest: '森林', mountain: '山地', desert: '荒漠', snow: '雪原', volcano: '火山' } as Record<string, string>)[ESSENCES[essence].biome]}地块；城市耕作对应地形即可积累。</p>` : ''}
+    ${!eraButtons.length && !teraOptions.length && !status.tera ? `<p class="unit-note">${era.unlocked.length ? '本单位暂无可用时代能力。' : '进入金银时代后解锁昼夜，宝石时代解锁天气；完整世代模式还有 Mega、Z 招式、极巨化与太晶化。'}</p>` : ''}</section>` : '';
   root.innerHTML = `<div class="unit-card"><div class="unit-head"><div class="unit-portrait"><img src="${pokemonSpritePath(unit.speciesId)}" alt="${definition.name}" width="64" height="64"></div><div><strong>${definition.name}</strong><small>宝可梦 · 文明 ${view.playerId + 1}${unit.enraged ? ' · 激怒' : ''}</small></div><span class="unit-ap ${unit.actionLeft ? '' : 'spent'}">行动点 ${unit.actionLeft}</span></div>
     <div class="unit-vitals"><span>HP <strong>${unit.hp}/${species.maxHp}</strong><span class="vital-bar" aria-hidden="true"><span style="width:${Math.max(0, Math.min(100, unit.hp * 100 / species.maxHp))}%"></span></span></span><span>EXP <strong>${unit.xp}${evolution ? `/${evolution.xp}` : ''}</strong>${evolution ? `<span class="vital-bar xp" aria-hidden="true"><span style="width:${Math.max(0, Math.min(100, unit.xp * 100 / evolution.xp))}%"></span></span>` : ''}</span></div>
     <div class="unit-details"><div class="unit-detail"><small>攻</small><strong>${species.attack}</strong></div><div class="unit-detail"><small>防</small><strong>${species.defense}</strong></div><div class="unit-detail"><small>程</small><strong>${species.range}</strong></div><div class="unit-detail"><small>移</small><strong>${species.move + doctrineEffects(player, view.eraProgression, unit, CONTENT).movementBonus}</strong></div><div class="unit-detail"><small>视</small><strong>${species.vision}</strong></div><div class="unit-detail"><small>P</small><strong>${species.power}</strong></div></div>
@@ -92,6 +118,7 @@ export function renderUnitPanel(view: PlayerView, selected: number | null, mode:
     <div class="unit-actions"><button id="move-unit" class="${mode === 'move' ? 'selected' : ''}" ${busy || !unit.actionLeft ? 'disabled' : ''}>${mode === 'move' ? '取消移动' : '移动'}</button><button id="attack-unit" class="${mode === 'attack' ? 'selected' : ''}" ${busy || !unit.actionLeft ? 'disabled' : ''}>攻击</button><button id="capture-unit" class="${mode === 'capture' ? 'selected' : ''}" ${busy || !unit.actionLeft || !canCapture ? 'disabled' : ''}>捕捉</button><button id="evolve-unit" ${busy || !unit.actionLeft || !canEvolve ? 'disabled' : ''}>${evolution ? `进化→${CONTENT.species[evolution.speciesId].name}` : '不可进化'}</button></div>
     ${view.expansion?.essences ? `<p class="unit-note" id="essence-note">属性精华：${identityEssences(unit, CONTENT).map(id => ESSENCES[id].name).join('、')} · 在${identityEssences(unit, CONTENT).map(id => BIOME_LABEL[ESSENCES[id].biome]).join('、')}防守时受伤 −10%</p>` : ''}
     ${usesTactics(view) ? `<p class="unit-note" id="zoc-note">${exertsZoc(unit, CONTENT) ? '控制区：相邻敌军移动到此即停下。' : ''}${ignoresZoc(unit, CONTENT) ? '可无视敌方控制区。' : '进入敌方近战/快速单位相邻格会停下。'}夹击：每只相邻目标的友军 +10% 伤害（最多 +30%）。</p>` : ''}
+    ${eraMarkup}
     ${improvementMarkup}
     ${!canCapture ? '<p class="unit-note">捕捉需要研究「驯化」，并在城市采购精灵球。</p>' : ''}
     ${mode && mode !== 'move' ? `<div class="action-config">${mode === 'capture' ? `<label>球种<select id="capture-ball"><option value="pokeBall" ${ballId === 'pokeBall' ? 'selected' : ''}>精灵球（${view.economy.player.ballInventory.pokeBall}）</option><option value="greatBall" ${ballId === 'greatBall' ? 'selected' : ''}>超级球（${view.economy.player.ballInventory.greatBall}）</option></select></label>` : ''}<button id="cancel-action">取消目标</button></div>${preview}<div class="action-confirm"><button id="confirm-action" class="primary" ${!target || (mode === 'attack' ? attackPreview?.ok !== true : capturePreview?.ok !== true) ? 'disabled' : ''}>确认${mode === 'attack' ? '攻击' : '捕捉'}</button></div>` : ''}
@@ -100,6 +127,8 @@ export function renderUnitPanel(view: PlayerView, selected: number | null, mode:
   root.querySelector('#attack-unit')!.addEventListener('click', () => callbacks.mode(mode === 'attack' ? null : 'attack'));
   root.querySelector('#capture-unit')!.addEventListener('click', () => callbacks.mode(mode === 'capture' ? null : 'capture'));
   root.querySelector('#evolve-unit')!.addEventListener('click', callbacks.evolve);
+  for (const button of root.querySelectorAll<HTMLButtonElement>('[data-era-action]')) button.addEventListener('click', () => callbacks.issue?.(JSON.parse(button.dataset.eraAction!)));
+  root.querySelector('#terastallize')?.addEventListener('click', () => callbacks.issue?.({ type: 'Terastallize', unitId: unit.id, typeId: root.querySelector<HTMLSelectElement>('#tera-type')!.value as TypeId }));
   for (const button of root.querySelectorAll<HTMLButtonElement>('[data-improve]')) button.addEventListener('click', () => {
     const [tile, kind] = button.dataset.improve!.split(':');
     callbacks.improve?.(Number(tile), kind as ImprovementId);

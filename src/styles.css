@@ -457,3 +457,10 @@ button.danger { border-color: var(--danger); background: #9E4B43; color: var(--o
 .gym-build button { min-height: 30px; font-size: 11px; }
 .city-essences .unit-note { padding: 0; }
 @media (max-width: 980px) { .hud-essences { max-width: none; } }
+.era-ability-box { display: grid; gap: 6px; padding: 0 14px 13px; }
+.era-ability-box .section-label { margin: 0; color: #D9C7F0; font-size: 11px; }
+.era-ability-box .unit-note { padding: 0; }
+.era-ability-actions { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; }
+.era-ability-actions button, .tera-row button { min-height: 30px; padding: 4px 8px; border-color: #7A5A96; background: #2B2236; color: #EADBFF; font-size: 11px; }
+.tera-row { display: flex; gap: 6px; }
+.tera-row select { flex: 1; }

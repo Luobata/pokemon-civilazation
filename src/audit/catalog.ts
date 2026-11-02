@@ -704,6 +704,16 @@ export const AUDIT_SYSTEMS: readonly AuditSystem[] = [
     sources: ["src/content/essences.ts", "src/core/essences.ts", "src/ai/essence-plan.ts", "tests/core/essences.test.ts"],
     actionTypes: ["BuildGym", "Attack", "EndTurn"],
   }),
+  system({
+    id: "s36-era-abilities",
+    name: "时代专属能力",
+    status: "implemented",
+    summary: "时代玩法 v5：每个世代解锁一项能力。金银：昼夜与亲密度；宝石：天气；完整世代还有 XY Mega 进化、日月 Z 招式、剑盾极巨化、朱紫太晶化。",
+    rules: ["昼夜按全局轮次两轮一换；夜晚恶、幽灵系主动攻击 +15%。金银时代后，己方领地内宝可梦每轮亲密度经验 +3。", "天气消耗 10 点对应精华，覆盖城市周围 3 格 3 轮，冷却 8 轮：雨/晴对水火 ±30%，沙暴岩石/地面/钢 +20%，冰雹冰 +30%。", "Mega 进化限最终形态且同时一只，伤害 +25%、受伤 −20%；Z 招式让下一次主动攻击 ×2，冷却 10 轮；极巨化 3 轮内伤害 +30%（攻城 +50%）、受伤 −30%，冷却 12 轮；太晶化改为单一防守属性，与攻击属性相同时伤害 +20%，同时一只。", "这些效果都消耗属性精华，预览与权威结算共用；天气与已暴露的单位形态对可见方公开，Z 招式蓄力只对己方可见。"],
+    checks: ["核对正式命令、成本、所有权、轮次与当前派生状态。", "验证观察隔离、事务拒绝、确定性和存档重放。"],
+    sources: ["src/content/era-abilities.ts", "src/core/era-abilities.ts", "src/ai/era-ability-plan.ts", "tests/core/era-abilities.test.ts"],
+    actionTypes: ["SummonWeather", "MegaEvolve", "PrimeZMove", "Dynamax", "Terastallize", "Attack", "EndTurn"],
+  }),
 ];
 
 export const AUDIT_SYSTEM_BY_ID: ReadonlyMap<string, AuditSystem> = new Map(AUDIT_SYSTEMS.map(item => [item.id, item]));

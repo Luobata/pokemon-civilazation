@@ -1,3 +1,4 @@
+import { ERA_ABILITIES, ERA_ABILITY_IDS } from '../content/era-abilities.ts';
 import type { DoctrineDefinition } from '../core/leader-doctrines.ts';
 import { LEADER_DOCTRINES, activeDoctrine } from '../core/leader-doctrines.ts';
 import type { DoctrinePhase } from '../content/eras.ts';
@@ -89,6 +90,7 @@ export function renderEraPanel(view: PlayerView): string {
   <div class="era-progress" role="img" aria-label="时代进度 ${state.eraProgressPercent}%"><span style="width:${state.eraProgressPercent}%"></span></div>
   <p class="era-next">${nextLabel}</p>
   <dl class="era-summary"><dt>已完成科技</dt><dd>${state.completedTechs} 项</dd><dt>整体进程</dt><dd>${state.overallProgressPercent}%</dd></dl>
+  ${view.expansion?.eraAbilities ? `<section class="era-abilities"><strong>时代能力 · ${view.expansion.eraAbilities.night ? '夜晚' : '白天'}</strong><ul>${ERA_ABILITY_IDS.filter(id => state.mode === 'full-v1' || ERA_ABILITIES[id].generation <= 3).map(id => `<li class="${view.expansion!.eraAbilities!.unlocked.includes(id) ? 'done' : ''}">${view.expansion!.eraAbilities!.unlocked.includes(id) ? '✓' : '○'} ${ERA_ABILITIES[id].era} · ${ERA_ABILITIES[id].name}<small>${ERA_ABILITIES[id].description}</small></li>`).join('')}</ul></section>` : ''}
   <section class="era-doctrine"><strong>${leader ? `${leader.name} · ${PHASE_LABELS[state.phase]}战术` : '无领袖战术'}</strong>${definition ? `<p>${definition.description}</p>` : '<p>此局未选择领袖，时代只推进，不提供额外战术加成。</p>'}</section>
   ${leader ? `<details class="era-windows-toggle"><summary>查看早 / 中 / 后期战术窗口</summary><ul class="era-windows">${windows.map(item => windowMarkup(item, item.phase === state.phase, EXPANSION_CONTENT)).join('')}</ul></details>` : ''}
 </div>`;

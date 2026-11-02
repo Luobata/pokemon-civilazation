@@ -12,7 +12,7 @@ async function selectStarter(page: import('@playwright/test').Page) {
 
 test('new games use gameplay v2: tile improvements, discoveries and field tactics are playable', async ({ page }) => {
   await page.goto('/');
-  expect((await state(page)).setup).toMatchObject({ eraProgression: 'simple-v1', gameplayVersion: 4 });
+  expect((await state(page)).setup).toMatchObject({ eraProgression: 'simple-v1', gameplayVersion: 5 });
   await selectStarter(page);
   await expect(page.locator('#zoc-note')).toContainText('夹击');
   const farm = page.locator('[data-improve$=":berryFarm"]').first();
@@ -58,4 +58,17 @@ test('gameplay v3: charters, policy cards and end-turn reminders work in the pag
   expect((await state(page)).expansion!.policies![0].slotted).toEqual(['gymChallenge', 'researchGrant']);
   await expect(page.locator('#policy-cards')).toContainText('更换需 30 金币');
   await expect(page.locator('#activity-list')).toContainText('方针更新');
+});
+
+test('gameplay v5: era ability panel lists generation unlocks and the unit panel explains locked abilities', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.locator('#era-panel .era-abilities')).toContainText('金银 · 昼夜与亲密度');
+  await expect(page.locator('#era-panel .era-abilities')).toContainText('宝石 · 天气');
+  await expect(page.locator('#era-panel .era-abilities')).not.toContainText('Mega');
+  await page.locator('#era-progression').selectOption('full-v1');
+  await page.locator('#new-game').click();
+  await expect(page.locator('#era-panel .era-abilities')).toContainText('朱紫 · 太晶化');
+  await page.locator('[data-reminder="unit"]').click();
+  await page.locator('[data-reminder="unit"]').click();
+  await expect(page.locator('#era-ability-box')).toContainText('进入金银时代后解锁昼夜');
 });

@@ -93,6 +93,7 @@ test('a finished game allows choosing a different leader and starter for the nex
 for (const width of [390, 768, 1280]) test(`leader cards and skill descriptions fit ${width}px without overflow`, async ({ page }) => {
   await page.setViewportSize({ width, height: 900 });
   await page.goto('/');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.locator('#choose-leader').click();
   const choices = page.locator('input[name="leader"]');
   await expect(choices).toHaveCount(LEADER_IDS.length);
@@ -100,7 +101,8 @@ for (const width of [390, 768, 1280]) test(`leader cards and skill descriptions 
   for (const leaderId of LEADER_IDS) {
     const radio = page.locator(`input[name="leader"][value="${leaderId}"]`);
     await expect(radio).toBeEnabled();
-    await radio.check();
+    // Players click the card; the radio itself is a 1px visually hidden input.
+    await page.locator(`label.leader-choice:has(input[value="${leaderId}"])`).click();
     await expect(radio).toBeChecked();
   }
   await page.screenshot({ path: `test-results/screenshots/leaders-${width}.png`, fullPage: false });

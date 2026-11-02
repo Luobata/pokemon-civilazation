@@ -15,6 +15,7 @@ import { cityAssaultMultiplier } from './role-tactics.ts';
 import { flankBonus } from './tactics.ts';
 import { playerPolicyEffects } from './policies.ts';
 import { clearGym, homeDefenseMultiplier, usesEssences } from './essences.ts';
+import { combatContext, consumeZMove, eraAttackMultiplier, eraDefenseMultiplier, teraTypes } from './era-abilities.ts';
 import { captureProbability, dualEffectiveness, effectiveness } from './combat-math.ts';
 import { randomBelow } from './rng.ts';
 import { registerSpecies } from './unit.ts';
@@ -75,18 +76,22 @@ function unitStrike(state: GameState, attacker: MapUnit, defender: MapUnit, coun
   if (attacker.kind !== 'pokemon') return 0;
   const d = defender.kind === 'pokemon' ? content.species[defender.speciesId] : null;
   const roll = counter ? 100 : 85 + randomBelow(state.rng, 16);
+  const era = combatContext(state);
   const hit = unitDamage(attacker, defender, state.map.tiles[hexToIndex(attacker.position, state.map)!],
     state.map.tiles[hexToIndex(defender.position, state.map)!], hasTech(state, attacker.ownerId, 'typeResearch'), roll, counter, content,
     leaderAttackMultiplier(state, attacker.ownerId, leaderEffects(attacker.ownerId === null ? undefined : state.players[attacker.ownerId].leaderId).activeAttackMultiplier), Boolean(state.expansion),
     counter ? 0 : flankBonus(state.setup, attacker, defender, Object.values(state.units).filter(isMapUnit)),
     mistyWaterMultiplier(state, attacker.ownerId, attacker, content)
-      * homeDefenseMultiplier(usesEssences(state), defender, state.map.tiles[hexToIndex(defender.position, state.map)!], content) / 1000);
+      * homeDefenseMultiplier(usesEssences(state), defender, state.map.tiles[hexToIndex(defender.position, state.map)!], content) / 1000
+      * eraAttackMultiplier(era, attacker, content, false, counter) / 1000 * eraDefenseMultiplier(era, defender) / 1000,
+    teraTypes(era, defender.id));
+  if (!counter) consumeZMove(state, attacker.id);
   attacker.enraged = false;
   defender.hp = Math.max(0, defender.hp - hit);
   experience(state, attacker, (hit > 0 ? 10 : 0) + (defender.hp === 0 && d ? 40 * d.stage : 0));
   if (defender.hp === 0) {
     knockdowns.push({ source: combatant(attacker, content), target: combatant(defender, content), counter,
-      effectiveness: d ? (state.expansion ? dualEffectiveness(content.species[attacker.speciesId].typeId, [d.typeId, ...(d.secondaryTypeId ? [d.secondaryTypeId] : [])], hasTech(state, attacker.ownerId, 'typeResearch')) : effectiveness(content.species[attacker.speciesId].typeId, d.typeId, d.immunities, hasTech(state, attacker.ownerId, 'typeResearch'))) : 100 });
+      effectiveness: d ? (state.expansion ? dualEffectiveness(content.species[attacker.speciesId].typeId, teraTypes(era, defender.id) ?? [d.typeId, ...(d.secondaryTypeId ? [d.secondaryTypeId] : [])], hasTech(state, attacker.ownerId, 'typeResearch')) : effectiveness(content.species[attacker.speciesId].typeId, d.typeId, d.immunities, hasTech(state, attacker.ownerId, 'typeResearch'))) : 100 });
     knockedDown(state, defender, attacker.ownerId, wildPhase, events);
   }
   return hit;
@@ -113,10 +118,12 @@ export function resolveAttack(state: GameState, unitId: number, target: CombatTa
     const city = state.cities[target.id];
     hit = cityDamage(attacker, state.map.tiles[hexToIndex(attacker.position, state.map)!],
       state.map.tiles[hexToIndex(city.position, state.map)!], hasTech(state, attacker.ownerId, 'siegeCraft'), 85 + randomBelow(state.rng, 16), content,
-      leaderAttackMultiplier(state, attacker.ownerId, leaderEffects(attacker.ownerId === null ? undefined : state.players[attacker.ownerId].leaderId).activeAttackMultiplier),
+      Math.floor(leaderAttackMultiplier(state, attacker.ownerId, leaderEffects(attacker.ownerId === null ? undefined : state.players[attacker.ownerId].leaderId).activeAttackMultiplier)
+        * eraAttackMultiplier(combatContext(state), attacker, content, true, false) / 1000),
       cityAssaultMultiplier(attacker.ownerId === null ? undefined : state.players[attacker.ownerId], state.setup.eraProgression, state.setup.gameplayVersion, attacker, content,
         hexDistance(attacker.position, city.position), hasTech(state, attacker.ownerId, 'siegeCraft')));
     attacker.enraged = false;
+    consumeZMove(state, attacker.id);
     city.hp = Math.max(0, city.hp - hit); experience(state, attacker, hit > 0 ? 10 : 0);
     if (city.hp === 0) {
       capturedCity = true;

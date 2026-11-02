@@ -1,3 +1,4 @@
+import { gameplayAtLeast } from '../content/eras.ts';
 import { doctrineEffects } from './leader-doctrines.ts';
 import { tileImprovementYield } from './improvements.ts';
 import { playerPolicyEffects } from './policies.ts';
@@ -68,7 +69,18 @@ export function releaseWorker(state: GameState, city: CityState, content: Conten
 }
 export function assignNewWorkers(state: GameState, city: CityState, count: number, content: Content = state.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT): void {
   const available = workCandidates(state, city, content).filter(id => !city.workedTileIds.includes(id));
-  city.workedTileIds.push(...available.slice(0, Math.min(count, city.population - city.workedTileIds.length)));
+  const slots = Math.min(count, city.population - city.workedTileIds.length);
+  if (gameplayAtLeast(state.setup, 5)) {
+    // Gameplay v5: every third worker prefers a biome (essence) the city does not work yet, if one is in range.
+    for (let i = 0; i < slots; i++) {
+      const pool = available.filter(id => !city.workedTileIds.includes(id));
+      const biomes = new Set(city.workedTileIds.map(id => state.map.tiles[id]));
+      const fresh = city.workedTileIds.length % 3 === 2 ? pool.find(id => !biomes.has(state.map.tiles[id])) : undefined;
+      const pick = fresh ?? pool[0];
+      if (pick === undefined) break;
+      city.workedTileIds.push(pick);
+    }
+  } else city.workedTileIds.push(...available.slice(0, slots));
   city.workedTileIds.sort((a, b) => a - b);
 }
 export function cityYield(state: GameState, city: CityState, content: Content = state.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT): Yield {

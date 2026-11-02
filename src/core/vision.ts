@@ -1,3 +1,4 @@
+import { observeEraAbilities } from './era-abilities.ts';
 import { observeEssences } from './essences.ts';
 import { observePolicies, playerPolicyEffects } from './policies.ts';
 import { observeImprovements } from './improvements.ts';
@@ -103,7 +104,8 @@ export function observe(state: GameState, playerId: number, content: Content = s
       ...(state.expansion.improvements ? { improvements: observeImprovements(state, playerId, visible) } : {}),
       ...(state.expansion.discoveries ? { discoveries: [...(state.expansion.discoveries[playerId] ?? [])] } : {}),
       ...(state.expansion.policies ? { policies: observePolicies(state, playerId) } : {}),
-      ...(state.expansion.essences ? { essences: observeEssences(state, playerId) } : {}) } } : {}),
+      ...(state.expansion.essences ? { essences: observeEssences(state, playerId) } : {}),
+      ...(state.expansion.eraAbilities ? { eraAbilities: observeEraAbilities(state, playerId, visible, hex => hexToIndex(hex, state.map)) } : {}) } } : {}),
     ...(state.setup.eraProgression ? { eraProgression: state.setup.eraProgression } : {}),
     ...(state.setup.gameplayVersion ? { gameplayVersion: state.setup.gameplayVersion } : {}),
     playerId, seed: state.setup.seed, round: state.round, activePlayerId: state.activePlayerId, commandSeq: state.commandSeq,
