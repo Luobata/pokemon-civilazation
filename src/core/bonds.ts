@@ -1,3 +1,4 @@
+import { rareBerryBond } from './rare-berries.ts';
 import { gameplayAtLeast } from '../content/eras.ts';
 import { hexDistance } from './hex.ts';
 import { workRadius } from './city.ts';
@@ -46,6 +47,8 @@ export function bondPressure(state: GameState, city: CityState): BondBreakdown {
   if (Object.values(state.units).some(unit => isMapUnit(unit) && unit.ownerId === owner && unit.kind === 'pokemon' && hexDistance(unit.position, city.position) <= 1)) {
     parts.push({ label: '驻军', value: BOND_RULES.garrison });
   }
+  const luxury = rareBerryBond(state, owner);
+  if (luxury) parts.push({ label: '稀有树果', value: luxury });
   const foreign = Object.values(state.cities).filter(other => other.ownerId !== null && other.ownerId !== owner && hexDistance(other.position, city.position) <= BOND_RULES.foreignRange).length;
   if (foreign) parts.push({ label: `邻近外国城市 ${foreign}`, value: -BOND_RULES.foreignPull * foreign });
   return { total: parts.reduce((sum, part) => sum + part.value, 0), parts };

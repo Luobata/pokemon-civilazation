@@ -5,6 +5,7 @@ import { IMPROVEMENT_IDS } from '../content/improvements.ts';
 import { CHARTER_IDS, POLICY_IDS } from '../content/policies.ts';
 import { ESSENCE_IDS, TYPE_ESSENCE } from '../content/essences.ts';
 import { WEATHER_IDS } from '../content/era-abilities.ts';
+import { RARE_BERRY_IDS } from '../content/rare-berries.ts';
 
 type Fields = Record<string, 'id' | 'ids' | 'string' | 'boolean' | 'policyIds' | readonly string[]>;
 export function expansionActionFields(content: Content = EXPANSION_CONTENT): Record<ExpansionAction['type'], Fields> {
@@ -31,6 +32,7 @@ export function expansionActionFields(content: Content = EXPANSION_CONTENT): Rec
   MegaEvolve: { unitId: 'id' }, PrimeZMove: { unitId: 'id' }, Dynamax: { unitId: 'id' },
   Terastallize: { unitId: 'id', typeId: Object.keys(TYPE_ESSENCE) },
   ReclaimCity: { cityId: 'id' },
+  GiftBerry: { targetPlayerId: 'id', berry: RARE_BERRY_IDS },
   };
 }
 export const EXPANSION_ACTION_FIELDS: Record<ExpansionAction['type'], Fields> = expansionActionFields();

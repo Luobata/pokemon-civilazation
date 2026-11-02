@@ -1,3 +1,4 @@
+import { RARE_BERRIES, RARE_BERRY_IDS, RARE_BERRY_RULES } from '../content/rare-berries.ts';
 import type { Command, PlayerView } from '../core/model.ts';
 import { LEADER_KITS } from '../core/leader-systems.ts';
 import { hexDistance } from '../core/hex.ts';
@@ -44,6 +45,15 @@ export function renderExpansionPanel(view: PlayerView, selectedUnitId: number | 
       + (unit ? button('采集', { type: 'HarvestResource', unitId: unit.id, tileIndex: site.tileIndex }, Boolean(unit.actionLeft) && site.remaining > 0 && hexDistance(unit.position, site.position) === 0) : '')).join('')
     + `<p>进化石：${escape(JSON.stringify(world.player?.stoneInventory ?? {}))}</p>`
     + (unit?.kind === 'pokemon' ? WORLD_DEFINITIONS.stoneEvolutions.filter(path => path.fromSpeciesId === unit.speciesId).map(path => button(`${CONTENT.species[path.intoSpeciesId].name} · ${path.stoneId}`, { type: 'UseEvolutionStone', unitId: unit.id, intoSpeciesId: path.intoSpeciesId, stoneId: path.stoneId }, Boolean(unit.actionLeft) && (world.player?.stoneInventory[path.stoneId] ?? 0) > 0 && unit.xp >= path.requiredXp)).join('') : ''));
+  const rare = exp.rareBerries;
+  if (rare) {
+    const partners = exp.civilization.relations.filter(relation => relation.tradeSinceRound !== null && !relation.targetEliminated);
+    html += card('s38-rare-berries', `稀有树果 ${rare.distinct}/${RARE_BERRY_IDS.length}${rare.festival ? ' · 丰收节' : ''}`, `<p>城市耕作稀有树果地块即拥有该种类。每拥有一种：满意度每轮 +${RARE_BERRY_RULES.satisfactionPerType}、各城羁绊每轮 +${RARE_BERRY_RULES.bondPerType}；拥有 ${RARE_BERRY_RULES.festivalTypes} 种时进入丰收节，每城食物 +1。</p>`
+      + `<ul class="rare-berry-list">${RARE_BERRY_IDS.map(id => `<li class="${rare.owned[id] ? 'owned' : ''}"><b>${RARE_BERRIES[id].mark}</b>${RARE_BERRIES[id].name} · ${({ forest: '森林', mountain: '山地', desert: '荒漠', grassland: '草原', snow: '雪原', ocean: '海洋' } as Record<string, string>)[RARE_BERRIES[id].biome]} · 拥有 ${rare.owned[id]}</li>`).join('')}</ul>`
+      + (partners.length ? `<p>多余的一份可以赠送给贸易伙伴：信任 +${RARE_BERRY_RULES.giftTrust}，自己获得 ${RARE_BERRY_RULES.giftGold} 金币，同一伙伴每 ${RARE_BERRY_RULES.giftCooldown} 轮一次。</p>`
+        + partners.map(relation => RARE_BERRY_IDS.filter(id => rare.owned[id] >= 2).map(id => button(`赠送${RARE_BERRIES[id].name}给文明 ${relation.targetPlayerId + 1}`, { type: 'GiftBerry', targetPlayerId: relation.targetPlayerId, berry: id })).join('')).join('')
+        : '<p>与其他文明缔结贸易后，可以赠送多余的稀有树果。</p>'));
+  }
   const civ = exp.civilization, faith = civ.player;
   html += card('s23-faith', '供奉与传奇训练家', `<p>供奉点 ${faith.offeringPoints} · 下次召唤 ${faith.nextPhantomCost}。控制圣所后，每城每轮可用 10 食物或 20 金币换 5 点。</p>`
     + (city ? button('供奉食物', { type: 'MakeOffering', cityId: city.id, resource: 'food' }, city.food >= 10 && !faith.offeredThisRoundByCity[city.id] && civ.sanctuaries.some(site => site.ownerId === player.id))

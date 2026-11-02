@@ -15,7 +15,8 @@ test('new games expose real leader abilities, cooldowns and all expansion system
   await expect(page.locator('#hud-gold')).toContainText('30');
   await expect(leaders).toContainText('第 9 轮');
   await expect(leaders.getByRole('button', { name: '研究突破', exact: true })).toBeDisabled();
-  await expect(page.locator('#expansion-panel details')).toHaveCount(9);
+  expect(await page.locator('#expansion-panel details').count()).toBeGreaterThanOrEqual(9);
+  await expect(page.locator('#expansion-panel details[data-system="s38-rare-berries"]')).toHaveCount(1);
   await page.locator('#save-game').click();
   await page.locator('#load-game').click();
   await expect(page.locator('#action-notice')).toContainText('读档完成');

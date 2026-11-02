@@ -724,6 +724,16 @@ export const AUDIT_SYSTEMS: readonly AuditSystem[] = [
     sources: ["src/core/bonds.ts", "src/ai/bond-plan.ts", "src/browser/neutral-panel.ts", "tests/core/bonds.test.ts"],
     actionTypes: ["ReclaimCity", "EndTurn"],
   }),
+  system({
+    id: "s38-rare-berries",
+    name: "稀有树果（奢侈品）",
+    status: "implemented",
+    summary: "时代玩法 v7：6 种稀有树果各对应一种地形，城市耕作其矿点即拥有；种类越多，满意度与羁绊越高，4 种以上举办丰收节。",
+    rules: ["每种 2 处矿点，按地图种子确定，不消耗对局随机数；城市自动分配劳动力时优先耕作稀有树果地块。", "每拥有一种：满意度每轮 +2（满意度每轮衰减 4）、各城羁绊每轮 +1；拥有 4 种时每城食物 +1。", "同一种拥有 2 份以上时，可通过贸易协定赠送 1 份给伙伴：对方获得该种类，双方信任 +10，赠送方得 15 金币；同一伙伴 5 轮一次。", "矿点位置对看见或记住该地块的玩家公开。"],
+    checks: ["核对正式命令、成本、所有权、轮次与当前派生状态。", "验证观察隔离、事务拒绝、确定性和存档重放。"],
+    sources: ["src/content/rare-berries.ts", "src/core/rare-berries.ts", "src/ai/rare-berry-plan.ts", "tests/core/rare-berries.test.ts"],
+    actionTypes: ["GiftBerry", "EndTurn"],
+  }),
 ];
 
 export const AUDIT_SYSTEM_BY_ID: ReadonlyMap<string, AuditSystem> = new Map(AUDIT_SYSTEMS.map(item => [item.id, item]));

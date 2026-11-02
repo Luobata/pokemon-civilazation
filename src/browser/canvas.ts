@@ -1,3 +1,4 @@
+import { RARE_BERRIES } from '../content/rare-berries.ts';
 import { ERA_ABILITY_RULES, WEATHERS } from '../content/era-abilities.ts';
 import { IMPROVEMENTS } from '../content/improvements.ts';
 import type { BiomeId } from '../content/rules.ts';
@@ -184,6 +185,7 @@ export function drawMap(canvas: HTMLCanvasElement, view: PlayerView, camera: Cam
       context.fillStyle = '#B9822F'; context.fill(); context.strokeStyle = '#F6EACA'; context.lineWidth = 1; context.stroke();
       centeredText(IMPROVEMENTS[tile.kind].mark, p, '#FFF8E5', size * 1.2);
     }
+    for (const deposit of view.expansion.rareBerries?.deposits ?? []) siteMark(indexToHex(deposit.tileIndex, view.map), RARE_BERRIES[deposit.berry].mark, '#B0487A');
     for (const site of view.expansion.world.resources) siteMark(site.position, site.kind === 'berry' ? '果' : '石', site.remaining ? '#487744' : '#65706B');
     for (const site of view.expansion.world.nests) siteMark(site.position, '巢', '#A34F3F');
     for (const site of view.expansion.world.overlords) siteMark(site.position, '霸', '#8D6332');

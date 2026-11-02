@@ -713,6 +713,11 @@ export function inspectSystem(systemId: string, state: GameState): AuditSystemIn
     return { metrics: [metric('当前规则', bonds ? '时代玩法 v6' : '本局未启用（需时代玩法 v6）'), metric('羁绊低于 30 的城市', bonds ? Object.values(bonds).filter(value => value < 30).length : 0)],
       data: { bonds: bonds ?? null } };
   }
+  if (system.id === 's38-rare-berries') {
+    const rare = state.expansion?.rareBerries;
+    return { metrics: [metric('当前规则', rare ? '时代玩法 v7' : '本局未启用（需时代玩法 v7）'), metric('矿点数', rare ? Object.keys(rare.deposits).length : 0)],
+      data: { rareBerries: rare ?? null } };
+  }
   if (system.id === 's30-type-expansion') return { metrics: [metric('当前规则', state.expansion ? '18 属性、双属性防御' : '经典克制表'), metric('物种数', Object.keys(contentFor(state).species).length)],
     data: { species: contentFor(state).species, rule: 'Primary attack type; multiply defensive types; immunity zero; one final floor.' } };
   if (system.id === 'x11-content-editor') return { metrics: [metric('内容版本', contentFor(state).version), metric('物种数', Object.keys(contentFor(state).species).length)],

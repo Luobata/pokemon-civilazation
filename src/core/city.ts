@@ -1,3 +1,4 @@
+import { rareBerryCityFood } from './rare-berries.ts';
 import { gameplayAtLeast } from '../content/eras.ts';
 import { doctrineEffects } from './leader-doctrines.ts';
 import { tileImprovementYield } from './improvements.ts';
@@ -41,6 +42,11 @@ export function compareWorkTiles(state: GameState, city: CityState, a: number, b
   if (city.ownerId === null) return a - b;
   const player = state.players[city.ownerId];
   const ya = workedTileYield(state, a, player, content), yb = workedTileYield(state, b, player, content);
+  const deposits = state.expansion?.rareBerries?.deposits;
+  if (deposits) {
+    const ra = deposits[a] ? 1 : 0, rb = deposits[b] ? 1 : 0;
+    if (ra !== rb) return rb - ra;
+  }
   return yb.food - ya.food || yb.production - ya.production || yb.gold - ya.gold || yb.research - ya.research || a - b;
 }
 export function workCandidates(state: GameState, city: CityState, content: Content = state.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT): number[] {
@@ -94,7 +100,7 @@ export function cityYield(state: GameState, city: CityState, content: Content = 
   if (state.players[city.ownerId].starterId === 'bulbasaur') result.food = Math.floor(result.food * 1100 / 1000);
   result.research += doctrineEffects(player, state.setup.eraProgression).researchBonus;
   const policy = playerPolicyEffects(state, city.ownerId);
-  result.food += policy.cityFood; result.production += policy.cityProduction; result.gold += policy.cityGold; result.research += policy.cityResearch;
+  result.food += policy.cityFood + rareBerryCityFood(state, city.ownerId); result.production += policy.cityProduction; result.gold += policy.cityGold; result.research += policy.cityResearch;
   const leader = leaderEffects(player.leaderId);
   result.research += leader.cityResearch + (city.buildingIds.includes('observatory') ? leader.laboratoryResearch : 0);
   result.gold += city.population >= 3 ? leader.cityGold : 0;

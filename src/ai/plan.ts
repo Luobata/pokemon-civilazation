@@ -27,6 +27,7 @@ import { planPolicyAction } from './policy-plan.ts';
 import { planEssenceAction, siteEssenceBonus } from './essence-plan.ts';
 import { planEraAbilityAction } from './era-ability-plan.ts';
 import { planBondAction, threatenedCityIds } from './bond-plan.ts';
+import { planRareBerryAction, siteRareBerryBonus } from './rare-berry-plan.ts';
 import type { Goal } from './strategies.ts';
 type Candidate = { action: Command['action']; goal: Goal; benefit: number; ownId: number; targetId: number };
 export const CANDIDATE_BUDGET = 256; // 32 representatives for each of eight goals, never a time budget.
@@ -94,6 +95,8 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
   if (eraAction) return result(eraAction);
   const bondAction = planBondAction(view);
   if (bondAction) return result(bondAction);
+  const berryAction = planRareBerryAction(view);
+  if (berryAction) return result(berryAction);
   const threatened = new Set(threatenedCityIds(view));
   const leaderAction = planLeaderAction(view, content);
   if (leaderAction) return result(leaderAction);
@@ -229,7 +232,8 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
       if (unit.kind === 'logistics' && sites.length) {
         const before = Math.min(...sites.map(site => hexDistance(unit.position, site))), after = Math.min(...sites.map(site => hexDistance(to, site)));
         const ring = view.map.tiles.filter((_, tile) => hexDistance(indexToHex(tile, view.map), to) <= 2);
-        if (after < before) add(action, 'found', 100 - after + (citySite(to) ? siteEssenceBonus(view, content, ring) : 0), unit.id, index);
+        const ringTiles = new Set(view.map.tiles.flatMap((_, tile) => hexDistance(indexToHex(tile, view.map), to) <= 2 ? [tile] : []));
+        if (after < before) add(action, 'found', 100 - after + (citySite(to) ? siteEssenceBonus(view, content, ring) + siteRareBerryBonus(view, ringTiles) : 0), unit.id, index);
       } else if (targetHq && hexDistance(to, targetHq.position) < hexDistance(unit.position, targetHq.position)) {
         add(action, 'military', 100 - hexDistance(to, targetHq.position), unit.id, index);
       }

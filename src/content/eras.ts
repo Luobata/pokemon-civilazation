@@ -90,9 +90,10 @@ export function eraState(player: EraPlayer, mode?: EraProgression): EraState | n
  * 4: adds type essences, type gyms, terrain home defense and five more leaders.
  * 5: adds era abilities (day/night, weather, Mega, Z-Move, Dynamax, Terastal).
  * 6: adds city bonds (loyalty) and cities defecting to neutral camps.
+ * 7: adds rare berries (luxuries): satisfaction, bond, festivals and trade gifts.
  */
-export type GameplayVersion = 1 | 2 | 3 | 4 | 5 | 6;
-export const LATEST_GAMEPLAY_VERSION: GameplayVersion = 6;
+export type GameplayVersion = 1 | 2 | 3 | 4 | 5 | 6 | 7;
+export const LATEST_GAMEPLAY_VERSION: GameplayVersion = 7;
 export function isGameplayVersion(value: unknown): value is GameplayVersion {
   return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= LATEST_GAMEPLAY_VERSION;
 }
