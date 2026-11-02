@@ -6,8 +6,9 @@ import { CHARTER_IDS, POLICY_IDS } from '../content/policies.ts';
 import { ESSENCE_IDS, TYPE_ESSENCE } from '../content/essences.ts';
 import { WEATHER_IDS } from '../content/era-abilities.ts';
 import { RARE_BERRY_IDS } from '../content/rare-berries.ts';
+import { LEGEND_IDS, TENET_IDS } from '../content/faith-legends.ts';
 
-type Fields = Record<string, 'id' | 'ids' | 'string' | 'boolean' | 'policyIds' | readonly string[]>;
+type Fields = Record<string, 'id' | 'ids' | 'string' | 'boolean' | 'policyIds' | 'tenets' | readonly string[]>;
 export function expansionActionFields(content: Content = EXPANSION_CONTENT): Record<ExpansionAction['type'], Fields> {
   return {
   UseLeaderAbility: {}, RecruitLeaderUnit: { cityId: 'id' }, BuildLeaderBuilding: { cityId: 'id' },
@@ -34,6 +35,7 @@ export function expansionActionFields(content: Content = EXPANSION_CONTENT): Rec
   ReclaimCity: { cityId: 'id' },
   GiftBerry: { targetPlayerId: 'id', berry: RARE_BERRY_IDS },
   BuildContestHall: { cityId: 'id' }, HoldContest: {},
+  FoundFaith: { legend: LEGEND_IDS, tenets: 'tenets' }, SpreadFaith: { cityId: 'id' },
   };
 }
 export const EXPANSION_ACTION_FIELDS: Record<ExpansionAction['type'], Fields> = expansionActionFields();
@@ -54,6 +56,7 @@ export function parseExpansionAction(input: unknown, content: Content = EXPANSIO
     const valid = rule === 'id' ? id(item) : rule === 'ids' ? Array.isArray(item) && item.length <= 6 && item.every(id) && new Set(item).size === item.length
       : rule === 'string' ? typeof item === 'string' && item.length > 0 && item.length <= 100
       : rule === 'boolean' ? typeof item === 'boolean'
+      : rule === 'tenets' ? Array.isArray(item) && item.length === 2 && item.every(value => typeof value === 'string' && (TENET_IDS as readonly string[]).includes(value)) && new Set(item).size === 2
       : rule === 'policyIds' ? Array.isArray(item) && item.length <= 12 && item.every(value => typeof value === 'string' && (POLICY_IDS as readonly string[]).includes(value)) && new Set(item).size === item.length
       : typeof item === 'string' && rule.includes(item);
     if (!valid) throw new Error(`Invalid expansion action field: ${key}`);

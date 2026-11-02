@@ -1,3 +1,4 @@
+import { LEGENDS } from '../content/faith-legends.ts';
 import { RARE_BERRIES } from '../content/rare-berries.ts';
 import { ERA_ABILITY_RULES, WEATHERS } from '../content/era-abilities.ts';
 import { IMPROVEMENTS } from '../content/improvements.ts';
@@ -184,6 +185,17 @@ export function drawMap(canvas: HTMLCanvasElement, view: PlayerView, camera: Cam
       context.beginPath(); context.arc(p.x, p.y, size, 0, Math.PI * 2);
       context.fillStyle = '#B9822F'; context.fill(); context.strokeStyle = '#F6EACA'; context.lineWidth = 1; context.stroke();
       centeredText(IMPROVEMENTS[tile.kind].mark, p, '#FFF8E5', size * 1.2);
+    }
+    const faith = view.expansion.faith;
+    if (faith) for (const city of view.cities) {
+      const founder = faith.cityFaith[city.id];
+      const legend = founder === undefined ? undefined : faith.faiths.find(item => item.founderId === founder)?.legend;
+      const index = hexToIndex(city.position, view.map);
+      if (!legend || index === null || !visible.has(index) || !onscreen(centers[index])) continue;
+      const p = { x: centers[index].x - radius * .6, y: centers[index].y - radius * .5 }, size = Math.max(8, radius * .28);
+      context.beginPath(); context.arc(p.x, p.y, size, 0, Math.PI * 2); context.fillStyle = LEGENDS[legend].color; context.fill();
+      context.strokeStyle = '#F6EACA'; context.lineWidth = 1; context.stroke();
+      centeredText(LEGENDS[legend].mark, p, '#FFF8E5', size * 1.1);
     }
     for (const deposit of view.expansion.rareBerries?.deposits ?? []) siteMark(indexToHex(deposit.tileIndex, view.map), RARE_BERRIES[deposit.berry].mark, '#B0487A');
     for (const site of view.expansion.world.resources) siteMark(site.position, site.kind === 'berry' ? '果' : '石', site.remaining ? '#487744' : '#65706B');

@@ -1,3 +1,4 @@
+import { LEGENDS } from '../content/faith-legends.ts';
 import { RARE_BERRIES } from '../content/rare-berries.ts';
 import { ERA_ABILITIES, WEATHERS } from '../content/era-abilities.ts';
 import { ESSENCE_IDS, ESSENCES } from '../content/essences.ts';
@@ -143,6 +144,8 @@ function activityText(payload: VisibleEvent['payload']) {
     case 'TileWorked': return payload.completed ? `建成${IMPROVEMENTS[payload.kind].name}` : `施工${IMPROVEMENTS[payload.kind].name} ${payload.progress}/${payload.required}`;
     case 'WeatherSummoned': return `文明 ${payload.playerId + 1} 召唤了${WEATHERS[payload.weather].name}`;
     case 'EraAbilityUsed': return `文明 ${payload.playerId + 1} 发动${ERA_ABILITIES[payload.ability].name}${payload.typeId ? `（${TYPE_NAMES[payload.typeId]}）` : ''}`;
+    case 'FaithFounded': return `文明 ${payload.playerId + 1} 创立${LEGENDS[payload.legend].name}信仰`;
+    case 'CityConverted': return `城市 ${payload.cityId} 改宗${LEGENDS[payload.legend].name}信仰`;
     case 'ContestHallBuilt': return `城市 ${payload.cityId} 建成华丽大赛馆`;
     case 'ContestHeld': return `文明 ${payload.playerId + 1} 举办华丽大赛，人气 +${payload.appeal}`;
     case 'BerryGifted': return `文明 ${payload.playerId + 1} 赠送${RARE_BERRIES[payload.berry].name}给文明 ${payload.targetPlayerId + 1}`;

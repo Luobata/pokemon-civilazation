@@ -1,3 +1,4 @@
+import { gameplayAtLeast } from '../content/eras.ts';
 import { CIVILIZATION_CONTENT } from '../content/civilization-systems.ts';
 import type { CivilizationContent, OfferingResource, PhantomCategory } from '../content/civilization-systems.ts';
 import type { SpeciesId, TypeId } from '../content/species.ts';
@@ -508,7 +509,10 @@ export function validateCivilizationAction(state: CivilizationHost, actorId: num
   if (action.type === 'MakeOffering') {
     const city = ownedCity(state, actorId, action.cityId);
     if (!city) return 'city-unavailable';
-    if (!civilizationState.sanctuaries.some(site => site.ownerId === actorId)) return 'sanctuary-not-owned';
+    // Gameplay v9: a type gym or contest hall in this city also acts as a shrine for offerings.
+    const shrine = gameplayAtLeast(state.setup, 9) && (state.expansion?.essences?.gyms[action.cityId] !== undefined
+      || state.expansion?.contests?.[actorId]?.halls.includes(action.cityId));
+    if (!shrine && !civilizationState.sanctuaries.some(site => site.ownerId === actorId)) return 'sanctuary-not-owned';
     if (expansionPlayer.offeredThisRoundByCity[action.cityId]) return 'offering-already-made';
     if (action.resource === 'food') return city.food >= content.offering.foodCost ? null : 'insufficient-food';
     return player.gold >= content.offering.goldCost ? null : 'insufficient-gold';

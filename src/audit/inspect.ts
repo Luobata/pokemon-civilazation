@@ -723,6 +723,11 @@ export function inspectSystem(systemId: string, state: GameState): AuditSystemIn
     return { metrics: [metric('当前规则', contests ? '时代玩法 v8' : '本局未启用（需时代玩法 v8）'), metric('当前文明人气', contests?.[state.activePlayerId]?.appeal ?? 0)],
       data: { contests: contests ?? null } };
   }
+  if (system.id === 's40-faith') {
+    const faith = state.expansion?.faith;
+    return { metrics: [metric('当前规则', faith ? '时代玩法 v9' : '本局未启用（需时代玩法 v9）'), metric('已创立信仰', faith ? Object.keys(faith.faiths).length : 0)],
+      data: { faith: faith ?? null } };
+  }
   if (system.id === 's30-type-expansion') return { metrics: [metric('当前规则', state.expansion ? '18 属性、双属性防御' : '经典克制表'), metric('物种数', Object.keys(contentFor(state).species).length)],
     data: { species: contentFor(state).species, rule: 'Primary attack type; multiply defensive types; immunity zero; one final floor.' } };
   if (system.id === 'x11-content-editor') return { metrics: [metric('内容版本', contentFor(state).version), metric('物种数', Object.keys(contentFor(state).species).length)],

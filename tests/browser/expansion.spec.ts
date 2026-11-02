@@ -17,6 +17,17 @@ test('new games expose real leader abilities, cooldowns and all expansion system
   await expect(leaders.getByRole('button', { name: '研究突破', exact: true })).toBeDisabled();
   expect(await page.locator('#expansion-panel details').count()).toBeGreaterThanOrEqual(9);
   await expect(page.locator('#expansion-panel details[data-system="s38-rare-berries"]')).toHaveCount(1);
+  const faith = page.locator('#expansion-panel details[data-system="s40-faith"]');
+  await faith.locator('summary').click();
+  await expect(faith).toContainText('尚无信仰');
+  await expect(faith.locator('#found-faith')).toBeDisabled();
+  const tenets = faith.locator('[data-tenet]');
+  await tenets.nth(0).check();
+  await tenets.nth(1).check();
+  await expect(tenets.nth(2)).toBeDisabled();
+  await tenets.nth(1).uncheck();
+  await expect(tenets.nth(2)).toBeEnabled();
+  expect(await faith.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
   await page.locator('#save-game').click();
   await page.locator('#load-game').click();
   await expect(page.locator('#action-notice')).toContainText('读档完成');

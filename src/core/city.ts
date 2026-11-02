@@ -1,3 +1,4 @@
+import { faithCityYield } from './faith-legends.ts';
 import { rareBerryCityFood } from './rare-berries.ts';
 import { gameplayAtLeast } from '../content/eras.ts';
 import { doctrineEffects } from './leader-doctrines.ts';
@@ -100,7 +101,9 @@ export function cityYield(state: GameState, city: CityState, content: Content = 
   if (state.players[city.ownerId].starterId === 'bulbasaur') result.food = Math.floor(result.food * 1100 / 1000);
   result.research += doctrineEffects(player, state.setup.eraProgression).researchBonus;
   const policy = playerPolicyEffects(state, city.ownerId);
-  result.food += policy.cityFood + rareBerryCityFood(state, city.ownerId); result.production += policy.cityProduction; result.gold += policy.cityGold; result.research += policy.cityResearch;
+  const faithYield = faithCityYield(state, city);
+  result.food += policy.cityFood + rareBerryCityFood(state, city.ownerId) + faithYield.food;
+  result.production += faithYield.production; result.gold += faithYield.gold; result.research += faithYield.research; result.production += policy.cityProduction; result.gold += policy.cityGold; result.research += policy.cityResearch;
   const leader = leaderEffects(player.leaderId);
   result.research += leader.cityResearch + (city.buildingIds.includes('observatory') ? leader.laboratoryResearch : 0);
   result.gold += city.population >= 3 ? leader.cityGold : 0;

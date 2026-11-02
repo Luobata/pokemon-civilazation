@@ -1,3 +1,5 @@
+import { FAITH_RULES, LEGENDS, LEGEND_IDS, TENETS, TENET_IDS } from '../content/faith-legends.ts';
+import type { LegendId, TenetId } from '../content/faith-legends.ts';
 import { CONTEST_RULES } from '../core/contests.ts';
 import { RARE_BERRIES, RARE_BERRY_IDS, RARE_BERRY_RULES } from '../content/rare-berries.ts';
 import type { Command, PlayerView } from '../core/model.ts';
@@ -64,6 +66,28 @@ export function renderExpansionPanel(view: PlayerView, selectedUnitId: number | 
       + button(`举办华丽大赛 · ${CONTEST_RULES.showGold} 金（+${contest.own.halls.length * CONTEST_RULES.showPerHall} 人气）`, { type: 'HoldContest' }, contest.own.halls.length > 0 && player.gold >= CONTEST_RULES.showGold && view.round >= contest.own.showReadyAtRound)
       + `<p>建造期间该城每轮一半生产投入大赛馆，共需 ${CONTEST_RULES.hallCost}；举办大赛冷却 ${CONTEST_RULES.showCooldown} 轮。</p>`);
   }
+  const legendFaith = exp.faith;
+  if (legendFaith) {
+    const mineFaith = legendFaith.faiths.find(item => item.founderId === player.id);
+    const offeringNow = exp.civilization.player;
+    const free = LEGEND_IDS.filter(id => !legendFaith.faiths.some(item => item.legend === id));
+    const needed = Math.ceil(legendFaith.totalCities * legendFaith.winShare);
+    let body = `<p>累计供奉 ${FAITH_RULES.foundLifetime} 点后可花 ${FAITH_RULES.foundCost} 供奉点创立一个传说信仰（每个传说只能被一个文明选择），并选择 2 条教义。拥有圣所，或在有属性道馆或华丽大赛馆的城市里，都可以供奉。</p>`
+      + `<p>供奉点 ${offeringNow.offeringPoints} · 累计 ${offeringNow.lifetimeOfferings}</p>`;
+    if (!mineFaith) {
+      body += free.length ? `<div class="faith-found"><label>传说<select id="faith-legend">${free.map(id => `<option value="${id}">${LEGENDS[id].name} · ${LEGENDS[id].blessing}</option>`).join('')}</select></label>`
+        + `<fieldset class="faith-tenets"><legend>教义（选 2 条）</legend>${TENET_IDS.map(id => `<label><input type="checkbox" data-tenet="${id}">${TENETS[id].name}：${TENETS[id].description}</label>`).join('')}</fieldset>`
+        + `<button type="button" id="found-faith" ${disabled || offeringNow.lifetimeOfferings < FAITH_RULES.foundLifetime || offeringNow.offeringPoints < FAITH_RULES.foundCost ? 'disabled' : ''}>创立信仰 · ${FAITH_RULES.foundCost} 供奉点</button></div>`
+        : '<p>五位传说都已被其他文明选择。</p>';
+    } else {
+      const spreadPrice = FAITH_RULES.spreadCost - (mineFaith.tenets.includes('missionaries') ? 5 : 0);
+      body += `<p class="faith-own" style="--legend:${LEGENDS[mineFaith.legend].color}"><b>${LEGENDS[mineFaith.legend].mark}</b>${LEGENDS[mineFaith.legend].name}信仰 · ${mineFaith.followers}/${legendFaith.totalCities} 座城市（胜利需 ${needed} 座，且每个对手至少 1 座）· 教义：${mineFaith.tenets.map(id => TENETS[id].name).join('、')}</p>`
+        + `<p>${LEGENDS[mineFaith.legend].blessing}。传播：每次 ${spreadPrice} 供奉点，目标须在己方城市 ${FAITH_RULES.spreadRange} 格内；信仰城市每轮也会向 ${FAITH_RULES.passiveRange} 格内的城市自然传播。压力达到 ${FAITH_RULES.convertAt} 时改宗。</p>`
+        + (city && legendFaith.cityFaith[city.id] !== player.id ? button(`向城市 #${city.id} 传播（压力 ${legendFaith.ownPressure[city.id] ?? 0}/${FAITH_RULES.convertAt}）`, { type: 'SpreadFaith', cityId: city.id }, offeringNow.offeringPoints >= spreadPrice) : '');
+    }
+    body += `<ul class="faith-list">${legendFaith.faiths.map(item => `<li style="--legend:${LEGENDS[item.legend].color}"><b>${LEGENDS[item.legend].mark}</b>文明 ${item.founderId + 1} · ${LEGENDS[item.legend].name} · ${item.followers} 城</li>`).join('') || '<li>尚无信仰</li>'}</ul>`;
+    html += card('s40-faith', `传说信仰${mineFaith ? ` · ${LEGENDS[mineFaith.legend].name}` : ''}`, body);
+  }
   const civ = exp.civilization, faith = civ.player;
   html += card('s23-faith', '供奉与传奇训练家', `<p>供奉点 ${faith.offeringPoints} · 下次召唤 ${faith.nextPhantomCost}。控制圣所后，每城每轮可用 10 食物或 20 金币换 5 点。</p>`
     + (city ? button('供奉食物', { type: 'MakeOffering', cityId: city.id, resource: 'food' }, city.food >= 10 && !faith.offeredThisRoundByCity[city.id] && civ.sanctuaries.some(site => site.ownerId === player.id))
@@ -107,4 +131,22 @@ export function renderExpansionPanel(view: PlayerView, selectedUnitId: number | 
   root.innerHTML = html;
   root.querySelectorAll<HTMLDetailsElement>('details').forEach(element => { element.open = opened.has(element.dataset.system); });
   root.querySelectorAll<HTMLButtonElement>('[data-expansion-action]').forEach(element => element.addEventListener('click', () => issue(parseAuditAction(actions[Number(element.dataset.expansionAction)]))));
+  const found = root.querySelector<HTMLButtonElement>('#found-faith');
+  if (found) {
+    const boxes = [...root.querySelectorAll<HTMLInputElement>('[data-tenet]')];
+    const affordable = !found.disabled;
+    const sync = () => {
+      const checked = boxes.filter(box => box.checked);
+      for (const box of boxes) box.disabled = disabled || (!box.checked && checked.length >= 2);
+      found.dataset.ready = String(checked.length === 2);
+      found.disabled = !affordable || checked.length !== 2;
+      found.title = checked.length === 2 ? '' : `还需选择 ${2 - checked.length} 条教义`;
+    };
+    boxes.forEach(box => box.addEventListener('change', sync)); sync();
+    found.addEventListener('click', () => {
+      const tenets = boxes.filter(box => box.checked).map(box => box.dataset.tenet as TenetId);
+      if (tenets.length !== 2) return;
+      issue({ type: 'FoundFaith', legend: root.querySelector<HTMLSelectElement>('#faith-legend')!.value as LegendId, tenets });
+    });
+  }
 }

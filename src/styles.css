@@ -476,3 +476,10 @@ button.danger { border-color: var(--danger); background: #9E4B43; color: var(--o
 .rare-berry-list li { color: #8EA896; font-size: 10px; }
 .rare-berry-list li.owned { color: #F2C6DA; }
 .rare-berry-list b { display: inline-block; min-width: 16px; margin-right: 3px; border-radius: 3px; background: #6B2D4C; color: #FFE6F1; text-align: center; }
+.faith-found { display: grid; gap: 6px; }
+.faith-found label { display: grid; gap: 3px; font-size: 11px; }
+.faith-tenets { display: grid; gap: 4px; margin: 0; padding: 6px 8px; border: 1px solid #3B4D46; border-radius: 5px; }
+.faith-tenets legend { color: #C8D5CA; font-size: 10px; }
+.faith-tenets label { display: flex; gap: 6px; align-items: flex-start; color: #BAC9BD; font-size: 10px; }
+.faith-own b, .faith-list b { display: inline-block; min-width: 16px; margin-right: 4px; border-radius: 50%; background: var(--legend); color: #FFF8E5; text-align: center; }
+.faith-list { display: grid; gap: 3px; margin: 6px 0; padding: 0; list-style: none; font-size: 10px; color: #BAC9BD; }

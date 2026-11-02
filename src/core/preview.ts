@@ -10,6 +10,7 @@ import { cityAssaultMultiplier } from './role-tactics.ts';
 import { flankBonus } from './tactics.ts';
 import { mistyWaterMultiplier } from './leader-systems.ts';
 import { homeDefenseMultiplier } from './essences.ts';
+import { viewZealotMultiplier } from './faith-legends.ts';
 import { eraAttackMultiplier, eraDefenseMultiplier, teraTypes, viewCombatContext } from './era-abilities.ts';
 import { viewPolicyEffects } from './policies.ts';
 
@@ -40,7 +41,8 @@ export function previewAttack(view: PlayerView, unitId: number, target: CombatTa
     const home = (identity: import("../content/units.ts").UnitIdentity, biome: typeof to) => homeDefenseMultiplier(view.expansion?.essences !== undefined, identity, biome, content);
     const era = viewCombatContext(view);
     const side = mistyWaterMultiplier(mapView, unit.ownerId, unit, content) * home(defendingUnit, to) / 1000
-      * eraAttackMultiplier(era, unit, content, false, false) / 1000 * eraDefenseMultiplier(era, defendingUnit) / 1000;
+      * eraAttackMultiplier(era, unit, content, false, false) / 1000 * eraDefenseMultiplier(era, defendingUnit) / 1000
+      * viewZealotMultiplier(view, unit.position) / 1000;
     min = unitDamage(unit, defendingUnit, from, to, techs.includes('typeResearch'), 85, false, content, attackMultiplier, Boolean(view.expansion), flank, side, teraTypes(era, defendingUnit.id));
     max = unitDamage(unit, defendingUnit, from, to, techs.includes('typeResearch'), 100, false, content, attackMultiplier, Boolean(view.expansion), flank, side, teraTypes(era, defendingUnit.id));
     canCounter = defendingUnit.kind === 'pokemon' && distance <= content.species[defendingUnit.speciesId].range;

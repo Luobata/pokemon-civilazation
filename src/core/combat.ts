@@ -15,6 +15,7 @@ import { cityAssaultMultiplier } from './role-tactics.ts';
 import { flankBonus } from './tactics.ts';
 import { playerPolicyEffects } from './policies.ts';
 import { clearGym, homeDefenseMultiplier, usesEssences } from './essences.ts';
+import { zealotMultiplier } from './faith-legends.ts';
 import { combatContext, consumeZMove, eraAttackMultiplier, eraDefenseMultiplier, teraTypes } from './era-abilities.ts';
 import { captureProbability, dualEffectiveness, effectiveness } from './combat-math.ts';
 import { randomBelow } from './rng.ts';
@@ -83,7 +84,8 @@ function unitStrike(state: GameState, attacker: MapUnit, defender: MapUnit, coun
     counter ? 0 : flankBonus(state.setup, attacker, defender, Object.values(state.units).filter(isMapUnit)),
     mistyWaterMultiplier(state, attacker.ownerId, attacker, content)
       * homeDefenseMultiplier(usesEssences(state), defender, state.map.tiles[hexToIndex(defender.position, state.map)!], content) / 1000
-      * eraAttackMultiplier(era, attacker, content, false, counter) / 1000 * eraDefenseMultiplier(era, defender) / 1000,
+      * eraAttackMultiplier(era, attacker, content, false, counter) / 1000 * eraDefenseMultiplier(era, defender) / 1000
+      * (counter ? 1000 : zealotMultiplier(state, attacker.ownerId, attacker.position)) / 1000,
     teraTypes(era, defender.id));
   if (!counter) consumeZMove(state, attacker.id);
   attacker.enraged = false;

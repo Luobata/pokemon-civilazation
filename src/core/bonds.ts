@@ -1,3 +1,4 @@
+import { faithBond, faithKeepsCity } from './faith-legends.ts';
 import { rareBerryBond } from './rare-berries.ts';
 import { gameplayAtLeast } from '../content/eras.ts';
 import { hexDistance } from './hex.ts';
@@ -47,6 +48,8 @@ export function bondPressure(state: GameState, city: CityState): BondBreakdown {
   if (Object.values(state.units).some(unit => isMapUnit(unit) && unit.ownerId === owner && unit.kind === 'pokemon' && hexDistance(unit.position, city.position) <= 1)) {
     parts.push({ label: '驻军', value: BOND_RULES.garrison });
   }
+  const legend = faithBond(state, city.id);
+  if (legend) parts.push({ label: '烈空坐信仰', value: legend });
   const luxury = rareBerryBond(state, owner);
   if (luxury) parts.push({ label: '稀有树果', value: luxury });
   const foreign = Object.values(state.cities).filter(other => other.ownerId !== null && other.ownerId !== owner && hexDistance(other.position, city.position) <= BOND_RULES.foreignRange).length;
@@ -66,7 +69,7 @@ export function resolveBondRound(state: GameState): EventPayload[] {
     const after = Math.max(0, Math.min(BOND_RULES.max, before + total));
     bonds[city.id] = after;
     if (after !== before) events.push({ type: 'CityBondChanged', playerId: owner, cityId: city.id, bond: after, delta: after - before });
-    if (after <= BOND_RULES.defectAt && state.players[owner].headquartersCityId !== city.id) {
+    if (after <= BOND_RULES.defectAt && state.players[owner].headquartersCityId !== city.id && !faithKeepsCity(state, city)) {
       city.ownerId = null; city.workedTileIds = []; city.lockedTileIds = []; city.queue = []; city.pendingDeployments = [];
       for (const unit of Object.values(state.units)) if (unit.location === 'recovering' && unit.cityId === city.id) delete state.units[unit.id];
       if (state.expansion?.essences) delete state.expansion.essences.gyms[city.id];

@@ -29,6 +29,7 @@ import { planEraAbilityAction } from './era-ability-plan.ts';
 import { planBondAction, threatenedCityIds } from './bond-plan.ts';
 import { planRareBerryAction, siteRareBerryBonus } from './rare-berry-plan.ts';
 import { planContestAction } from './contest-plan.ts';
+import { planFaithAction } from './faith-plan.ts';
 import type { Goal } from './strategies.ts';
 type Candidate = { action: Command['action']; goal: Goal; benefit: number; ownId: number; targetId: number };
 export const CANDIDATE_BUDGET = 256; // 32 representatives for each of eight goals, never a time budget.
@@ -100,6 +101,8 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
   if (berryAction) return result(berryAction);
   const contestAction = planContestAction(view);
   if (contestAction) return result(contestAction);
+  const faithAction = planFaithAction(view);
+  if (faithAction) return result(faithAction);
   const threatened = new Set(threatenedCityIds(view));
   const leaderAction = planLeaderAction(view, content);
   if (leaderAction) return result(leaderAction);
