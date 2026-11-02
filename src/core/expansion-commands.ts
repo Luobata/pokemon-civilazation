@@ -33,6 +33,7 @@ export function expansionActionFields(content: Content = EXPANSION_CONTENT): Rec
   Terastallize: { unitId: 'id', typeId: Object.keys(TYPE_ESSENCE) },
   ReclaimCity: { cityId: 'id' },
   GiftBerry: { targetPlayerId: 'id', berry: RARE_BERRY_IDS },
+  BuildContestHall: { cityId: 'id' }, HoldContest: {},
   };
 }
 export const EXPANSION_ACTION_FIELDS: Record<ExpansionAction['type'], Fields> = expansionActionFields();

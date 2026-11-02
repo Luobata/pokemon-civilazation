@@ -1,3 +1,4 @@
+import { observeContests } from './contests.ts';
 import { observeRareBerries } from './rare-berries.ts';
 import { observeBonds } from './bonds.ts';
 import { observeEraAbilities } from './era-abilities.ts';
@@ -108,6 +109,7 @@ export function observe(state: GameState, playerId: number, content: Content = s
       ...(state.expansion.policies ? { policies: observePolicies(state, playerId) } : {}),
       ...(state.expansion.essences ? { essences: observeEssences(state, playerId) } : {}),
       ...(state.expansion.bonds ? { bonds: observeBonds(state, playerId) } : {}),
+      ...(state.expansion.contests ? { contests: observeContests(state, playerId, content) } : {}),
       ...(state.expansion.rareBerries ? { rareBerries: observeRareBerries(state, playerId, visible) } : {}),
       ...(state.expansion.eraAbilities ? { eraAbilities: observeEraAbilities(state, playerId, visible, hex => hexToIndex(hex, state.map)) } : {}) } } : {}),
     ...(state.setup.eraProgression ? { eraProgression: state.setup.eraProgression } : {}),

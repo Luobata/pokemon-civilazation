@@ -8,6 +8,7 @@ import type { EssenceAction, EssenceEvent, EssenceState, EssenceView } from './e
 import type { EraAbilityAction, EraAbilityEvent, EraAbilityState, EraAbilityView } from './era-abilities.ts';
 import type { BondAction, BondBreakdown, BondEvent, BondState } from './bonds.ts';
 import type { RareBerryAction, RareBerryEvent, RareBerryState, RareBerryView } from './rare-berries.ts';
+import type { ContestAction, ContestEvent, ContestState, ContestView } from './contests.ts';
 import type { TechId } from '../content/economy.ts';
 
 /** Opt-in rules pack. Absence preserves the legacy m5-v1 game and replay. */
@@ -30,7 +31,9 @@ export type ExpansionState = {
   bonds?: BondState;
   /** gameplayVersion >= 7 only. */
   rareBerries?: RareBerryState;
+  /** gameplayVersion >= 8 only. */
+  contests?: ContestState;
 };
-export type ExpansionView = { version: 1; world: WorldView; civilization: CivilizationView; leaders: LeaderSystemsView; improvements?: ImprovementView; discoveries?: TechId[]; policies?: PolicyView; essences?: EssenceView; eraAbilities?: EraAbilityView; bonds?: Record<number, { bond: number; pressure: BondBreakdown }>; rareBerries?: RareBerryView };
-export type ExpansionAction = WorldAction | CivilizationAction | LeaderAction | ImprovementAction | PolicyAction | EssenceAction | EraAbilityAction | BondAction | RareBerryAction;
-export type ExpansionEvent = WorldEvent | CivilizationEvent | LeaderEvent | ImprovementEvent | DiscoveryEvent | PolicyEvent | EssenceEvent | EraAbilityEvent | BondEvent | RareBerryEvent;
+export type ExpansionView = { version: 1; world: WorldView; civilization: CivilizationView; leaders: LeaderSystemsView; improvements?: ImprovementView; discoveries?: TechId[]; policies?: PolicyView; essences?: EssenceView; eraAbilities?: EraAbilityView; bonds?: Record<number, { bond: number; pressure: BondBreakdown }>; rareBerries?: RareBerryView; contests?: ContestView };
+export type ExpansionAction = WorldAction | CivilizationAction | LeaderAction | ImprovementAction | PolicyAction | EssenceAction | EraAbilityAction | BondAction | RareBerryAction | ContestAction;
+export type ExpansionEvent = WorldEvent | CivilizationEvent | LeaderEvent | ImprovementEvent | DiscoveryEvent | PolicyEvent | EssenceEvent | EraAbilityEvent | BondEvent | RareBerryEvent | ContestEvent;

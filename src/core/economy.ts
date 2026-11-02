@@ -1,3 +1,4 @@
+import { productionAfterHall } from './contests.ts';
 import { essenceTrainingBonus, gymTrainedXp } from './essences.ts';
 import { leaderEffects } from '../content/leaders.ts';
 import { doctrineEffects } from './leader-doctrines.ts';
@@ -61,7 +62,7 @@ export function resolveEconomy(state: GameState, content: Content = state.setup.
     const order = city.queue[0];
     if (!order) continue;
     consumeCivilizationProduction(state, city.id);
-    order.progress += output.get(city.id)!.production + essenceTrainingBonus(state, city, content, events as never);
+    order.progress += productionAfterHall(state, city, output.get(city.id)!.production) + essenceTrainingBonus(state, city, content, events as never);
     const cost = productionCost(order.item, content, playerPolicyEffects(state, city.ownerId).trainingDiscountPercent, leaderEffects(state.players[city.ownerId].leaderId).settlerDiscountPercent);
     if (order.progress < cost) continue;
     if (order.item.kind === 'logistics') state.players[city.ownerId].lastSettlerProducedRound = state.round;

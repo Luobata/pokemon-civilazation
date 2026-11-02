@@ -734,6 +734,16 @@ export const AUDIT_SYSTEMS: readonly AuditSystem[] = [
     sources: ["src/content/rare-berries.ts", "src/core/rare-berries.ts", "src/ai/rare-berry-plan.ts", "tests/core/rare-berries.test.ts"],
     actionTypes: ["GiftBerry", "EndTurn"],
   }),
+  system({
+    id: "s39-contests",
+    name: "华丽大赛（文化胜利）",
+    status: "implemented",
+    summary: "时代玩法 v8：建造华丽大赛馆积累人气，人气领先所有对手到一定倍数时获得华丽大赛胜利。",
+    rules: ["开建大赛馆花 20 金，之后该城每轮一半生产投入，累计 50 完工；城市易主则工程与大赛馆失效。", "每轮人气 = 每座馆 2 + min(已登记物种 + 稀有物种×2 + 稀有树果种类 + 属性道馆, 馆数×10)。", "举办华丽大赛：30 金币，人气 + 馆数×3，冷却 6 轮。", "人气 ≥ 500 且为每个存活对手的 1.5 倍时获胜（轮末结算，只有一名满足条件时成立）。"],
+    checks: ["核对正式命令、成本、所有权、轮次与当前派生状态。", "验证观察隔离、事务拒绝、确定性和存档重放。"],
+    sources: ["src/core/contests.ts", "src/ai/contest-plan.ts", "src/browser/expansion-panel.ts", "tests/core/contests.test.ts"],
+    actionTypes: ["BuildContestHall", "HoldContest", "EndTurn"],
+  }),
 ];
 
 export const AUDIT_SYSTEM_BY_ID: ReadonlyMap<string, AuditSystem> = new Map(AUDIT_SYSTEMS.map(item => [item.id, item]));

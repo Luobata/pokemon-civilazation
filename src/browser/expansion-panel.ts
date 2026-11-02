@@ -1,3 +1,4 @@
+import { CONTEST_RULES } from '../core/contests.ts';
 import { RARE_BERRIES, RARE_BERRY_IDS, RARE_BERRY_RULES } from '../content/rare-berries.ts';
 import type { Command, PlayerView } from '../core/model.ts';
 import { LEADER_KITS } from '../core/leader-systems.ts';
@@ -53,6 +54,15 @@ export function renderExpansionPanel(view: PlayerView, selectedUnitId: number | 
       + (partners.length ? `<p>多余的一份可以赠送给贸易伙伴：信任 +${RARE_BERRY_RULES.giftTrust}，自己获得 ${RARE_BERRY_RULES.giftGold} 金币，同一伙伴每 ${RARE_BERRY_RULES.giftCooldown} 轮一次。</p>`
         + partners.map(relation => RARE_BERRY_IDS.filter(id => rare.owned[id] >= 2).map(id => button(`赠送${RARE_BERRIES[id].name}给文明 ${relation.targetPlayerId + 1}`, { type: 'GiftBerry', targetPlayerId: relation.targetPlayerId, berry: id })).join('')).join('')
         : '<p>与其他文明缔结贸易后，可以赠送多余的稀有树果。</p>'));
+  }
+  const contest = exp.contests;
+  if (contest) {
+    const leader = [...contest.rivals].sort((a, b) => b.appeal - a.appeal)[0];
+    html += card('s39-contests', `华丽大赛 · 人气 ${contest.own.appeal}/${contest.target}`, `<p>华丽大赛馆每轮产出人气：每座馆 +${CONTEST_RULES.perHall}，再按已登记物种、稀有物种、稀有树果种类和属性道馆加成（每座馆最多 +${CONTEST_RULES.hallCap}）。人气达到 ${CONTEST_RULES.minimum} 且为每个对手的 ${CONTEST_RULES.winRatio} 倍时获得华丽大赛胜利。</p>`
+      + `<p>当前每轮 +${contest.own.perRound} · 大赛馆 ${contest.own.halls.length} 座${Object.keys(contest.own.building).length ? ` · 建造中 ${Object.entries(contest.own.building).map(([id, progress]) => `城市 ${id} ${progress}/${CONTEST_RULES.hallCost}`).join('、')}` : ''}${leader ? ` · 最高对手：文明 ${leader.playerId + 1} ${leader.appeal}` : ''}</p>`
+      + (city ? button(`在城市 #${city.id} 建造大赛馆 · ${CONTEST_RULES.hallGold} 金`, { type: 'BuildContestHall', cityId: city.id }, player.gold >= CONTEST_RULES.hallGold && !contest.own.halls.includes(city.id) && contest.own.building[city.id] === undefined) : '')
+      + button(`举办华丽大赛 · ${CONTEST_RULES.showGold} 金（+${contest.own.halls.length * CONTEST_RULES.showPerHall} 人气）`, { type: 'HoldContest' }, contest.own.halls.length > 0 && player.gold >= CONTEST_RULES.showGold && view.round >= contest.own.showReadyAtRound)
+      + `<p>建造期间该城每轮一半生产投入大赛馆，共需 ${CONTEST_RULES.hallCost}；举办大赛冷却 ${CONTEST_RULES.showCooldown} 轮。</p>`);
   }
   const civ = exp.civilization, faith = civ.player;
   html += card('s23-faith', '供奉与传奇训练家', `<p>供奉点 ${faith.offeringPoints} · 下次召唤 ${faith.nextPhantomCost}。控制圣所后，每城每轮可用 10 食物或 20 金币换 5 点。</p>`
