@@ -32,7 +32,9 @@ import type { StarterId } from '../content/units.ts';
 import type { BallId } from '../content/economy.ts';
 import { LEADER_IDS } from '../content/leaders.ts';
 import { speciesDisplay } from '../content/species.ts';
-import { hexToIndex, indexToHex } from '../core/hex.ts';
+import { renderVictoryPanel } from './victory-panel.ts';
+import { hexDistance, hexToIndex, indexToHex } from '../core/hex.ts';
+import { previewAttack } from '../core/preview.ts';
 import { reachablePaths } from '../core/movement.ts';
 import type { PlayerView, VisibleEvent } from '../core/model.ts';
 import { BIOME_DISPLAY, FACTION_LEGEND, drawMap } from './canvas.ts';
@@ -51,6 +53,7 @@ const god = document.querySelector<HTMLInputElement>('#god')!;
 const starter = document.querySelector<HTMLSelectElement>('#starter')!;
 const sequence = document.querySelector<HTMLInputElement>('#sequence')!;
 const endTurn = document.querySelector<HTMLButtonElement>('#end-turn')!;
+const floatEndTurn = document.querySelector<HTMLButtonElement>('#end-turn-float')!;
 document.querySelector<HTMLAnchorElement>('#open-audit')!.addEventListener('click', event => {
   event.preventDefault();
   try {
@@ -91,7 +94,9 @@ let selected: number | null = null;
 let selectedCity: number | null = null;
 let neutralCity: CitySummary | null = null;
 let keyboardIndex: number | null = null;
-const activityLog: string[] = [];
+type ActivityEntry = { text: string; round: number; routine: boolean };
+const activityLog: ActivityEntry[] = [];
+let activityImportantOnly = false;
 let actionMode: ActionMode = null;
 let pendingTarget: PendingTarget | null = null;
 let selectedBall: BallId = 'pokeBall';
@@ -114,11 +119,13 @@ function summary(payload: VisibleEvent['payload']) {
     default: return '';
   }
 }
-export function battleActivityText(payload: BattlePayload, view: PlayerView): string {
+/** Labels of units seen earlier, so a unit removed by the battle (e.g. a defeated settler) still has a name. */
+const knownUnitLabels = new Map<number, string>();
+export function battleActivityText(payload: BattlePayload, view: PlayerView, known: ReadonlyMap<number, string> = knownUnitLabels): string {
   const CONTENT = view.expansion ? EXPANSION_CONTENT : BASE_CONTENT;
   const unitLabel = (id: number) => {
-    const unit = view.units.find(candidate => candidate.id === id);
-    if (!unit) return '未知单位';
+    const unit = view.units.find(candidate => candidate.id === id) ?? view.recoveringUnits.find(candidate => candidate.id === id && candidate.ownerId === view.playerId);
+    if (!unit) return known.get(id) ?? '未知单位';
     const name = unitDefinition(unit, CONTENT).name;
     return unit.ownerId === null ? `野生 ${name}` : `文明 ${unit.ownerId + 1} 的 ${name}`;
   };
@@ -127,7 +134,10 @@ export function battleActivityText(payload: BattlePayload, view: PlayerView): st
     if (!city) return '未知城市';
     return city.ownerId === null ? `中立营地 ${city.id}` : `文明 ${city.ownerId + 1} 的 城市 ${city.id}`;
   })();
-  return `${unitLabel(payload.attackerId)} 攻击了 ${targetLabel}：${payload.damage} 伤害${payload.counterDamage ? `，反击 ${payload.counterDamage}` : ''}`;
+  const ownDown = payload.knockedDownUnitIds.some(id => view.recoveringUnits.some(unit => unit.id === id && unit.ownerId === view.playerId));
+  const ownLost = payload.target.kind === 'unit' && !view.units.some(unit => unit.id === payload.target.id) && !view.recoveringUnits.some(unit => unit.id === payload.target.id)
+    && known.get(payload.target.id)?.startsWith(`文明 ${view.playerId + 1} 的`);
+  return `${unitLabel(payload.attackerId)} 攻击了 ${targetLabel}：${payload.damage} 伤害${payload.counterDamage ? `，反击 ${payload.counterDamage}` : ''}${ownDown ? '（己方单位被击倒，回城休养）' : ownLost ? '（己方单位被击败）' : ''}`;
 }
 function activityText(payload: VisibleEvent['payload']) {
   switch (payload.type) {
@@ -159,9 +169,9 @@ function activityText(payload: VisibleEvent['payload']) {
 }
 function recordActivity(payload: VisibleEvent['payload']) {
   const text = activityText(payload);
-  if (!text || activityLog[0] === text) return;
-  activityLog.unshift(text);
-  activityLog.splice(6);
+  if (!text || activityLog[0]?.text === text) return;
+  activityLog.unshift({ text, round: session.getView().round, routine: payload.type === 'TurnChanged' || payload.type === 'Moved' });
+  activityLog.splice(40);
 }
 function controls() {
   const view = session.getView();
@@ -171,6 +181,7 @@ function controls() {
     selected = null; resetAction();
   }
   if (selectedCity !== null && !view.economy.cities.some(city => city.id === selectedCity)) selectedCity = null;
+  for (const unit of view.units) knownUnitLabels.set(unit.id, `${unit.ownerId === null ? '野生 ' : `文明 ${unit.ownerId + 1} 的 `}${unitDefinition(unit, CONTENT).name}`);
   const { player } = view.economy;
   const yields = view.economy.cities.reduce((sum, city) => ({
     gold: sum.gold + city.yields.gold,
@@ -192,9 +203,9 @@ function controls() {
   selection.textContent = unit ? `${unitDefinition(unit, CONTENT).name} · 行动点 ${unit.actionLeft} · ${unit.actionLeft ? '点击高亮格直接移动，或右键移动' : '本回合已行动'}`
     : selectedCity !== null ? `已选城市 ${selectedCity} · 在城市面板建造、训练或采购`
     : '点选城市管理生产，点选单位执行行动；拖动地图平移，滚轮缩放。';
-  actionNotice.textContent = notice || (pendingPeace ? '请先回应停战提议。' : actionMode === 'attack' ? '攻击模式：选择红色虚线目标，再确认攻击。'
+  actionNotice.textContent = notice || (pendingPeace ? '请先回应停战提议。' : actionMode === 'attack' ? (actionTargets(view).length ? `攻击模式：${actionTargets(view).length} 个可攻击目标（红色虚线），选中后确认攻击。Esc 取消。` : '攻击模式：射程内没有可攻击的目标（和平中的文明不能攻击）。Esc 取消。')
     : actionMode === 'move' ? '移动模式：点击高亮格移动，包括己方城市。Esc 取消。'
-    : actionMode === 'capture' ? '捕捉模式：选择野生宝可梦，再确认捕捉。' : ended ? '对局已结束，可开始新局。' : '');
+    : actionMode === 'capture' ? (actionTargets(view).length ? '捕捉模式：选择相邻的野生宝可梦，再确认捕捉。' : '捕捉模式：相邻没有野生宝可梦，先移动到它旁边。Esc 取消。') : ended ? '对局已结束，可开始新局。' : '');
   actionNotice.classList.toggle('is-error', notice.includes('拒绝') || notice.includes('失败'));
   debug.textContent = `seed=${view.seed} round=${view.round} activePlayer=${view.activePlayerId} commandSeq=${view.commandSeq}\n最近拒绝：${driver.lastRejected ? JSON.stringify(driver.lastRejected) : '无'}${notice ? '\n' + notice : ''}`;
   sequence.max = String(driver.exportLog().commands.length);
@@ -202,6 +213,7 @@ function controls() {
   document.querySelector<HTMLElement>('#era-panel')!.innerHTML = renderEraPanel(view);
   renderPolicyPanel(view, issue, busy() || ended || pendingPeace);
   renderLeaderPanel(view);
+  renderVictoryPanel(view);
   renderExpansionPanel(view, selected, selectedCity, issue, busy() || ended || pendingPeace);
   document.querySelector<HTMLElement>('#selection-empty')!.hidden = selected !== null || selectedCity !== null || neutralCity !== null;
   renderUnitPanel(view, selected, actionMode, pendingTarget, selectedBall, busy() || ended || pendingPeace, {
@@ -219,7 +231,10 @@ function controls() {
   renderNeutralPanel(view, neutralCity, issue, busy() || ended || pendingPeace);
   renderDiplomacyPanel(view, busy() || ended, issue);
   renderOutcome(view, newGame);
-  document.querySelector('#activity-list')!.innerHTML = activityLog.length ? activityLog.map(text => `<li>${text}</li>`).join('') : '<li>暂无动态</li>';
+  const shown = activityLog.filter(entry => !activityImportantOnly || !entry.routine);
+  document.querySelector('#activity-list')!.innerHTML = shown.length ? shown.map((entry, index) =>
+    `${index === 0 || shown[index - 1].round !== entry.round ? `<li class="activity-round" aria-hidden="true">第 ${entry.round} 轮</li>` : ''}<li class="${entry.routine ? 'routine' : 'important'}">${entry.text}</li>`).join('')
+    : `<li>${activityLog.length ? '本段时间没有重要事件' : '暂无动态'}</li>`;
   if (busy() || ended || pendingPeace) for (const element of document.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLSelectElement>('#economy button, #economy input, #economy select')) element.disabled = true;
   for (const element of document.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLSelectElement>('#controls button, #controls input, #controls select, #dev-drawer button, #dev-drawer input, #skip')) {
     const newGameSetting = element.matches('#leader-setup input, #starter, #map-size, #round-limit, #ai-count, #ai-personality, #era-progression');
@@ -228,13 +243,15 @@ function controls() {
       : element.id === 'new-game' || newGameSetting ? busy() || transition : busy() || ended || transition;
   }
   endTurn.disabled = busy() || ended || pendingPeace;
+  floatEndTurn.disabled = endTurn.disabled;
+  floatEndTurn.textContent = `第 ${view.round} 轮 · 结束回合 ›`;
   document.querySelector('#turn-reminders')!.innerHTML = ended ? '' : turnReminders(view, CONTENT).map(item => `<button type="button" data-reminder="${item.target}">${item.label}</button>`).join('');
   for (const button of document.querySelectorAll<HTMLButtonElement>('[data-reminder]')) button.onclick = () => {
     const kind = button.dataset.reminder!;
+    if (kind.startsWith('unit:')) { selectUnit(Number(kind.slice(5))); notice = '附近有野生或敌方宝可梦：让宝可梦护送，或先撤回城市。'; controls(); return; }
     if (kind === 'city' || kind === 'unit') { cycleIdle(kind); return; }
     const target = document.querySelector<HTMLElement>(kind);
-    if (target instanceof HTMLDetailsElement) target.open = true;
-    target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (target) revealPanel(target);
   };
 }
 
@@ -244,7 +261,8 @@ function cycleIdle(kind: 'city' | 'unit') {
   if (kind === 'city') {
     const ids = view.economy.cities.filter(city => city.queue.length === 0).map(city => city.id).sort((a, b) => a - b);
     selectCity(ids.find(id => id > (selectedCity ?? -1)) ?? ids[0] ?? null);
-    document.querySelector('#economy')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const economy = document.querySelector<HTMLElement>('#economy');
+    if (economy) revealPanel(economy);
   } else {
     const ids = view.units.filter(unit => unit.ownerId === view.playerId && unit.actionLeft).map(unit => unit.id).sort((a, b) => a - b);
     selectUnit(ids.find(id => id > (selected ?? -1)) ?? ids[0] ?? null);
@@ -259,6 +277,11 @@ function turnReminders(view: PlayerView, content: typeof EXPANSION_CONTENT): { l
   if (policies && policies.charterId === null && policies.adopted.length < Object.keys(CHARTERS).length) items.push({ label: '选择规章', target: '#policy-panel' });
   const shaky = Object.values(view.expansion?.bonds ?? {}).filter(info => info.bond < 30 && info.pressure.total < 0).length;
   if (shaky) items.push({ label: `${shaky} 城羁绊告急`, target: 'city' });
+  const exposed = view.units.filter(unit => unit.ownerId === view.playerId && unit.kind === 'logistics'
+    && !view.economy.cities.some(city => hexDistance(city.position, unit.position) === 0)
+    && view.units.some(other => other.kind === 'pokemon' && other.ownerId !== view.playerId && (other.ownerId === null || view.diplomacy.some(pair => pair.status === 'war' && (pair.a === other.ownerId || pair.b === other.ownerId) && (pair.a === view.playerId || pair.b === view.playerId))) && hexDistance(other.position, unit.position) <= 2)
+    && !view.units.some(guard => guard.ownerId === view.playerId && guard.kind === 'pokemon' && hexDistance(guard.position, unit.position) <= 1));
+  if (exposed.length) items.push({ label: `开拓队有危险`, target: `unit:${exposed[0].id}` });
   const idleCities = view.economy.cities.filter(city => city.queue.length === 0).length;
   if (idleCities) items.push({ label: `${idleCities} 城空闲`, target: 'city' });
   const idleUnits = view.units.filter(unit => unit.ownerId === view.playerId && unit.actionLeft).length;
@@ -350,10 +373,7 @@ function frame(now: number) {
   }
   const view = session.getView();
   const paths = selected === null ? {} : reachablePaths(view, selected);
-  const targets = actionMode === 'attack'
-    ? [...view.units.filter(unit => unit.ownerId !== view.playerId).map(unit => hexToIndex(unit.position, view.map)!),
-      ...view.cities.filter(city => city.ownerId !== view.playerId).map(city => hexToIndex(city.position, view.map)!)]
-    : actionMode === 'capture' ? view.units.filter(unit => unit.ownerId === null).map(unit => hexToIndex(unit.position, view.map)!) : [];
+  const targets = actionTargets(view).map(position => hexToIndex(position, view.map)!);
   const drawStarted = performance.now();
   drawMap(canvas, import.meta.env.DEV && god.checked ? developerAdapter.getDebugView() : view,
     camera, selected, Object.keys(paths).map(Number), pose, keyboardIndex, effect, actionMode, targets, pendingTarget?.index, selectedCity, import.meta.env.DEV ? document.querySelector<HTMLSelectElement>('#debug-overlay')!.value as import('./canvas.ts').DebugOverlay : 'none');
@@ -369,6 +389,15 @@ function frame(now: number) {
 }
 function skip() { finishPresentations(); controls(); requestFrame(); }
 function fit() { camera = fitCamera(session.getView().map, canvas.clientWidth, canvas.clientHeight); requestFrame(); }
+/** Targets the selected unit can act on right now, using the same previews as the confirmation panel. */
+function actionTargets(view: PlayerView): { q: number; r: number }[] {
+  if (selected === null || !actionMode || actionMode === 'move') return [];
+  if (actionMode === 'attack') return [
+    ...view.units.filter(unit => unit.ownerId !== view.playerId && previewAttack(view, selected!, { kind: 'unit', id: unit.id }).ok).map(unit => unit.position),
+    ...view.cities.filter(city => city.ownerId !== view.playerId && previewAttack(view, selected!, { kind: 'city', id: city.id }).ok).map(city => city.position)];
+  const own = view.units.find(unit => unit.id === selected);
+  return own ? view.units.filter(unit => unit.ownerId === null && unit.kind === 'pokemon' && hexDistance(unit.position, own.position) === 1).map(unit => unit.position) : [];
+}
 function resetAction() { actionMode = null; pendingTarget = null; }
 function clearSelection() {
   selected = null; selectedCity = null; neutralCity = null; keyboardIndex = null;
@@ -556,7 +585,10 @@ function load(text: string) {
   if (transitionBlocked()) return;
   driver.load(text); active = null; selected = null; selectedCity = session.getView().economy.cities[0]?.id ?? null; neutralCity = null; keyboardIndex = null; activityLog.length = 0; resetAction(); notice = '读档完成';
   frameDurations.length = 0;
-  fit(); skip();
+  fit();
+  const focusCity = session.getView().economy.cities.find(city => city.id === selectedCity);
+  if (focusCity) { focusHex(focusCity.position); keyboardIndex = null; }
+  skip();
 }
 function storageAction(action: () => void) {
   try { action(); } catch (error) { notice = error instanceof Error ? error.message : String(error); }
@@ -600,6 +632,39 @@ if (!import.meta.env.DEV) {
   frameMetricsElement.hidden = true;
 }
 new ResizeObserver(() => { if (session) requestFrame(); }).observe(canvas);
+const topbar = document.querySelector<HTMLElement>('.topbar')!;
+new IntersectionObserver(([entry]) => floatEndTurn.classList.toggle('is-visible', !entry.isIntersecting)).observe(endTurn);
+floatEndTurn.addEventListener('click', () => endTurn.click());
+new ResizeObserver(() => document.documentElement.style.setProperty('--topbar-h', `${topbar.offsetHeight}px`)).observe(topbar);
+const sideColumn = document.querySelector<HTMLElement>('.side-column')!;
+/** Jumps inside the side column (its own scroll container on desktop, the page on narrow screens). */
+function revealPanel(target: HTMLElement) {
+  if (target instanceof HTMLDetailsElement) target.open = true;
+  const nav = document.querySelector<HTMLElement>('#side-nav')!;
+  if (sideColumn.scrollHeight > sideColumn.clientHeight + 1 && sideColumn.contains(target)) {
+    sideColumn.scrollTo({ top: sideColumn.scrollTop + target.getBoundingClientRect().top - sideColumn.getBoundingClientRect().top - nav.offsetHeight - 8, behavior: 'smooth' });
+  } else target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  target.classList.remove('panel-flash'); void target.offsetWidth; target.classList.add('panel-flash');
+}
+/** Highlights the side-nav entry of the panel currently at the top of the side column. */
+function syncSideNav() {
+  const nav = document.querySelector<HTMLElement>('#side-nav')!, line = nav.getBoundingClientRect().bottom + 32;
+  let current: HTMLButtonElement | null = null;
+  for (const button of nav.querySelectorAll<HTMLButtonElement>('[data-nav]')) {
+    const panel = document.querySelector<HTMLElement>(button.dataset.nav!);
+    if (button.offsetParent !== null && panel && panel.offsetParent !== null && !button.classList.contains('nav-map') && panel.getBoundingClientRect().top <= line) current = button;
+  }
+  current ??= nav.querySelector<HTMLButtonElement>('[data-nav]:not(.nav-map)');
+  for (const button of nav.querySelectorAll<HTMLButtonElement>('[data-nav]')) button.setAttribute('aria-current', String(button === current));
+}
+sideColumn.addEventListener('scroll', syncSideNav, { passive: true });
+document.querySelector<HTMLInputElement>('#activity-important')!.addEventListener('change', event => { activityImportantOnly = (event.target as HTMLInputElement).checked; controls(); });
+window.addEventListener('scroll', syncSideNav, { passive: true });
+syncSideNav();
+for (const button of document.querySelectorAll<HTMLButtonElement>('[data-nav]')) button.addEventListener('click', () => {
+  const target = document.querySelector<HTMLElement>(button.dataset.nav!);
+  if (target) revealPanel(target);
+});
 for (const { label, color, symbol } of Object.values(BIOME_DISPLAY)) {
   const item = document.createElement('li'), swatch = document.createElement('span'), text = document.createElement('span');
   swatch.className = 'swatch'; swatch.style.backgroundColor = color;

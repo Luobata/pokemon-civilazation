@@ -102,13 +102,15 @@ test('battle activity uses civilization and species labels without revealing unk
       capturedCity: false, knockedDownUnitIds: [] };
     return {
       visible: battleActivityText(base, view),
-      unknownAttacker: battleActivityText({ ...base, attackerId: 999 }, view),
-      unknownTarget: battleActivityText({ ...base, target: { kind: 'unit', id: 999 } }, view),
+      unknownAttacker: battleActivityText({ ...base, attackerId: 999 }, view, new Map()),
+      unknownTarget: battleActivityText({ ...base, target: { kind: 'unit', id: 999 } }, view, new Map()),
+      lostSettler: battleActivityText({ ...base, attackerId: 13, target: { kind: 'unit', id: 999 } }, view, new Map([[999, '文明 1 的 开拓队']])),
     };
   });
   expect(labels.visible).toBe('文明 1 的 妙蛙种子 攻击了 野生 凯西：7 伤害，反击 3');
   expect(labels.unknownAttacker).toBe('未知单位 攻击了 野生 凯西：7 伤害，反击 3');
   expect(labels.unknownTarget).toBe('文明 1 的 妙蛙种子 攻击了 未知单位：7 伤害，反击 3');
+  expect(labels.lostSettler).toBe('野生 凯西 攻击了 文明 1 的 开拓队：7 伤害，反击 3（己方单位被击败）');
   expect(labels.unknownAttacker).not.toContain('妙蛙种子');
   expect(labels.unknownTarget).not.toContain('凯西');
 });
