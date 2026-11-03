@@ -4,7 +4,7 @@
 
 ## 版本与状态
 
-`GameplayVersion` 接受 10；`LATEST_GAMEPLAY_VERSION` 暂留 9（Hub 决定）。显式 v10 使用 schema 5 / rules `districts-v10`；旧版本保持 schema 4 / `m5-v1`。存档封套、命令日志、回放和联机房间均依据显式 setup，不静默升级。v≤9 不初始化 district 状态或生成 district AI 候选。
+`GameplayVersion` 接受 10；`LATEST_GAMEPLAY_VERSION` 已于 2026-11-03 升为 10（D-P3-0），新局默认 v10。显式 v10 使用 schema 5 / rules `districts-v10`；旧版本保持 schema 4 / `m5-v1`。存档封套、命令日志、回放和联机房间均依据显式 setup，不静默升级。v≤9 不初始化 district 状态或生成 district AI 候选。
 
 - `src/content/districts.ts`：`DISTRICTS`、字典序 `DISTRICT_IDS`、`DistrictId`，五类的名称、科技、地形、成本、基础与相邻规则。
 - `state.expansion.districts.tiles[tileIndex] = { cityId, kind, tileIndex, builtAtRound }`。

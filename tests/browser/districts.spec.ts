@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { districtUiFixture, foreignConstructionFixture } from './fixtures/districts-ui.ts';
+import { districtUiFixture, foreignConstructionFixture, v9SaveFixture } from './fixtures/districts-ui.ts';
 import type { Hex } from '../../src/core/hex.ts';
 
 const reports = process.env.E2E_SCREENSHOT_DIR ?? 'test-results/screenshots';
@@ -92,8 +92,10 @@ test('district invalid tile explains the reason without a confirmation command',
   await expect(page.locator('#confirm-district')).toHaveCount(0);
 });
 
-test('v9 has no district production entry or city section', async ({ page }) => {
+test('new games default to v10 districts; a loaded v9 save has no district entry or city section', async ({ page }) => {
   await page.goto('/?seed=1');
+  await expect(page.locator('[data-production-kind="district"]')).toHaveCount(1);
+  await importSave(page, v9SaveFixture().save);
   await expect(page.locator('[data-production-kind="district"]')).toHaveCount(0);
   await expect(page.locator('#city-districts')).toHaveCount(0);
 });

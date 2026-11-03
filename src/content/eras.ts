@@ -93,9 +93,10 @@ export function eraState(player: EraPlayer, mode?: EraProgression): EraState | n
  * 7: adds rare berries (luxuries): satisfaction, bond, festivals and trade gifts.
  * 8: adds Pokémon Contests: contest halls, appeal and the contest (culture) victory.
  * 9: adds legend faiths (religions): founding, tenets, spreading and the faith victory.
+ * 10: adds districts (specialised city tiles with adjacency) on top of v1–v9; new games default here.
  */
 export type GameplayVersion = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
-export const LATEST_GAMEPLAY_VERSION: GameplayVersion = 9;
+export const LATEST_GAMEPLAY_VERSION: GameplayVersion = 10;
 export function isGameplayVersion(value: unknown): value is GameplayVersion {
   return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 10;
 }

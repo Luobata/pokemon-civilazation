@@ -18,7 +18,7 @@ const system = (definition: AuditSystem): AuditSystem => definition;
 export const AUDIT_SYSTEMS: readonly AuditSystem[] = [
   system({
     id: 's-districts', name: '设施区与相邻加成', status: 'implemented',
-    summary: '显式 gameplay v10：五种设施区通过城市生产占格，v9 默认新局不变。',
+    summary: 'gameplay v10（新局默认）：五种设施区通过城市生产占格；读取 v≤9 存档时不启用。',
     rules: ['每城已完成与排队合计最多两个、同类一个；入队预订格子并释放己方劳动力。',
       '与改良、施工、稀有树果和城市中心互斥；不能占用含他国领地的格子。',
       '基础和分项相邻效果共享查询；完工次轮产出，中立停用，易主保留完工设施区并取消未完工订单。'],

@@ -56,6 +56,17 @@ export function districtUiFixture(scenario: DistrictUiScenario) {
   return { state, log, save: serializeSave(state, log), cityId, tileIndex: site.tileIndex };
 }
 
+/** A fresh explicit v9 save: new games default to v10, so v9 behaviour is only reachable by loading one. */
+export function v9SaveFixture() {
+  const setup: GameSetup = { seed: 1, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, multiplayer: true,
+    eraProgression: 'simple-v1', gameplayVersion: 9, players: [
+      { id: 0, controller: 'human', starterId: 'bulbasaur' }, { id: 1, controller: 'human', starterId: 'squirtle' },
+    ] };
+  const state = createGame(setup, EXPANSION_CONTENT);
+  const log: CommandLog = { version: 1, ...gameVersions(setup), contentVersion: state.contentVersion, setup, commands: [] };
+  return { state, log, save: serializeSave(state, log) };
+}
+
 export function foreignConstructionFixture(hidden = false) {
   const setup: GameSetup = { seed: 1, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, multiplayer: true,
     eraProgression: 'simple-v1', gameplayVersion: 10, players: [
