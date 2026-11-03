@@ -20,6 +20,7 @@ import { renderSelectionPanel } from './selection-panel.ts';
 import { renderResearchPanel } from './research-panel.ts';
 import { renderLeaderPanel, renderLeaderSetup, selectedLeaderId } from './leader-panel.ts';
 import { loadPokemonSprites } from './sprites.ts';
+import { closeScreen, installScreens, onScreenChange, openScreen, revealPanel } from './screens.ts';
 import { renderDiplomacyPanel, hasPendingPeace } from './diplomacy-panel.ts';
 import { renderOutcome } from './outcome-panel.ts';
 import { renderNeutralPanel } from './neutral-panel.ts';
@@ -57,7 +58,6 @@ const god = document.querySelector<HTMLInputElement>('#god')!;
 const starter = document.querySelector<HTMLSelectElement>('#starter')!;
 const sequence = document.querySelector<HTMLInputElement>('#sequence')!;
 const endTurn = document.querySelector<HTMLButtonElement>('#end-turn')!;
-const floatEndTurn = document.querySelector<HTMLButtonElement>('#end-turn-float')!;
 document.querySelector<HTMLAnchorElement>('#open-audit')!.addEventListener('click', event => {
   event.preventDefault();
   try {
@@ -256,8 +256,8 @@ function controls() {
       : element.id === 'new-game' || newGameSetting ? busy() || transition : busy() || ended || transition;
   }
   endTurn.disabled = busy() || ended || pendingPeace;
-  floatEndTurn.disabled = endTurn.disabled;
-  floatEndTurn.textContent = `第 ${view.round} 轮 · 结束回合 ›`;
+  endTurn.textContent = `第 ${view.round} 轮 · 结束回合 ›`;
+  document.querySelector('#context-drawer')!.classList.toggle('has-selection', selected !== null || selectedCity !== null || neutralCity !== null || districtPlacement !== null);
   document.querySelector('#turn-reminders')!.innerHTML = ended ? '' : turnReminders(view, CONTENT).map(item => `<button type="button" data-reminder="${item.target}">${item.label}</button>`).join('');
   for (const button of document.querySelectorAll<HTMLButtonElement>('[data-reminder]')) button.onclick = () => {
     const kind = button.dataset.reminder!;
@@ -423,7 +423,7 @@ function fit() { camera = fitCamera(session.getView().map, canvas.clientWidth, c
 function startDistrictPlacement(cityId: number, kind: DistrictId) {
   selected = null; selectedCity = cityId; neutralCity = null; resetAction();
   districtPlacement = { cityId, kind, tileIndex: null }; notice = '';
-  revealPanel(document.querySelector<HTMLElement>('.map-card')!); canvas.focus();
+  closeScreen(); canvas.focus();
   controls(); requestFrame();
 }
 function cancelDistrictPlacement() {
@@ -488,6 +488,7 @@ function newGame() {
     selectCity(selectedCity);
     // Opening camera focus should not change the first keyboard unit selection.
     keyboardIndex = null;
+    closeScreen();
   } catch (error) {
     canvas.hidden = true;
     info.textContent = `无法生成地图：${error instanceof Error ? error.message : String(error)}`;
@@ -626,7 +627,7 @@ document.querySelector('#resume')!.addEventListener('click', () => {
 const saveKey = 'pokemon-civilization-save';
 function load(text: string) {
   if (transitionBlocked()) return;
-  driver.load(text); active = null; selected = null; selectedCity = session.getView().economy.cities[0]?.id ?? null; neutralCity = null; keyboardIndex = null; activityLog.length = 0; knownUnitLabels.clear(); resetAction(); notice = '读档完成';
+  driver.load(text); closeScreen(); active = null; selected = null; selectedCity = session.getView().economy.cities[0]?.id ?? null; neutralCity = null; keyboardIndex = null; activityLog.length = 0; knownUnitLabels.clear(); resetAction(); notice = '读档完成';
   frameDurations.length = 0;
   fit();
   const focusCity = session.getView().economy.cities.find(city => city.id === selectedCity);
@@ -638,7 +639,7 @@ function storageAction(action: () => void) {
   controls();
 }
 document.querySelector('#save-game')!.addEventListener('click', () => storageAction(() => {
-  localStorage.setItem(saveKey, driver.save()); notice = '已保存到此浏览器';
+  localStorage.setItem(saveKey, driver.save()); notice = '已保存到此浏览器'; closeScreen();
 }));
 document.querySelector('#load-game')!.addEventListener('click', () => storageAction(() => {
   const text = localStorage.getItem(saveKey); if (!text) throw new Error('此浏览器暂无存档'); load(text);
@@ -663,11 +664,11 @@ document.addEventListener('keydown', event => {
     selectCity(session.getView().economy.cities[0]?.id ?? null);
     document.querySelector<HTMLElement>('#city-select')?.focus();
   } else if (event.key.toLowerCase() === 'y') { event.preventDefault(); showYields.checked = !showYields.checked; requestFrame(); }
-  else if (['r', 't'].includes(event.key.toLowerCase())) { event.preventDefault(); document.querySelector<HTMLElement>('#research-topic')?.focus(); }
+  else if (['r', 't'].includes(event.key.toLowerCase())) { event.preventDefault(); openScreen('research', '#research-topic'); }
   else if (event.key === '?') {
     event.preventDefault();
     const help = document.querySelector<HTMLDetailsElement>('#keyboard-help')!;
-    help.open = true; help.querySelector('summary')!.focus();
+    openScreen('menu'); help.open = true; help.querySelector('summary')!.focus();
   }
 });
 god.addEventListener('change', skip);
@@ -677,39 +678,10 @@ if (!import.meta.env.DEV) {
   frameMetricsElement.hidden = true;
 }
 new ResizeObserver(() => { if (session) requestFrame(); }).observe(canvas);
-const topbar = document.querySelector<HTMLElement>('.topbar')!;
-new IntersectionObserver(([entry]) => floatEndTurn.classList.toggle('is-visible', !entry.isIntersecting)).observe(endTurn);
-floatEndTurn.addEventListener('click', () => endTurn.click());
-new ResizeObserver(() => document.documentElement.style.setProperty('--topbar-h', `${topbar.offsetHeight}px`)).observe(topbar);
-const sideColumn = document.querySelector<HTMLElement>('.side-column')!;
-/** Jumps inside the side column (its own scroll container on desktop, the page on narrow screens). */
-function revealPanel(target: HTMLElement) {
-  if (target instanceof HTMLDetailsElement) target.open = true;
-  const nav = document.querySelector<HTMLElement>('#side-nav')!;
-  if (sideColumn.scrollHeight > sideColumn.clientHeight + 1 && sideColumn.contains(target)) {
-    sideColumn.scrollTo({ top: sideColumn.scrollTop + target.getBoundingClientRect().top - sideColumn.getBoundingClientRect().top - nav.offsetHeight - 8, behavior: 'smooth' });
-  } else target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  target.classList.remove('panel-flash'); void target.offsetWidth; target.classList.add('panel-flash');
-}
-/** Highlights the side-nav entry of the panel currently at the top of the side column. */
-function syncSideNav() {
-  const nav = document.querySelector<HTMLElement>('#side-nav')!, line = nav.getBoundingClientRect().bottom + 32;
-  let current: HTMLButtonElement | null = null;
-  for (const button of nav.querySelectorAll<HTMLButtonElement>('[data-nav]')) {
-    const panel = document.querySelector<HTMLElement>(button.dataset.nav!);
-    if (button.offsetParent !== null && panel && panel.offsetParent !== null && !button.classList.contains('nav-map') && panel.getBoundingClientRect().top <= line) current = button;
-  }
-  current ??= nav.querySelector<HTMLButtonElement>('[data-nav]:not(.nav-map)');
-  for (const button of nav.querySelectorAll<HTMLButtonElement>('[data-nav]')) button.setAttribute('aria-current', String(button === current));
-}
-sideColumn.addEventListener('scroll', syncSideNav, { passive: true });
+installScreens();
+// The map fills the stage; redraw when a screen closes so the canvas picks up any resize.
+onScreenChange(screen => { if (screen === null && session) requestFrame(); });
 document.querySelector<HTMLInputElement>('#activity-important')!.addEventListener('change', event => { activityImportantOnly = (event.target as HTMLInputElement).checked; controls(); });
-window.addEventListener('scroll', syncSideNav, { passive: true });
-syncSideNav();
-for (const button of document.querySelectorAll<HTMLButtonElement>('[data-nav]')) button.addEventListener('click', () => {
-  const target = document.querySelector<HTMLElement>(button.dataset.nav!);
-  if (target) revealPanel(target);
-});
 for (const { label, color, symbol } of Object.values(BIOME_DISPLAY)) {
   const item = document.createElement('li'), swatch = document.createElement('span'), text = document.createElement('span');
   swatch.className = 'swatch'; swatch.style.backgroundColor = color;

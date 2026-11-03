@@ -7,6 +7,7 @@ import { replay } from '../../src/app/session.ts';
 import { serializeSave } from '../../src/app/save.ts';
 import { isMapUnit } from '../../src/core/model.ts';
 import type { Hex } from '../../src/core/hex.ts';
+import { openScreen, closeScreen } from './ui.ts';
 
 const reports = process.env.E2E_SCREENSHOT_DIR ?? 'test-results/screenshots';
 const widths = [1280, 768, 390] as const;
@@ -69,19 +70,20 @@ for (const width of widths) {
     await page.goto('/?seed=12345');
     await page.locator('#animate').uncheck();
     await expect(page.locator('#victory-panel [data-victory]')).toHaveCount(6);
+    await openScreen(page, 'victory');
+    await expect(page.locator('[data-open-screen="victory"]')).toHaveAttribute('aria-expanded', 'true');
     await page.locator('#victory-panel summary').click();
-    await page.locator('[data-nav="#victory-panel"]').click();
-    await expect.poll(async () => page.locator('[data-nav="#victory-panel"]').getAttribute('aria-current')).toBe('true');
     await screenshot(page, `p3-ui-overview-${width}`);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#screen-host')).toBeHidden();
+    await expect(page.locator('[data-open-screen="victory"]')).toHaveAttribute('aria-expanded', 'false');
 
-    if (width < 981) {
-      await expect(page.locator('.nav-map')).toBeVisible();
-      await page.locator('.nav-map').click();
-      await expect.poll(async () => page.locator('.map-card').evaluate(element => element.getBoundingClientRect().top)).toBeLessThan(100);
+    if (width < 861) {
+      // Narrow screens scroll the page; the end-turn button stays pinned in view.
       await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-      await expect(page.locator('#end-turn-float')).toBeVisible();
+      await expect(page.locator('#end-turn')).toBeInViewport();
       await screenshot(page, `p3-ui-float-${width}`);
-      await page.locator('#end-turn-float').click();
+      await page.locator('#end-turn').click();
       await expect(page.locator('#map-info')).toContainText('第 2 轮 · 当前文明 1');
     }
 
@@ -107,8 +109,10 @@ for (const width of widths) {
     await expect(page.locator('#action-notice')).toContainText('攻击结算');
     await page.locator('#end-turn').click();
     await expect(page.locator('#map-info')).toContainText(`第 ${attack.state.round + 1} 轮 · 当前文明 1`);
+    await openScreen(page, 'log');
     await page.locator('#activity-panel').scrollIntoViewIfNeeded();
     expect(await page.locator('#activity-list .activity-round').count()).toBeGreaterThan(0);
+    await openScreen(page, 'log');
     await page.locator('#activity-important').check();
     await expect(page.locator('#activity-list .routine')).toHaveCount(0);
     await expect(page.locator('#activity-list .important')).not.toHaveCount(0);
@@ -118,6 +122,7 @@ for (const width of widths) {
     if (capture.action?.type !== 'Capture') throw new Error('Expected capture');
     const captureTarget = capture.state.units[capture.action.targetUnitId];
     if (!isMapUnit(captureTarget)) throw new Error('Expected a deployed capture target');
+    await closeScreen(page);
     await page.locator('#capture-unit').click();
     await expect(page.locator('#action-notice')).toContainText('捕捉模式：选择相邻的野生宝可梦，再确认捕捉');
     await clickHex(page, captureTarget.position);

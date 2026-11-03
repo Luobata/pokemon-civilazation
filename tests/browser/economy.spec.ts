@@ -10,6 +10,7 @@ import type { GameState } from '../../src/core/model.ts';
 import { canonicalSerialize, stateDigest } from '../../src/core/snapshot.ts';
 import { deserializeSave } from '../../src/app/save.ts';
 import { GameSession } from '../../src/app/session.ts';
+import { openScreen, closeScreen } from './ui.ts';
 
 const reports = process.env.E2E_SCREENSHOT_DIR ?? 'test-results/screenshots';
 
@@ -85,15 +86,21 @@ test('found city, finish production, save/load JSON and continue identically in 
     const id = await checkedWork.first().getAttribute('data-work');
     await page.locator(`[data-work="${id}"]`).uncheck();
   }
+  await openScreen(page, 'research');
   await page.locator('#research-topic').selectOption('domestication'); await page.locator('#set-research').click();
+  await openScreen(page, 'menu');
   await page.locator('#save-game').click(); const saved = await state(page);
+  await openScreen(page, 'menu');
   const downloadPromise = page.waitForEvent('download'); await page.locator('#export-save').click();
   const download = await downloadPromise, text = await readFile((await download.path())!, 'utf8');
   expect(canonicalSerialize(deserializeSave(text).state)).toBe(canonicalSerialize(saved));
   const node = new GameSession(saved.setup); node.load(text);
+  await closeScreen(page);
   for (let i = 0; i < 3; i++) { await page.locator('#end-turn').click(); node.issue({ type: 'EndTurn' }); }
   const uninterrupted = await state(page); expect(stateDigest(node.getState())).toBe(stateDigest(uninterrupted));
+  await openScreen(page, 'menu');
   await page.locator('#load-game').click(); expect(canonicalSerialize(await state(page))).toBe(canonicalSerialize(saved));
+  await closeScreen(page);
   for (let i = 0; i < 3; i++) await page.locator('#end-turn').click();
   expect(canonicalSerialize(await state(page))).toBe(canonicalSerialize(uninterrupted));
   await page.locator('#import-save').setInputFiles({ name: 'saved.json', mimeType: 'application/json', buffer: Buffer.from(text) });
@@ -118,7 +125,9 @@ test('work locking, queue reorder/cancel, purchases and version refusal use UI',
   await page.locator('#production-item').selectOption({ label: '妙蛙种子 (19)' }); await page.locator('#add-production').click();
   await page.locator('[data-up="1"]').click(); await expect(page.locator('#production-queue li').first()).toContainText('妙蛙种子');
   await page.locator('[data-remove="1"]').click(); await expect(page.locator('#production-queue li')).toHaveCount(1);
+  await openScreen(page, 'research');
   await page.locator('#research-topic').selectOption('domestication'); await page.locator('#set-research').click();
+  await closeScreen(page);
   for (let i = 0; i < 20 && !(await state(page)).players[0].research.unlockedIds.includes('domestication'); i++) await page.locator('#end-turn').click();
   expect((await state(page)).players[0].research.unlockedIds).toContain('domestication');
   const goldBefore = (await state(page)).players[0].gold;

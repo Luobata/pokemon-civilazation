@@ -3,6 +3,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { generateRealGame, realGameLog } from './fixtures/real-game.ts';
 import { createGame } from '../../src/core/game.ts';
 import { serializeSave } from '../../src/app/save.ts';
+import { openScreen, startNewGame } from './ui.ts';
 
 const screenshots = process.env.E2E_SCREENSHOT_DIR ?? 'test-results/screenshots';
 const acceptance = process.env.M6_UI_REPORT_DIR ?? screenshots;
@@ -18,12 +19,17 @@ test('complete small-map game with milestone screenshots and identical command r
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/?seed=1');
+  await openScreen(page, 'menu');
   await page.locator('input[name="leader"][value="oak"]').check();
+  await openScreen(page, 'menu');
   await page.locator('#starter').selectOption('bulbasaur');
+  await openScreen(page, 'menu');
   await page.locator('#map-size').selectOption('24x16');
+  await openScreen(page, 'menu');
   await page.locator('#ai-count').selectOption('1');
+  await openScreen(page, 'menu');
   await page.locator('#ai-personality').selectOption('aggressive');
-  await page.locator('#new-game').click();
+  await startNewGame(page);
   await page.locator('#animate').uncheck();
   // Keep this classic war/peace milestone regression on its original rules pack.
   // New games now default to expansion-v1, exercised by crossenv and expansion.spec.

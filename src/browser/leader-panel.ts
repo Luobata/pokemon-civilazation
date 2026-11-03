@@ -1,3 +1,4 @@
+import { openScreen } from './screens.ts';
 import { LEADER_IDS, LEADERS } from '../content/leaders.ts';
 import type { LeaderId } from '../content/leaders.ts';
 import { speciesDisplay } from '../content/species.ts';
@@ -39,7 +40,8 @@ export function renderLeaderPanel(view: PlayerView): void {
   root.querySelector<HTMLButtonElement>('#choose-leader')!.addEventListener('click', () => {
     const setup = document.querySelector<HTMLElement>('#leader-setup')!;
     const selected = document.querySelector<HTMLInputElement>('input[name="leader"]:checked');
-    setup.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' });
+    openScreen('menu');
+    setup.scrollIntoView({ block: 'start' });
     (selected && !selected.disabled ? selected : setup).focus({ preventScroll: true });
   });
 }

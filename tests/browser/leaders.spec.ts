@@ -5,6 +5,7 @@ import { LEADERS, LEADER_IDS } from '../../src/content/leaders.ts';
 import type { GameState } from '../../src/core/model.ts';
 import { canonicalSerialize } from '../../src/core/snapshot.ts';
 import { outcomeSave } from './fixtures/diplomacy.ts';
+import { openScreen, closeScreen, startNewGame } from './ui.ts';
 
 async function state(page: Page): Promise<GameState> {
   return page.evaluate(async () => { const path = '/src/browser/main.ts'; return (await import(path)).developerAdapter.getState(); });
@@ -18,13 +19,15 @@ test('every leader applies only to a new game and pairs independently with the s
   await page.goto('/');
   await page.locator('#animate').uncheck();
   await expect(page.locator('input[name="leader"]')).toHaveCount(LEADER_IDS.length);
+  await openScreen(page, 'menu');
   await page.locator('#starter').selectOption('charmander');
   for (const leaderId of LEADER_IDS) {
     const before = await state(page);
+    await openScreen(page, 'menu');
     await page.locator(`input[name="leader"][value="${leaderId}"]`).check();
     expect(canonicalSerialize(await state(page))).toBe(canonicalSerialize(before));
     await expect(page.locator('#leader-panel')).toContainText(LEADERS[before.players[0].leaderId!].name);
-    await page.locator('#new-game').click();
+    await startNewGame(page);
     const after = await state(page);
     expect(after.players[0]).toMatchObject({ starterId: 'charmander', leaderId });
     const seated = after.setup.players.map(player => player.leaderId);
@@ -36,7 +39,9 @@ test('every leader applies only to a new game and pairs independently with the s
     await expect(page.locator('#leader-panel')).toContainText('小火龙');
     for (const other of seated.slice(1)) await expect(page.locator('#diplomacy')).toContainText(LEADERS[other!].name);
     const image = page.locator(`#leader-panel img[src$="/${leaderId}.svg"]`);
+    await openScreen(page, 'leader');
     await expect(image).toBeVisible();
+    await closeScreen(page);
     expect(await image.evaluate(element => (element as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
   }
 });
@@ -45,17 +50,23 @@ test('leader research is reflected in the UI and leader identity survives save/l
   await page.goto('/');
   await page.locator('#animate').uncheck();
   await expect(page.locator('#hud-research')).toContainText('2');
+  await openScreen(page, 'research');
   await page.locator('#research-topic').selectOption('domestication');
+  await openScreen(page, 'research');
   await page.locator('#set-research').click();
+  await closeScreen(page);
   await page.locator('#end-turn').click();
   expect((await state(page)).players[0].research.progressByTech.domestication).toBe(2);
+  await openScreen(page, 'menu');
   await page.locator('#save-game').click();
   const saved = await state(page);
   const log = await page.evaluate(async () => { const path = '/src/browser/main.ts'; return (await import(path)).developerAdapter.exportLog(); });
   expect(canonicalSerialize(replay(log))).toBe(canonicalSerialize(saved));
+  await openScreen(page, 'menu');
   await page.locator('input[name="leader"][value="joy"]').check();
-  await page.locator('#new-game').click();
+  await startNewGame(page);
   await expect(page.locator('#leader-panel')).toContainText('乔伊小姐');
+  await openScreen(page, 'menu');
   await page.locator('#load-game').click();
   expect(canonicalSerialize(await state(page))).toBe(canonicalSerialize(saved));
   await expect(page.locator('#leader-panel')).toContainText('大木博士');
@@ -72,6 +83,7 @@ test('legacy save keeps its state and original starter rules until a new leader 
   const loaded = await state(page);
   expect(loaded.players[0]).not.toHaveProperty('leaderId');
   expect(canonicalSerialize(loaded)).toBe(canonicalSerialize(legacy.getState()));
+  await openScreen(page, 'menu');
   await page.locator('input[name="leader"][value="jenny"]').check();
   expect(canonicalSerialize(await state(page))).toBe(canonicalSerialize(loaded));
   await expect(page.locator('#leader-panel')).toContainText('氏族领袖');
@@ -81,9 +93,11 @@ test('a finished game allows choosing a different leader and starter for the nex
   await page.goto('/');
   await importSave(page, outcomeSave('score'));
   await page.locator('#gameover-close').click();
+  await openScreen(page, 'menu');
   await page.locator('input[name="leader"][value="lance"]').check();
+  await openScreen(page, 'menu');
   await page.locator('#starter').selectOption('squirtle');
-  await page.locator('#new-game').click();
+  await startNewGame(page);
   const started = await state(page);
   expect(started.players[0]).toMatchObject({ leaderId: 'lance', starterId: 'squirtle' });
   expect(started.outcome).toBeNull();
@@ -94,6 +108,7 @@ for (const width of [390, 768, 1280]) test(`leader cards and skill descriptions 
   await page.setViewportSize({ width, height: 900 });
   await page.goto('/');
   await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openScreen(page, 'leader');
   await page.locator('#choose-leader').click();
   const choices = page.locator('input[name="leader"]');
   await expect(choices).toHaveCount(LEADER_IDS.length);

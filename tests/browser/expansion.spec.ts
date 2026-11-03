@@ -4,11 +4,13 @@ import { HEX_RADIUS, hexToWorld } from '../../src/browser/camera.ts';
 import { indexToHex } from '../../src/core/hex.ts';
 import { reachablePaths } from '../../src/core/movement.ts';
 import type { AddressInfo } from 'node:net';
+import { openScreen } from './ui.ts';
 
 test('new games expose real leader abilities, cooldowns and all expansion systems', async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   await page.goto('/?seed=77');
   await page.locator('#animate').uncheck();
+  await openScreen(page, 'world');
   const leaders = page.locator('#expansion-panel details[data-system="leaders-active"]');
   await leaders.locator('summary').click();
   await leaders.getByRole('button', { name: '研究突破', exact: true }).click();
@@ -28,7 +30,9 @@ test('new games expose real leader abilities, cooldowns and all expansion system
   await tenets.nth(1).uncheck();
   await expect(tenets.nth(2)).toBeEnabled();
   expect(await faith.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+  await openScreen(page, 'menu');
   await page.locator('#save-game').click();
+  await openScreen(page, 'menu');
   await page.locator('#load-game').click();
   await expect(page.locator('#action-notice')).toContainText('读档完成');
   expect(errors).toEqual([]);

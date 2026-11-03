@@ -5,6 +5,7 @@ import { AuditSandbox } from '../../src/audit/sandbox.ts';
 import { replay } from '../../src/app/session.ts';
 import type { GameState } from '../../src/core/model.ts';
 import { canonicalSerialize } from '../../src/core/snapshot.ts';
+import { openScreen, openDevDrawer } from './ui.ts';
 
 async function state(page: Page): Promise<GameState> {
   return page.evaluate(async () => { const path = '/src/browser/audit.ts'; return (await import(path)).auditAdapter.getState(); });
@@ -30,10 +31,11 @@ test('every system has its own URL, explanation and truthful implementation stat
 test('opening from the game copies the live session, and sandbox commands never alter the game or stored save', async ({ page, context }) => {
   await page.goto('/'); await page.locator('#animate').uncheck();
   await page.locator('#end-turn').click();
+  await openScreen(page, 'menu');
   await page.locator('#save-game').click();
   const gameBefore = await page.evaluate(async () => { const path = '/src/browser/main.ts'; return (await import(path)).developerAdapter.save(); });
   const storageBefore = await page.evaluate(() => JSON.stringify(localStorage));
-  await page.locator('#dev-drawer summary').click();
+  await openDevDrawer(page);
   const popup = context.waitForEvent('page'); await page.locator('#open-audit').click();
   const audit = await popup; await audit.waitForLoadState();
   await expect(audit.locator('#snapshot-source')).toHaveText('游戏当前对局的副本');

@@ -8,6 +8,7 @@ import type { AddressInfo } from 'node:net';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { openScreen, startNewGame } from './ui.ts';
 
 async function state(page: import('@playwright/test').Page): Promise<GameState> {
   return page.evaluate(async () => { const path = '/src/browser/main.ts'; return (await import(path)).developerAdapter.getState(); });
@@ -43,9 +44,10 @@ test('new games default to three eras; full mode keeps the selected round limit'
   expect((await state(page)).setup).toMatchObject({ eraProgression: 'simple-v1', roundLimit: 100 });
   await expect(page.locator('#era-panel')).toContainText('还需 3 项科技');
   await expect(page.locator('#era-panel')).toContainText('侦察');
+  await openScreen(page, 'menu');
   await page.locator('#era-progression').selectOption('full-v1');
   expect((await state(page)).setup.eraProgression).toBe('simple-v1');
-  await page.locator('#new-game').click();
+  await startNewGame(page);
   expect((await state(page)).setup).toMatchObject({ eraProgression: 'full-v1', roundLimit: 100 });
   await expect(page.locator('#era-panel')).toContainText('完整世代');
   await expect(page.locator('#era-panel')).toContainText('还需 1 项科技');

@@ -5,6 +5,7 @@ import { createGame } from '../../src/core/game.ts';
 import { canonicalSerialize, stateDigest } from '../../src/core/snapshot.ts';
 import { replay } from '../../src/app/session.ts';
 import type { CommandLog } from '../../src/app/session.ts';
+import { openScreen, closeScreen, openDevDrawer, startNewGame } from './ui.ts';
 
 const reports = process.env.E2E_SCREENSHOT_DIR ?? 'test-results/screenshots';
 
@@ -48,7 +49,9 @@ for (const seed of [12345, 0]) {
     page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
     await page.goto(`/?seed=${seed}`);
     await expect(page.getByRole('status')).toContainText(`种子 ${seed}`);
+    await page.locator('#map-legend summary').click();
     await expect(page.getByRole('list', { name: '群系图例' }).locator('li')).toHaveCount(7);
+    await page.locator('#map-legend summary').click();
     const initial = await snapshot(page);
     expect(initial.state).toBe(canonicalSerialize(createGame(initial.log.setup)));
     await page.locator('#animate').uncheck();
@@ -66,21 +69,24 @@ for (const seed of [12345, 0]) {
     expect(commandCount).toBeGreaterThan(1);
     expect(final.state).toBe(canonicalSerialize(replay(final.log)));
     expect(final.digest).toBe(stateDigest(replay(final.log, commandCount, replay(final.log, 2))));
-    await page.locator('#dev-drawer summary').click();
+    await openDevDrawer(page);
     const downloadPromise = page.waitForEvent('download'); await page.locator('#export').click();
     const download = await downloadPromise;
     const exported = JSON.parse(await readFile((await download.path())!, 'utf8')) as CommandLog;
     expect(exported).toEqual(final.log); expect(stateDigest(replay(exported))).toBe(final.digest);
+    await openDevDrawer(page);
     await page.locator('#sequence').fill('1'); await page.locator('#replay').click();
     expect((await snapshot(page)).state).toBe(canonicalSerialize(replay(exported, 1)));
+    await openDevDrawer(page);
     await page.locator('#sequence').fill(String(commandCount)); await page.locator('#replay').click();
     expect((await snapshot(page)).digest).toBe(final.digest);
     if (seed === 12345) {
-      await page.locator('#dev-drawer summary').click();
+      await openDevDrawer(page);
       const current = await movePoints(page);
+      await closeScreen(page);
       await page.mouse.click(current.from.x, current.from.y);
       await page.screenshot({ path: `${reports}/ui2-map.png`, fullPage: true });
-      await page.locator('#new-game').click();
+      await startNewGame(page);
       const visibility = await page.evaluate(async () => {
         const mainPath = '/src/browser/main.ts'; const { session, developerAdapter } = await import(mainPath);
         return { view: session.getView(), debug: developerAdapter.getDebugView() };
@@ -133,10 +139,13 @@ test('camera pan/zoom changes hit coordinates while DPR is capped and game state
 
 test('starter selection restarts the game and god view only changes presentation', async ({ page }) => {
   await page.goto('/'); const before = await snapshot(page);
-  await page.locator('#dev-drawer summary').click();
+  await openDevDrawer(page);
+  await openDevDrawer(page);
   await page.locator('#god').check(); expect((await snapshot(page)).digest).toBe(before.digest);
+  await openDevDrawer(page);
   await page.locator('#god').uncheck(); expect((await snapshot(page)).digest).toBe(before.digest);
-  await page.locator('#starter').selectOption('squirtle'); await page.locator('#new-game').click();
+  await openScreen(page, 'menu');
+  await page.locator('#starter').selectOption('squirtle'); await startNewGame(page);
   const fresh = await snapshot(page); expect(fresh.log.commands).toHaveLength(0);
   expect(fresh.log.setup.players[0]).toMatchObject({ starterId: 'squirtle' });
   expect(fresh.state).toBe(canonicalSerialize(createGame(fresh.log.setup)));
@@ -195,7 +204,8 @@ test('normal fog never issues hidden faction badge draw calls', async ({ page })
   expect(normal).not.toContain('2');
   expect(normal).not.toContain('3');
   expect(normal).not.toContain('4');
-  await page.locator('#dev-drawer summary').click();
+  await openDevDrawer(page);
+  await openDevDrawer(page);
   await page.locator('#god').check();
   await expect.poll(async () => (await drawnTexts()).includes('2')).toBe(true);
 });

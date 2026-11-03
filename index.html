@@ -14,50 +14,98 @@
   <a href="http://127.0.0.1:5173/" style="color:#175f51">打开本地运行页面 ↗</a>
   <details><summary>启动方式</summary><p>在项目目录运行 <code>npm run dev -- --host 127.0.0.1 --port 5173 --strictPort</code>；联机时另开终端运行 <code>npm run server</code>。如果服务已启动，请使用终端显示的地址。服务正常但页面仍未启动时，请刷新页面并检查浏览器控制台。</p></details>
 </aside>
-    <main class="app">
+    <main class="app play-shell">
       <header class="topbar">
         <div class="brand"><div class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32"><path fill="#3D7564" stroke="#E6B85C" stroke-width="2" d="M9 3h14l6 10v8l-6 8H9l-6-8v-8Z"/><path fill="#183137" d="M6 14h20v6H6z"/><path fill="#F1EAD8" d="M12 10h8v14h-8z"/><path fill="#D3655C" d="M12 10h8v6h-8z"/><path fill="#F1EAD8" d="M10 15h12v4H10z"/><path fill="#E6B85C" d="M14 15h4v4h-4z"/></svg></div><div><strong>宝可梦 × 文明</strong><small>原野图鉴 · 探索、建设与征服</small><p id="map-info" role="status">正在生成地图…</p></div></div>
-        <div class="round-block"><small>当前轮次</small><strong id="round-display">— <span>/ 100</span></strong></div>
-        <div class="hud-resources" aria-label="资源总览">
+        <div class="hud-stats">
+          <div class="round-block"><small>当前轮次</small><strong id="round-display">— <span>/ 100</span></strong></div>
+          <div class="hud-resources" aria-label="资源总览">
           <div class="resource"><svg class="resource-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 2h10l5 5v10l-5 5H7l-5-5V7Zm2 4v12h6V6Z"/><path fill="#17282D" d="M10 7h4v3h3v4h-3v3h-4v-3H7v-4h3Z"/></svg><small>金币</small><strong id="hud-gold">—</strong></div>
           <div class="resource"><svg class="resource-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="m12 1 3 7 7 4-7 3-3 8-3-8-7-3 7-4Z"/><path fill="#17282D" d="m12 7 1.5 3.5L17 12l-3.5 1.5L12 17l-1.5-3.5L7 12l3.5-1.5Z"/></svg><small>科研</small><strong id="hud-research">—</strong></div>
           <div class="resource"><svg class="resource-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2 21 6v6c0 5-4 8-9 10-5-2-9-5-9-10V6Zm0 5v10l5-3V8Z"/></svg><small>维护</small><strong id="hud-upkeep">—</strong></div>
         </div>
-        <div id="hud-essences" class="hud-essences" aria-label="属性精华"></div>
-        <div class="turn-block"><button id="end-turn" class="primary">结束回合　›</button><p id="turn-reminders" aria-live="polite"></p></div>
+          <div id="hud-essences" class="hud-essences" aria-label="属性精华"></div>
+        </div>
+        <nav id="launcher" class="launcher" aria-label="系统入口"><button type="button" data-open-screen="victory" aria-expanded="false" aria-controls="screen-victory"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M6 3h12v3h3v3a5 5 0 0 1-5 5h-.4A5 5 0 0 1 13 16v2h3v3H8v-3h3v-2a5 5 0 0 1-2.6-2H8a5 5 0 0 1-5-5V6h3Zm0 5H5v1a3 3 0 0 0 1 2.2Zm12 0v3.2A3 3 0 0 0 19 9V8Z"/></svg><span>胜利</span></button><button type="button" data-open-screen="research" aria-expanded="false" aria-controls="screen-research"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M9 2h6v2h-1v5.2l5.6 9.6A2 2 0 0 1 17.9 22H6.1a2 2 0 0 1-1.7-3.2L10 9.2V4H9Zm-.6 13h7.2L13 10.5V9h-2v1.5Z"/></svg><span>研究</span></button><button type="button" data-open-screen="policy" aria-expanded="false" aria-controls="screen-policy"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M5 2h11l4 4v16H5Zm3 6v2h9V8Zm0 4v2h9v-2Zm0 4v2h6v-2Z"/></svg><span>规章</span></button><button type="button" data-open-screen="era" aria-expanded="false" aria-controls="screen-era"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20Zm1 4h-2v7l5 3 1-1.7-4-2.4Z"/></svg><span>时代</span></button><button type="button" data-open-screen="leader" aria-expanded="false" aria-controls="screen-leader"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a5 5 0 1 1 0 10 5 5 0 0 1 0-10ZM3 22a9 9 0 0 1 18 0Z"/></svg><span>领袖</span></button><button type="button" data-open-screen="diplomacy" aria-expanded="false" aria-controls="screen-diplomacy"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M2 12 7 7l4 3 2-2 9 4-6 6-3-2-2 2-4-3-2 1Zm6-1-2 2 4 3 1-1Z"/></svg><span>外交</span></button><button type="button" data-open-screen="world" aria-expanded="false" aria-controls="screen-world"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20Zm-1 3.1A7 7 0 0 0 5.1 11H8l2 2v2l-2 2v1.9A7 7 0 0 0 11 19v-3l3-3h3l1.8-1.8A7 7 0 0 0 14 5.3V7l-2 2h-2V7Z"/></svg><span>世界</span></button><button type="button" data-open-screen="log" aria-expanded="false" aria-controls="screen-log"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4 3h16v18H4Zm3 4v2h10V7Zm0 4v2h10v-2Zm0 4v2h6v-2Z"/></svg><span>动态</span></button><button type="button" data-open-screen="menu" aria-expanded="false" aria-controls="screen-menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3 5h18v3H3Zm0 6h18v3H3Zm0 6h18v3H3Z"/></svg><span>菜单</span></button></nav>
       </header>
 
-      <div class="workspace">
-        <div class="map-column">
-          <section class="map-card" aria-label="主地图">
-            <div class="map-toolbar"><strong>青绿原野</strong><span id="map-size-label" class="map-meta">小地图 · 24 × 16</span><div class="map-actions"><button id="fit">F 地图居中</button><label title="在地块上显示食物、生产、金币、科研（Y）"><input id="show-yields" type="checkbox" checked />地块产出</label><label><input id="animate" type="checkbox" checked />移动动画</label><button id="skip" disabled>跳过动画</button></div></div>
-            <figure class="map-frame">
+      <div class="stage">
+        <section class="map-card" aria-label="主地图">
+          <div class="map-toolbar"><strong>青绿原野</strong><span id="map-size-label" class="map-meta">小地图 · 24 × 16</span><div class="map-actions"><button id="fit">F 地图居中</button><label title="在地块上显示食物、生产、金币、科研（Y）"><input id="show-yields" type="checkbox" checked />地块产出</label><label><input id="animate" type="checkbox" checked />移动动画</label><button id="skip" disabled>跳过动画</button></div></div>
+          <figure class="map-frame">
               <canvas id="map" tabindex="0" aria-label="六角格地图。点击或用方向键选择，Enter 确认，Escape 取消，加减缩放，F 居中"></canvas>
               <figcaption><span>数字 1–4 = 文明　爪 = 野生　斜线 = 记忆地形</span><span>点城市管理 · 点单位行动 · 同格再次点击切换</span></figcaption>
             </figure>
-          </section>
-          <p id="selection" aria-live="polite">点选己方单位；拖动地图平移，滚轮缩放。</p>
-          <p id="action-notice" role="status"></p>
-          <ul id="legend" aria-label="群系图例"></ul>
-          <ul id="faction-legend" aria-label="阵营图例"></ul>
-        </div>
-        <aside class="side-column">
-          <nav id="side-nav" class="side-nav" aria-label="面板导航"><button type="button" class="nav-map" data-nav=".map-card">地图</button><button type="button" data-nav="#selection-panel">行动</button><button type="button" data-nav="#victory-panel">胜利</button><button type="button" data-nav="#research-panel">研究</button><button type="button" data-nav="#policy-panel">规章</button><button type="button" data-nav="#era-panel">时代</button><button type="button" data-nav="#leader-panel">领袖</button><button type="button" data-nav="#diplomacy">外交</button><button type="button" data-nav="#expansion-panel">探索</button></nav>
+        </section>
+        <details id="map-legend" class="map-legend"><summary>图例</summary><ul id="yield-legend" aria-label="地块产出图例"><li><i class="yield-dot food"></i>食物</li><li><i class="yield-dot production"></i>生产</li><li><i class="yield-dot gold"></i>金币</li><li><i class="yield-dot research"></i>科研</li><li><i class="lux-dot"></i>稀有树果（奢侈品）</li></ul><ul id="legend" aria-label="群系图例"></ul><ul id="faction-legend" aria-label="阵营图例"></ul></details>
+        <aside id="context-drawer" class="context-drawer" aria-label="选中对象">
           <section id="selection-panel" class="subpanel" aria-label="选择行动对象"></section>
           <section id="unit-panel" aria-label="单位面板"></section>
           <section id="economy" aria-label="城市与经济"></section>
           <section id="neutral-city" class="subpanel" aria-label="中立营地"></section>
-          <section id="selection-empty" class="subpanel"><p class="neutral-note">在地图上选择己方城市或单位，查看它的可用操作。</p></section>
-          <section id="victory-panel" class="subpanel" aria-label="胜利进度"></section>
-          <section id="research-panel" class="subpanel" aria-label="文明研究"></section>
-          <section id="policy-panel" class="subpanel" aria-label="联盟规章与训练方针"></section>
-          <section id="era-panel" class="subpanel" aria-label="时代与领袖战术"></section>
-          <section id="leader-panel" class="subpanel" aria-label="当前领袖"></section>
-          <section id="diplomacy" class="subpanel" aria-label="外交关系"></section>
-          <section id="expansion-panel" class="subpanel" aria-label="扩展系统"></section>
+          <section id="selection-empty" class="subpanel"><p class="neutral-note">点选地图上的城市或单位，这里会展开它的操作。</p></section>
         </aside>
-        <div class="map-extras">
+        <div class="hud-notices">
+          <p id="selection" aria-live="polite">点选己方单位；拖动地图平移，滚轮缩放。</p>
+          <p id="action-notice" role="status"></p>
+        </div>
+        <div class="turn-block"><p id="turn-reminders" aria-live="polite"></p><button id="end-turn" class="primary">结束回合　›</button></div>
+      </div>
+
+      <div id="screen-host" class="screen-host" hidden>
+        <div class="screen-backdrop" data-close-screen></div>
+      <section class="screen screen-victory" id="screen-victory" data-screen="victory" role="dialog" aria-modal="true" aria-labelledby="screen-title-victory" hidden>
+        <header class="screen-head"><h2 id="screen-title-victory">胜利进度</h2><button type="button" class="screen-close" data-close-screen aria-label="关闭胜利进度">×</button></header>
+        <div class="screen-body">
+          <section id="victory-panel" class="subpanel" aria-label="胜利进度"></section>
+        </div>
+      </section>
+      <section class="screen screen-research" id="screen-research" data-screen="research" role="dialog" aria-modal="true" aria-labelledby="screen-title-research" hidden>
+        <header class="screen-head"><h2 id="screen-title-research">科技研究 · 图鉴发现</h2><button type="button" class="screen-close" data-close-screen aria-label="关闭科技研究 · 图鉴发现">×</button></header>
+        <div class="screen-body">
+          <section id="research-panel" class="subpanel" aria-label="文明研究"></section>
+        </div>
+      </section>
+      <section class="screen screen-policy" id="screen-policy" data-screen="policy" role="dialog" aria-modal="true" aria-labelledby="screen-title-policy" hidden>
+        <header class="screen-head"><h2 id="screen-title-policy">联盟规章与训练方针</h2><button type="button" class="screen-close" data-close-screen aria-label="关闭联盟规章与训练方针">×</button></header>
+        <div class="screen-body">
+          <section id="policy-panel" class="subpanel" aria-label="联盟规章与训练方针"></section>
+        </div>
+      </section>
+      <section class="screen screen-era" id="screen-era" data-screen="era" role="dialog" aria-modal="true" aria-labelledby="screen-title-era" hidden>
+        <header class="screen-head"><h2 id="screen-title-era">时代与时代能力</h2><button type="button" class="screen-close" data-close-screen aria-label="关闭时代与时代能力">×</button></header>
+        <div class="screen-body">
+          <section id="era-panel" class="subpanel" aria-label="时代与领袖战术"></section>
+        </div>
+      </section>
+      <section class="screen screen-leader" id="screen-leader" data-screen="leader" role="dialog" aria-modal="true" aria-labelledby="screen-title-leader" hidden>
+        <header class="screen-head"><h2 id="screen-title-leader">我的领袖</h2><button type="button" class="screen-close" data-close-screen aria-label="关闭我的领袖">×</button></header>
+        <div class="screen-body">
+          <section id="leader-panel" class="subpanel" aria-label="当前领袖"></section>
+        </div>
+      </section>
+      <section class="screen screen-diplomacy" id="screen-diplomacy" data-screen="diplomacy" role="dialog" aria-modal="true" aria-labelledby="screen-title-diplomacy" hidden>
+        <header class="screen-head"><h2 id="screen-title-diplomacy">外交关系</h2><button type="button" class="screen-close" data-close-screen aria-label="关闭外交关系">×</button></header>
+        <div class="screen-body">
+          <section id="diplomacy" class="subpanel" aria-label="外交关系"></section>
+        </div>
+      </section>
+      <section class="screen screen-world" id="screen-world" data-screen="world" role="dialog" aria-modal="true" aria-labelledby="screen-title-world" hidden>
+        <header class="screen-head"><h2 id="screen-title-world">世界与文明系统</h2><button type="button" class="screen-close" data-close-screen aria-label="关闭世界与文明系统">×</button></header>
+        <div class="screen-body">
+          <section id="expansion-panel" class="subpanel" aria-label="扩展系统"></section>
+        </div>
+      </section>
+      <section class="screen screen-log" id="screen-log" data-screen="log" role="dialog" aria-modal="true" aria-labelledby="screen-title-log" hidden>
+        <header class="screen-head"><h2 id="screen-title-log">回合动态</h2><button type="button" class="screen-close" data-close-screen aria-label="关闭回合动态">×</button></header>
+        <div class="screen-body">
           <section id="activity-panel" class="subpanel" aria-label="回合动态"><div class="subpanel-head"><strong>回合动态</strong><label class="activity-filter"><input id="activity-important" type="checkbox">只看重要</label></div><ol id="activity-list"><li>暂无动态</li></ol></section>
+        </div>
+      </section>
+      <section class="screen screen-menu" id="screen-menu" data-screen="menu" role="dialog" aria-modal="true" aria-labelledby="screen-title-menu" hidden>
+        <header class="screen-head"><h2 id="screen-title-menu">游戏菜单</h2><button type="button" class="screen-close" data-close-screen aria-label="关闭游戏菜单">×</button></header>
+        <div class="screen-body">
+          <div class="menu-links"><a href="/guide.html" target="_blank">训练家手册 ↗</a><a href="/multiplayer.html">联机大厅 ↗</a></div>
           <section id="controls" aria-label="游戏与存档控制">
             <fieldset id="leader-setup" tabindex="-1">
               <legend>下局领袖</legend>
@@ -74,13 +122,11 @@
             <button id="save-game">保存</button><button id="load-game">读档</button><button id="export-save">导出存档 JSON</button>
             <label>导入存档 <input id="import-save" type="file" accept="application/json,.json"></label>
           </section>
-
+          <details id="keyboard-help"><summary>键盘操作</summary><p>Tab 切换控件；地图方向键移动光标；Enter 选择/移动；Esc 取消；+ / − 缩放；F 居中；Y 地块产出；C 城市；R / T 研究；? 打开本帮助；Esc 关闭页面；Ctrl+Enter 结束回合。完整规则与攻略见 <a href="/guide.html" target="_blank">训练家手册 ↗</a></p></details>
           <details id="dev-drawer"><summary>开发、命令回放与调试</summary><div class="dev-content"><a href="/guide.html" target="_blank">训练家手册 ↗</a><a href="/multiplayer.html">联机大厅 ↗</a><a href="/editor.html">内容编辑器 ↗</a><label>诊断覆盖层<select id="debug-overlay"><option value="none">关闭</option><option value="tiles">坐标与地块 ID</option><option value="vision">实时视野与记忆</option><option value="wild">野生单位与暴走</option><option value="ai">AI 行动与移动候选</option></select></label><a id="open-audit" href="/audit.html" target="_blank">系统说明与审计后台 ↗</a><label id="god-label"><input id="god" type="checkbox" />上帝视角（开发）</label><button id="export">导出命令 JSON</button><label>重放序号 <input id="sequence" type="number" min="0" value="0" /></label><button id="replay">重放</button><button id="resume">从此处继续</button><pre id="debug" aria-label="调试状态"></pre><pre id="frame-metrics" aria-label="帧绘制耗时"></pre></div></details>
-          <details id="keyboard-help"><summary>键盘操作</summary><p>Tab 切换控件；地图方向键移动光标；Enter 选择/移动；Esc 取消；+ / − 缩放；F 居中；C 城市；R / T 研究；? 打开本帮助；Ctrl+Enter 结束回合。完整规则与攻略见 <a href="/guide.html" target="_blank">训练家手册 ↗</a></p></details>
         </div>
+      </section>
       </div>
-
-      <button type="button" id="end-turn-float" class="primary" aria-label="结束回合（悬浮）">结束回合 ›</button>
     </main>
 
     <dialog id="war-confirm"><h2>确认宣战</h2><p>将对 <strong id="war-target"></strong> 宣战。战争允许攻击其单位与城市。</p><div class="dialog-actions"><button id="cancel-war">取消</button><button id="confirm-war" class="danger">确认宣战</button></div></dialog>

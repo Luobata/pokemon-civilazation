@@ -26,8 +26,9 @@ import { WORLD_DEFINITIONS } from '../content/world-systems.ts';
 import { CIVILIZATION_CONTENT } from '../content/civilization-systems.ts';
 import { LEADER_DOCTRINES } from '../core/leader-doctrines.ts';
 import { LEADER_KITS } from '../core/leader-systems.ts';
-import { ROLE_CITY_ASSAULT, ERA_SIEGE_TECH_MULTIPLIER, ERA_TECH_RECRUITS } from '../core/role-tactics.ts';
+import { ROLE_CITY_ASSAULT, ERA_TECH_RECRUITS } from '../core/role-tactics.ts';
 import { pokemonSpritePath } from '../browser/sprites.ts';
+import { techUnlocks } from '../browser/tech-info.ts';
 
 const content = EXPANSION_CONTENT;
 
@@ -84,29 +85,11 @@ export function biomeTable(): string {
 }
 
 // ---------- Techs, eras, buildings ----------
-const TECH_EFFECTS: Record<TechId, string> = {
-  domestication: '可购买精灵球并捕捉；渔场 +1 金币；可招募小拉达',
-  berryCultivation: '解锁树果园；树果田 +1 食物',
-  stoneCraft: '解锁精灵球工坊；矿坑 +1 生产；可招募小拳石',
-  ballCraft: '可购买超级球（捕捉率 ×1.5）',
-  typeResearch: '效果拔群从 ×2 提升为 ×2.2',
-  riding: '可训练快速型宝可梦；可招募小火马',
-  fieldObservation: '捕捉成功率 +10；观测站 +1 科研',
-  medicine: '领地内每轮恢复从 5 提升到 10 HP',
-  training: '战斗经验 ×1.25；可进行第二段进化；可招募腕力和领袖专属宝可梦',
-  siegeCraft: `攻城型攻击城市倍率提升到 ×${ERA_SIEGE_TECH_MULTIPLIER / 1000}`,
-  leagueRules: '计分 ×1.2；停战后冷却从 10 轮缩短到 5 轮',
-  meteorology: '雪原、火山地块各 +1 科研',
-};
 export function techTable(): string {
   const ids = Object.keys(TECHS) as TechId[];
   return table(['科技', '层级', '花费', '效果与解锁', '图鉴发现（立减 ' + DISCOVERY_PERCENT + '%）'],
     ids.map(id => {
-      const unlocks = [
-        ...Object.values(BUILDINGS).filter(b => b.requiredTech === id).map(b => `建筑「${b.name}」`),
-        ...DISTRICT_IDS.filter(d => DISTRICTS[d].requiredTech === id).map(d => `设施区「${DISTRICTS[d].name}」`),
-      ];
-      return [techName(id), String(TECHS[id].tier), String(TECHS[id].cost), [TECH_EFFECTS[id], ...unlocks].join('；'),
+      return [techName(id), String(TECHS[id].tier), String(TECHS[id].cost), techUnlocks(id).map(item => item.text).join('；'),
         `<strong>${DISCOVERIES[id].name}</strong>：${DISCOVERIES[id].hint}`];
     }), [1, 2]);
 }

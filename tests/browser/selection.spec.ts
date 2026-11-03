@@ -7,6 +7,7 @@ import { replay } from '../../src/app/session.ts';
 import { SPECIES } from '../../src/content/species.ts';
 import type { SpeciesId } from '../../src/content/species.ts';
 import { pokemonSpritePath } from '../../src/browser/sprites.ts';
+import { openScreen, closeScreen } from './ui.ts';
 
 async function state(page: Page): Promise<GameState> {
   return page.evaluate(async () => {
@@ -38,7 +39,9 @@ test('unit and city selection expose only the actions of the selected object', a
   await expect(page.locator('#founding-status')).toContainText('至少需要 4 格');
   await expect(page.locator('#attack-unit')).toHaveCount(0);
   await expect(page.locator('#city-select')).toHaveValue('');
+  await openScreen(page, 'research');
   await expect(page.locator('#research-panel')).toBeVisible();
+  await closeScreen(page);
   await page.locator('#unit-select').selectOption(String(pokemon.id));
   await expect(page.locator('#attack-unit')).toBeEnabled();
   await expect(page.locator('#capture-unit')).toBeDisabled();
@@ -57,6 +60,7 @@ test('unit and city selection expose only the actions of the selected object', a
   await page.locator('#clear-selection').click();
   await expect(page.locator('#economy')).toBeHidden();
   await expect(page.locator('#selection-empty')).toBeVisible();
+  await openScreen(page, 'research');
   await expect(page.locator('#research-panel')).toBeVisible();
 });
 

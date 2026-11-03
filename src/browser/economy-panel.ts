@@ -1,3 +1,4 @@
+import { openScreen } from './screens.ts';
 import { DISTRICTS } from '../content/districts.ts';
 import { ERA_ABILITIES, ERA_ABILITY_RULES, WEATHERS, WEATHER_IDS } from '../content/era-abilities.ts';
 import type { WeatherId } from '../content/era-abilities.ts';
@@ -130,7 +131,7 @@ export function renderEconomyPanel(view: PlayerView, selectedCity: number | null
   root.querySelector('#city-overview')!.addEventListener('click', () => { selectedBuilding = null; citySection = 'production'; rerender(); });
   for (const button of root.querySelectorAll<HTMLButtonElement>('[data-city-section]')) button.addEventListener('click', () => {
     citySection = button.dataset.citySection as CitySection; selectedBuilding = null; rerender();
-    if (citySection === 'research') document.querySelector<HTMLElement>('#research-topic')?.focus();
+    if (citySection === 'research') openScreen('research', '#research-topic');
   });
   const enterBuilding = (id: BuildingId) => {
     selectedBuilding = id;
@@ -138,7 +139,7 @@ export function renderEconomyPanel(view: PlayerView, selectedCity: number | null
     citySection = action.section;
     if (action.kind) productionKind = action.kind;
     rerender();
-    if (id === 'observatory') document.querySelector<HTMLElement>('#research-topic')?.focus();
+    if (id === 'observatory') openScreen('research', '#research-topic');
   };
   for (const button of root.querySelectorAll<HTMLButtonElement>('[data-building]')) button.addEventListener('click', () => {
     enterBuilding(button.dataset.building as BuildingId);

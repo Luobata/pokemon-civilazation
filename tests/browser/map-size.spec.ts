@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { openScreen, startNewGame } from './ui.ts';
 
 const sizes = [
   { option: '24x16', width: 24, height: 16, label: '小地图' },
@@ -9,9 +10,11 @@ const sizes = [
 for (const size of sizes) {
   test(`${size.label} applies setup, fit camera, zoom bounds and frame metrics`, async ({ page }) => {
     await page.goto('/?seed=12345');
+    await openScreen(page, 'menu');
     await page.locator('#map-size').selectOption(size.option);
+    await openScreen(page, 'menu');
     await page.locator('#ai-count').selectOption('1');
-    await page.locator('#new-game').click();
+    await startNewGame(page);
     await expect(page.locator('#map-size-label')).toHaveText(`${size.label} · ${size.width} × ${size.height}`);
     const opening = await page.evaluate(async () => {
       const mainPath = '/src/browser/main.ts', cameraPath = '/src/browser/camera.ts';

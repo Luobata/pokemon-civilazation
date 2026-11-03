@@ -3,6 +3,7 @@ import { writeFile } from 'node:fs/promises';
 import { cpus, platform, release } from 'node:os';
 import { reachableFixture, verifyImportedReplay } from './fixtures/reachable.ts';
 import { generateRealGame, realGameSave } from './fixtures/real-game.ts';
+import { openDevDrawer } from './ui.ts';
 
 const scenarios = [
   { name: 'default-384', seed: 7, width: 24 as const, height: 16 as const },
@@ -33,7 +34,8 @@ test('measure Canvas2D draw time in four reachable late-game scenes including 10
     await expect(page.locator('#action-notice')).toContainText('读档完成');
     await verifyImportedReplay(page, saved);
     await page.locator('#fit').click();
-    await page.locator('#dev-drawer summary').click();
+    await openDevDrawer(page);
+    await openDevDrawer(page);
     await page.locator('#god').check();
     await expect(page.locator('#frame-metrics')).toContainText('p95');
     const measured = await page.evaluate(async () => {

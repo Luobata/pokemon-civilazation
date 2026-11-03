@@ -15,6 +15,7 @@ import { productionCost } from '../../src/core/city.ts';
 import { serializeSave } from '../../src/app/save.ts';
 import type { Command, GameSetup, GameState } from '../../src/core/model.ts';
 import type { Hex } from '../../src/core/hex.ts';
+import { openDevDrawer } from './ui.ts';
 
 type MagnemiteFixture = { state: GameState; commands: Command[]; save: string; unitId: number; destination: Hex };
 
@@ -125,8 +126,9 @@ test('expansion-only content works through selection, movement, production and a
   await page.locator('#add-production').click();
   await expect(page.locator('#production-queue').filter({ hasText: definition.name }).last()).toContainText(`0/${cost}`);
 
-  await page.locator('#dev-drawer summary').click();
+  await openDevDrawer(page);
   const popup = context.waitForEvent('page');
+  await openDevDrawer(page);
   await page.locator('#open-audit').click();
   const audit = await popup;
   await audit.waitForLoadState();

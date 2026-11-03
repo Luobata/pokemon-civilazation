@@ -5,6 +5,7 @@ import type { CommandLog } from '../../src/app/session.ts';
 import { serializeSave } from '../../src/app/save.ts';
 import { canonicalSerialize, stateDigest } from '../../src/core/snapshot.ts';
 import type { GameSetup, GameState } from '../../src/core/model.ts';
+import { openScreen, closeScreen, openDevDrawer, startNewGame } from './ui.ts';
 
 async function snapshot(page: Page): Promise<{ state: GameState; log: CommandLog }> {
   return page.evaluate(async () => {
@@ -45,8 +46,10 @@ test('complete Node game with three AI replays identically in Chromium', async (
   await page.locator('#import-save').setInputFiles({ name: 'complete-node-log.json', mimeType: 'application/json', buffer: Buffer.from(imported) });
   await expect(page.locator('#action-notice')).toContainText('读档完成');
   expect(canonicalSerialize((await snapshot(page)).state)).toBe(canonicalSerialize(initial));
-  await page.locator('#dev-drawer > summary').click();
+  await openDevDrawer(page);
+  await openDevDrawer(page);
   await page.locator('#sequence').fill(String(log.commands.length));
+  await openDevDrawer(page);
   await page.locator('#replay').click();
   await expect(page.locator('#gameover-dialog')).toBeVisible();
   const browser = await snapshot(page);
@@ -61,11 +64,15 @@ test('full browser game survives midgame save/load and reaches the same visible 
   test.setTimeout(60_000);
   await page.goto('/?seed=10');
   await page.locator('#animate').uncheck();
+  await openScreen(page, 'menu');
   await page.locator('#ai-count').selectOption('1');
+  await openScreen(page, 'menu');
   await page.locator('#ai-personality').selectOption('aggressive');
+  await openScreen(page, 'menu');
   await page.locator('#round-limit').selectOption('100');
+  await openScreen(page, 'menu');
   await page.locator('#starter').selectOption('bulbasaur');
-  await page.locator('#new-game').click();
+  await startNewGame(page);
   const initial = (await snapshot(page)).state;
   expect(initial.setup).toMatchObject({ seed: 10, width: 24, height: 16, roundLimit: 100 });
   expect(initial.setup.players).toHaveLength(2);
@@ -86,16 +93,19 @@ test('full browser game survives midgame save/load and reaches the same visible 
   };
   const direct = await finish();
   await page.locator('#gameover-close').click();
-  await page.locator('#new-game').click();
+  await startNewGame(page);
   expect(canonicalSerialize((await snapshot(page)).state)).toBe(canonicalSerialize(initial));
   for (let turn = 0; turn < 4; turn++) await page.locator('#end-turn').click();
   const checkpoint = await snapshot(page);
   expect(checkpoint.state.round).toBe(5);
   expect(checkpoint.state.outcome).toBeNull();
+  await openScreen(page, 'menu');
   await page.locator('#save-game').click();
   await expect(page.locator('#action-notice')).toContainText('已保存');
+  await closeScreen(page);
   await page.locator('#end-turn').click();
   expect((await snapshot(page)).state.commandSeq).toBeGreaterThan(checkpoint.state.commandSeq);
+  await openScreen(page, 'menu');
   await page.locator('#load-game').click();
   await expect(page.locator('#action-notice')).toContainText('读档完成');
   expect(await snapshot(page)).toEqual(checkpoint);
