@@ -108,3 +108,5 @@ npm run lint:tools
 npx tsc --noEmit
 npm test -- --run
 ```
+
+- `node tools/fixtures/generate-browser.ts`：从固定开局和合法命令重建 BL-11 浏览器战斗、外交及 105 单位性能夹具 `tests/browser/fixtures/reachable.json`；每条命令单独一行，生成时复核完整状态重放，修改规则后需审阅轨迹与哈希变化。

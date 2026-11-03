@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { diplomacySave, incomingPeaceSave, neutralSave, outcomeSave, visibleAiSave } from './fixtures/diplomacy.ts';
+import { reachableFixture, verifyImportedReplay } from './fixtures/reachable.ts';
 import { replay } from '../../src/app/session.ts';
 import { canonicalSerialize, stateDigest } from '../../src/core/snapshot.ts';
 import type { GameState, PlayerView } from '../../src/core/model.ts';
@@ -11,6 +12,7 @@ async function importFixture(page: Page, text: string) {
   await page.goto('/?seed=12345');
   await page.locator('#import-save').setInputFiles({ name: 'fixture.json', mimeType: 'application/json', buffer: Buffer.from(text) });
   await expect(page.locator('#action-notice')).toContainText('读档完成');
+  await verifyImportedReplay(page, text);
 }
 async function state(page: Page): Promise<GameState> {
   return page.evaluate(async () => { const mainPath = '/src/browser/main.ts'; return (await import(mainPath)).developerAdapter.getState(); });
@@ -68,12 +70,12 @@ test('pending peace guards every state transition until a response', async ({ pa
   await importFixture(page, incomingPeaceSave());
   await expect(page.locator('#peace-response')).toBeVisible();
   for (const id of ['new-game', 'load-game', 'import-save', 'replay', 'resume']) await expect(page.locator(`#${id}`)).toBeDisabled();
+  const before = await state(page);
   await page.evaluate(() => {
     for (const id of ['new-game', 'load-game', 'replay', 'resume']) document.querySelector(`#${id}`)!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
   });
   const blocked = await state(page);
-  expect(blocked.round).toBe(6);
-  expect(blocked.commandSeq).toBe(0);
+  expect(canonicalSerialize(blocked)).toBe(canonicalSerialize(before));
   expect(blocked.diplomacy[0].proposal).toEqual({ proposerId: 1, recipientId: 0 });
   await expect(page.locator('#action-notice')).toContainText('再切换对局');
   await page.locator('#reject-peace').click();
@@ -115,10 +117,13 @@ for (const [kind, title] of [['score', '轮上限计分'], ['conquest', '征服�
 
 test('neutral camp has a visible map marker and read-only information panel', async ({ page }) => {
   await importFixture(page, neutralSave());
-  const position = (await state(page)).cities[1].position;
-  await clickHex(page, position);
-  await expect(page.locator('#neutral-city')).toContainText('中立营地 1');
-  await expect(page.locator('#neutral-city')).toContainText('HP 57');
+  const cityId = reachableFixture('neutral').cityId!;
+  const city = (await state(page)).cities[cityId];
+  expect(city.ownerId).toBeNull();
+  await page.locator('#fit').click();
+  await clickHex(page, city.position);
+  await expect(page.locator('#neutral-city')).toContainText(`中立营地 ${cityId}`);
+  await expect(page.locator('#neutral-city')).toContainText(`HP ${city.hp}`);
   await page.screenshot({ path: `${reports}/m4ui-neutral.png`, fullPage: true });
 });
 
