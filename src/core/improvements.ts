@@ -113,7 +113,8 @@ export function improvementOptions(view: PlayerView, unitId: number, content: Co
   const improvements = view.expansion?.improvements;
   if (!unit || unit.kind !== 'pokemon' || !unit.actionLeft || !improvements) return [];
   const improved = new Set([...improvements.tiles.map(tile => tile.tileIndex),
-    ...(view.expansion?.districts?.tiles.map(tile => tile.tileIndex) ?? []), ...(view.expansion?.districts?.projects.map(tile => tile.tileIndex) ?? [])]), visible = new Set(view.visibleTileIds);
+    ...(view.expansion?.districts?.tiles.map(tile => tile.tileIndex) ?? []), ...(view.expansion?.districts?.projects.map(tile => tile.tileIndex) ?? []),
+    ...(view.expansion?.districts?.constructionSites?.filter(site => site.category === 'district').map(site => site.tileIndex) ?? [])]), visible = new Set(view.visibleTileIds);
   const here = hexToIndex(unit.position, view.map)!;
   const nearby = [here, ...view.map.tiles.flatMap((_, index) => index !== here && hexDistance(indexToHex(index, view.map), unit.position) === 1 ? [index] : [])];
   return nearby.filter(index => visible.has(index)).flatMap(tileIndex => IMPROVEMENT_IDS.flatMap(kind => improvementBlocker({ tiles: view.map.tiles, width: view.map.width, height: view.map.height,

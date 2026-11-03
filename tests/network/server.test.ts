@@ -65,7 +65,7 @@ describe('authoritative local multiplayer rooms', () => {
       seatId: 0, joinToken: created.seats[0].joinToken,
     })) as unknown as JoinResponse;
     expect(joined.view.gameplayVersion).toBe(10);
-    expect(joined.view.expansion?.districts).toEqual({ tiles: [], projects: [] });
+    expect(joined.view.expansion?.districts).toEqual({ tiles: [], projects: [], constructionSites: [] });
     expect((await post(server, `/api/rooms/${created.roomId}/owner/save`, { slot: 'slot-1' }, created.ownerToken)).status).toBe(200);
     expect((await post(server, `/api/rooms/${created.roomId}/commands`, { expectedSeq: 0, action: { type: 'EndTurn' } }, joined.seatToken)).status).toBe(200);
     expect((await post(server, `/api/rooms/${created.roomId}/owner/load`, { slot: 'slot-1' }, created.ownerToken)).status).toBe(200);

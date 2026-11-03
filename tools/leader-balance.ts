@@ -248,7 +248,7 @@ function finalRanking(state: GameState, content: Content = CONTENT): Score[] {
     .map(id => scorePlayer(state, id, content)).sort((a, b) => compareScores(a, b) || a.playerId - b.playerId);
 }
 
-export function simulateLeaderCase(match: LeaderBalanceCase): LeaderGameResult {
+export function simulateLeaderCase(match: LeaderBalanceCase, onState?: (state: GameState) => void): LeaderGameResult {
   const content = match.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT;
   let state: GameState;
   try {
@@ -272,6 +272,7 @@ export function simulateLeaderCase(match: LeaderBalanceCase): LeaderGameResult {
   let exception: string | null = null;
   try {
     while (!state.outcome && state.commandSeq < 100_000) {
+      onState?.(state);
       const view = observe(state, state.activePlayerId, content);
       const command = planNext(view, { ...RULE_QUERIES, content, ai: AI_THRESHOLDS }, memory);
       const result = step(state, command, content);
@@ -291,6 +292,7 @@ export function simulateLeaderCase(match: LeaderBalanceCase): LeaderGameResult {
       countDistricts(ended.events);
       state = ended.state;
     }
+    onState?.(state);
   } catch (error) {
     exception = String(error);
   }
@@ -665,7 +667,7 @@ export function evaluateLeaderBalanceAcceptance(aggregate: LeaderBalanceAggregat
 export function runLeaderBalance(config: LeaderBalanceConfig, context?: { command?: string[]; nodeVersion?: string; gitHead?: string | null }): LeaderBalanceReport {
   const seedStart = config.seedStart ?? 1;
   const matches = leaderBalanceCases(config);
-  const games = matches.map(simulateLeaderCase);
+  const games = matches.map(match => simulateLeaderCase(match));
   const aggregate = aggregateLeaderGames(games);
   const content = config.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT;
   const scheduleSha256 = createHash('sha256').update(canonicalSerialize(matches)).digest('hex');

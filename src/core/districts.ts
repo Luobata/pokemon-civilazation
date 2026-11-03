@@ -15,12 +15,14 @@ export type District = { cityId: number; kind: DistrictId; tileIndex: number; bu
 export type DistrictState = { tiles: Record<number, District> };
 export type ObservedDistrict = District & { ownerId: number | null; lastSeenRound: number };
 export type DistrictProject = { cityId: number; kind: DistrictId; tileIndex: number; orderId: number; progress: number };
-export type DistrictView = { tiles: ObservedDistrict[]; projects: DistrictProject[] };
+export type ConstructionSite = { tileIndex: number; ownerId: number; category: 'district' | 'improvement' };
+export type DistrictView = { tiles: ObservedDistrict[]; projects: DistrictProject[]; constructionSites?: ConstructionSite[] };
 type SiteCity = Pick<CityState, 'id' | 'ownerId' | 'position' | 'population' | 'workedTileIds' | 'lockedTileIds'>;
 export type DistrictInput = {
   gameplayVersion?: GameplayVersion; playerId: number; techs: readonly TechId[];
   map: GridSize & { tiles: readonly (BiomeId | null)[] }; visible: ReadonlySet<number>;
-  territoryOwnerIds: readonly (readonly number[] | null)[];
+  territoryOwnerIds: readonly (readonly number[] | null)[]; knownLandTiles: ReadonlySet<number>;
+  constructionSites: readonly ConstructionSite[];
   cities: readonly SiteCity[]; completed: readonly District[]; projects: readonly DistrictProject[];
   improvements: readonly { tileIndex: number; kind: ImprovementId }[];
   improvementProjects: readonly { tileIndex: number }[]; berryTiles: ReadonlySet<number>;
@@ -45,31 +47,36 @@ export function districtOccupiedTiles(state: GameState): Set<number> {
 export function districtInput(state: GameState, playerId: number, visible: ReadonlySet<number>, replacement?: { cityId: number; queue: ProductionOrder[] }): DistrictInput {
   const cities = Object.values(state.cities).sort((a, b) => a.id - b.id);
   return { gameplayVersion: state.setup.gameplayVersion, playerId, techs: state.players[playerId].research.unlockedIds,
-    map: state.map, visible, territoryOwnerIds: territoryOwners(state), cities, completed: Object.values(state.expansion?.districts?.tiles ?? {}).sort(compare),
+    map: state.map, visible, territoryOwnerIds: territoryOwners(state),
+    knownLandTiles: new Set(state.map.tiles.flatMap((biome, index) => biome !== 'ocean' && (visible.has(index) || Object.hasOwn(state.knowledge[playerId].rememberedTiles, index)) ? [index] : [])),
+    constructionSites: [], cities, completed: Object.values(state.expansion?.districts?.tiles ?? {}).sort(compare),
     projects: districtProjects(cities.map(city => replacement?.cityId === city.id ? { ...city, queue: replacement.queue } : city)),
     improvements: Object.entries(state.expansion?.improvements?.tiles ?? {}).map(([index, item]) => ({ ...item, tileIndex: Number(index) })),
     improvementProjects: Object.keys(state.expansion?.improvements?.projects ?? {}).map(index => ({ tileIndex: Number(index) })),
     berryTiles: new Set(Object.keys(state.expansion?.rareBerries?.deposits ?? {}).map(Number)) };
 }
 export function districtViewInput(view: PlayerView): DistrictInput {
-  const own = view.economy.cities, known = Object.entries(view.knowledge.lastKnownCities).map(([id, city]) => ({ id: Number(id), ...city }));
-  const other = [...known, ...view.cities].filter(city => !own.some(owned => owned.id === city.id));
+  const own = view.economy.cities, visible = new Set(view.visibleTileIds);
+  const other = view.cities.filter(city => !own.some(owned => owned.id === city.id));
   return { gameplayVersion: view.gameplayVersion, playerId: view.playerId, techs: view.economy.player.research.unlockedIds,
-    map: view.map, visible: new Set(view.visibleTileIds), territoryOwnerIds: view.territoryOwnerIds, cities: [...own, ...[...new Map(other.map(city => [city.id, city])).values()]
+    map: view.map, visible, territoryOwnerIds: view.territoryOwnerIds,
+    knownLandTiles: new Set(view.map.tiles.flatMap((biome, index) => biome !== null && biome !== 'ocean' ? [index] : [])),
+    constructionSites: view.expansion?.districts?.constructionSites ?? [], cities: [...own, ...[...new Map(other.map(city => [city.id, city])).values()]
       .map(city => ({ ...city, population: 1, workedTileIds: [], lockedTileIds: [] }))].sort((a, b) => a.id - b.id),
     completed: view.expansion?.districts?.tiles ?? [], projects: view.expansion?.districts?.projects ?? [],
-    improvements: view.expansion?.improvements?.tiles ?? [], improvementProjects: view.expansion?.improvements?.projects ?? [],
+    // Preserve the map projection; only current foreign facts contribute to district adjacency.
+    improvements: view.expansion?.improvements?.tiles.filter(item => item.builtBy === view.playerId || visible.has(item.tileIndex)) ?? [], improvementProjects: view.expansion?.improvements?.projects ?? [],
     berryTiles: new Set(view.expansion?.rareBerries?.deposits.map(item => item.tileIndex) ?? []) };
 }
 /** Same arithmetic for complete authority input and partial observed input. No hidden reads. */
-export function districtEffects(input: Pick<DistrictInput, 'map' | 'cities' | 'improvements'>, kind: DistrictId, tileIndex: number): DistrictBreakdown {
+export function districtEffects(input: Pick<DistrictInput, 'map' | 'cities' | 'improvements'> & Partial<Pick<DistrictInput, 'visible'>>, kind: DistrictId, tileIndex: number): DistrictBreakdown {
   const definition = DISTRICTS[kind], base = { ...definition.base }, total = { ...base };
   const adjacent = neighbors(indexToHex(tileIndex, input.map)).flatMap(hex => { const index = hexToIndex(hex, input.map); return index === null ? [] : [index]; }).sort((a, b) => a - b);
-  const unknownAdjacentTileIds = adjacent.filter(index => input.map.tiles[index] === null);
+  const unknownAdjacentTileIds = adjacent.filter(index => input.map.tiles[index] === null || (input.visible !== undefined && !input.visible.has(index)));
   const adjacency = definition.adjacency.map(rule => {
-    const tileIndices = adjacent.filter(index => input.map.tiles[index] !== null && (rule.biomes?.includes(input.map.tiles[index]!)
+    const tileIndices = adjacent.filter(index => (input.map.tiles[index] !== null && rule.biomes?.includes(input.map.tiles[index]!))
       || (rule.improvement && input.improvements.some(item => item.tileIndex === index && item.kind === rule.improvement))
-      || (rule.cityCenter && input.cities.some(city => hexToIndex(city.position, input.map) === index))));
+      || (rule.cityCenter && input.cities.some(city => hexToIndex(city.position, input.map) === index)));
     const value = Math.min(rule.cap, tileIndices.length * rule.perTile);
     total[rule.effect] += value;
     return { id: rule.id, label: rule.label, effect: rule.effect, tileIndices, perTile: rule.perTile, cap: rule.cap, value };
@@ -88,9 +95,11 @@ export function districtBlocker(input: DistrictInput, cityId: number, kind: Dist
   if (input.cities.some(city => hexToIndex(city.position, input.map) === tileIndex)) return 'city-center';
   if (distance < 1 || distance > workRadius(city as CityState)) return 'outside-city-territory';
   if (!definition.biomes.includes(input.map.tiles[tileIndex]!)) return 'wrong-biome';
-  if (definition.coastal && !neighbors(position).some(hex => { const index = hexToIndex(hex, input.map); return index !== null && input.map.tiles[index] !== null && input.map.tiles[index] !== 'ocean'; })) return 'harbor-needs-coast';
-  if (input.completed.some(item => item.tileIndex === tileIndex) || input.projects.some(item => item.tileIndex === tileIndex)) return 'district-tile-occupied';
-  if (input.improvements.some(item => item.tileIndex === tileIndex) || input.improvementProjects.some(item => item.tileIndex === tileIndex)) return 'tile-improved-or-under-construction';
+  if (definition.coastal && !neighbors(position).some(hex => { const index = hexToIndex(hex, input.map); return index !== null && input.knownLandTiles.has(index); })) return 'harbor-needs-coast';
+  if (input.completed.some(item => item.tileIndex === tileIndex) || input.projects.some(item => item.tileIndex === tileIndex)
+    || input.constructionSites.some(item => item.tileIndex === tileIndex && item.category === 'district')) return 'district-tile-occupied';
+  if (input.improvements.some(item => item.tileIndex === tileIndex) || input.improvementProjects.some(item => item.tileIndex === tileIndex)
+    || input.constructionSites.some(item => item.tileIndex === tileIndex && item.category === 'improvement')) return 'tile-improved-or-under-construction';
   if (input.berryTiles.has(tileIndex)) return 'rare-berry-deposit';
   if (input.territoryOwnerIds[tileIndex]?.some(ownerId => ownerId !== input.playerId)) return 'contested-territory';
   const owned = [...input.completed, ...input.projects].filter(item => item.cityId === cityId);
@@ -153,7 +162,14 @@ export function observeDistricts(state: GameState, playerId: number, visible: Re
     if (state.cities[item.cityId].ownerId === playerId) records[item.tileIndex] = { ...item, ownerId: playerId, lastSeenRound: state.round };
   }
   return { tiles: Object.values(records).sort(compare).map(item => ({ ...item })),
-    projects: districtProjects(Object.values(state.cities).filter(city => city.ownerId === playerId)) };
+    projects: districtProjects(Object.values(state.cities).filter(city => city.ownerId === playerId)),
+    constructionSites: [
+      ...Object.values(state.cities).flatMap(city => city.ownerId === null || city.ownerId === playerId ? []
+        : districtProjects([city]).filter(item => visible.has(item.tileIndex))
+          .map(item => ({ tileIndex: item.tileIndex, ownerId: city.ownerId!, category: 'district' as const }))),
+      ...Object.entries(state.expansion.improvements?.projects ?? {}).flatMap(([index, item]) => item.playerId !== playerId && visible.has(Number(index))
+        ? [{ tileIndex: Number(index), ownerId: item.playerId, category: 'improvement' as const }] : []),
+    ].sort((a, b) => a.tileIndex - b.tileIndex || a.ownerId - b.ownerId || a.category.localeCompare(b.category)) };
 }
 export function releaseDistrictWorkers(state: GameState, cityId: number): void {
   if (!state.expansion?.districts) return;
