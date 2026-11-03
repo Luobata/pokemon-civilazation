@@ -172,9 +172,9 @@ test('unobserved territory never emits faction boundary strokes', async ({ page 
   await page.goto('/');
   await page.locator('#fit').click();
   const counts = await page.evaluate(async () => {
-    const mainPath = '/src/browser/main.ts', canvasPath = '/src/browser/canvas.ts';
+    const mainPath = '/src/browser/main.ts', renderPath = '/src/browser/render/index.ts';
     const { session, camera } = await import(mainPath);
-    const { drawMap } = await import(canvasPath);
+    const { createMapRenderer } = await import(renderPath);
     const strokes: string[] = [];
     const factionColor = getComputedStyle(document.documentElement).getPropertyValue('--civ-1').trim().toLowerCase();
     const original = CanvasRenderingContext2D.prototype.stroke;
@@ -186,10 +186,11 @@ test('unobserved territory never emits faction boundary strokes', async ({ page 
     const view = session.getView();
     const bare: PlayerView = { ...view, units: [], cities: [], map: { ...view.map, tiles: view.map.tiles.map(() => null) },
       visibleTileIds: [], territoryOwnerIds: view.territoryOwnerIds.map(() => null) };
-    drawMap(canvas, bare, camera, null, []);
+    const renderer = createMapRenderer(canvas);
+    renderer.render({ view: bare, camera });
     const unseen = strokes.length;
     bare.territoryOwnerIds[0] = [0];
-    drawMap(canvas, bare, camera, null, []);
+    renderer.render({ view: bare, camera });
     CanvasRenderingContext2D.prototype.stroke = original;
     return { unseen, observed: strokes.length - unseen };
   });

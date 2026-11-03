@@ -35,30 +35,36 @@ test('measure Canvas2D draw time in four reachable late-game scenes including 10
     await verifyImportedReplay(page, saved);
     await page.locator('#fit').click();
     await openDevDrawer(page);
-    await openDevDrawer(page);
     await page.locator('#god').check();
     await expect(page.locator('#frame-metrics')).toContainText('p95');
     const measured = await page.evaluate(async () => {
-      const mainPath = '/src/browser/main.ts', canvasPath = '/src/browser/canvas.ts';
+      const mainPath = '/src/browser/main.ts', renderPath = '/src/browser/render/index.ts';
       const { camera, developerAdapter } = await import(mainPath);
-      const { drawMap } = await import(canvasPath);
+      const { createMapRenderer } = await import(renderPath);
       const canvas = document.querySelector<HTMLCanvasElement>('#map')!;
       const view = developerAdapter.getDebugView();
-      const durations: number[] = [];
-      for (let frame = 0; frame < 260; frame++) {
-        const started = performance.now();
-        drawMap(canvas, view, camera, null, []);
-        if (frame >= 20) durations.push(performance.now() - started);
-      }
-      const sorted = [...durations].sort((a, b) => a - b);
+      const stats = (durations: number[]) => {
+        const sorted = [...durations].sort((a, b) => a - b);
+        return { samples: durations.length, mean: durations.reduce((sum, value) => sum + value, 0) / durations.length,
+          p50: sorted[Math.ceil(sorted.length * .50) - 1], p95: sorted[Math.ceil(sorted.length * .95) - 1], max: sorted.at(-1)! };
+      };
+      /** 20 warm-up + 240 measured frames; `pan` moves the camera one pixel per frame (cache miss every frame). */
+      const measure = (cacheLayers: boolean, pan: boolean) => {
+        const renderer = createMapRenderer(canvas, { cacheLayers }), durations: number[] = [];
+        for (let frame = 0; frame < 260; frame++) {
+          const started = performance.now();
+          renderer.render({ view, camera: pan ? { ...camera, x: camera.x + frame } : camera });
+          if (frame >= 20) durations.push(performance.now() - started);
+        }
+        return stats(durations);
+      };
+      const uncached = measure(false, false), cachedStill = measure(true, false), cachedPan = measure(true, true);
       return {
         mapTiles: view.map.tiles.length,
         visibleUnits: view.units.length,
-        samples: durations.length,
-        mean: durations.reduce((sum, value) => sum + value, 0) / durations.length,
-        p50: sorted[Math.ceil(sorted.length * .50) - 1],
-        p95: sorted[Math.ceil(sorted.length * .95) - 1],
-        max: sorted.at(-1),
+        // Top-level figures stay comparable with earlier reports: every layer drawn directly.
+        ...uncached,
+        cachedStill, cachedPan,
         dpr: window.devicePixelRatio,
         viewport: { width: window.innerWidth, height: window.innerHeight },
         userAgent: navigator.userAgent,

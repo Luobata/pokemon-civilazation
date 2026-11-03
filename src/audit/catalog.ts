@@ -466,7 +466,7 @@ export const AUDIT_SYSTEMS: readonly AuditSystem[] = [
       '缺图不阻塞规则结算并使用占位。',
       '读档、重开或切换观察状态时清空表现队列。',
     ],
-    sources: ['src/browser/main.ts', 'src/browser/canvas.ts', 'src/browser/*.ts', 'src/styles.css'],
+    sources: ['src/browser/main.ts', 'src/browser/render/*.ts', 'src/browser/*.ts', 'src/styles.css', 'docs/tech/rendering.md'],
     actionTypes: ['Move', 'EndTurn', 'FoundCity', 'SetProductionQueue', 'AssignWork', 'SetResearch', 'BuyBall', 'Attack', 'Capture', 'Evolve', 'DeclareWar', 'MakePeace', 'RespondPeace'],
   }),
   system({

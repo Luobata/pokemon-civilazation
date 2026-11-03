@@ -41,8 +41,10 @@ import { constructionNotice, districtPreviewMarkup } from './district-panel.ts';
 import type { DistrictId } from '../content/districts.ts';
 import { reachablePaths } from '../core/movement.ts';
 import type { PlayerView, VisibleEvent } from '../core/model.ts';
-import { BIOME_DISPLAY, FACTION_LEGEND, drawMap } from './canvas.ts';
-import type { AnimationPose, MapEffect } from './canvas.ts';
+import { BIOME_DISPLAY, FACTION_LEGEND } from './canvas.ts';
+import { createMapRenderer, Timeline } from './render/index.ts';
+import type { DebugOverlay, Track } from './render/index.ts';
+import { battleTrack, captureTrack, evolveTrack, moveTrack } from './render/animation.ts';
 import { fitCamera, hexToWorld, toWorld, worldToHex, zoomAt } from './camera.ts';
 import type { Camera, Point } from './camera.ts';
 
@@ -67,14 +69,7 @@ document.querySelector<HTMLAnchorElement>('#open-audit')!.addEventListener('clic
     else { notice = '请允许打开审计页面，或在新标签页访问 /audit.html 并导入存档。'; controls(); }
   } catch (error) { notice = `无法打开审计副本：${String(error)}`; controls(); }
 });
-type MovedPayload = Extract<VisibleEvent['payload'], { type: 'Moved' }>;
 type BattlePayload = Extract<VisibleEvent['payload'], { type: 'BattleResolved' }>;
-type CapturePayload = Extract<VisibleEvent['payload'], { type: 'Captured' }>;
-type EvolvePayload = Extract<VisibleEvent['payload'], { type: 'Evolved' }>;
-type Active = { kind: 'move'; payload: MovedPayload; started: number }
-  | { kind: 'battle'; payload: BattlePayload; started: number }
-  | { kind: 'capture'; payload: CapturePayload; started: number }
-  | { kind: 'evolve'; payload: EvolvePayload; started: number };
 export type FrameMetrics = { samples: number; last: number; mean: number; p95: number; max: number };
 const frameDurations: number[] = [];
 function frameMetrics(): FrameMetrics {
@@ -105,16 +100,28 @@ let actionMode: ActionMode = null;
 let districtPlacement: { cityId: number; kind: DistrictId; tileIndex: number | null } | null = null;
 let pendingTarget: PendingTarget | null = null;
 let selectedBall: BallId = 'pokeBall';
-let active: Active | null = null;
+// Presentation: events play one after another as timeline tracks; `presenting` maps a running
+// track to its event so skipping can still report the last summary.
+const timeline = new Timeline();
+const presenting = new Map<string, VisibleEvent['payload']>();
+let trackSerial = 0;
+const renderer = createMapRenderer(canvas);
 let frameRequested = false;
 let notice = '';
 let presentationIndex = 0;
-const busy = () => active !== null || presentationIndex < session.presentationQueue.length;
+const busy = () => timeline.busy || presentationIndex < session.presentationQueue.length;
 
-function duration(item: Active) {
-  if (item.kind === 'move') return Math.max(1, item.payload.path.length - 1) * 180;
-  if (item.kind === 'battle' || item.kind === 'capture') return 600;
-  return 450;
+/** The visual track for one presentation event, or null for events without an animation. */
+function presentationTrack(payload: VisibleEvent['payload']): Track | null {
+  const key = `${payload.type}:${trackSerial++}`;
+  const finish = () => { notice = summary(payload) || notice; presenting.delete(track!.key); };
+  let track: Track | null = null;
+  if (payload.type === 'Moved') track = moveTrack(payload.unit, payload.path, finish);
+  else if (payload.type === 'BattleResolved') track = battleTrack(key, payload.positions[1], payload.damage, payload.counterDamage, finish);
+  else if (payload.type === 'Captured') track = captureTrack(key, payload.targetUnitId, payload.success, finish);
+  else if (payload.type === 'Evolved') track = evolveTrack(key, payload.unitId, finish);
+  if (track) presenting.set(track.key, payload);
+  return track;
 }
 function summary(payload: VisibleEvent['payload']) {
   switch (payload.type) {
@@ -356,58 +363,38 @@ function requestFrame() {
 function finishPresentations() {
   const pending = session.presentationQueue.slice(presentationIndex);
   for (const event of pending) recordActivity(event.payload);
-  const payloads = [...(active ? [active.payload] : []), ...pending.map(event => event.payload)];
+  const payloads = [...presenting.values(), ...pending.map(event => event.payload)];
   const text = payloads.map(summary).filter(Boolean).at(-1);
   if (text) notice = text;
-  active = null;
+  timeline.clear(); presenting.clear();
   presentationIndex = 0;
   session.skipAnimations();
 }
 function frame(now: number) {
   frameRequested = false;
   if (!animate.checked) finishPresentations();
-  if (active && now - active.started >= duration(active)) {
-    notice = summary(active.payload) || notice;
-    active = null;
-  }
+  timeline.advance(now);
   // The player session returns a defensive copy; read it once per frame, not per event.
   const queue = session.presentationQueue;
-  while (!active && presentationIndex < queue.length) {
+  while (!timeline.busy && presentationIndex < queue.length) {
     const event = queue[presentationIndex++]!;
     recordActivity(event.payload);
-    if (event.payload.type === 'Moved') active = { kind: 'move', payload: event.payload, started: now };
-    else if (event.payload.type === 'BattleResolved') active = { kind: 'battle', payload: event.payload, started: now };
-    else if (event.payload.type === 'Captured') active = { kind: 'capture', payload: event.payload, started: now };
-    else if (event.payload.type === 'Evolved') active = { kind: 'evolve', payload: event.payload, started: now };
-  }
-  let pose: AnimationPose | undefined, effect: MapEffect | undefined;
-  if (active?.kind === 'move') {
-    const path = active.payload.path;
-    const progress = Math.min(path.length - 1, (now - active.started) / 180);
-    const index = Math.floor(progress), fraction = progress - index;
-    const a = hexToWorld(path[index]), b = hexToWorld(path[Math.min(index + 1, path.length - 1)]);
-    pose = { unit: active.payload.unit, position: { x: a.x + (b.x - a.x) * fraction, y: a.y + (b.y - a.y) * fraction } };
-  } else if (active) {
-    const progress = Math.min(1, (now - active.started) / duration(active));
-    if (active.kind === 'battle') effect = { kind: 'battle', position: active.payload.positions[1], damage: active.payload.damage, counterDamage: active.payload.counterDamage, progress };
-    else if (active.kind === 'capture') {
-      const payload = active.payload;
-      const target = session.getView().units.find(unit => unit.id === payload.targetUnitId);
-      if (target) effect = { kind: 'capture', position: target.position, success: payload.success, progress };
-    } else {
-      const payload = active.payload;
-      const unit = session.getView().units.find(unit => unit.id === payload.unitId);
-      if (unit) effect = { kind: 'evolve', position: unit.position, progress };
-    }
+    const track = presentationTrack(event.payload);
+    if (track) timeline.add(track, now);
   }
   const view = session.getView();
+  const animation = timeline.sample(now, { unitPosition: id => view.units.find(unit => unit.id === id)?.position });
   const paths = selected === null ? {} : reachablePaths(view, selected);
   const targets = selected === null ? [] : actionTargets(view, selected, actionMode, selectedBall).map(target => hexToIndex(target.position, view.map)!);
   const drawStarted = performance.now();
-  drawMap(canvas, import.meta.env.DEV && god.checked ? developerAdapter.getDebugView() : view,
-    camera, selected, Object.keys(paths).map(Number), pose, keyboardIndex, effect, actionMode, targets, pendingTarget?.index, selectedCity, import.meta.env.DEV ? document.querySelector<HTMLSelectElement>('#debug-overlay')!.value as import('./canvas.ts').DebugOverlay : 'none',
-    districtPlacement ? { sites: districtSites(view, districtPlacement.cityId, districtPlacement.kind), selectedTileIndex: districtPlacement.tileIndex } : undefined,
-    { yields: showYields.checked });
+  renderer.render({
+    view: import.meta.env.DEV && god.checked ? developerAdapter.getDebugView() : view, camera, animation,
+    selected, selectedCity, reachable: Object.keys(paths).map(Number), cursorIndex: keyboardIndex,
+    actionMode, actionTargets: targets, pendingTargetIndex: pendingTarget?.index,
+    debugOverlay: import.meta.env.DEV ? document.querySelector<HTMLSelectElement>('#debug-overlay')!.value as DebugOverlay : 'none',
+    districtPlacement: districtPlacement ? { sites: districtSites(view, districtPlacement.cityId, districtPlacement.kind), selectedTileIndex: districtPlacement.tileIndex } : undefined,
+    layers: { yields: showYields.checked },
+  });
   frameDurations.push(performance.now() - drawStarted);
   if (frameDurations.length > 240) frameDurations.shift();
   if (import.meta.env.DEV) {
@@ -415,7 +402,7 @@ function frame(now: number) {
     frameMetricsElement.textContent = `帧绘制耗时（最近 ${metrics.samples} 帧）：${metrics.last.toFixed(2)} ms\n均值 ${metrics.mean.toFixed(2)} ms · p95 ${metrics.p95.toFixed(2)} ms · 最大 ${metrics.max.toFixed(2)} ms`;
   }
   // Drop fully presented events so the queue (and its per-frame copy) stays small in long games.
-  if (!active && presentationIndex > 0 && presentationIndex >= queue.length) { session.skipAnimations(); presentationIndex = 0; }
+  if (!timeline.busy && presentationIndex > 0 && presentationIndex >= queue.length) { session.skipAnimations(); presentationIndex = 0; }
   if (busy()) requestFrame(); else controls();
 }
 function skip() { finishPresentations(); controls(); requestFrame(); }
@@ -480,7 +467,7 @@ function newGame() {
     driver = new GameSession({ expansionVersion: 1, eraProgression, gameplayVersion: LATEST_GAMEPLAY_VERSION, seed: Number(new URLSearchParams(location.search).get('seed') ?? '12345'), ...size,
       roundLimit: Number(document.querySelector<HTMLSelectElement>('#round-limit')!.value) as GameSetup['roundLimit'], players });
     session = driver.asPlayerSession();
-    active = null; presentationIndex = 0; selected = null; selectedCity = session.getView().economy.player.headquartersCityId; neutralCity = null; keyboardIndex = null; activityLog.length = 0; knownUnitLabels.clear();
+    timeline.clear(); presenting.clear(); presentationIndex = 0; selected = null; selectedCity = session.getView().economy.player.headquartersCityId; neutralCity = null; keyboardIndex = null; activityLog.length = 0; knownUnitLabels.clear();
     frameDurations.length = 0;
     resetAction(); notice = ''; sequence.value = '0';
     canvas.hidden = false;
@@ -627,7 +614,7 @@ document.querySelector('#resume')!.addEventListener('click', () => {
 const saveKey = 'pokemon-civilization-save';
 function load(text: string) {
   if (transitionBlocked()) return;
-  driver.load(text); closeScreen(); active = null; selected = null; selectedCity = session.getView().economy.cities[0]?.id ?? null; neutralCity = null; keyboardIndex = null; activityLog.length = 0; knownUnitLabels.clear(); resetAction(); notice = '读档完成';
+  driver.load(text); closeScreen(); timeline.clear(); presenting.clear(); selected = null; selectedCity = session.getView().economy.cities[0]?.id ?? null; neutralCity = null; keyboardIndex = null; activityLog.length = 0; knownUnitLabels.clear(); resetAction(); notice = '读档完成';
   frameDurations.length = 0;
   fit();
   const focusCity = session.getView().economy.cities.find(city => city.id === selectedCity);

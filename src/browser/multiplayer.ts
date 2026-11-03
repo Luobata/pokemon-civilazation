@@ -7,7 +7,8 @@ import { hexToIndex, indexToHex } from '../core/hex.ts';
 import { reachablePaths } from '../core/movement.ts';
 import type { Command, PlayerView } from '../core/model.ts';
 import type { BallId } from '../content/economy.ts';
-import { drawMap, FACTION_LEGEND } from './canvas.ts';
+import { FACTION_LEGEND } from './canvas.ts';
+import { createMapRenderer } from './render/index.ts';
 import { renderDiplomacyPanel, hasPendingPeace } from './diplomacy-panel.ts';
 import { renderEconomyPanel } from './economy-panel.ts';
 import { renderExpansionPanel } from './expansion-panel.ts';
@@ -24,6 +25,7 @@ import { NetworkClient, NetworkError } from '../network/client.ts';
 import type { RoomCreateResponse } from '../network/contract.ts';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#map')!;
+const renderer = createMapRenderer(canvas);
 const status = document.querySelector<HTMLElement>('#connection-status')!;
 const hud = document.querySelector<HTMLElement>('#hud')!;
 const selectionInfo = document.querySelector<HTMLElement>('#selection-info')!;
@@ -211,8 +213,9 @@ function render(): void {
   const paths = unit && actionMode === 'move' ? reachablePaths(currentView, unit.id) : {};
   const targets = selectedUnit === null ? [] : actionTargets(currentView, selectedUnit, actionMode, selectedBall)
     .map(target => hexToIndex(target.position, currentView.map)).filter((index): index is number => index !== null);
-  drawMap(canvas, currentView, camera, selectedUnit, Object.keys(paths).map(Number), undefined, undefined, undefined, actionMode, targets, pendingTarget?.index, selectedCity, undefined,
-    districtPlacement ? { sites: districtSites(currentView, districtPlacement.cityId, districtPlacement.kind), selectedTileIndex: districtPlacement.tileIndex } : undefined);
+  renderer.render({ view: currentView, camera, selected: selectedUnit, selectedCity, reachable: Object.keys(paths).map(Number),
+    actionMode, actionTargets: targets, pendingTargetIndex: pendingTarget?.index,
+    districtPlacement: districtPlacement ? { sites: districtSites(currentView, districtPlacement.cityId, districtPlacement.kind), selectedTileIndex: districtPlacement.tileIndex } : undefined });
   mapNotice.textContent = districtPlacement ? '设施区选址：点击格子预览，再确认入队。Esc 取消。' : actionMode === 'move' ? '移动模式：点击高亮格移动。'
     : actionMode === 'attack' ? '攻击模式：选择红色目标，再确认攻击。'
     : actionMode === 'capture' ? '捕捉模式：选择野生宝可梦，再确认捕捉。'
