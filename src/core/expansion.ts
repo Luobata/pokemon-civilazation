@@ -1,3 +1,4 @@
+import { initializeDistricts } from './districts.ts';
 import { CIVILIZATION_CONTENT } from '../content/civilization-systems.ts';
 import type { Content } from '../content/units.ts';
 import type { Command, EventPayload, GameState } from './model.ts';
@@ -31,6 +32,7 @@ export function initializeExpansion(state: GameState, content: Content): void {
   initializeRareBerries(state);
   initializeContests(state);
   initializeFaith(state);
+  initializeDistricts(state);
 }
 export function validateExpansionAction(state: GameState, actorId: number, action: Command['action'], content: Content): boolean {
   if (!state.expansion || !expansionActionType(action.type)) return false;

@@ -1,3 +1,4 @@
+import { cityDistrictEffects } from './districts.ts';
 import { productionAfterHall } from './contests.ts';
 import { essenceTrainingBonus, gymTrainedXp } from './essences.ts';
 import { leaderEffects } from '../content/leaders.ts';
@@ -27,7 +28,7 @@ function deploy(state: GameState, city: CityState, pending: PendingDeployment, c
   const id = state.nextEntityId++;
   const xp = city.buildingIds.reduce((total, building) => total + content.buildings[building].trainedXp, 0)
     + doctrineEffects(state.players[city.ownerId], state.setup.eraProgression, identity, content).trainedXpBonus
-    + (identity.kind === 'pokemon' ? playerPolicyEffects(state, city.ownerId).trainedXp + gymTrainedXp(state, city.id, identity, content) : 0);
+    + (identity.kind === 'pokemon' ? playerPolicyEffects(state, city.ownerId).trainedXp + gymTrainedXp(state, city.id, identity, content) + cityDistrictEffects(state, city.id).trainedXp : 0);
   state.units[id] = createMapUnit(identity, id, city.ownerId, position, content, xp);
   registerSpecies(state.players[city.ownerId], state.units[id]);
   events.push({ type: 'UnitTrained', playerId: city.ownerId, cityId: city.id, orderId: pending.sourceOrderId,
@@ -69,7 +70,11 @@ export function resolveEconomy(state: GameState, content: Content = state.setup.
     const overflow = order.progress - cost;
     city.queue.shift();
     if (city.queue[0]) city.queue[0].progress += overflow;
-    if (order.item.kind === 'building') {
+    if (order.item.kind === 'district') {
+      state.expansion!.districts!.tiles[order.item.tileIndex] = { cityId: city.id, kind: order.item.defId, tileIndex: order.item.tileIndex, builtAtRound: state.round };
+      events.push({ type: 'DistrictCompleted', playerId: city.ownerId, cityId: city.id, orderId: order.id,
+        tileIndex: order.item.tileIndex, kind: order.item.defId, cost, overflow });
+    } else if (order.item.kind === 'building') {
       city.buildingIds.push(order.item.defId); city.buildingIds.sort(); city.hp += content.balance.city.buildingHp;
       events.push({ type: 'BuildingCompleted', playerId: city.ownerId, cityId: city.id, orderId: order.id,
         definitionId: order.item.defId, cost, overflow });

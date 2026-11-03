@@ -1,3 +1,4 @@
+import { gameVersions } from '../core/versions.ts';
 import { createGame } from '../core/game.ts';
 import { step } from '../core/step.ts';
 import { EXPANSION_CONTENT, CONTENT } from '../content/units.ts';
@@ -10,7 +11,7 @@ import { hexToIndex } from '../core/hex.ts';
 import type { CommandLog } from './session.ts';
 
 export type SaveFile = {
-  formatVersion: 1; schemaVersion: 4; rulesVersion: 'm5-v1'; contentVersion: string;
+  formatVersion: 1; schemaVersion: GameState['schemaVersion']; rulesVersion: GameState['rulesVersion']; contentVersion: string;
   state: GameState; log: CommandLog;
 };
 export function serializeSave(state: GameState, log: CommandLog): string {
@@ -20,9 +21,10 @@ export function serializeSave(state: GameState, log: CommandLog): string {
 export function deserializeSave(text: string, content?: Content): SaveFile {
   const save = JSON.parse(text) as SaveFile;
   content ??= save?.contentVersion === EXPANSION_CONTENT.version ? EXPANSION_CONTENT : CONTENT;
-  if (save?.formatVersion !== 1 || save.schemaVersion !== 4 || save.rulesVersion !== 'm5-v1' || save.contentVersion !== content.version
-    || save.state?.schemaVersion !== 4 || save.state.rulesVersion !== save.rulesVersion || save.state.contentVersion !== save.contentVersion
-    || save.log?.version !== 1 || save.log.schemaVersion !== 4 || save.log.rulesVersion !== save.rulesVersion || save.log.contentVersion !== save.contentVersion) {
+  const versions = gameVersions(save?.state?.setup ?? {});
+  if (save?.formatVersion !== 1 || save.schemaVersion !== versions.schemaVersion || save.rulesVersion !== versions.rulesVersion || save.contentVersion !== content.version
+    || save.state?.schemaVersion !== save.schemaVersion || save.state.rulesVersion !== save.rulesVersion || save.state.contentVersion !== save.contentVersion
+    || save.log?.version !== 1 || save.log.schemaVersion !== save.schemaVersion || save.log.rulesVersion !== save.rulesVersion || save.log.contentVersion !== save.contentVersion) {
     throw new Error('存档版本不匹配；当前版本不支持迁移。');
   }
   const state = save.state;

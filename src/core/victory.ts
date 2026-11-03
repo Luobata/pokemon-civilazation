@@ -26,6 +26,7 @@ export function finishGame(state: GameState, kind: GameOutcome['kind'], winners?
 export function eliminateCivilization(state: GameState, playerId: number, content: Content = state.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT): CombatEvent[] {
   const player = state.players[playerId];
   for (const city of Object.values(state.cities)) if (city.ownerId === playerId) {
+    if (state.expansion?.districts) city.queue = city.queue.filter(order => order.item.kind !== 'district');
     city.ownerId = null; city.hp = 50; city.workedTileIds = []; city.lockedTileIds = [];
   }
   for (const unit of Object.values(state.units)) if (unit.ownerId === playerId) delete state.units[unit.id];

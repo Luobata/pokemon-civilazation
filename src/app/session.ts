@@ -1,3 +1,4 @@
+import { gameVersions } from '../core/versions.ts';
 import { RULE_QUERIES } from '../ai/query.ts';
 import { rememberCityRejection } from '../ai/memory.ts';
 import type { RejectedCitySite } from '../ai/memory.ts';
@@ -16,10 +17,11 @@ import { observeWorld } from '../core/world-systems.ts';
 import { observeCivilization } from '../core/civilization-systems.ts';
 import { CIVILIZATION_CONTENT } from '../content/civilization-systems.ts';
 
-export type CommandLog = { version: 1; schemaVersion: 4; rulesVersion: 'm5-v1'; contentVersion: string; setup: GameSetup; commands: Command[]; aiRejectedCitySites?: RejectedCitySite[] };
+export type CommandLog = { version: 1; schemaVersion: GameState['schemaVersion']; rulesVersion: GameState['rulesVersion']; contentVersion: string; setup: GameSetup; commands: Command[]; aiRejectedCitySites?: RejectedCitySite[] };
 
 export function replay(log: CommandLog, through = log.commands.length, checkpoint?: GameState, content: Content = log.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT): GameState {
-  if (log.version !== 1 || log.schemaVersion !== 4 || log.rulesVersion !== 'm5-v1' || log.contentVersion !== content.version
+  const versions = gameVersions(log.setup);
+  if (log.version !== 1 || log.schemaVersion !== versions.schemaVersion || log.rulesVersion !== versions.rulesVersion || log.contentVersion !== content.version
     || !Number.isInteger(through) || through < 0 || through > log.commands.length) throw new Error('Unsupported log or replay sequence.');
   let state = createGame(log.setup, content);
   if (checkpoint) {
@@ -89,7 +91,7 @@ export class GameSession {
       } };
   }
   exportLog(): CommandLog {
-    return { version: 1, schemaVersion: 4, rulesVersion: 'm5-v1', contentVersion: this.content.version, setup: this.getState().setup,
+    return { version: 1, ...gameVersions(this.state.setup), contentVersion: this.content.version, setup: this.getState().setup,
       commands: JSON.parse(JSON.stringify(this.commands)) as Command[],
       aiRejectedCitySites: JSON.parse(JSON.stringify(this.aiRejectedCitySites)) as RejectedCitySite[] };
   }

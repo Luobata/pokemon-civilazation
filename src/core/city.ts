@@ -1,3 +1,5 @@
+import { DISTRICTS } from '../content/districts.ts';
+import { cityDistrictEffects, districtOccupiedTiles } from './districts.ts';
 import { faithCityYield } from './faith-legends.ts';
 import { rareBerryCityFood } from './rare-berries.ts';
 import { gameplayAtLeast } from '../content/eras.ts';
@@ -55,6 +57,7 @@ export function workCandidates(state: GameState, city: CityState, content: Conte
   const occupied = new Set(Object.values(state.cities).flatMap(other => [
     hexToIndex(other.position, state.map)!, ...(other.id === city.id ? [] : other.workedTileIds),
   ]));
+  for (const index of districtOccupiedTiles(state)) occupied.add(index);
   const weather = state.players[city.ownerId].research.unlockedIds.includes('meteorology');
   return state.map.tiles.flatMap((biome, index) => !occupied.has(index)
     && hexDistance(city.position, indexToHex(index, state.map)) <= workRadius(city)
@@ -107,9 +110,12 @@ export function cityYield(state: GameState, city: CityState, content: Content = 
   const leader = leaderEffects(player.leaderId);
   result.research += leader.cityResearch + (city.buildingIds.includes('observatory') ? leader.laboratoryResearch : 0);
   result.gold += city.population >= 3 ? leader.cityGold : 0;
+  const district = cityDistrictEffects(state, city.id);
+  for (const key of ['food', 'production', 'gold', 'research'] as const) result[key] += district[key];
   return result;
 }
 export function productionCost(item: ProductionItem, content: Content = CONTENT, trainingDiscountPercent = 0, settlerDiscountPercent = 0): number {
+  if (item.kind === 'district') return DISTRICTS[item.defId].cost;
   if (item.kind === 'building') return content.buildings[item.defId].cost!;
   if (item.kind === 'logistics' && settlerDiscountPercent) return Math.max(1, Math.ceil(content.units[item.defId].trainCost * (100 - settlerDiscountPercent) / 100));
   const base = content.units[item.defId].trainCost;

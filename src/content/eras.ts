@@ -94,10 +94,10 @@ export function eraState(player: EraPlayer, mode?: EraProgression): EraState | n
  * 8: adds Pokémon Contests: contest halls, appeal and the contest (culture) victory.
  * 9: adds legend faiths (religions): founding, tenets, spreading and the faith victory.
  */
-export type GameplayVersion = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+export type GameplayVersion = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
 export const LATEST_GAMEPLAY_VERSION: GameplayVersion = 9;
 export function isGameplayVersion(value: unknown): value is GameplayVersion {
-  return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= LATEST_GAMEPLAY_VERSION;
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 10;
 }
 export function gameplayAtLeast(source: { gameplayVersion?: GameplayVersion }, version: GameplayVersion): boolean {
   return (source.gameplayVersion ?? 0) >= version;

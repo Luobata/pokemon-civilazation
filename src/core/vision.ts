@@ -1,3 +1,4 @@
+import { observeDistricts, rememberDistricts } from './districts.ts';
 import { observeFaith } from './faith-legends.ts';
 import { observeContests } from './contests.ts';
 import { observeRareBerries } from './rare-berries.ts';
@@ -47,7 +48,7 @@ export function visibleTiles(state: GameState, playerId: number, content: Conten
 }
 
 // D39: territory is the union of civilization city radii, not exclusive worked-tile ownership.
-function territoryOwners(state: GameState): number[][] {
+export function territoryOwners(state: GameState): number[][] {
   const owners = state.map.tiles.map(() => [] as number[]);
   for (const city of Object.values(state.cities)) {
     if (city.ownerId === null) continue;
@@ -67,6 +68,7 @@ export function refreshKnowledge(state: GameState, content: Content = state.setu
   for (const playerId of state.turnOrder) {
     const visible = visibleTiles(state, playerId, content);
     const knowledge = state.knowledge[playerId];
+    rememberDistricts(state, playerId, visible);
     knowledge.exploredTileIds = [...new Set([...knowledge.exploredTileIds, ...visible])].sort((a, b) => a - b);
     for (const tile of visible) knowledge.rememberedTiles[tile] = { biomeId: state.map.tiles[tile], territoryOwnerIds: [...territory[tile]] };
     for (const [id, known] of Object.entries(knowledge.lastKnownUnits)) {
@@ -110,6 +112,7 @@ export function observe(state: GameState, playerId: number, content: Content = s
       ...(state.expansion.policies ? { policies: observePolicies(state, playerId) } : {}),
       ...(state.expansion.essences ? { essences: observeEssences(state, playerId) } : {}),
       ...(state.expansion.bonds ? { bonds: observeBonds(state, playerId) } : {}),
+      ...(state.expansion.districts ? { districts: observeDistricts(state, playerId, visible) } : {}),
       ...(state.expansion.faith ? { faith: observeFaith(state, playerId) } : {}),
       ...(state.expansion.contests ? { contests: observeContests(state, playerId, content) } : {}),
       ...(state.expansion.rareBerries ? { rareBerries: observeRareBerries(state, playerId, visible) } : {}),

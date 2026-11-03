@@ -1,3 +1,4 @@
+import { districtCandidates } from './district-plan.ts';
 import { planCivilizationAction } from '../core/civilization-systems.ts';
 import { CIVILIZATION_CONTENT } from '../content/civilization-systems.ts';
 import { planWorldAction } from '../core/world-systems.ts';
@@ -175,6 +176,8 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
     if (work.length > city.workedTileIds.length) add({ type: 'AssignWork', cityId: city.id, workedTileIds: work, lockedTileIds: [...city.lockedTileIds] }, 'economy', 500, city.id);
     if (city.queue.length || city.pendingDeployments.length) continue;
     const queue = (item: ProductionItem, goal: Goal, benefit: number, targetId = 0) => add({ type: 'SetProductionQueue', cityId: city.id, orders: [{ item }] }, goal, benefit, city.id, targetId);
+    const district = districtCandidates(view, city.id, content)[0];
+    if (district) queue({ kind: 'district', defId: district.kind, tileIndex: district.tileIndex }, 'economy', district.score, district.tileIndex);
     if (canProduceSettler(view, ai)) queue({ kind: 'logistics', defId: 'settler' }, 'found', 50);
     for (const [i, id] of (Object.keys(content.buildings) as BuildingId[]).entries()) {
       const building = content.buildings[id];

@@ -1,3 +1,4 @@
+import { cityDistrictEffects } from './districts.ts';
 import { faithBond, faithKeepsCity } from './faith-legends.ts';
 import { rareBerryBond } from './rare-berries.ts';
 import { gameplayAtLeast } from '../content/eras.ts';
@@ -48,6 +49,8 @@ export function bondPressure(state: GameState, city: CityState): BondBreakdown {
   if (Object.values(state.units).some(unit => isMapUnit(unit) && unit.ownerId === owner && unit.kind === 'pokemon' && hexDistance(unit.position, city.position) <= 1)) {
     parts.push({ label: '驻军', value: BOND_RULES.garrison });
   }
+  const garden = cityDistrictEffects(state, city.id).bondPressure;
+  if (garden) parts.push({ label: '花园', value: garden });
   const legend = faithBond(state, city.id);
   if (legend) parts.push({ label: '烈空坐信仰', value: legend });
   const luxury = rareBerryBond(state, owner);

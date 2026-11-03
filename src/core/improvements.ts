@@ -1,3 +1,4 @@
+import { districtOccupiedTiles } from './districts.ts';
 import { leaderEffects } from '../content/leaders.ts';
 import { IMPROVEMENT_IDS, IMPROVEMENT_WORK, IMPROVEMENTS } from '../content/improvements.ts';
 import type { ImprovementId } from '../content/improvements.ts';
@@ -73,6 +74,7 @@ export function validateImprovementAction(state: GameState, actorId: number, act
   if (!unit.actionLeft) return 'no-action';
   if (!Number.isSafeInteger(action.tileIndex) || action.tileIndex < 0 || action.tileIndex >= state.map.tiles.length) return 'unknown-tile';
   if (!visibleTiles(state, actorId).has(action.tileIndex)) return 'unknown-tile';
+  if (districtOccupiedTiles(state).has(action.tileIndex)) return 'district-tile-occupied';
   return improvementBlocker({ tiles: state.map.tiles, width: state.map.width, height: state.map.height, cities: Object.values(state.cities),
     improved: index => Object.hasOwn(improvements.tiles, index), unitPosition: unit.position, playerId: actorId, tileIndex: action.tileIndex, kind: action.kind });
 }
@@ -110,7 +112,8 @@ export function improvementOptions(view: PlayerView, unitId: number, content: Co
   const unit = view.units.find(item => item.id === unitId && item.ownerId === view.playerId);
   const improvements = view.expansion?.improvements;
   if (!unit || unit.kind !== 'pokemon' || !unit.actionLeft || !improvements) return [];
-  const improved = new Set(improvements.tiles.map(tile => tile.tileIndex)), visible = new Set(view.visibleTileIds);
+  const improved = new Set([...improvements.tiles.map(tile => tile.tileIndex),
+    ...(view.expansion?.districts?.tiles.map(tile => tile.tileIndex) ?? []), ...(view.expansion?.districts?.projects.map(tile => tile.tileIndex) ?? [])]), visible = new Set(view.visibleTileIds);
   const here = hexToIndex(unit.position, view.map)!;
   const nearby = [here, ...view.map.tiles.flatMap((_, index) => index !== here && hexDistance(indexToHex(index, view.map), unit.position) === 1 ? [index] : [])];
   return nearby.filter(index => visible.has(index)).flatMap(tileIndex => IMPROVEMENT_IDS.flatMap(kind => improvementBlocker({ tiles: view.map.tiles, width: view.map.width, height: view.map.height,

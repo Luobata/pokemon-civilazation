@@ -58,6 +58,21 @@ describe('authoritative local multiplayer rooms', () => {
     }
   });
 
+  test('explicit v10 rooms preserve their district envelope through save/export/load', async () => {
+    const server = createNetworkServer({ persistenceDirectory: directory });
+    const created = await payload(await post(server, '/api/rooms', { seed: 31, seats: 2, gameplayVersion: 10 })) as unknown as RoomCreateResponse;
+    const joined = await payload(await post(server, `/api/rooms/${created.roomId}/join`, {
+      seatId: 0, joinToken: created.seats[0].joinToken,
+    })) as unknown as JoinResponse;
+    expect(joined.view.gameplayVersion).toBe(10);
+    expect(joined.view.expansion?.districts).toEqual({ tiles: [], projects: [] });
+    expect((await post(server, `/api/rooms/${created.roomId}/owner/save`, { slot: 'slot-1' }, created.ownerToken)).status).toBe(200);
+    expect((await post(server, `/api/rooms/${created.roomId}/commands`, { expectedSeq: 0, action: { type: 'EndTurn' } }, joined.seatToken)).status).toBe(200);
+    expect((await post(server, `/api/rooms/${created.roomId}/owner/load`, { slot: 'slot-1' }, created.ownerToken)).status).toBe(200);
+    const exported = await payload(await post(server, `/api/rooms/${created.roomId}/owner/export`, {}, created.ownerToken)) as unknown as SaveFile;
+    expect(exported).toMatchObject({ schemaVersion: 5, rulesVersion: 'districts-v10', state: { commandSeq: 0 }, log: { schemaVersion: 5, rulesVersion: 'districts-v10' } });
+  });
+
   test('two clients authenticate, reject wrong seat and stale sequence, and receive only PlayerView', async () => {
     const server = createNetworkServer({ persistenceDirectory: null, now: () => 1700000000000 });
     const createdResponse = await post(server, '/api/rooms', { seed: 12345, seats: 2, ownerName: 'host' });

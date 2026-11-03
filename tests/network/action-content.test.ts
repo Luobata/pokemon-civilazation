@@ -18,6 +18,13 @@ describe('content-aware action parsing', () => {
     expect(expansionActionFields(CONTENT).UseEvolutionStone.intoSpeciesId).not.toContain('clefable');
   });
 
+  test('district commands keep their tile index and reject malformed fields', () => {
+    const action = { type: 'SetProductionQueue', cityId: 1, orders: [{ item: { kind: 'district', defId: 'gardenDistrict', tileIndex: 42 } }] };
+    expect(validateCommandRequest({ expectedSeq: 3, action })).toEqual({ expectedSeq: 3, action });
+    expect(isCommandAction({ ...action, orders: [{ item: { kind: 'district', defId: 'unknown', tileIndex: 42 } }] })).toBe(false);
+    expect(isCommandAction({ ...action, orders: [{ item: { kind: 'district', defId: 'gardenDistrict', tileIndex: 0.5 } }] })).toBe(false);
+  });
+
   test('parsers default to expansion content and still reject unknown canonical fields', () => {
     const queue = { type: 'SetProductionQueue', cityId: 1, orders: [{ item: { kind: 'pokemon' as const, defId: 'clefairy' } }] };
     expect(parseAuditAction(queue)).toEqual(queue);

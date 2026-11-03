@@ -1,3 +1,5 @@
+import type { DistrictId } from '../content/districts.ts';
+import type { ObservedDistrict } from './districts.ts';
 import type { EraProgression, GameplayVersion } from '../content/eras.ts';
 import type { ExpansionAction, ExpansionEvent, ExpansionState, ExpansionView } from './expansion-model.ts';
 import type { TypeId } from '../content/species.ts';
@@ -34,9 +36,9 @@ export type RecoveringUnit = UnitBase & { location: 'recovering'; cityId: number
 export type UnitState = MapUnit | RecoveringUnit;
 export function isMapUnit(unit: UnitState): unit is MapUnit { return unit.location === 'map'; }
 export type ProductionItem = { kind: 'building'; defId: BuildingId }
-  | { kind: 'pokemon'; defId: SpeciesId } | { kind: 'logistics'; defId: 'settler' };
+  | { kind: 'pokemon'; defId: SpeciesId } | { kind: 'logistics'; defId: 'settler' } | { kind: 'district'; defId: DistrictId; tileIndex: number };
 export type ProductionOrder = { id: number; progress: number; item: ProductionItem };
-export type PendingDeployment = { enteredAtRound: number; sourceOrderId: number; item: Exclude<ProductionItem, { kind: 'building' }> };
+export type PendingDeployment = { enteredAtRound: number; sourceOrderId: number; item: Exclude<ProductionItem, { kind: 'building' | 'district' }> };
 export type CitySummary = { id: number; ownerId: number | null; position: Hex; headquartersOf?: number | null };
 export type CityState = CitySummary & {
   hp: number; population: number; food: number; buildingIds: BuildingId[];
@@ -63,6 +65,7 @@ export type EconomyEvent = { playerId: number } & (
   | { type: 'ResearchSelected'; techId: TechId }
   | { type: 'BallsPurchased'; cityId: number; ballId: BallId; quantity: number; goldBefore: number; goldAfter: number; inventoryBefore: number; inventoryAfter: number }
   | { type: 'CityFoodSettled'; cityId: number; foodBefore: number; foodAfter: number; populationBefore: number; populationAfter: number }
+  | { type: 'DistrictCompleted'; cityId: number; orderId: number; tileIndex: number; kind: DistrictId; cost: number; overflow: number }
   | { type: 'BuildingCompleted'; cityId: number; orderId: number; definitionId: BuildingId; cost: number; overflow: number }
   | { type: 'ProductionWaiting'; cityId: number; enteredAtRound: number; sourceOrderId: number; definitionId: string }
   | { type: 'UnitTrained'; cityId: number; orderId: number; unit: UnitState }
@@ -73,13 +76,14 @@ export type EconomyEvent = { playerId: number } & (
 );
 export type LastKnownUnit = UnitIdentity & { ownerId: number | null; position: Hex; lastSeenRound: number };
 export type KnowledgeState = {
+  rememberedDistricts?: Record<number, ObservedDistrict>;
   exploredTileIds: number[];
   rememberedTiles: Record<number, { biomeId: BiomeId; territoryOwnerIds?: number[] }>;
   lastKnownUnits: Record<number, LastKnownUnit>;
   lastKnownCities: Record<number, { ownerId: number | null; position: Hex; lastSeenRound: number; headquartersOf?: number | null }>;
 };
 export type GameState = {
-  schemaVersion: 4; rulesVersion: 'm5-v1'; contentVersion: string;
+  schemaVersion: 4 | 5; rulesVersion: 'm5-v1' | 'districts-v10'; contentVersion: string;
   expansion?: ExpansionState;
   setup: GameSetup; rng: RngState; nextEntityId: number; commandSeq: number;
   round: number; activePlayerId: number; turnOrder: number[];
@@ -136,4 +140,4 @@ export type VisibleEvent = { seq: number; payload:
   | Exclude<EventPayload, { type: 'Moved' }>
 };
 export type StepResult = { ok: true; state: GameState; events: GameEvent[] }
-  | { ok: false; reason: 'game-ended' | 'diplomacy-unavailable' | 'not-your-turn' | 'stale-command' | 'invalid-command' | 'unit-unavailable' | 'no-action' | 'unreachable' | 'city-unavailable' | 'invalid-production' | 'invalid-work' | 'research-unavailable' | 'purchase-unavailable' | 'invalid-city-site' | 'attack-unavailable' | 'capture-unavailable' | 'evolution-unavailable' };
+  | { ok: false; reason: 'game-ended' | 'diplomacy-unavailable' | 'not-your-turn' | 'stale-command' | 'invalid-command' | 'unit-unavailable' | 'no-action' | 'unreachable' | 'city-unavailable' | 'invalid-production' | 'contested-territory' | 'invalid-work' | 'research-unavailable' | 'purchase-unavailable' | 'invalid-city-site' | 'attack-unavailable' | 'capture-unavailable' | 'evolution-unavailable' };

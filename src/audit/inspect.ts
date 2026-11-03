@@ -1,3 +1,5 @@
+import { gameVersions } from '../core/versions.ts';
+import { cityDistrictEffects, districtProjects } from '../core/districts.ts';
 import { FLANK_MAX, FLANK_PER_UNIT, usesTactics } from '../core/tactics.ts';
 import { RULE_QUERIES } from '../ai/query.ts';
 import { knownCombatCount, planNext } from '../ai/plan.ts';
@@ -507,7 +509,7 @@ function inspectPersistence(state: GameState): AuditSystemInspection {
       metric('Schema', state.schemaVersion), metric('规则版本', state.rulesVersion),
       metric('内容版本', state.contentVersion), metric('玩家一致', `${setupIds.join(',')} → ${stateIds.join(',')}`),
     ],
-    data: { supported: { schemaVersion: 4, rulesVersion: 'm5-v1', contentVersion: contentFor(state).version },
+    data: { supported: { ...gameVersions(state.setup), contentVersion: contentFor(state).version },
       setupPlayerIds: setupIds, statePlayerIds: stateIds, commandSeq: state.commandSeq,
       playerSeats: state.setup.players.map(player => ({ id: player.id, controller: player.controller, leaderId: player.leaderId ?? null })),
       limitation: 'GameState inspection cannot prove localStorage save/load success; that is exercised by save/session tests.' },
@@ -679,6 +681,13 @@ export function inspectSystem(systemId: string, state: GameState): AuditSystemIn
   }
   if (system.id === 's29-multiplayer') return { metrics: [metric('当前局模式', state.setup.multiplayer ? '多席位' : '单人本地'), metric('席位数', Object.keys(state.players).length)],
     data: { controllerByPlayer: state.setup.players, client: '/multiplayer.html', server: 'npm run server', authority: 'HTTP server authenticates each seat and returns only its projected view.', tokens: 'Never exposed by this local audit inspector.' } };
+  if (system.id === 's-districts') {
+    const districts = state.expansion?.districts, projects = districts ? districtProjects(Object.values(state.cities)) : [];
+    return { metrics: [metric('当前规则', districts ? '时代玩法 v10' : '本局未启用（需显式 v10）'),
+      metric('已完成设施区', Object.keys(districts?.tiles ?? {}).length), metric('排队设施区', projects.length)],
+      data: { districts: districts ?? null, projects,
+        effectsByCity: Object.fromEntries(Object.values(state.cities).sort((a, b) => a.id - b.id).map(city => [city.id, cityDistrictEffects(state, city.id)])) } };
+  }
   if (system.id === 's31-improvements') {
     const improvements = state.expansion?.improvements;
     return { metrics: [metric('当前规则', improvements ? '时代玩法 v2' : '本局未启用（需时代玩法 v2）'), metric('已建改良', improvements ? Object.keys(improvements.tiles).length : 0),

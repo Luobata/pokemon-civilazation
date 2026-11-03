@@ -50,8 +50,8 @@ type Room = {
 
 type SaveFile = Parameters<typeof serializeSave>[0] extends never ? never : {
   formatVersion: 1;
-  schemaVersion: 4;
-  rulesVersion: 'm5-v1';
+  schemaVersion: GameState['schemaVersion'];
+  rulesVersion: GameState['rulesVersion'];
   contentVersion: string;
   state: GameState;
   log: CommandLog;
@@ -407,7 +407,7 @@ export class NetworkGameServer {
       if (info.size > MAX_SAVE_BYTES) throw new Error('Save is too large');
       save = JSON.parse(await readFile(target, 'utf8')) as SaveFile;
     } catch { return json({ code: 'save-unavailable', reason: 'Save slot is missing or invalid.' }, 404); }
-    const invalid = save?.formatVersion !== 1 || save.schemaVersion !== 4 || save.rulesVersion !== 'm5-v1'
+    const invalid = save?.formatVersion !== 1 || save.schemaVersion !== room.state.schemaVersion || save.rulesVersion !== room.state.rulesVersion
       || save.contentVersion !== this.content.version || save.state?.setup === undefined || save.log?.commands === undefined
       || canonicalSerialize(save.state.setup) !== canonicalSerialize(room.state.setup)
       || !Array.isArray(save.log.commands) || save.state.commandSeq !== save.log.commands.length;

@@ -1,3 +1,5 @@
+import { districtBlocker, districtInput, releaseDistrictWorkers } from './districts.ts';
+import { visibleTiles } from './vision.ts';
 import { ballPrice, playerPolicyEffects } from './policies.ts';
 import { trainableSpeciesIds } from './role-tactics.ts';
 import { isMapUnit } from './model.ts';
@@ -44,14 +46,22 @@ export function validateEconomyAction(state: GameState, actor: number, action: E
   }
   if (action.orders.length > 5) return 'invalid-production';
   const used = new Set<number>(), buildings = new Set(city.buildingIds);
-  for (const order of action.orders) {
+  for (const [index, order] of action.orders.entries()) {
     const item = order.item;
     if (order.orderId !== undefined) {
       const previous = city.queue.find(entry => entry.id === order.orderId);
-      if (!previous || used.has(order.orderId) || previous.item.kind !== item.kind || previous.item.defId !== item.defId) return 'invalid-production';
+      if (!previous || used.has(order.orderId) || previous.item.kind !== item.kind || previous.item.defId !== item.defId
+        || (previous.item.kind === 'district' && item.kind === 'district' && previous.item.tileIndex !== item.tileIndex)) return 'invalid-production';
       used.add(order.orderId);
     }
-    if (item.kind === 'building') {
+    if (item.kind === 'district') {
+      if (!state.expansion?.districts) return 'invalid-production';
+      if (order.orderId === undefined) {
+        const queue = action.orders.flatMap((other, otherIndex) => otherIndex === index ? [] : [{ id: other.orderId ?? -otherIndex - 1, progress: 0, item: other.item }]);
+        const reason = districtBlocker(districtInput(state, actor, visibleTiles(state, actor, content), { cityId: city.id, queue }), city.id, item.defId, item.tileIndex);
+        if (reason) return reason === 'contested-territory' ? reason : 'invalid-production';
+      }
+    } else if (item.kind === 'building') {
       const def = content.buildings[item.defId];
       if (!Object.hasOwn(content.buildings, item.defId) || def.cost === null || buildings.has(item.defId)
         || (def.requiredTech && !player.research.unlockedIds.includes(def.requiredTech))) return 'invalid-production';
@@ -82,6 +92,7 @@ export function applyEconomyAction(state: GameState, actor: number, action: Econ
     city.queue = action.orders.map(order => order.orderId === undefined
       ? { id: state.nextEntityId++, progress: 0, item: { ...order.item } }
       : city.queue.find(existing => existing.id === order.orderId)!);
+    releaseDistrictWorkers(state, city.id);
     return [{ type: 'ProductionQueueChanged', playerId: actor, cityId: city.id, orders: JSON.parse(JSON.stringify(city.queue)) }];
   }
   if (action.type === 'AssignWork') {

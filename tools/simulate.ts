@@ -1,4 +1,6 @@
-import { CONTENT } from '../src/content/units.ts';
+import { isGameplayVersion } from '../src/content/eras.ts';
+import type { GameplayVersion } from '../src/content/eras.ts';
+import { CONTENT, EXPANSION_CONTENT } from '../src/content/units.ts';
 import { AI_THRESHOLDS } from '../src/ai/thresholds.ts';
 import { RULE_QUERIES } from '../src/ai/query.ts';
 import type { SimulationOptions } from './patch.ts';
@@ -15,10 +17,10 @@ import type { Match } from './matches.ts';
 import { collectTelemetry, createTelemetry } from './telemetry.ts';
 import { classifyRejection } from './rejections.ts';
 
-export function simulateMatch(match: Match, roundLimit: 100 | 200 | 300 = 100, options?: SimulationOptions) {
-  const content = options?.content ?? CONTENT, ai = options?.ai ?? AI_THRESHOLDS;
+export function simulateMatch(match: Match, roundLimit: 100 | 200 | 300 = 100, options?: SimulationOptions, gameplayVersion?: GameplayVersion) {
+  const content = options?.content ?? (gameplayVersion ? EXPANSION_CONTENT : CONTENT), ai = options?.ai ?? AI_THRESHOLDS;
   const query = { ...RULE_QUERIES, content, ai }, memory: RejectedCitySite[] = [];
-  const setup = matchSetup(match, roundLimit);
+  const setup = { ...matchSetup(match, roundLimit), ...(gameplayVersion ? { expansionVersion: 1 as const, eraProgression: 'simple-v1' as const, gameplayVersion } : {}) };
   let state: GameState;
   try { state = createGame(setup, content); } catch (error) {
     return { ...match, winners: [], kind: null, round: 0, aborted: false, defect: true, legacyAborted: true, invalid: [], exception: String(error), commandCount: 0,
@@ -56,8 +58,8 @@ export function simulateMatch(match: Match, roundLimit: 100 | 200 | 300 = 100, o
     outcome: state.outcome, telemetry, commands };
 }
 export type MatchResult = ReturnType<typeof simulateMatch>;
-export function simulate(seed: number, roundLimit: 100 | 200 | 300 = 100) {
-  const result = simulateMatch({ id: `smoke-${seed}`, seed, mode: 'smoke', leg: 0, personalities: ['expansion', 'aggressive', 'conservative'] }, roundLimit);
+export function simulate(seed: number, roundLimit: 100 | 200 | 300 = 100, gameplayVersion?: GameplayVersion) {
+  const result = simulateMatch({ id: `smoke-${seed}`, seed, mode: 'smoke', leg: 0, personalities: ['expansion', 'aggressive', 'conservative'] }, roundLimit, undefined, gameplayVersion);
   return { seed, winners: result.winners, kind: result.kind, round: result.round, aborted: result.aborted, defect: result.defect, invalid: result.invalid,
     commands: result.commandCount, exception: result.exception };
 }
@@ -66,11 +68,22 @@ export function parseSeedCount(args: string[]): number {
   if (args.length !== 2 || args[0] !== '--seeds' || !/^\d+$/.test(args[1]) || Number(args[1]) < 1 || Number(args[1]) > 10_000) throw new Error('Usage: npm run sim -- --seeds <1..10000>');
   return Number(args[1]);
 }
+export function parseSimulationArgs(args: string[]): { seeds: number; gameplayVersion?: GameplayVersion } {
+  const remaining: string[] = [];
+  let gameplayVersion: GameplayVersion | undefined;
+  for (let index = 0; index < args.length; index++) {
+    if (args[index] !== '--gameplay') { remaining.push(args[index]); continue; }
+    const value = Number(args[++index]);
+    if (gameplayVersion !== undefined || !isGameplayVersion(value)) throw new Error('Expected --gameplay 1..10');
+    gameplayVersion = value;
+  }
+  return { seeds: parseSeedCount(remaining), ...(gameplayVersion ? { gameplayVersion } : {}) };
+}
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const count = parseSeedCount(process.argv.slice(2));
+  const { seeds: count, gameplayVersion } = parseSimulationArgs(process.argv.slice(2));
   for (let seed = 1; seed <= count; seed++) {
     try {
-      const result = simulate(seed); console.log(JSON.stringify(result));
+      const result = simulate(seed, 100, gameplayVersion); console.log(JSON.stringify(result));
       if (result.aborted || result.defect) process.exitCode = 1;
     } catch (error) {
       console.log(JSON.stringify({ seed, winners: [], kind: null, round: null, aborted: true, exception: String(error) })); process.exitCode = 1;

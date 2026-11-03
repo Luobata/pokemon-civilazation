@@ -1,0 +1,17 @@
+/** Fixed v9/v10 contract smoke: four rotations × three personalities per seed, no balance tuning. */
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { leaderBalanceCases, simulateLeaderCase } from './leader-balance.ts';
+
+const version = Number(process.argv[2]), destination = process.argv[3];
+if ((version !== 9 && version !== 10) || !destination) throw new Error('Usage: node tools/district-smoke.ts <9|10> <output-directory>');
+const config = { seeds: 4, seedStart: 31, expansionVersion: 1 as const, eraProgression: 'simple-v1' as const,
+  gameplayVersion: version as 9 | 10, roundLimit: 100 as const, width: 24, height: 16 };
+mkdirSync(destination, { recursive: true });
+writeFileSync(resolve(destination, 'config.json'), JSON.stringify(config, null, 2));
+for (const match of leaderBalanceCases(config).filter(match => match.rotation < 4)) {
+  const result = simulateLeaderCase(match);
+  writeFileSync(resolve(destination, `${match.id}.json`), JSON.stringify(result, null, 2));
+  console.log(match.id, result.status, result.round, result.outcomeKind);
+  if (result.status !== 'completed') process.exitCode = 1;
+}

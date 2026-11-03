@@ -1,3 +1,4 @@
+import { DISTRICTS } from '../content/districts.ts';
 import { expansionActionType, parseExpansionAction } from '../core/expansion-commands.ts';
 import { EXPANSION_CONTENT } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
@@ -21,6 +22,7 @@ function production(value: unknown, content: Content): boolean {
   if (!record(value) || !record(value.item) || (value.orderId !== undefined && !integer(value.orderId))) return false;
   return value.item.kind === 'building' ? member(value.item.defId, content.buildings)
     : value.item.kind === 'pokemon' ? member(value.item.defId, content.species)
+    : value.item.kind === 'district' ? member(value.item.defId, DISTRICTS) && integer(value.item.tileIndex)
     : value.item.kind === 'logistics' && value.item.defId === 'settler';
 }
 
@@ -48,7 +50,7 @@ export function parseAuditAction(value: unknown, content: Content = EXPANSION_CO
   if (record(clean.to)) clean.to = pick(clean.to, ['q', 'r']);
   if (record(clean.target)) clean.target = pick(clean.target, ['kind', 'id']);
   if (Array.isArray(clean.orders)) clean.orders = clean.orders.map((order: RecordValue) => ({
-    ...pick(order, ['orderId']), item: pick(order.item as RecordValue, ['kind', 'defId']),
+    ...pick(order, ['orderId']), item: pick(order.item as RecordValue, (order.item as RecordValue).kind === 'district' ? ['kind', 'defId', 'tileIndex'] : ['kind', 'defId']),
   }));
   return structuredClone(clean) as Command['action'];
 }

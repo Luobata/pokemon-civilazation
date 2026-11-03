@@ -1,3 +1,7 @@
+import { DISTRICT_IDS } from '../src/content/districts.ts';
+import type { DistrictId } from '../src/content/districts.ts';
+import type { GameEvent } from '../src/core/model.ts';
+import { isGameplayVersion } from '../src/content/eras.ts';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -69,6 +73,7 @@ export type RejectionSummary = {
   examples: { round: number; seq: number; actorId: number; actionType: Command['action']['type']; reason: string; category: 'fog' | 'defect' }[];
 };
 export type LeaderGameResult = {
+  districtCompletions?: Record<DistrictId, number>;
   id: string;
   seed: number;
   personality: AiPersonality;
@@ -260,6 +265,10 @@ export function simulateLeaderCase(match: LeaderBalanceCase): LeaderGameResult {
   }
   const telemetry = createTelemetry(state, content), memory: RejectedCitySite[] = [], rejections = emptyRejections();
   const startingBySeat = startingPositions(state, content);
+  const districtCompletions = Object.fromEntries(DISTRICT_IDS.map(kind => [kind, 0])) as Record<DistrictId, number>;
+  const countDistricts = (events: readonly GameEvent[]) => {
+    for (const event of events) if (event.payload.type === 'DistrictCompleted') districtCompletions[event.payload.kind]++;
+  };
   let exception: string | null = null;
   try {
     while (!state.outcome && state.commandSeq < 100_000) {
@@ -268,6 +277,7 @@ export function simulateLeaderCase(match: LeaderBalanceCase): LeaderGameResult {
       const result = step(state, command, content);
       if (result.ok) {
         collectTelemetry(telemetry, state, result.state, command, result.events, content);
+        countDistricts(result.events);
         state = result.state;
         continue;
       }
@@ -278,6 +288,7 @@ export function simulateLeaderCase(match: LeaderBalanceCase): LeaderGameResult {
       const ended = step(state, end, content);
       if (!ended.ok) break;
       collectTelemetry(telemetry, state, ended.state, end, ended.events, content);
+      countDistricts(ended.events);
       state = ended.state;
     }
   } catch (error) {
@@ -310,6 +321,7 @@ export function simulateLeaderCase(match: LeaderBalanceCase): LeaderGameResult {
       };
     }),
     eraProgression: eraCliValue(match.setup.eraProgression),
+    ...(match.setup.gameplayVersion === 10 ? { districtCompletions } : {}),
   };
 }
 
@@ -688,7 +700,7 @@ export function parseLeaderBalanceArgs(args: string[]): { config: LeaderBalanceC
     const key = args[index];
     if (!['--seeds', '--seed-start', '--expansion', '--eras', '--gameplay', '--round-limit', '--out'].includes(key)
       || !args[index + 1] || args[index + 1].startsWith('--') || Object.hasOwn(flags, key)) {
-      throw new Error(`Usage: node tools/leader-balance.ts --seeds <1..100> [--seed-start <1..>] [--expansion <true|false>] [--eras <none|simple|full>] [--gameplay <0..${LATEST_GAMEPLAY_VERSION}>] --round-limit <100|200|300> [--out <file.json>]`);
+      throw new Error(`Usage: node tools/leader-balance.ts --seeds <1..100> [--seed-start <1..>] [--expansion <true|false>] [--eras <none|simple|full>] [--gameplay <0..10>] --round-limit <100|200|300> [--out <file.json>]`);
     }
     flags[key] = args[index + 1];
   }
@@ -702,7 +714,7 @@ export function parseLeaderBalanceArgs(args: string[]): { config: LeaderBalanceC
   if (expansion === 'false' && era !== 'none') throw new Error('--eras simple|full requires --expansion true');
   const eraProgression = eraProgressionValue(era as 'none' | 'simple' | 'full');
   const gameplay = Number(flags['--gameplay'] ?? (eraProgression === null ? 0 : LATEST_GAMEPLAY_VERSION));
-  if (!Number.isSafeInteger(gameplay) || gameplay < 0 || gameplay > LATEST_GAMEPLAY_VERSION || (gameplay > 0 && eraProgression === null)) throw new Error('--gameplay 1.. requires --eras simple|full');
+  if (!Number.isSafeInteger(gameplay) || gameplay < 0 || (gameplay !== 0 && !isGameplayVersion(gameplay)) || (gameplay > 0 && eraProgression === null)) throw new Error('--gameplay 1.. requires --eras simple|full');
   return {
     config: {
       seeds, seedStart, ...(expansion === 'true' ? { expansionVersion: 1 as const } : {}),
