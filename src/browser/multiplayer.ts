@@ -15,7 +15,7 @@ import { renderResearchPanel, resetResearchPanel } from './research-panel.ts';
 import { renderUnitPanel, type ActionMode, type PendingTarget } from './unit-panel.ts';
 import { actionTargets } from './action-targets.ts';
 import { districtSites, previewDistrict } from '../core/districts.ts';
-import { districtPreviewMarkup } from './district-panel.ts';
+import { constructionNotice, districtPreviewMarkup } from './district-panel.ts';
 import type { DistrictId } from '../content/districts.ts';
 import { fitCamera, toWorld, worldToHex, zoomAt } from './camera.ts';
 import type { Camera, Point } from './camera.ts';
@@ -487,6 +487,8 @@ canvas.addEventListener('pointerup', event => {
   const index = hexToIndex(worldToHex(toWorld(localPoint(event), camera)), currentView.map);
   if (index === null) return;
   if (districtPlacement) { districtPlacement.tileIndex = index; render(); return; }
+  const construction = constructionNotice(currentView, index);
+  if (construction) { say(construction); render(); return; }
   if (actionMode === 'move' && selectedUnit !== null) {
     if (!reachablePaths(currentView, selectedUnit)[index]) {
       say('该格不在当前单位移动范围内。', true);

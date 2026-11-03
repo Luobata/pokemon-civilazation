@@ -23,7 +23,7 @@ export function districtReason(reason: string | null, kind: DistrictId): string 
     'city-center': '城市中心格不能建造设施区。',
     'outside-city-territory': '目标格必须在所选城市的当前领地与工作距离内。',
     'wrong-biome': `地形不符合要求：${definition.name}需要${biomes}。`,
-    'harbor-needs-coast': '港口必须放在至少相邻一个陆地格的海洋格。',
+    'harbor-needs-coast': '港口需要相邻一块已探索的陆地。',
     'district-tile-occupied': '该格已有设施区或设施区订单。',
     'tile-improved-or-under-construction': '地块改良与设施区不能共用一格，请选择其他地块。',
     'rare-berry-deposit': '稀有树果矿点必须保留，不能建造设施区。',
@@ -82,4 +82,9 @@ export function cityDistrictMarkup(view: PlayerView, cityId: number): string {
     }).join('')}
     ${projects.map(item => `<p class="district-project" data-district-project="${item.orderId}">${DISTRICTS[item.kind].mark} ${DISTRICTS[item.kind].name} · 地块 ${item.tileIndex} · 在建 ${item.progress}/${DISTRICTS[item.kind].cost}</p>`).join('')}
     ${completed.length + projects.length ? '' : '<p class="empty-note">尚未建造设施区。</p>'}</section>`;
+}
+
+export function constructionNotice(view: PlayerView, tileIndex: number): string | null {
+  const site = view.expansion?.districts?.constructionSites?.find(item => item.tileIndex === tileIndex);
+  return site ? `文明 ${site.ownerId + 1} · 施工中` : null;
 }

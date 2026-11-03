@@ -36,7 +36,7 @@ import { renderVictoryPanel } from './victory-panel.ts';
 import { hexDistance, hexToIndex, indexToHex } from '../core/hex.ts';
 import { actionTargets } from './action-targets.ts';
 import { districtSites, previewDistrict } from '../core/districts.ts';
-import { districtPreviewMarkup } from './district-panel.ts';
+import { constructionNotice, districtPreviewMarkup } from './district-panel.ts';
 import type { DistrictId } from '../content/districts.ts';
 import { reachablePaths } from '../core/movement.ts';
 import type { PlayerView, VisibleEvent } from '../core/model.ts';
@@ -505,6 +505,8 @@ function activateIndex(index: number | null, confirmSelection = false) {
     }
     return;
   }
+  const construction = constructionNotice(view, index);
+  if (construction) { notice = construction; controls(); requestFrame(); return; }
   if (actionMode === 'move' && selected !== null) {
     if (reachablePaths(view, selected)[index]) issue({ type: 'Move', unitId: selected, to: indexToHex(index, view.map) });
     else { notice = '此处无法移动，请选择高亮格，或取消移动以选择其他对象。'; controls(); }

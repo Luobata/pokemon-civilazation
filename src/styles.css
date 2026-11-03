@@ -539,7 +539,7 @@ button.danger { border-color: var(--danger); background: #9E4B43; color: var(--o
 .district-type-card small { grid-column: 1 / -1; color: var(--ink-secondary); font-size: 10px; line-height: 1.45; }
 .district-mark { display: inline-grid; place-items: center; width: 24px; height: 24px; border: 1px solid var(--gold); border-radius: 5px; color: var(--gold); }
 .district-reason { color: #F2A08F !important; }
-.district-incomplete { color: var(--warning); }
+.district-incomplete { margin: 6px 0; color: var(--ink-muted); font-size: 10px; line-height: 1.45; }
 .district-release { color: var(--info); }
 .district-preview { overflow: hidden; border-radius: inherit; padding: 13px 14px; }
 .district-preview h3 { margin: 4px 0 10px; color: var(--ink); font-size: var(--text-body); }

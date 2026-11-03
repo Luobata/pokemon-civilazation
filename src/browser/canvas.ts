@@ -230,6 +230,15 @@ export function drawMap(canvas: HTMLCanvasElement, view: PlayerView, camera: Cam
   for (const project of view.expansion?.districts?.projects ?? []) {
     districtIcon(project.tileIndex, project.kind, view.playerId, false, Math.min(100, Math.round(project.progress * 100 / DISTRICTS[project.kind].cost)));
   }
+  for (const site of view.expansion?.districts?.constructionSites ?? []) {
+    if (!onscreen(centers[site.tileIndex])) continue;
+    const p = { x: centers[site.tileIndex].x - radius * .48, y: centers[site.tileIndex].y + radius * .45 }, size = Math.max(8, radius * .28);
+    context.beginPath();
+    if (site.category === 'district') context.roundRect(p.x - size, p.y - size, size * 2, size * 2, 2);
+    else { context.moveTo(p.x, p.y - size); context.lineTo(p.x + size, p.y + size); context.lineTo(p.x - size, p.y + size); context.closePath(); }
+    context.fillStyle = ownerColor(site.ownerId); context.fill(); context.strokeStyle = '#FFFDF7'; context.lineWidth = 1; context.stroke();
+    centeredText('施', p, '#FFF8E5', size);
+  }
 
   for (const city of view.cities) {
     const p = centers[hexToIndex(city.position, view.map)!];
