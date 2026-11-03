@@ -2,7 +2,7 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   build: {
-    rollupOptions: { input: { game: 'index.html', audit: 'audit.html', editor: 'editor.html', multiplayer: 'multiplayer.html' } },
+    rollupOptions: { input: { game: 'index.html', audit: 'audit.html', editor: 'editor.html', multiplayer: 'multiplayer.html', guide: 'guide.html' } },
   },
   test: {
     environment: 'node',
