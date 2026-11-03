@@ -24,6 +24,7 @@ describe('isolated audit sandbox', () => {
     unit.actionLeft = 1;
     expect(inspectSystem('s11-evolution', state).metrics.find(metric => metric.label === '当前可进化')?.value).toBe(1);
   });
+  // Runs a complete game and audits every system; allow CPU contention above the measured ~2.5s baseline.
   it('every system inspector preserves the complete authority state before and after the game ends', () => {
     const sandbox = new AuditSandbox();
     for (const completed of [false, true]) {
@@ -37,7 +38,7 @@ describe('isolated audit sandbox', () => {
         expect(canonicalSerialize(state)).toBe(before);
       }
     }
-  });
+  }, 15_000);
   it('rejects malformed debug payloads before they can reach engine mutations', () => {
     for (const action of [null, { type: 'Move' }, { type: 'RespondPeace', targetPlayerId: 1, accept: 'false' },
       { type: 'BuyBall', cityId: 1, ballId: 'pokeBall', quantity: NaN }, { type: 'SetResearch', techId: '__proto__' },

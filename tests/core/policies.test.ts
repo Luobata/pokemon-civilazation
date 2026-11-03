@@ -90,6 +90,7 @@ test('AI picks a charter, then fills slots by personality and leader', () => {
   expect(planPolicyAction(observe(state, 0))).toEqual({ type: 'SetPolicies', policyIds: ['gymChallenge', 'harvestFestival'] });
 });
 
+// Replays the full AI log on load and explicitly; allow >5x the observed 5.6s loaded run.
 test('gameplay v3 keeps exact save/load and replay with AI charters', () => {
   const session = new GameSession({ ...setup(3), multiplayer: undefined, players: [
     { id: 0, controller: 'human', starterId: 'bulbasaur', leaderId: 'oak' }, { id: 1, controller: 'ai', personality: 'expansion', leaderId: 'joy' }] });
@@ -104,7 +105,7 @@ test('gameplay v3 keeps exact save/load and replay with AI charters', () => {
   expect(canonicalSerialize(replay(session.exportLog()))).toBe(canonicalSerialize(session.getState()));
   expect(session.getState().expansion!.policies![1].adopted.length).toBeGreaterThan(0);
   void EXPANSION_CONTENT;
-});
+}, 30_000);
 
 test('gameplay v3 raises the Pokédex victory target; earlier packs keep 18', () => {
   expect(createGame(setup(3)).expansion!.world.victory.targetDocumentedSpecies).toBe(21);
