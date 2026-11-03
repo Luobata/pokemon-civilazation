@@ -14,6 +14,9 @@ import { renderExpansionPanel } from './expansion-panel.ts';
 import { renderResearchPanel, resetResearchPanel } from './research-panel.ts';
 import { renderUnitPanel, type ActionMode, type PendingTarget } from './unit-panel.ts';
 import { actionTargets } from './action-targets.ts';
+import { districtSites, previewDistrict } from '../core/districts.ts';
+import { districtPreviewMarkup } from './district-panel.ts';
+import type { DistrictId } from '../content/districts.ts';
 import { fitCamera, toWorld, worldToHex, zoomAt } from './camera.ts';
 import type { Camera, Point } from './camera.ts';
 import { loadPokemonSprites } from './sprites.ts';
@@ -37,6 +40,7 @@ let camera: Camera = { x: 0, y: 0, zoom: 1 };
 let selectedUnit: number | null = null;
 let selectedCity: number | null = null;
 let actionMode: ActionMode = null;
+let districtPlacement: { cityId: number; kind: DistrictId; tileIndex: number | null } | null = null;
 let pendingTarget: PendingTarget | null = null;
 let selectedBall: BallId = 'pokeBall';
 let lastMapKey = '';
@@ -184,6 +188,8 @@ function render(): void {
     camera = fitCamera(currentView.map, canvas.clientWidth, canvas.clientHeight);
     lastMapKey = key;
   }
+  const placementSite = districtPlacement && districtPlacement.tileIndex !== null
+    ? previewDistrict(currentView, districtPlacement.cityId, districtPlacement.kind, districtPlacement.tileIndex) : null;
   renderUnitPanel(currentView, selectedUnit, actionMode, pendingTarget, selectedBall, disabled, {
     mode: mode => { actionMode = mode; pendingTarget = null; render(); },
     confirm: confirmAction,
@@ -192,7 +198,12 @@ function render(): void {
     ball: ballId => { selectedBall = ballId; pendingTarget = null; render(); },
     found: () => { if (selectedUnit !== null) void send({ type: 'FoundCity', unitId: selectedUnit }); },
   });
-  renderEconomyPanel(currentView, selectedCity, issue, disabled);
+  if (placementSite) {
+    document.querySelector<HTMLElement>('#unit-panel')!.innerHTML = districtPreviewMarkup(currentView, placementSite, disabled);
+    document.querySelector<HTMLButtonElement>('#confirm-district')?.addEventListener('click', confirmDistrictPlacement);
+    document.querySelector<HTMLButtonElement>('#cancel-district')?.addEventListener('click', cancelDistrictPlacement);
+  }
+  renderEconomyPanel(currentView, selectedCity, issue, disabled, startDistrictPlacement);
   renderResearchPanel(currentView, issue, disabled);
   renderDiplomacyPanel(currentView, !active || ended, issue);
   document.querySelector<HTMLElement>('#era-panel')!.innerHTML = renderEraPanel(currentView);
@@ -200,19 +211,44 @@ function render(): void {
   const paths = unit && actionMode === 'move' ? reachablePaths(currentView, unit.id) : {};
   const targets = selectedUnit === null ? [] : actionTargets(currentView, selectedUnit, actionMode, selectedBall)
     .map(target => hexToIndex(target.position, currentView.map)).filter((index): index is number => index !== null);
-  drawMap(canvas, currentView, camera, selectedUnit, Object.keys(paths).map(Number), undefined, undefined, undefined, actionMode, targets, pendingTarget?.index, selectedCity);
-  mapNotice.textContent = actionMode === 'move' ? '移动模式：点击高亮格移动。'
+  drawMap(canvas, currentView, camera, selectedUnit, Object.keys(paths).map(Number), undefined, undefined, undefined, actionMode, targets, pendingTarget?.index, selectedCity, undefined,
+    districtPlacement ? { sites: districtSites(currentView, districtPlacement.cityId, districtPlacement.kind), selectedTileIndex: districtPlacement.tileIndex } : undefined);
+  mapNotice.textContent = districtPlacement ? '设施区选址：点击格子预览，再确认入队。Esc 取消。' : actionMode === 'move' ? '移动模式：点击高亮格移动。'
     : actionMode === 'attack' ? '攻击模式：选择红色目标，再确认攻击。'
     : actionMode === 'capture' ? '捕捉模式：选择野生宝可梦，再确认捕捉。'
     : '拖动平移；滚轮缩放；点击选择。';
 }
+function startDistrictPlacement(cityId: number, kind: DistrictId): void {
+  selectedUnit = null; selectedCity = cityId; resetAction();
+  districtPlacement = { cityId, kind, tileIndex: null };
+  canvas.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  say('选择设施区地块；确认后才会加入队列。'); render();
+}
+function cancelDistrictPlacement(): void {
+  districtPlacement = null; render();
+}
 function resetAction(): void {
-  actionMode = null; pendingTarget = null;
+  actionMode = null; pendingTarget = null; districtPlacement = null;
 }
 function confirmAction(): void {
   if (selectedUnit === null || pendingTarget === null) return;
   if (actionMode === 'attack') void send({ type: 'Attack', unitId: selectedUnit, target: { kind: pendingTarget.kind, id: pendingTarget.id } });
   else if (actionMode === 'capture') void send({ type: 'Capture', unitId: selectedUnit, targetUnitId: pendingTarget.id, ballId: selectedBall });
+}
+function confirmDistrictPlacement(): void {
+  const placement = districtPlacement, currentView = view;
+  if (!placement || placement.tileIndex === null || !currentView) return;
+  const city = currentView.economy.cities.find(item => item.id === placement.cityId);
+  if (!city) { cancelDistrictPlacement(); return; }
+  const site = previewDistrict(currentView, placement.cityId, placement.kind, placement.tileIndex);
+  if (site.reason !== null || city.queue.length >= 5) {
+    say(city.queue.length >= 5 ? '生产队列已满 5 项，请先完成或取消订单。' : '目标格已不可建造，请重新选择。', true);
+    render(); return;
+  }
+  void send({ type: 'SetProductionQueue', cityId: city.id, orders: [
+    ...city.queue.map(order => ({ orderId: order.id, item: order.item })),
+    { item: { kind: 'district', defId: placement.kind, tileIndex: placement.tileIndex! } },
+  ] });
 }
 function evolveSelected(): void {
   const currentView = view;
@@ -265,7 +301,8 @@ async function send(action: Command['action']): Promise<void> {
   try {
     const result = await client.sendCommand(action, view.commandSeq);
     view = result.view;
-    if (action.type === 'Move' || action.type === 'Attack' || action.type === 'Capture') resetAction();
+    if (action.type === 'Move' || action.type === 'Attack' || action.type === 'Capture' || action.type === 'EndTurn') resetAction();
+    if (action.type === 'SetProductionQueue' && action.orders.some(order => order.item.kind === 'district')) districtPlacement = null;
     if (action.type === 'FoundCity') {
       selectedUnit = null;
       selectedCity = result.view.economy.cities.at(-1)?.id ?? selectedCity;
@@ -432,6 +469,10 @@ canvas.addEventListener('pointerdown', event => {
   canvas.setPointerCapture(event.pointerId);
 });
 canvas.addEventListener('pointermove', event => {
+  if (!drag && districtPlacement && view) {
+    const index = hexToIndex(worldToHex(toWorld(localPoint(event), camera)), view.map);
+    if (index !== null && index !== districtPlacement.tileIndex) { districtPlacement.tileIndex = index; render(); }
+  }
   if (!drag) return;
   const point = localPoint(event);
   if (Math.hypot(point.x - drag.start.x, point.y - drag.start.y) > 4) drag.moved = true;
@@ -445,6 +486,7 @@ canvas.addEventListener('pointerup', event => {
   if (!click || !currentView) return;
   const index = hexToIndex(worldToHex(toWorld(localPoint(event), camera)), currentView.map);
   if (index === null) return;
+  if (districtPlacement) { districtPlacement.tileIndex = index; render(); return; }
   if (actionMode === 'move' && selectedUnit !== null) {
     if (!reachablePaths(currentView, selectedUnit)[index]) {
       say('该格不在当前单位移动范围内。', true);
@@ -475,6 +517,20 @@ canvas.addEventListener('pointerup', event => {
   setAction(actionSelect.value); render();
 });
 window.addEventListener('keydown', event => {
+  if (districtPlacement && view) {
+    const city = view.economy.cities.find(item => item.id === districtPlacement!.cityId);
+    const fallback = districtPlacement.tileIndex ?? (city ? hexToIndex(city.position, view.map) : null);
+    if (fallback === null) return;
+    const hex = indexToHex(fallback, view.map), directions: Record<string, { q: number; r: number }> = {
+      ArrowLeft: { q: hex.q - 1, r: hex.r }, ArrowRight: { q: hex.q + 1, r: hex.r },
+      ArrowUp: { q: hex.q, r: hex.r - 1 }, ArrowDown: { q: hex.q, r: hex.r + 1 },
+    };
+    if (directions[event.key]) {
+      event.preventDefault(); districtPlacement.tileIndex = hexToIndex(directions[event.key], view.map) ?? fallback; render(); return;
+    }
+    if (event.key === 'Enter') { event.preventDefault(); districtPlacement.tileIndex = fallback; confirmDistrictPlacement(); return; }
+    if (event.key === 'Escape') { event.preventDefault(); cancelDistrictPlacement(); return; }
+  }
   if (event.key === 'Escape' && actionMode !== null) {
     resetAction();
     say('已取消当前地图操作。');

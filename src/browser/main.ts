@@ -35,6 +35,9 @@ import { speciesDisplay } from '../content/species.ts';
 import { renderVictoryPanel } from './victory-panel.ts';
 import { hexDistance, hexToIndex, indexToHex } from '../core/hex.ts';
 import { actionTargets } from './action-targets.ts';
+import { districtSites, previewDistrict } from '../core/districts.ts';
+import { districtPreviewMarkup } from './district-panel.ts';
+import type { DistrictId } from '../content/districts.ts';
 import { reachablePaths } from '../core/movement.ts';
 import type { PlayerView, VisibleEvent } from '../core/model.ts';
 import { BIOME_DISPLAY, FACTION_LEGEND, drawMap } from './canvas.ts';
@@ -98,6 +101,7 @@ type ActivityEntry = { text: string; round: number; routine: boolean };
 const activityLog: ActivityEntry[] = [];
 let activityImportantOnly = false;
 let actionMode: ActionMode = null;
+let districtPlacement: { cityId: number; kind: DistrictId; tileIndex: number | null } | null = null;
 let pendingTarget: PendingTarget | null = null;
 let selectedBall: BallId = 'pokeBall';
 let active: Active | null = null;
@@ -201,10 +205,12 @@ function controls() {
   document.querySelector('#hud-essences')!.innerHTML = essences ? ESSENCE_IDS.map(id => `<span class="essence-chip" title="${ESSENCES[id].name}精华：${ESSENCES[id].types.map(type => TYPE_NAMES[type]).join('、')}系 · 来自${BIOME_DISPLAY[ESSENCES[id].biome].label}" style="--essence:${ESSENCES[id].color}"><b>${ESSENCES[id].mark}</b>${essences.stock[id]}<small>+${essences.perRound[id]}</small></span>`).join('') : '';
   const unit = view.units.find(unit => unit.id === selected);
   const targets = selected === null ? [] : actionTargets(view, selected, actionMode, selectedBall);
+  const placementSite = districtPlacement && districtPlacement.tileIndex !== null
+    ? previewDistrict(view, districtPlacement.cityId, districtPlacement.kind, districtPlacement.tileIndex) : null;
   selection.textContent = unit ? `${unitDefinition(unit, CONTENT).name} · 行动点 ${unit.actionLeft} · ${unit.actionLeft ? '点击高亮格直接移动，或右键移动' : '本回合已行动'}`
     : selectedCity !== null ? `已选城市 ${selectedCity} · 在城市面板建造、训练或采购`
     : '点选城市管理生产，点选单位执行行动；拖动地图平移，滚轮缩放。';
-  actionNotice.textContent = notice || (pendingPeace ? '请先回应停战提议。' : actionMode === 'attack' ? (targets.length ? `攻击模式：${targets.length} 个可攻击目标（红色虚线），选中后确认攻击。Esc 取消。` : '攻击模式：射程内没有可攻击的目标（和平中的文明不能攻击）。Esc 取消。')
+  actionNotice.textContent = notice || (pendingPeace ? '请先回应停战提议。' : districtPlacement ? '设施区选址：点击格子预览，再确认入队。Esc 取消。' : actionMode === 'attack' ? (targets.length ? `攻击模式：${targets.length} 个可攻击目标（红色虚线），选中后确认攻击。Esc 取消。` : '攻击模式：射程内没有可攻击的目标（和平中的文明不能攻击）。Esc 取消。')
     : actionMode === 'move' ? '移动模式：点击高亮格移动，包括己方城市。Esc 取消。'
     : actionMode === 'capture' ? (targets.length ? '捕捉模式：选择相邻的野生宝可梦，再确认捕捉。' : '捕捉模式：没有可捕捉目标；检查相邻目标、当前球种的库存与科技。Esc 取消。') : ended ? '对局已结束，可开始新局。' : '');
   actionNotice.classList.toggle('is-error', notice.includes('拒绝') || notice.includes('失败'));
@@ -227,7 +233,12 @@ function controls() {
     improve: (tileIndex, kind) => { if (selected !== null) issue({ type: 'ImproveTile', unitId: selected, tileIndex, kind }); },
     issue,
   });
-  renderEconomyPanel(view, selectedCity, issue, busy() || ended || pendingPeace);
+  if (placementSite) {
+    document.querySelector<HTMLElement>('#unit-panel')!.innerHTML = districtPreviewMarkup(view, placementSite, busy() || ended || pendingPeace);
+    document.querySelector<HTMLButtonElement>('#confirm-district')?.addEventListener('click', confirmDistrictPlacement);
+    document.querySelector<HTMLButtonElement>('#cancel-district')?.addEventListener('click', cancelDistrictPlacement);
+  }
+  renderEconomyPanel(view, selectedCity, issue, busy() || ended || pendingPeace, startDistrictPlacement);
   renderResearchPanel(view, issue, busy() || ended || pendingPeace);
   renderNeutralPanel(view, neutralCity, issue, busy() || ended || pendingPeace);
   renderDiplomacyPanel(view, busy() || ended, issue);
@@ -289,7 +300,7 @@ function turnReminders(view: PlayerView, content: typeof EXPANSION_CONTENT): { l
   if (idleUnits) items.push({ label: `${idleUnits} 单位待命`, target: 'unit' });
   return items;
 }
-function issue(action: Command['action']) {
+function issue(action: Command['action'], successNotice?: string) {
   const view = session.getView();
   if (busy() || view.outcome) return;
   if (action.type !== 'RespondPeace' && hasPendingPeace(view)) { notice = '请先接受或拒绝停战提议。'; controls(); return; }
@@ -302,8 +313,9 @@ function issue(action: Command['action']) {
     notice = `${action.type} 被拒绝：${reason}`;
   }
   else {
-    notice = '';
-    if (action.type === 'Attack' || action.type === 'Capture' || action.type === 'Move') resetAction();
+    notice = successNotice ?? '';
+    if (action.type === 'Attack' || action.type === 'Capture' || action.type === 'Move' || action.type === 'EndTurn') resetAction();
+    if (action.type === 'SetProductionQueue' && action.orders.some(order => order.item.kind === 'district')) districtPlacement = null;
     if (action.type === 'FoundCity') {
       selected = null; selectedCity = session.getView().economy.cities.at(-1)!.id; resetAction();
       notice = `城市 ${selectedCity} 已建立。现在可以建造建筑或训练新的单位。`;
@@ -315,6 +327,21 @@ function confirmAction() {
   if (selected === null || !pendingTarget) return;
   if (actionMode === 'attack') issue({ type: 'Attack', unitId: selected, target: { kind: pendingTarget.kind, id: pendingTarget.id } });
   else if (actionMode === 'capture') issue({ type: 'Capture', unitId: selected, targetUnitId: pendingTarget.id, ballId: selectedBall });
+}
+function confirmDistrictPlacement() {
+  const placement = districtPlacement;
+  if (!placement || placement.tileIndex === null) return;
+  const view = session.getView(), city = view.economy.cities.find(item => item.id === placement.cityId);
+  if (!city) { cancelDistrictPlacement(); return; }
+  const site = previewDistrict(view, placement.cityId, placement.kind, placement.tileIndex);
+  if (site.reason !== null || city.queue.length >= 5) {
+    notice = city.queue.length >= 5 ? '生产队列已满 5 项，请先完成或取消订单。' : '目标格已不可建造，请重新选择。';
+    controls(); return;
+  }
+  issue({ type: 'SetProductionQueue', cityId: city.id, orders: [
+    ...city.queue.map(order => ({ orderId: order.id, item: order.item })),
+    { item: { kind: 'district', defId: placement.kind, tileIndex: placement.tileIndex! } },
+  ] }, `设施区已加入城市 ${city.id} 队列；格子已预订。`);
 }
 function evolveSelected() {
   const view = session.getView(), unit = view.units.find(unit => unit.id === selected && unit.kind === 'pokemon');
@@ -377,7 +404,8 @@ function frame(now: number) {
   const targets = selected === null ? [] : actionTargets(view, selected, actionMode, selectedBall).map(target => hexToIndex(target.position, view.map)!);
   const drawStarted = performance.now();
   drawMap(canvas, import.meta.env.DEV && god.checked ? developerAdapter.getDebugView() : view,
-    camera, selected, Object.keys(paths).map(Number), pose, keyboardIndex, effect, actionMode, targets, pendingTarget?.index, selectedCity, import.meta.env.DEV ? document.querySelector<HTMLSelectElement>('#debug-overlay')!.value as import('./canvas.ts').DebugOverlay : 'none');
+    camera, selected, Object.keys(paths).map(Number), pose, keyboardIndex, effect, actionMode, targets, pendingTarget?.index, selectedCity, import.meta.env.DEV ? document.querySelector<HTMLSelectElement>('#debug-overlay')!.value as import('./canvas.ts').DebugOverlay : 'none',
+    districtPlacement ? { sites: districtSites(view, districtPlacement.cityId, districtPlacement.kind), selectedTileIndex: districtPlacement.tileIndex } : undefined);
   frameDurations.push(performance.now() - drawStarted);
   if (frameDurations.length > 240) frameDurations.shift();
   if (import.meta.env.DEV) {
@@ -390,7 +418,16 @@ function frame(now: number) {
 }
 function skip() { finishPresentations(); controls(); requestFrame(); }
 function fit() { camera = fitCamera(session.getView().map, canvas.clientWidth, canvas.clientHeight); requestFrame(); }
-function resetAction() { actionMode = null; pendingTarget = null; }
+function startDistrictPlacement(cityId: number, kind: DistrictId) {
+  selected = null; selectedCity = cityId; neutralCity = null; resetAction();
+  districtPlacement = { cityId, kind, tileIndex: null }; notice = '';
+  revealPanel(document.querySelector<HTMLElement>('.map-card')!); canvas.focus();
+  controls(); requestFrame();
+}
+function cancelDistrictPlacement() {
+  districtPlacement = null; notice = ''; controls(); requestFrame();
+}
+function resetAction() { actionMode = null; pendingTarget = null; districtPlacement = null; }
 function clearSelection() {
   selected = null; selectedCity = null; neutralCity = null; keyboardIndex = null;
   resetAction(); notice = ''; controls(); requestFrame();
@@ -455,11 +492,19 @@ function newGame() {
     for (const element of document.querySelectorAll<HTMLButtonElement>('#controls button, #end-turn')) element.disabled = true;
   }
 }
-function activateIndex(index: number | null) {
+function activateIndex(index: number | null, confirmSelection = false) {
   if (busy()) return;
   const view = session.getView();
   keyboardIndex = index;
   if (index === null) { clearSelection(); return; }
+  if (districtPlacement) {
+    if (confirmSelection && districtPlacement.tileIndex === index) confirmDistrictPlacement();
+    else {
+      districtPlacement.tileIndex = index; notice = ''; controls();
+      revealPanel(document.querySelector<HTMLElement>('#unit-panel')!); requestFrame();
+    }
+    return;
+  }
   if (actionMode === 'move' && selected !== null) {
     if (reachablePaths(view, selected)[index]) issue({ type: 'Move', unitId: selected, to: indexToHex(index, view.map) });
     else { notice = '此处无法移动，请选择高亮格，或取消移动以选择其他对象。'; controls(); }
@@ -497,6 +542,10 @@ canvas.addEventListener('pointerdown', event => {
   canvas.setPointerCapture(event.pointerId);
 });
 canvas.addEventListener('pointermove', event => {
+  if (!drag && districtPlacement) {
+    const index = hexToIndex(worldToHex(toWorld(localPoint(event), camera)), session.getView().map);
+    if (index !== null && index !== districtPlacement.tileIndex) { districtPlacement.tileIndex = index; controls(); requestFrame(); }
+  }
   if (!drag) return;
   const point = localPoint(event);
   if (Math.hypot(point.x - drag.start.x, point.y - drag.start.y) > 4) drag.moved = true;
@@ -541,8 +590,9 @@ canvas.addEventListener('keydown', event => {
   if (directions[event.key]) {
     event.preventDefault();
     keyboardIndex = hexToIndex(directions[event.key], view.map) ?? fallback;
-    requestFrame();
-  } else if (event.key === 'Enter') { event.preventDefault(); activateIndex(fallback); }
+    if (districtPlacement) districtPlacement.tileIndex = keyboardIndex;
+    controls(); requestFrame();
+  } else if (event.key === 'Enter') { event.preventDefault(); activateIndex(fallback, true); }
   else if (event.key === 'Escape') { event.preventDefault(); clearSelection(); }
   else if (event.key === '+' || event.key === '=' || event.key === '-') {
     event.preventDefault();

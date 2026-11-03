@@ -534,3 +534,23 @@ button.danger { border-color: var(--danger); background: #9E4B43; color: var(--o
 #victory-panel details { margin: 0 14px 12px; color: var(--ink-secondary); font-size: 11px; }
 #victory-panel summary { cursor: pointer; }
 .victory-hints { margin: 6px 0 0; padding-left: 16px; display: grid; gap: 3px; }
+.district-type-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; padding: 0 14px 12px; }
+.district-type-card { display: grid; grid-template-columns: auto 1fr auto; gap: 3px 7px; min-width: 0; padding: 9px; text-align: left; align-items: center; }
+.district-type-card small { grid-column: 1 / -1; color: var(--ink-secondary); font-size: 10px; line-height: 1.45; }
+.district-mark { display: inline-grid; place-items: center; width: 24px; height: 24px; border: 1px solid var(--gold); border-radius: 5px; color: var(--gold); }
+.district-reason { color: #F2A08F !important; }
+.district-incomplete { color: var(--warning); }
+.district-release { color: var(--info); }
+.district-preview { overflow: hidden; border-radius: inherit; padding: 13px 14px; }
+.district-preview h3 { margin: 4px 0 10px; color: var(--ink); font-size: var(--text-body); }
+.district-effects { display: grid; grid-template-columns: minmax(90px, auto) 1fr; gap: 4px 10px; margin: 10px 0; font-size: 11px; }
+.district-effects dt { color: var(--ink-muted); }
+.district-effects dd { margin: 0; color: var(--ink-secondary); overflow-wrap: anywhere; }
+.district-preview-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.district-preview-actions button { min-height: 44px; }
+.city-districts { margin: 10px 14px; padding-top: 8px; border-top: 1px solid var(--border); }
+.district-detail { margin: 5px 0; color: var(--ink-secondary); font-size: 11px; }
+.district-detail summary { cursor: pointer; }
+.district-detail .district-mark { display: inline-grid; margin-right: 6px; vertical-align: middle; }
+.district-project { color: var(--ink-secondary); font-size: 11px; }
+@media (max-width: 480px) { .district-type-grid { grid-template-columns: 1fr; } .district-effects { grid-template-columns: 1fr; gap: 2px; } .district-effects dd { margin-bottom: 6px; } }

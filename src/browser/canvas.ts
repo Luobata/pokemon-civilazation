@@ -2,6 +2,8 @@ import { LEGENDS } from '../content/faith-legends.ts';
 import { RARE_BERRIES } from '../content/rare-berries.ts';
 import { ERA_ABILITY_RULES, WEATHERS } from '../content/era-abilities.ts';
 import { IMPROVEMENTS } from '../content/improvements.ts';
+import { DISTRICTS } from '../content/districts.ts';
+import type { DistrictSite } from '../core/districts.ts';
 import type { BiomeId } from '../content/rules.ts';
 import type { UnitIdentity } from '../content/units.ts';
 import { speciesDisplay } from '../content/species.ts';
@@ -23,6 +25,9 @@ export const BIOME_DISPLAY: Record<BiomeId, { label: string; color: string; symb
   volcano: { label: '火山', color: '#594944', symbol: '⋀' },
 };
 const FACTIONS = ['#3BA68A', '#D3655C', '#9B83D0', '#D59A45'];
+const DISTRICT_COLORS: Record<keyof typeof DISTRICTS, string> = {
+  researchDistrict: '#83BCD0', gymDistrict: '#E07A6D', harborDistrict: '#4FA3B8', powerPlantDistrict: '#E6B85C', gardenDistrict: '#72C99E',
+};
 export const FACTION_LEGEND = [
   { id: 0, label: '文明 1 · 实心', className: 'faction-solid' },
   { id: 1, label: '文明 2 · 斜线', className: 'faction-diagonal' },
@@ -41,7 +46,8 @@ const corners = Array.from({ length: 6 }, (_, corner) => ({ x: Math.cos((corner 
 export function drawMap(canvas: HTMLCanvasElement, view: PlayerView, camera: Camera,
   selected: number | null, reachable: readonly number[], pose?: AnimationPose, cursorIndex?: number | null,
   effect?: MapEffect, actionMode: 'move' | 'attack' | 'capture' | null = null,
-  actionTargets: readonly number[] = [], pendingTargetIndex?: number | null, selectedCity?: number | null, debugOverlay: DebugOverlay = 'none'): void {
+  actionTargets: readonly number[] = [], pendingTargetIndex?: number | null, selectedCity?: number | null, debugOverlay: DebugOverlay = 'none',
+  districtPlacement?: { sites: readonly DistrictSite[]; selectedTileIndex: number | null }): void {
   const context = canvas.getContext('2d')!;
   if (!context) throw new Error('当前浏览器不支持 Canvas 2D。');
   const width = canvas.clientWidth, height = canvas.clientHeight;
@@ -202,6 +208,27 @@ export function drawMap(canvas: HTMLCanvasElement, view: PlayerView, camera: Cam
     for (const site of view.expansion.world.nests) siteMark(site.position, '巢', '#A34F3F');
     for (const site of view.expansion.world.overlords) siteMark(site.position, '霸', '#8D6332');
     for (const site of view.expansion.civilization.sanctuaries) siteMark(site.position, site.guardianDefeated ? '碑' : '圣', '#66518E');
+  }
+
+  const districtIcon = (index: number, kind: keyof typeof DISTRICTS, ownerId: number | null, memory: boolean, progress?: number) => {
+    if (!onscreen(centers[index])) return;
+    const definition = DISTRICTS[kind], p = { x: centers[index].x + radius * .5, y: centers[index].y - radius * .43 }, size = Math.max(9, radius * .32);
+    context.save(); context.globalAlpha = memory ? .55 : 1;
+    context.beginPath(); context.roundRect(p.x - size, p.y - size, size * 2, size * 2, 3);
+    if (progress === undefined) { context.fillStyle = ownerId === null ? '#65706B' : DISTRICT_COLORS[kind]; context.fill(); }
+    context.strokeStyle = ownerId === null ? '#D4DED5' : ownerColor(ownerId); context.lineWidth = memory ? 1 : 2;
+    if (memory) context.setLineDash([3, 2]); context.stroke(); context.setLineDash([]);
+    centeredText(definition.mark, p, progress === undefined ? '#FFF8E5' : DISTRICT_COLORS[kind], size * 1.15);
+    if (progress !== undefined) centeredText(`${progress}%`, { x: p.x, y: p.y + size * 1.45 }, '#FFF8E5', Math.max(8, size * .65));
+    if (ownerId === null) centeredText('停', { x: p.x, y: p.y + size * 1.45 }, '#FFF8E5', Math.max(8, size * .65));
+    context.restore();
+  };
+  for (const tile of view.expansion?.districts?.tiles ?? []) {
+    const own = tile.ownerId === view.playerId;
+    districtIcon(tile.tileIndex, tile.kind, tile.ownerId, !own && !visible.has(tile.tileIndex));
+  }
+  for (const project of view.expansion?.districts?.projects ?? []) {
+    districtIcon(project.tileIndex, project.kind, view.playerId, false, Math.min(100, Math.round(project.progress * 100 / DISTRICTS[project.kind].cost)));
   }
 
   for (const city of view.cities) {
@@ -366,6 +393,16 @@ export function drawMap(canvas: HTMLCanvasElement, view: PlayerView, camera: Cam
     context.setLineDash([]);
     centeredText(actionMode === 'capture' ? '球' : '×', { x: p.x - radius * .45, y: p.y + radius * .4 },
       actionMode === 'capture' ? '#855000' : '#9B3833', radius * .38);
+  }
+
+  if (districtPlacement) for (const site of districtPlacement.sites) {
+    const index = site.tileIndex;
+    if (!onscreen(centers[index]) || (site.reason !== null && !visible.has(index))) continue;
+    const p = centers[index], legal = site.reason === null, selectedTile = districtPlacement.selectedTileIndex === index;
+    polygon(p); context.fillStyle = legal ? '#E6B85C26' : '#9B38331A'; context.fill();
+    context.strokeStyle = selectedTile ? '#FFFDF7' : legal ? '#F2C14E' : '#A66B65';
+    context.lineWidth = selectedTile ? 3 : legal ? 2 : 1; context.stroke();
+    if (!legal) centeredText('×', p, '#9B6460', radius * .25);
   }
 
   for (const [i, biome] of view.map.tiles.entries()) if (biome && !visible.has(i) && onscreen(centers[i])) {
