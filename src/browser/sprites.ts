@@ -1,4 +1,6 @@
 import type { SpeciesId } from '../content/species.ts';
+import type { BuildingId } from '../content/economy.ts';
+import { buildingArtPath } from './building-art.ts';
 
 const POKEDEX: Record<SpeciesId, number> = {
   clefable: 36, sandshrew: 27, ekans: 23, caterpie: 10, swinub: 220, magnemite: 81, umbreon: 197, clefairy: 35,
@@ -14,6 +16,10 @@ const POKEDEX: Record<SpeciesId, number> = {
 export const pokemonSpritePath = (id: SpeciesId) => `/sprites/gen3/${POKEDEX[id]}.png`;
 const images = new Map<SpeciesId, HTMLImageElement>();
 
+const buildingImages = new Map<BuildingId, HTMLImageElement>();
+const MAP_BUILDINGS: readonly BuildingId[] = ['pasture', 'workshop', 'meetingHall', 'observatory', 'trainingGround'];
+
+/** Loads Pokémon sprites and the building art drawn inside city tiles; `onLoad` redraws the map. */
 export function loadPokemonSprites(onLoad: () => void): void {
   for (const id of Object.keys(POKEDEX) as SpeciesId[]) {
     const image = new Image();
@@ -21,6 +27,17 @@ export function loadPokemonSprites(onLoad: () => void): void {
     image.src = pokemonSpritePath(id);
     images.set(id, image);
   }
+  for (const id of MAP_BUILDINGS) {
+    const image = new Image();
+    image.onload = onLoad;
+    image.src = buildingArtPath(id);
+    buildingImages.set(id, image);
+  }
+}
+
+export function buildingSprite(id: BuildingId): HTMLImageElement | null {
+  const image = buildingImages.get(id);
+  return image?.complete && image.naturalWidth ? image : null;
 }
 
 export function pokemonSprite(id: SpeciesId): HTMLImageElement | null {

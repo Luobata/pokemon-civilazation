@@ -1,5 +1,4 @@
 import { LEGENDS } from '../content/faith-legends.ts';
-import { RARE_BERRIES } from '../content/rare-berries.ts';
 import { ERA_ABILITY_RULES, WEATHERS } from '../content/era-abilities.ts';
 import { IMPROVEMENTS } from '../content/improvements.ts';
 import { DISTRICTS } from '../content/districts.ts';
@@ -12,8 +11,12 @@ import type { Hex } from '../core/hex.ts';
 import type { PlayerView } from '../core/model.ts';
 import { HEX_RADIUS, hexToWorld, toScreen } from './camera.ts';
 import type { Camera, Point } from './camera.ts';
-import { pokemonSprite } from './sprites.ts';
+import { buildingSprite, pokemonSprite } from './sprites.ts';
 import { drawTerrain } from './terrain.ts';
+import { drawIcon, drawPixelNumber, drawYieldRow } from './map-icons.ts';
+import type { IconName } from './map-icons.ts';
+import { tileYieldReader } from './tile-yields.ts';
+import { maxCityHp, workRadius } from '../core/city.ts';
 
 export const BIOME_DISPLAY: Record<BiomeId, { label: string; color: string; symbol: string }> = {
   grassland: { label: '草原', color: '#76975D', symbol: '≈' },
@@ -40,6 +43,11 @@ export type MapEffect = { kind: 'battle'; position: Hex; damage: number; counter
   | { kind: 'evolve'; position: Hex; progress: number };
 
 export type DebugOverlay = 'none' | 'tiles' | 'vision' | 'wild' | 'ai';
+/** Optional presentation layers; they never add information beyond the PlayerView. */
+export type MapLayers = { yields: boolean };
+export const DEFAULT_MAP_LAYERS: MapLayers = { yields: true };
+/** Yields are drawn on every known tile once a hex is at least this many CSS pixels in radius. */
+export const YIELD_MIN_RADIUS = 16;
 const geometry = new Map<string, Point[]>();
 const corners = Array.from({ length: 6 }, (_, corner) => ({ x: Math.cos((corner * 60 - 30) * Math.PI / 180), y: Math.sin((corner * 60 - 30) * Math.PI / 180) }));
 
@@ -47,7 +55,7 @@ export function drawMap(canvas: HTMLCanvasElement, view: PlayerView, camera: Cam
   selected: number | null, reachable: readonly number[], pose?: AnimationPose, cursorIndex?: number | null,
   effect?: MapEffect, actionMode: 'move' | 'attack' | 'capture' | null = null,
   actionTargets: readonly number[] = [], pendingTargetIndex?: number | null, selectedCity?: number | null, debugOverlay: DebugOverlay = 'none',
-  districtPlacement?: { sites: readonly DistrictSite[]; selectedTileIndex: number | null }): void {
+  districtPlacement?: { sites: readonly DistrictSite[]; selectedTileIndex: number | null }, layers: MapLayers = DEFAULT_MAP_LAYERS): void {
   const context = canvas.getContext('2d')!;
   if (!context) throw new Error('当前浏览器不支持 Canvas 2D。');
   const width = canvas.clientWidth, height = canvas.clientHeight;
@@ -123,6 +131,40 @@ export function drawMap(canvas: HTMLCanvasElement, view: PlayerView, camera: Cam
     centeredText(ownerId === null ? '爪' : String(ownerId + 1), { x, y: y + .3 }, '#FFFDF7', badge * .65);
   }
   const visible = new Set(view.visibleTileIds);
+  const ownCities = new Map(view.economy.cities.map(city => [city.id, city]));
+  /** Civilization-style banner: faction mark, population (own cities), name, capital star, HP when damaged. */
+  function cityBanner(city: PlayerView['cities'][number], p: Point, size: number) {
+    const own = ownCities.get(city.id), height = Math.max(16, Math.min(24, radius * .8));
+    const name = city.ownerId === null ? `中立 · 城市 ${city.id}` : `城市 ${city.id}`;
+    context.font = `650 ${Math.round(height * .62)}px system-ui, sans-serif`;
+    const nameWidth = context.measureText(name).width, capital = city.headquartersOf !== undefined && city.headquartersOf !== null;
+    const width = height + (own ? height : 0) + nameWidth + height * .55 + (capital ? height * .85 : 0);
+    const left = p.x - width / 2, top = p.y - size * .66 - height;
+    context.beginPath(); context.roundRect(left, top, width, height, height / 2);
+    context.fillStyle = '#14211FE6'; context.fill();
+    context.strokeStyle = ownerColor(city.ownerId); context.lineWidth = 2; context.stroke();
+    const square = { x: left + height / 2, y: top + height / 2 };
+    factionRect(city.ownerId, square, height - 4, (height - 4) / 2);
+    context.strokeStyle = '#FFFDF7'; context.lineWidth = 1; context.stroke();
+    centeredText(city.ownerId === null ? '爪' : String(city.ownerId + 1), { x: square.x, y: square.y + .3 }, '#FFFDF7', (height - 4) * .65);
+    let cursor = left + height;
+    if (own) {
+      context.beginPath(); context.arc(cursor + height * .48, top + height / 2, height * .38, 0, Math.PI * 2);
+      context.fillStyle = '#F2E7C9'; context.fill();
+      drawPixelNumber(context, String(own.population), cursor + height * .48, top + height / 2, height * .42, '#14211F');
+      cursor += height;
+    }
+    context.fillStyle = '#FFF8E5'; context.textAlign = 'left'; context.textBaseline = 'middle';
+    context.fillText(name, cursor + height * .15, top + height / 2 + .5);
+    cursor += nameWidth + height * .4;
+    if (capital) drawIcon(context, 'star', cursor + height * .35, top + height / 2, height * .7);
+    if (own && own.hp < maxCityHp(own)) {
+      const barTop = top + height + 2;
+      context.fillStyle = '#14211FD9'; context.fillRect(left + 4, barTop, width - 8, 4);
+      context.fillStyle = own.hp * 2 < maxCityHp(own) ? '#E07A6D' : '#72C99E';
+      context.fillRect(left + 5, barTop + 1, (width - 10) * own.hp / maxCityHp(own), 2);
+    }
+  }
 
   for (const [i, biome] of view.map.tiles.entries()) {
     if (!onscreen(centers[i])) continue;
@@ -174,23 +216,10 @@ export function drawMap(canvas: HTMLCanvasElement, view: PlayerView, camera: Cam
   }
 
   if (view.expansion) {
-    const siteMark = (position: Hex, label: string, color: string) => {
-      const index = hexToIndex(position, view.map);
-      if (index === null || !visible.has(index) || !onscreen(centers[index])) return;
-      const p = { x: centers[index].x, y: centers[index].y + radius * .62 };
-      const size = Math.max(10, radius * .38);
-      context.beginPath(); context.roundRect(p.x - size, p.y - size * .65, size * 2, size * 1.3, 3);
-      context.fillStyle = color; context.fill();
-      context.strokeStyle = '#F6EACA'; context.lineWidth = 1; context.stroke();
-      centeredText(label, p, '#FFF8E5', size);
-    };
     for (const tile of view.expansion.improvements?.tiles ?? []) {
       const index = hexToIndex(tile.position, view.map);
-      if (index === null || !onscreen(centers[index])) continue;
-      const p = { x: centers[index].x - radius * .55, y: centers[index].y + radius * .4 }, size = Math.max(8, radius * .3);
-      context.beginPath(); context.arc(p.x, p.y, size, 0, Math.PI * 2);
-      context.fillStyle = '#B9822F'; context.fill(); context.strokeStyle = '#F6EACA'; context.lineWidth = 1; context.stroke();
-      centeredText(IMPROVEMENTS[tile.kind].mark, p, '#FFF8E5', size * 1.2);
+      if (index === null || !onscreen(centers[index]) || !IMPROVEMENTS[tile.kind]) continue;
+      drawIcon(context, tile.kind, centers[index].x - radius * .5, centers[index].y + radius * .08, Math.max(10, radius * .58), visible.has(index) ? 1 : .6);
     }
     const faith = view.expansion.faith;
     if (faith) for (const city of view.cities) {
@@ -203,24 +232,68 @@ export function drawMap(canvas: HTMLCanvasElement, view: PlayerView, camera: Cam
       context.strokeStyle = '#F6EACA'; context.lineWidth = 1; context.stroke();
       centeredText(LEGENDS[legend].mark, p, '#FFF8E5', size * 1.1);
     }
-    for (const deposit of view.expansion.rareBerries?.deposits ?? []) siteMark(indexToHex(deposit.tileIndex, view.map), RARE_BERRIES[deposit.berry].mark, '#B0487A');
-    for (const site of view.expansion.world.resources) siteMark(site.position, site.kind === 'berry' ? '果' : '石', site.remaining ? '#487744' : '#65706B');
-    for (const site of view.expansion.world.nests) siteMark(site.position, '巢', '#A34F3F');
-    for (const site of view.expansion.world.overlords) siteMark(site.position, '霸', '#8D6332');
-    for (const site of view.expansion.civilization.sanctuaries) siteMark(site.position, site.guardianDefeated ? '碑' : '圣', '#66518E');
+    /** Round badge at the top of the hex; luxury (rare berry) badges get a double gold ring. */
+    const badge = (index: number, ring: string, draw: (p: Point, size: number) => void, options: { luxury?: boolean; dim?: boolean } = {}) => {
+      if (!onscreen(centers[index])) return;
+      const size = Math.max(12, radius * .66), p = { x: centers[index].x, y: centers[index].y - radius * .5 };
+      context.save();
+      if (options.dim) context.globalAlpha = .55;
+      context.beginPath(); context.arc(p.x, p.y, size * .56, 0, Math.PI * 2);
+      context.fillStyle = options.luxury ? '#4A3A16F0' : '#14211FD9'; context.fill();
+      context.strokeStyle = ring; context.lineWidth = options.luxury ? 2.5 : 1.5; context.stroke();
+      if (options.luxury) {
+        context.beginPath(); context.arc(p.x, p.y, size * .56 + 3, 0, Math.PI * 2); context.strokeStyle = '#14211FCC'; context.lineWidth = 2; context.stroke();
+        // Four-point sparkle marks luxuries at a glance, even at small zoom.
+        const sx = p.x + size * .48, sy = p.y - size * .44, r = Math.max(3, size * .2);
+        context.beginPath(); context.moveTo(sx, sy - r); context.lineTo(sx + r * .3, sy - r * .3); context.lineTo(sx + r, sy); context.lineTo(sx + r * .3, sy + r * .3);
+        context.lineTo(sx, sy + r); context.lineTo(sx - r * .3, sy + r * .3); context.lineTo(sx - r, sy); context.lineTo(sx - r * .3, sy - r * .3); context.closePath();
+        context.fillStyle = '#FFF3B0'; context.fill(); context.strokeStyle = '#14211F'; context.lineWidth = 1; context.stroke();
+      }
+      draw(p, size);
+      context.restore();
+    };
+    const iconBadge = (index: number, name: IconName, ring: string, options: { luxury?: boolean; dim?: boolean } = {}) =>
+      badge(index, ring, (p, size) => drawIcon(context, name, p.x, p.y, size * .74), options);
+    const spriteBadge = (index: number, speciesId: Parameters<typeof pokemonSprite>[0], ring: string, fallback: string) => badge(index, ring, (p, size) => {
+      const sprite = pokemonSprite(speciesId);
+      if (sprite) context.drawImage(sprite, Math.round(p.x - size * .55), Math.round(p.y - size * .62), Math.round(size * 1.1), Math.round(size * 1.1));
+      else centeredText(fallback, p, '#FFF8E5', size * .5);
+    });
+    for (const deposit of view.expansion.rareBerries?.deposits ?? []) {
+      iconBadge(deposit.tileIndex, deposit.berry, '#F2C14E', { luxury: true, dim: !visible.has(deposit.tileIndex) });
+    }
+    for (const site of view.expansion.world.resources) {
+      const name = (site.kind === 'stone' && !site.remaining ? 'depleted' : site.definitionId) as IconName;
+      iconBadge(site.tileIndex, name, site.kind === 'berry' ? '#8FD07A' : '#D4DED5', { dim: site.remaining === 0 });
+    }
+    for (const site of view.expansion.world.nests) spriteBadge(site.tileIndex, site.speciesId, '#D3655C', '巢');
+    for (const site of view.expansion.world.overlords) {
+      spriteBadge(site.tileIndex, site.speciesId, '#E6B85C', '霸');
+      if (onscreen(centers[site.tileIndex])) drawIcon(context, 'crown', centers[site.tileIndex].x, centers[site.tileIndex].y - radius * .98, Math.max(10, radius * .5));
+    }
+    for (const site of view.expansion.civilization.sanctuaries) {
+      const index = hexToIndex(site.position, view.map);
+      if (index !== null && visible.has(index)) iconBadge(index, site.guardianDefeated ? 'tablet' : 'sanctuary', '#B58AD6');
+    }
   }
 
+  // A district occupies its whole tile, so it is drawn as a building filling the hex.
   const districtIcon = (index: number, kind: keyof typeof DISTRICTS, ownerId: number | null, memory: boolean, progress?: number) => {
     if (!onscreen(centers[index])) return;
-    const definition = DISTRICTS[kind], p = { x: centers[index].x + radius * .5, y: centers[index].y - radius * .43 }, size = Math.max(9, radius * .32);
-    context.save(); context.globalAlpha = memory ? .55 : 1;
-    context.beginPath(); context.roundRect(p.x - size, p.y - size, size * 2, size * 2, 3);
-    if (progress === undefined) { context.fillStyle = ownerId === null ? '#65706B' : DISTRICT_COLORS[kind]; context.fill(); }
-    context.strokeStyle = ownerId === null ? '#D4DED5' : ownerColor(ownerId); context.lineWidth = memory ? 1 : 2;
-    if (memory) context.setLineDash([3, 2]); context.stroke(); context.setLineDash([]);
-    centeredText(definition.mark, p, progress === undefined ? '#FFF8E5' : DISTRICT_COLORS[kind], size * 1.15);
-    if (progress !== undefined) centeredText(`${progress}%`, { x: p.x, y: p.y + size * 1.45 }, '#FFF8E5', Math.max(8, size * .65));
-    if (ownerId === null) centeredText('停', { x: p.x, y: p.y + size * 1.45 }, '#FFF8E5', Math.max(8, size * .65));
+    const p = centers[index], size = Math.max(16, radius * 1.12);
+    context.save();
+    polygon(p); context.fillStyle = `${ownerId === null ? '#65706B' : DISTRICT_COLORS[kind]}${progress === undefined ? '40' : '1F'}`; context.fill();
+    context.globalAlpha = memory ? .55 : progress !== undefined ? .45 : ownerId === null ? .6 : 1;
+    drawIcon(context, kind, p.x, p.y - radius * .08, size);
+    context.globalAlpha = 1;
+    if (progress !== undefined) {
+      const barWidth = radius * 1.1, barY = p.y + radius * .5;
+      context.fillStyle = '#14211FD9'; context.fillRect(p.x - barWidth / 2 - 1, barY - 1, barWidth + 2, 5);
+      context.fillStyle = DISTRICT_COLORS[kind]; context.fillRect(p.x - barWidth / 2, barY, barWidth * progress / 100, 3);
+      drawIcon(context, 'construction', p.x + radius * .5, p.y - radius * .45, Math.max(9, radius * .4));
+    }
+    if (ownerId === null) centeredText('停', { x: p.x, y: p.y + radius * .55 }, '#FFF8E5', Math.max(8, radius * .32));
+    if (memory) { polygon(p); context.setLineDash([3, 2]); context.strokeStyle = '#D4DED5AA'; context.lineWidth = 1; context.stroke(); context.setLineDash([]); }
     context.restore();
   };
   for (const tile of view.expansion?.districts?.tiles ?? []) {
@@ -240,6 +313,7 @@ export function drawMap(canvas: HTMLCanvasElement, view: PlayerView, camera: Cam
     centeredText('施', p, '#FFF8E5', size);
   }
 
+  const banners: { city: PlayerView['cities'][number]; p: Point; size: number }[] = [];
   for (const city of view.cities) {
     const p = centers[hexToIndex(city.position, view.map)!];
     if (!onscreen(p)) continue;
@@ -247,6 +321,17 @@ export function drawMap(canvas: HTMLCanvasElement, view: PlayerView, camera: Cam
     if (city.id === selectedCity) {
       polygon(p); context.strokeStyle = '#10191B'; context.lineWidth = 6; context.stroke();
       polygon(p); context.strokeStyle = '#F2C14E'; context.lineWidth = 3; context.stroke();
+    }
+    // City centre plaza in the owner's colour, then the buildings this city has actually built
+    // (own cities only: foreign building lists are not part of the PlayerView).
+    polygon(p); context.fillStyle = `${ownerColor(city.ownerId)}2E`; context.fill();
+    const built = (ownCities.get(city.id)?.buildingIds ?? []).filter(id => id !== 'headquarters');
+    const slots = [[-.56, .3], [.56, .3], [-.5, -.28], [.5, -.28], [0, .58]] as const;
+    for (const [slot, id] of built.slice(0, slots.length).entries()) {
+      const art = buildingSprite(id);
+      if (!art) continue;
+      const width = radius * .66, height = width * 80 / 96;
+      context.drawImage(art, Math.round(p.x + slots[slot][0] * radius - width / 2), Math.round(p.y + slots[slot][1] * radius - height / 2), Math.round(width), Math.round(height));
     }
     context.beginPath();
     context.ellipse(p.x, p.y + size * .36, size * .48, size * .17, 0, 0, Math.PI * 2);
@@ -287,7 +372,7 @@ export function drawMap(canvas: HTMLCanvasElement, view: PlayerView, camera: Cam
     block('#263B39', -15, -13.5, 7, 1);
     block('#263B39', -12.5, -16, 2, 6);
     block('#F7F0D8', -12.5, -14, 2, 2);
-    ownerBadge(city.ownerId, p, size);
+    banners.push({ city, p, size });
   }
 
   function unitMark(unit: AnimationPose['unit'], point: Point, actionLeft?: number, enraged = false) {
@@ -338,6 +423,26 @@ export function drawMap(canvas: HTMLCanvasElement, view: PlayerView, camera: Cam
       centeredText('!', { x: point.x - size * .38, y: point.y - size * .35 }, '#FFF3D4', size * .32);
     }
   }
+  // Yield layer: what working each known tile would give you (Civilization tile yields).
+  const focusCity = selectedCity === null || selectedCity === undefined ? undefined : ownCities.get(selectedCity);
+  const allYields = layers.yields && radius >= YIELD_MIN_RADIUS;
+  if (allYields || (focusCity && radius >= 10)) {
+    const readYield = tileYieldReader(view);
+    const yieldSize = Math.max(7, Math.min(16, radius * .4));
+    for (let index = 0; index < view.map.tiles.length; index++) {
+      if (!onscreen(centers[index])) continue;
+      const inFocus = focusCity !== undefined && hexDistance(indexToHex(index, view.map), focusCity.position) <= workRadius(focusCity);
+      if (!allYields && !inFocus) continue;
+      const info = readYield(index);
+      if (info) drawYieldRow(context, info.yields, centers[index].x, centers[index].y + radius * .6, yieldSize, info.workable ? 1 : .4);
+    }
+  }
+  if (focusCity) for (const index of focusCity.workedTileIds) {
+    if (!onscreen(centers[index])) continue;
+    polygon(centers[index]); context.strokeStyle = '#F2C14EAA'; context.lineWidth = 1.5; context.stroke();
+    drawIcon(context, 'citizen', centers[index].x - radius * .55, centers[index].y - radius * .42, Math.max(9, radius * .38));
+  }
+
   // Only the authorized PlayerView supplies entities; hidden live units never enter a draw call.
   const era = view.expansion?.eraAbilities;
   if (era) {
@@ -374,6 +479,8 @@ export function drawMap(canvas: HTMLCanvasElement, view: PlayerView, camera: Cam
     }
   }
   if (pose) unitMark(pose.unit, toScreen(pose.position, camera));
+  // Banners sit above units and yields, as in Civilization.
+  for (const { city, p, size } of banners) cityBanner(city, p, size);
 
   for (const index of reachable) if (visible.has(index) && onscreen(centers[index])) {
     const p = centers[index];

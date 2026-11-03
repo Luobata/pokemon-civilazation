@@ -52,6 +52,7 @@ const frameMetricsElement = document.querySelector<HTMLElement>('#frame-metrics'
 const selection = document.querySelector<HTMLElement>('#selection')!;
 const actionNotice = document.querySelector<HTMLElement>('#action-notice')!;
 const animate = document.querySelector<HTMLInputElement>('#animate')!;
+const showYields = document.querySelector<HTMLInputElement>('#show-yields')!;
 const god = document.querySelector<HTMLInputElement>('#god')!;
 const starter = document.querySelector<HTMLSelectElement>('#starter')!;
 const sequence = document.querySelector<HTMLInputElement>('#sequence')!;
@@ -405,7 +406,8 @@ function frame(now: number) {
   const drawStarted = performance.now();
   drawMap(canvas, import.meta.env.DEV && god.checked ? developerAdapter.getDebugView() : view,
     camera, selected, Object.keys(paths).map(Number), pose, keyboardIndex, effect, actionMode, targets, pendingTarget?.index, selectedCity, import.meta.env.DEV ? document.querySelector<HTMLSelectElement>('#debug-overlay')!.value as import('./canvas.ts').DebugOverlay : 'none',
-    districtPlacement ? { sites: districtSites(view, districtPlacement.cityId, districtPlacement.kind), selectedTileIndex: districtPlacement.tileIndex } : undefined);
+    districtPlacement ? { sites: districtSites(view, districtPlacement.cityId, districtPlacement.kind), selectedTileIndex: districtPlacement.tileIndex } : undefined,
+    { yields: showYields.checked });
   frameDurations.push(performance.now() - drawStarted);
   if (frameDurations.length > 240) frameDurations.shift();
   if (import.meta.env.DEV) {
@@ -660,7 +662,8 @@ document.addEventListener('keydown', event => {
     event.preventDefault();
     selectCity(session.getView().economy.cities[0]?.id ?? null);
     document.querySelector<HTMLElement>('#city-select')?.focus();
-  } else if (['r', 't'].includes(event.key.toLowerCase())) { event.preventDefault(); document.querySelector<HTMLElement>('#research-topic')?.focus(); }
+  } else if (event.key.toLowerCase() === 'y') { event.preventDefault(); showYields.checked = !showYields.checked; requestFrame(); }
+  else if (['r', 't'].includes(event.key.toLowerCase())) { event.preventDefault(); document.querySelector<HTMLElement>('#research-topic')?.focus(); }
   else if (event.key === '?') {
     event.preventDefault();
     const help = document.querySelector<HTMLDetailsElement>('#keyboard-help')!;
@@ -668,6 +671,7 @@ document.addEventListener('keydown', event => {
   }
 });
 god.addEventListener('change', skip);
+showYields.addEventListener('change', requestFrame);
 if (!import.meta.env.DEV) {
   document.querySelector<HTMLElement>('#god-label')!.hidden = true;
   frameMetricsElement.hidden = true;
