@@ -13,6 +13,7 @@ import { renderEconomyPanel } from './economy-panel.ts';
 import { renderExpansionPanel } from './expansion-panel.ts';
 import { renderResearchPanel, resetResearchPanel } from './research-panel.ts';
 import { renderUnitPanel, type ActionMode, type PendingTarget } from './unit-panel.ts';
+import { actionTargets } from './action-targets.ts';
 import { fitCamera, toWorld, worldToHex, zoomAt } from './camera.ts';
 import type { Camera, Point } from './camera.ts';
 import { loadPokemonSprites } from './sprites.ts';
@@ -188,7 +189,7 @@ function render(): void {
     confirm: confirmAction,
     cancel: () => resetAction(),
     evolve: evolveSelected,
-    ball: ballId => { selectedBall = ballId; render(); },
+    ball: ballId => { selectedBall = ballId; pendingTarget = null; render(); },
     found: () => { if (selectedUnit !== null) void send({ type: 'FoundCity', unitId: selectedUnit }); },
   });
   renderEconomyPanel(currentView, selectedCity, issue, disabled);
@@ -197,12 +198,8 @@ function render(): void {
   document.querySelector<HTMLElement>('#era-panel')!.innerHTML = renderEraPanel(currentView);
   renderExpansionPanel(currentView, selectedUnit, selectedCity, issue, disabled);
   const paths = unit && actionMode === 'move' ? reachablePaths(currentView, unit.id) : {};
-  const targets = actionMode === 'attack'
-    ? [...currentView.units.filter(unit => unit.ownerId !== currentView.playerId), ...currentView.cities.filter(city => city.ownerId !== currentView.playerId)]
-      .map(target => hexToIndex(target.position, currentView.map)).filter((index): index is number => index !== null)
-    : actionMode === 'capture'
-      ? currentView.units.filter(unit => unit.ownerId === null).map(unit => hexToIndex(unit.position, currentView.map)).filter((index): index is number => index !== null)
-      : [];
+  const targets = selectedUnit === null ? [] : actionTargets(currentView, selectedUnit, actionMode, selectedBall)
+    .map(target => hexToIndex(target.position, currentView.map)).filter((index): index is number => index !== null);
   drawMap(canvas, currentView, camera, selectedUnit, Object.keys(paths).map(Number), undefined, undefined, undefined, actionMode, targets, pendingTarget?.index, selectedCity);
   mapNotice.textContent = actionMode === 'move' ? '移动模式：点击高亮格移动。'
     : actionMode === 'attack' ? '攻击模式：选择红色目标，再确认攻击。'
@@ -458,30 +455,17 @@ canvas.addEventListener('pointerup', event => {
     actionMode = null;
     return;
   }
-  if (actionMode === 'attack') {
-    const target = [...currentView.units.filter(unit => unit.ownerId !== currentView.playerId), ...currentView.cities.filter(city => city.ownerId !== currentView.playerId)]
+  if (actionMode && selectedUnit !== null) {
+    const target = actionTargets(currentView, selectedUnit, actionMode, selectedBall)
       .find(candidate => hexToIndex(candidate.position, currentView.map) === index);
     if (!target) {
       pendingTarget = null;
-      say('攻击目标必须是可见的敌方单位或非己方城市。', true);
+      say(actionMode === 'attack' ? '攻击目标必须是可见且可攻击的敌方单位或非己方城市。' : '捕捉目标必须是当前球种可捕捉的相邻野生宝可梦。', true);
       render();
       return;
     }
-    pendingTarget = { kind: 'kind' in target ? 'unit' : 'city', id: target.id, index };
-    say('已选择攻击目标；请在单位面板确认。');
-    render();
-    return;
-  }
-  if (actionMode === 'capture') {
-    const target = currentView.units.find(unit => unit.ownerId === null && unit.kind === 'pokemon' && hexToIndex(unit.position, currentView.map) === index);
-    if (!target) {
-      pendingTarget = null;
-      say('捕捉目标必须是可见野生宝可梦。', true);
-      render();
-      return;
-    }
-    pendingTarget = { kind: 'unit', id: target.id, index };
-    say('已选择捕捉目标；请在单位面板确认。');
+    pendingTarget = { kind: target.kind, id: target.id, index };
+    say(actionMode === 'attack' ? '已选择攻击目标；请在单位面板确认。' : '已选择捕捉目标；请在单位面板确认。');
     render();
     return;
   }

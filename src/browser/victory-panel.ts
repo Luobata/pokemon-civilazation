@@ -2,7 +2,7 @@ import { CIVILIZATION_CONTENT } from '../content/civilization-systems.ts';
 import { FAITH_RULES, LEGENDS } from '../content/faith-legends.ts';
 import type { PlayerView } from '../core/model.ts';
 
-type Path = { id: string; name: string; value: number; target: number; detail: string; hint: string; nav?: string };
+type Path = { id: string; name: string; value: number; target: number; detail: string; hint: string; nav?: string; blocked?: boolean };
 /** Civilization-style victory overview: every win path the current game enables, with own progress and the visible leader. */
 export function victoryPaths(view: PlayerView): Path[] {
   const exp = view.expansion;
@@ -32,8 +32,13 @@ export function victoryPaths(view: PlayerView): Path[] {
   if (exp.faith) {
     const mine = exp.faith.faiths.find(item => item.founderId === view.playerId);
     const top = [...exp.faith.faiths].filter(item => item.founderId !== view.playerId).sort((a, b) => b.followers - a.followers)[0];
+    const knownCities = [...view.cities, ...view.economy.cities,
+      ...Object.entries(view.knowledge.lastKnownCities).map(([cityId, city]) => ({ ...city, id: Number(cityId) }))];
+    const missingRivals = mine ? rivals.filter(rival => !Object.entries(exp.faith!.cityFaith).some(([cityId, founderId]) => founderId === view.playerId
+      && knownCities.some(city => city.id === Number(cityId) && city.ownerId === rival.id))).length : rivals.length;
     paths.push({ id: 'faith', name: '传说共鸣（宗教）', value: mine?.followers ?? 0, target: Math.max(FAITH_RULES.winMinimumCities, Math.ceil(exp.faith.totalCities * exp.faith.winShare)),
-      detail: `${mine ? `${LEGENDS[mine.legend].name}信仰` : '尚未创立'}${top ? ` · 对手最多 ${top.followers} 城（${LEGENDS[top.legend].name}）` : ''}`, hint: '信仰城市达到全图 60%，且每个对手至少 1 城信仰。', nav: '#expansion-panel' });
+      detail: `${mine ? `${LEGENDS[mine.legend].name}信仰` : '尚未创立'}${top ? ` · 对手最多 ${top.followers} 城（${LEGENDS[top.legend].name}）` : ''}${missingRivals ? ` · 仍有 ${missingRivals} 个对手未皈依` : ''}`,
+      hint: '信仰城市达到全图 60%，且每个对手至少 1 城信仰。', nav: '#expansion-panel', blocked: missingRivals > 0 });
   }
   return paths;
 }
@@ -42,7 +47,7 @@ export function renderVictoryPanel(view: PlayerView): void {
   if (!root) return;
   const opened = root.querySelector<HTMLDetailsElement>('details')?.open ?? false;
   const paths = victoryPaths(view);
-  const percent = (path: Path) => Math.min(100, Math.round(path.value / Math.max(1, path.target) * 100));
+  const percent = (path: Path) => Math.min(path.blocked ? 99 : 100, Math.round(path.value / Math.max(1, path.target) * 100));
   const best = [...paths].sort((a, b) => percent(b) - percent(a))[0];
   root.innerHTML = `<div class="subpanel-head"><strong>胜利进度</strong><span>第 ${view.round}/${view.roundLimit} 轮 · 到期按分数</span></div>
     <p class="victory-best">最接近：<b>${best.name}</b> ${percent(best)}%</p>

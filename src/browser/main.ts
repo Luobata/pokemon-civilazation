@@ -34,7 +34,7 @@ import { LEADER_IDS } from '../content/leaders.ts';
 import { speciesDisplay } from '../content/species.ts';
 import { renderVictoryPanel } from './victory-panel.ts';
 import { hexDistance, hexToIndex, indexToHex } from '../core/hex.ts';
-import { previewAttack } from '../core/preview.ts';
+import { actionTargets } from './action-targets.ts';
 import { reachablePaths } from '../core/movement.ts';
 import type { PlayerView, VisibleEvent } from '../core/model.ts';
 import { BIOME_DISPLAY, FACTION_LEGEND, drawMap } from './canvas.ts';
@@ -200,12 +200,13 @@ function controls() {
   const essences = view.expansion?.essences;
   document.querySelector('#hud-essences')!.innerHTML = essences ? ESSENCE_IDS.map(id => `<span class="essence-chip" title="${ESSENCES[id].name}精华：${ESSENCES[id].types.map(type => TYPE_NAMES[type]).join('、')}系 · 来自${BIOME_DISPLAY[ESSENCES[id].biome].label}" style="--essence:${ESSENCES[id].color}"><b>${ESSENCES[id].mark}</b>${essences.stock[id]}<small>+${essences.perRound[id]}</small></span>`).join('') : '';
   const unit = view.units.find(unit => unit.id === selected);
+  const targets = selected === null ? [] : actionTargets(view, selected, actionMode, selectedBall);
   selection.textContent = unit ? `${unitDefinition(unit, CONTENT).name} · 行动点 ${unit.actionLeft} · ${unit.actionLeft ? '点击高亮格直接移动，或右键移动' : '本回合已行动'}`
     : selectedCity !== null ? `已选城市 ${selectedCity} · 在城市面板建造、训练或采购`
     : '点选城市管理生产，点选单位执行行动；拖动地图平移，滚轮缩放。';
-  actionNotice.textContent = notice || (pendingPeace ? '请先回应停战提议。' : actionMode === 'attack' ? (actionTargets(view).length ? `攻击模式：${actionTargets(view).length} 个可攻击目标（红色虚线），选中后确认攻击。Esc 取消。` : '攻击模式：射程内没有可攻击的目标（和平中的文明不能攻击）。Esc 取消。')
+  actionNotice.textContent = notice || (pendingPeace ? '请先回应停战提议。' : actionMode === 'attack' ? (targets.length ? `攻击模式：${targets.length} 个可攻击目标（红色虚线），选中后确认攻击。Esc 取消。` : '攻击模式：射程内没有可攻击的目标（和平中的文明不能攻击）。Esc 取消。')
     : actionMode === 'move' ? '移动模式：点击高亮格移动，包括己方城市。Esc 取消。'
-    : actionMode === 'capture' ? (actionTargets(view).length ? '捕捉模式：选择相邻的野生宝可梦，再确认捕捉。' : '捕捉模式：相邻没有野生宝可梦，先移动到它旁边。Esc 取消。') : ended ? '对局已结束，可开始新局。' : '');
+    : actionMode === 'capture' ? (targets.length ? '捕捉模式：选择相邻的野生宝可梦，再确认捕捉。' : '捕捉模式：没有可捕捉目标；检查相邻目标、当前球种的库存与科技。Esc 取消。') : ended ? '对局已结束，可开始新局。' : '');
   actionNotice.classList.toggle('is-error', notice.includes('拒绝') || notice.includes('失败'));
   debug.textContent = `seed=${view.seed} round=${view.round} activePlayer=${view.activePlayerId} commandSeq=${view.commandSeq}\n最近拒绝：${driver.lastRejected ? JSON.stringify(driver.lastRejected) : '无'}${notice ? '\n' + notice : ''}`;
   sequence.max = String(driver.exportLog().commands.length);
@@ -221,7 +222,7 @@ function controls() {
     confirm: confirmAction,
     cancel: () => { actionMode = null; pendingTarget = null; notice = ''; controls(); requestFrame(); },
     evolve: evolveSelected,
-    ball: ballId => { selectedBall = ballId; controls(); requestFrame(); },
+    ball: ballId => { selectedBall = ballId; pendingTarget = null; notice = ''; controls(); requestFrame(); },
     found: () => { if (selected !== null) issue({ type: 'FoundCity', unitId: selected }); },
     improve: (tileIndex, kind) => { if (selected !== null) issue({ type: 'ImproveTile', unitId: selected, tileIndex, kind }); },
     issue,
@@ -373,7 +374,7 @@ function frame(now: number) {
   }
   const view = session.getView();
   const paths = selected === null ? {} : reachablePaths(view, selected);
-  const targets = actionTargets(view).map(position => hexToIndex(position, view.map)!);
+  const targets = selected === null ? [] : actionTargets(view, selected, actionMode, selectedBall).map(target => hexToIndex(target.position, view.map)!);
   const drawStarted = performance.now();
   drawMap(canvas, import.meta.env.DEV && god.checked ? developerAdapter.getDebugView() : view,
     camera, selected, Object.keys(paths).map(Number), pose, keyboardIndex, effect, actionMode, targets, pendingTarget?.index, selectedCity, import.meta.env.DEV ? document.querySelector<HTMLSelectElement>('#debug-overlay')!.value as import('./canvas.ts').DebugOverlay : 'none');
@@ -389,15 +390,6 @@ function frame(now: number) {
 }
 function skip() { finishPresentations(); controls(); requestFrame(); }
 function fit() { camera = fitCamera(session.getView().map, canvas.clientWidth, canvas.clientHeight); requestFrame(); }
-/** Targets the selected unit can act on right now, using the same previews as the confirmation panel. */
-function actionTargets(view: PlayerView): { q: number; r: number }[] {
-  if (selected === null || !actionMode || actionMode === 'move') return [];
-  if (actionMode === 'attack') return [
-    ...view.units.filter(unit => unit.ownerId !== view.playerId && previewAttack(view, selected!, { kind: 'unit', id: unit.id }).ok).map(unit => unit.position),
-    ...view.cities.filter(city => city.ownerId !== view.playerId && previewAttack(view, selected!, { kind: 'city', id: city.id }).ok).map(city => city.position)];
-  const own = view.units.find(unit => unit.id === selected);
-  return own ? view.units.filter(unit => unit.ownerId === null && unit.kind === 'pokemon' && hexDistance(unit.position, own.position) === 1).map(unit => unit.position) : [];
-}
 function resetAction() { actionMode = null; pendingTarget = null; }
 function clearSelection() {
   selected = null; selectedCity = null; neutralCity = null; keyboardIndex = null;
@@ -449,7 +441,7 @@ function newGame() {
     driver = new GameSession({ expansionVersion: 1, eraProgression, gameplayVersion: LATEST_GAMEPLAY_VERSION, seed: Number(new URLSearchParams(location.search).get('seed') ?? '12345'), ...size,
       roundLimit: Number(document.querySelector<HTMLSelectElement>('#round-limit')!.value) as GameSetup['roundLimit'], players });
     session = driver.asPlayerSession();
-    active = null; presentationIndex = 0; selected = null; selectedCity = session.getView().economy.player.headquartersCityId; neutralCity = null; keyboardIndex = null; activityLog.length = 0;
+    active = null; presentationIndex = 0; selected = null; selectedCity = session.getView().economy.player.headquartersCityId; neutralCity = null; keyboardIndex = null; activityLog.length = 0; knownUnitLabels.clear();
     frameDurations.length = 0;
     resetAction(); notice = ''; sequence.value = '0';
     canvas.hidden = false;
@@ -474,11 +466,8 @@ function activateIndex(index: number | null) {
     requestFrame(); return;
   }
   if (actionMode && selected !== null) {
-    const unit = view.units.find(unit => hexToIndex(unit.position, view.map) === index);
-    const city = view.cities.find(city => hexToIndex(city.position, view.map) === index);
-    if (actionMode === 'attack' && unit && unit.ownerId !== view.playerId) pendingTarget = { kind: 'unit', id: unit.id, index };
-    else if (actionMode === 'attack' && city && city.ownerId !== view.playerId) pendingTarget = { kind: 'city', id: city.id, index };
-    else if (actionMode === 'capture' && unit?.ownerId === null) pendingTarget = { kind: 'unit', id: unit.id, index };
+    const target = actionTargets(view, selected, actionMode, selectedBall).find(candidate => hexToIndex(candidate.position, view.map) === index);
+    if (target) pendingTarget = { kind: target.kind, id: target.id, index };
     else { pendingTarget = null; notice = '该目标不适用；请选择高亮目标。'; }
     controls(); requestFrame(); return;
   }
@@ -573,17 +562,17 @@ document.querySelector('#export')!.addEventListener('click', () => {
 });
 document.querySelector('#replay')!.addEventListener('click', () => {
   if (transitionBlocked()) return;
-  try { driver.replayTo(Number(sequence.value)); selected = null; selectedCity = null; neutralCity = null; keyboardIndex = null; resetAction(); notice = ''; skip(); }
+  try { driver.replayTo(Number(sequence.value)); selected = null; selectedCity = null; neutralCity = null; keyboardIndex = null; knownUnitLabels.clear(); resetAction(); notice = ''; skip(); }
   catch (error) { notice = error instanceof Error ? error.message : String(error); controls(); }
 });
 document.querySelector('#resume')!.addEventListener('click', () => {
   if (transitionBlocked()) return;
-  driver.resumeFromReplay(); selected = null; selectedCity = null; neutralCity = null; keyboardIndex = null; resetAction(); controls(); requestFrame();
+  driver.resumeFromReplay(); selected = null; selectedCity = null; neutralCity = null; keyboardIndex = null; knownUnitLabels.clear(); resetAction(); controls(); requestFrame();
 });
 const saveKey = 'pokemon-civilization-save';
 function load(text: string) {
   if (transitionBlocked()) return;
-  driver.load(text); active = null; selected = null; selectedCity = session.getView().economy.cities[0]?.id ?? null; neutralCity = null; keyboardIndex = null; activityLog.length = 0; resetAction(); notice = '读档完成';
+  driver.load(text); active = null; selected = null; selectedCity = session.getView().economy.cities[0]?.id ?? null; neutralCity = null; keyboardIndex = null; activityLog.length = 0; knownUnitLabels.clear(); resetAction(); notice = '读档完成';
   frameDurations.length = 0;
   fit();
   const focusCity = session.getView().economy.cities.find(city => city.id === selectedCity);
