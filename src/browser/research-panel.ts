@@ -39,7 +39,7 @@ export function renderResearchPanel(view: PlayerView, issue: (action: Command['a
       <header><strong>${tech.name}</strong><span class="tech-cost">${tech.cost}</span></header>
       <p class="tech-state">${label}</p>
       <div class="tech-progress" aria-hidden="true"><span style="width:${done ? 100 : percent(id)}%"></span></div>
-      <ul class="tech-unlocks">${techUnlocks(id, CONTENT).map(item => `<li class="${item.kind}">${item.text}</li>`).join('')}</ul>
+      <ul class="tech-unlocks">${techUnlocks(id, CONTENT, view.gameplayVersion).map(item => `<li class="${item.kind}">${item.text}</li>`).join('')}</ul>
       ${eureka}${action}
     </article>`;
   };

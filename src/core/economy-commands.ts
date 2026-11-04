@@ -1,3 +1,4 @@
+import { classTrainingBlocker, stateBadges } from './unit-classes.ts';
 import { usesBuilders } from './improvements.ts';
 import { applyEscortBonus } from './city-network.ts';
 import { CITY_NETWORK_RULES } from '../content/city-network.ts';
@@ -76,6 +77,7 @@ export function validateEconomyAction(state: GameState, actor: number, action: E
     } else if (item.kind === 'pokemon') {
       if (!trainableSpeciesIds(player, state.setup.gameplayVersion, content, state.setup.eraProgression).includes(item.defId) || !Object.hasOwn(content.units, item.defId)) return 'invalid-production';
       if (content.species[item.defId].role === 'fast' && !player.research.unlockedIds.includes('riding')) return 'invalid-production';
+      if (order.orderId === undefined && classTrainingBlocker(state, player, state.setup.eraProgression, stateBadges(state, actor), item.defId, content)) return 'invalid-production';
     } else if (item.kind !== 'logistics' || (item.defId !== 'settler' && item.defId !== 'trader' && item.defId !== 'builder')) return 'invalid-production';
     else if (item.defId === 'builder' ? !usesBuilders(state) || item.escortId !== undefined : false) return 'invalid-production';
     else if (!state.expansion?.cityNetwork ? item.defId !== 'settler' || item.escortId !== undefined

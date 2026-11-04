@@ -1,3 +1,4 @@
+import { classCityMultiplier, classStrikeMultiplier } from './unit-classes.ts';
 import { contentForView } from '../content/units.ts';
 import { leaderEffects } from '../content/leaders.ts';
 import type { Content } from '../content/units.ts';
@@ -41,20 +42,20 @@ export function previewAttack(view: PlayerView, unitId: number, target: CombatTa
       players: Object.fromEntries(view.civilizations.map(civ => [civ.id, { leaderId: civ.leaderId }])) as never };
     const home = (identity: import("../content/units.ts").UnitIdentity, biome: typeof to) => homeDefenseMultiplier(view.expansion?.essences !== undefined, identity, biome, content);
     const era = viewCombatContext(view);
-    const side = scalePermille(mistyWaterMultiplier(mapView, unit.ownerId, unit, content) * home(defendingUnit, to) / 1000
+    const side = scalePermille(scalePermille(mistyWaterMultiplier(mapView, unit.ownerId, unit, content) * home(defendingUnit, to) / 1000
       * eraAttackMultiplier(era, unit, content, false, false) / 1000 * eraDefenseMultiplier(era, defendingUnit) / 1000
-      * viewZealotMultiplier(view, unit.position) / 1000, promotionStrikeMultiplier(view, unit.id, defendingUnit.id, false));
+      * viewZealotMultiplier(view, unit.position) / 1000, promotionStrikeMultiplier(view, unit.id, defendingUnit.id, false)), classStrikeMultiplier(view, unit, defendingUnit, content));
     min = unitDamage(unit, defendingUnit, from, to, techs.includes('typeResearch'), 85, false, content, attackMultiplier, Boolean(view.expansion), flank, side, teraTypes(era, defendingUnit.id));
     max = unitDamage(unit, defendingUnit, from, to, techs.includes('typeResearch'), 100, false, content, attackMultiplier, Boolean(view.expansion), flank, side, teraTypes(era, defendingUnit.id));
     canCounter = defendingUnit.kind === 'pokemon' && distance <= content.species[defendingUnit.speciesId].range;
     if (canCounter) counter = unitDamage(defendingUnit, unit, to, from, view.combat.units[defendingUnit.id].typeResearch, 100, true, content, 1000, Boolean(view.expansion), 0,
-      scalePermille(mistyWaterMultiplier(mapView, defendingUnit.ownerId, defendingUnit, content) * home(unit, from) / 1000
+      scalePermille(scalePermille(mistyWaterMultiplier(mapView, defendingUnit.ownerId, defendingUnit, content) * home(unit, from) / 1000
       * eraAttackMultiplier(era, defendingUnit, content, false, true) / 1000 * eraDefenseMultiplier(era, unit) / 1000 * 1000 / 1000,
-      promotionStrikeMultiplier(view, defendingUnit.id, unit.id, true)), teraTypes(era, unit.id));
+      promotionStrikeMultiplier(view, defendingUnit.id, unit.id, true)), classStrikeMultiplier(view, defendingUnit, unit, content)), teraTypes(era, unit.id));
   } else {
     const city = view.combat.cities[defender.id]; hp = city.hp;
     const assault = cityAssaultMultiplier(view.economy.player, view.eraProgression, view.gameplayVersion, unit, content, distance, techs.includes('siegeCraft'));
-    const cityAttack = Math.floor(scalePermille(attackMultiplier * eraAttackMultiplier(viewCombatContext(view), unit, content, true, false) / 1000, promotionCityMultiplier(view, unit.id)));
+    const cityAttack = Math.floor(scalePermille(scalePermille(attackMultiplier * eraAttackMultiplier(viewCombatContext(view), unit, content, true, false) / 1000, promotionCityMultiplier(view, unit.id)), classCityMultiplier(view, unit, content)));
     min = cityDamage(unit, from, to, techs.includes('siegeCraft'), 85, content, cityAttack, assault);
     max = cityDamage(unit, from, to, techs.includes('siegeCraft'), 100, content, cityAttack, assault);
     canCounter = distance <= 2 && city.counterAttack > 0;

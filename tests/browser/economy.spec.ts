@@ -123,7 +123,7 @@ test('work locking, queue reorder/cancel, purchases and version refusal use UI',
   await page.locator('[data-production-kind="logistics"]').click();
   await page.locator('#production-item').selectOption({ label: '开拓队 (30)' }); await page.locator('#add-production').click();
   await page.locator('[data-production-kind="pokemon"]').click();
-  await page.locator('#production-item').selectOption({ label: '妙蛙种子 (19)' }); await page.locator('#add-production').click();
+  await page.locator('#production-item').selectOption({ label: '【远程】妙蛙种子 (19)' }); await page.locator('#add-production').click();
   await page.locator('[data-up="1"]').click(); await expect(page.locator('#production-queue li').first()).toContainText('妙蛙种子');
   await page.locator('[data-remove="1"]').click(); await expect(page.locator('#production-queue li')).toHaveCount(1);
   await openScreen(page, 'research');

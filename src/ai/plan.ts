@@ -1,8 +1,9 @@
+import { candyGold, classTrainingBlocker, viewBadges } from '../core/unit-classes.ts';
 import { usesBuilders } from '../core/improvements.ts';
 import { pickEscort, traderPlan, wantsTrader } from './network-plan.ts';
 import { legendTraceTargets, planLegendWonder } from './legend-plan.ts';
 import { LEGEND_WONDERS } from '../content/legend-wonders.ts';
-import { rosterEvolution, typeCounterBonus } from './roster-plan.ts';
+import { classTrainingBonus, rosterEvolution, typeCounterBonus } from './roster-plan.ts';
 import { districtCandidates } from './district-plan.ts';
 import { planCivilizationAction } from '../core/civilization-systems.ts';
 import { CIVILIZATION_CONTENT } from '../content/civilization-systems.ts';
@@ -201,12 +202,14 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
         + (id === 'trainingGround' && threatened.has(city.id) ? 1000 : 0), i);
     }
     if (combat.length < Math.max(4, cities.length * 2) && (income > upkeep || player.gold >= 80)) {
+      const badges = viewBadges(view);
       for (const [i, id] of trainableSpeciesIds(player, view.gameplayVersion, content, view.eraProgression).entries()) {
         const species = content.species[id];
         if (species.role === 'fast' && !player.research.unlockedIds.includes('riding')) continue;
+        if (classTrainingBlocker(view, player, view.eraProgression, badges, id, content)) continue;
         queue({ kind: 'pokemon', defId: id }, 'military', species.attack + species.defense - species.trainCost
           + (preparingSiege && species.role === 'siege' && strategy.siegeTrainingBonus !== null ? ai[strategy.siegeTrainingBonus] : 0)
-          + roleTrainingBonus(view, id, content, preparingSiege) + typeCounterBonus(view, id, content), i);
+          + roleTrainingBonus(view, id, content, preparingSiege) + typeCounterBonus(view, id, content) + classTrainingBonus(view, id, content), i);
       }
     }
   }
@@ -227,7 +230,9 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
     } else {
       const evolution = content.roster ? rosterEvolution(view, unit, content) : content.species[unit.speciesId].evolution;
       const needsStone = view.expansion && !content.roster && WORLD_DEFINITIONS.stoneEvolutions.some(path => path.fromSpeciesId === unit.speciesId);
-      if (evolution && !needsStone && unit.xp >= evolution.xp && player.gold >= evolution.gold && (!evolution.requiresTraining || player.research.unlockedIds.includes('training'))) add({ type: 'Evolve', unitId: unit.id, intoSpeciesId: evolution.speciesId }, 'military', 200, unit.id);
+      // v19 Rare Candy when rich: the candy price (computed before leader discounts) is an upper bound of the real cost.
+      const candy = evolution && unit.xp < evolution.xp ? candyGold(view, player, view.eraProgression, content.species[unit.speciesId].stage, evolution.gold) : null;
+      if (evolution && !needsStone && (unit.xp >= evolution.xp ? player.gold >= evolution.gold : candy !== null && player.gold >= candy + 60) && (!evolution.requiresTraining || player.research.unlockedIds.includes('training'))) add({ type: 'Evolve', unitId: unit.id, intoSpeciesId: evolution.speciesId }, 'military', 200, unit.id);
       for (const target of view.units.filter(target => target.ownerId !== actorId).sort((a, b) => a.id - b.id)) {
         if (canCaptureByPersonality(view, target, query)) for (const ballId of ['pokeBall', 'greatBall'] as BallId[]) {
           const preview = query.capture(view, unit.id, target.id, ballId, content);

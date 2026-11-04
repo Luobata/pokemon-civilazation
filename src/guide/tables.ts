@@ -1,3 +1,5 @@
+import { CLASS_COUNTERS, CLASS_HMS, CLASS_IDS, CLASS_NAMES, CLASS_NATIVE_TYPES, CLASS_RULES } from '../content/unit-classes.ts';
+import { hasAffinity } from '../core/unit-classes.ts';
 import { BUILDER_RULES, ROLE_IDS, ROLE_POKEMON } from '../content/roles.ts';
 import type { RoleId } from '../content/roles.ts';
 import { CITY_NETWORK_RULES, COMPLEMENTS, DISTRICT_COMBOS, ESCORT_BONUSES } from '../content/city-network.ts';
@@ -100,7 +102,7 @@ export function techTable(): string {
   const ids = Object.keys(TECHS) as TechId[];
   return table(['科技', '层级', '花费', '效果与解锁', '图鉴发现（立减 ' + DISCOVERY_PERCENT + '%）'],
     ids.map(id => {
-      return [techName(id), String(TECHS[id].tier), String(TECHS[id].cost), techUnlocks(id, content).map(item => item.text).join('；'),
+      return [techName(id), String(TECHS[id].tier), String(TECHS[id].cost), techUnlocks(id, content, LATEST_GAMEPLAY_VERSION).map(item => item.text).join('；'),
         `<strong>${DISCOVERIES[id].name}</strong>：${DISCOVERIES[id].hint}`];
     }), [1, 2]);
 }
@@ -225,6 +227,20 @@ export function legendWonderTable(): string {
 }
 export const networkRules = CITY_NETWORK_RULES;
 export const builderCharges = BUILDER_RULES.charges;
+export const classRules = CLASS_RULES;
+/** v19: one row per class: what it counters, what counters it, native types, the HM it needs, and its Pokémon by generation. */
+export function unitClassTable(): string {
+  return table(['兵种', '克制（×1.2）', '怕', '契合属性（+15%）', '训练需要', '这类宝可梦（★ = 属性契合）'], CLASS_IDS.map(role => {
+    const beatenBy = CLASS_IDS.filter(other => CLASS_COUNTERS[other].beats.includes(role));
+    const hm = CLASS_HMS[role];
+    const members = (Object.keys(content.species) as SpeciesId[]).filter(id => content.species[id].role === role)
+      .sort((a, b) => (content.species[a].generation ?? 1) - (content.species[b].generation ?? 1) || content.species[a].stage - content.species[b].stage || (a < b ? -1 : 1))
+      .map(id => `${content.species[id].name}${hasAffinity({ kind: 'pokemon', speciesId: id }, content) ? '★' : ''}`);
+    return [CLASS_NAMES[role], CLASS_COUNTERS[role].beats.length ? `${CLASS_COUNTERS[role].beats.map(other => CLASS_NAMES[other]).join('、')}（${CLASS_COUNTERS[role].note}）` : CLASS_COUNTERS[role].note,
+      beatenBy.map(other => CLASS_NAMES[other]).join('、') || '—', CLASS_NATIVE_TYPES[role].map(typeChip).join(''),
+      hm ? `秘传「${hm.hm}」（${techName(hm.techId)}）` : '一开始就能训练', members.join('、')];
+  }));
+}
 export function roleUnitTable(): string {
   const unit = (role: RoleId) => content.units[role];
   const since: Record<RoleId, string> = { settler: '一直都有', builder: 'v18 新增', trader: 'v17 新增（需要友好商店）' };

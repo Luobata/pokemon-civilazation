@@ -1,3 +1,4 @@
+import { candyGold, classCityMultiplier, classStrikeMultiplier } from './unit-classes.ts';
 import { stoneEvolutionsFor } from '../content/roster.ts';
 import { evolutionBlocker, evolutionOptions, playerGeneration, tileBiome } from './roster.ts';
 import { eliminateCivilization } from './victory.ts';
@@ -40,7 +41,9 @@ export function validateCombatAction(state: GameState, actor: number, action: Co
     if (state.expansion && !content.roster && WORLD_DEFINITIONS.stoneEvolutions.some(path => path.fromSpeciesId === unit.speciesId)) return 'evolution-unavailable';
     const evolution = evolutionOptions(content, unit.speciesId).find(option => option.speciesId === action.intoSpeciesId);
     if (evolution && evolutionBlocker(content, evolution, { generation: playerGeneration(player, state.setup.eraProgression), round: state.round, biome: tileBiome(state, unit.position) })) return 'evolution-unavailable';
-    return evolution && unit.xp >= evolution.xp && player.gold >= evolutionGold(player, evolution.gold)
+    // v19 Rare Candy: a stage-1 Pokémon short of XP may evolve for extra gold from generation 2.
+    const candy = evolution && unit.xp < evolution.xp ? candyGold(state, player, state.setup.eraProgression, definition.stage, evolutionGold(player, evolution.gold)) : null;
+    return evolution && (unit.xp >= evolution.xp ? player.gold >= evolutionGold(player, evolution.gold) : candy !== null && player.gold >= candy)
       && (!evolution.requiresTraining || hasTech(state, actor, 'training')) ? null : 'evolution-unavailable';
   }
   const target = action.type === 'Capture' ? state.units[action.targetUnitId]
@@ -87,11 +90,11 @@ function unitStrike(state: GameState, attacker: MapUnit, defender: MapUnit, coun
     state.map.tiles[hexToIndex(defender.position, state.map)!], hasTech(state, attacker.ownerId, 'typeResearch'), roll, counter, content,
     leaderAttackMultiplier(state, attacker.ownerId, leaderEffects(attacker.ownerId === null ? undefined : state.players[attacker.ownerId].leaderId).activeAttackMultiplier), Boolean(state.expansion),
     counter ? 0 : flankBonus(state.setup, attacker, defender, Object.values(state.units).filter(isMapUnit)),
-    scalePermille(mistyWaterMultiplier(state, attacker.ownerId, attacker, content)
+    scalePermille(scalePermille(mistyWaterMultiplier(state, attacker.ownerId, attacker, content)
       * homeDefenseMultiplier(usesEssences(state), defender, state.map.tiles[hexToIndex(defender.position, state.map)!], content) / 1000
       * eraAttackMultiplier(era, attacker, content, false, counter) / 1000 * eraDefenseMultiplier(era, defender) / 1000
       * (counter ? 1000 : zealotMultiplier(state, attacker.ownerId, attacker.position)) / 1000,
-      promotionStrikeMultiplier(state, attacker.id, defender.id, counter)),
+      promotionStrikeMultiplier(state, attacker.id, defender.id, counter)), classStrikeMultiplier(state, attacker, defender, content)),
     teraTypes(era, defender.id));
   if (!counter) consumeZMove(state, attacker.id);
   attacker.enraged = false;
@@ -126,8 +129,8 @@ export function resolveAttack(state: GameState, unitId: number, target: CombatTa
     const city = state.cities[target.id];
     hit = cityDamage(attacker, state.map.tiles[hexToIndex(attacker.position, state.map)!],
       state.map.tiles[hexToIndex(city.position, state.map)!], hasTech(state, attacker.ownerId, 'siegeCraft'), 85 + randomBelow(state.rng, 16), content,
-      Math.floor(scalePermille(leaderAttackMultiplier(state, attacker.ownerId, leaderEffects(attacker.ownerId === null ? undefined : state.players[attacker.ownerId].leaderId).activeAttackMultiplier)
-        * eraAttackMultiplier(combatContext(state), attacker, content, true, false) / 1000, promotionCityMultiplier(state, attacker.id))),
+      Math.floor(scalePermille(scalePermille(leaderAttackMultiplier(state, attacker.ownerId, leaderEffects(attacker.ownerId === null ? undefined : state.players[attacker.ownerId].leaderId).activeAttackMultiplier)
+        * eraAttackMultiplier(combatContext(state), attacker, content, true, false) / 1000, promotionCityMultiplier(state, attacker.id)), classCityMultiplier(state, attacker, content))),
       cityAssaultMultiplier(attacker.ownerId === null ? undefined : state.players[attacker.ownerId], state.setup.eraProgression, state.setup.gameplayVersion, attacker, content,
         hexDistance(attacker.position, city.position), hasTech(state, attacker.ownerId, 'siegeCraft')));
     attacker.enraged = false;
@@ -174,7 +177,8 @@ export function applyCombatAction(state: GameState, actor: number, action: Comba
   const player = state.players[actor];
   if (action.type === 'Evolve') {
     const before = content.species[unit.speciesId], after = content.species[action.intoSpeciesId];
-    player.gold -= evolutionGold(player, evolutionOptions(content, unit.speciesId).find(option => option.speciesId === action.intoSpeciesId)!.gold);
+    const option = evolutionOptions(content, unit.speciesId).find(item => item.speciesId === action.intoSpeciesId)!;
+    player.gold -= unit.xp < option.xp ? candyGold(state, player, state.setup.eraProgression, before.stage, evolutionGold(player, option.gold))! : evolutionGold(player, option.gold);
     unit.hp = Math.max(1, Math.floor(unit.hp * after.maxHp / before.maxHp));
     unit.speciesId = action.intoSpeciesId; unit.xp = 0; registerSpecies(player, unit);
     return [{ type: 'Evolved', playerId: actor, unitId: unit.id, speciesId: unit.speciesId }];

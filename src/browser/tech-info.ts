@@ -1,6 +1,8 @@
 // Player-facing description of what each technology does, shared by the research tree
 // and the handbook. Rule effects that live in src/core are summarised here by hand;
 // unlocked buildings, districts and recruits are derived from content.
+import { CLASS_HMS, CLASS_NAMES } from '../content/unit-classes.ts';
+import type { UnitClass } from '../content/unit-classes.ts';
 import type { Content } from '../content/units.ts';
 import { DISTRICTS, DISTRICT_IDS } from '../content/districts.ts';
 import { BUILDINGS, TECHS } from '../content/economy.ts';
@@ -23,13 +25,15 @@ export const TECH_EFFECTS: Record<TechId, string> = {
   meteorology: '雪原、火山可耕作，并各 +1 科研',
 };
 
-export type TechUnlock = { kind: 'effect' | 'building' | 'district' | 'recruit'; text: string };
-export function techUnlocks(id: TechId, content?: Content): TechUnlock[] {
+export type TechUnlock = { kind: 'effect' | 'building' | 'district' | 'recruit' | 'class'; text: string };
+export function techUnlocks(id: TechId, content?: Content, gameplayVersion?: number): TechUnlock[] {
+  const hm = (gameplayVersion ?? 0) >= 19 ? (Object.entries(CLASS_HMS) as [UnitClass, { hm: string; techId: TechId }][]).find(([, item]) => item.techId === id) : undefined;
   const recruit = (content?.roster?.techRecruits ?? ERA_TECH_RECRUITS)[id];
   return [
     { kind: 'effect', text: TECH_EFFECTS[id] },
     ...Object.values(BUILDINGS).filter(building => building.requiredTech === id).map(building => ({ kind: 'building' as const, text: `建筑「${building.name}」` })),
     ...DISTRICT_IDS.filter(district => DISTRICTS[district].requiredTech === id).map(district => ({ kind: 'district' as const, text: `设施区「${DISTRICTS[district].name}」` })),
+    ...(hm ? [{ kind: 'class' as const, text: `学会秘传「${hm[1].hm}」：可训练${CLASS_NAMES[hm[0]]}宝可梦` }] : []),
     ...(recruit ? [{ kind: 'recruit' as const, text: `各城可招募${SPECIES_NAMES[recruit]}` }] : []),
   ];
 }

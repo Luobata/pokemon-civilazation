@@ -17,6 +17,16 @@ const system = (definition: AuditSystem): AuditSystem => definition;
 
 export const AUDIT_SYSTEMS: readonly AuditSystem[] = [
   system({
+    id: 's-unit-classes', name: '兵种与属性契合', status: 'implemented',
+    summary: 'gameplay v19：兵种相克 ×1.2、攻城打宝可梦 ×0.8、属性契合 +15%；秘传学习器解锁水面/攻城/快速/飞行训练；最终形态训练需要金银时代与对应属性徽章；神奇糖果。读取 v≤18 存档时不启用。',
+    rules: ['兵种倍率与契合乘在已有伤害链上（中性时不改变数值），预览与结算共用。',
+      '训练限制只作用于城市训练；捕捉与进化得到的单位照常使用。',
+      '神奇糖果：一阶、第 2 世代起、经验不足时可花 3 倍进化金币进化。'],
+    checks: ['v18 固定 48 局改动前后逐文件一致；v19 两次运行逐字节一致。', '相克、契合、秘传、徽章、糖果、预览一致，有单元测试。'],
+    sources: ['src/content/unit-classes.ts', 'src/core/unit-classes.ts', 'tests/core/unit-classes.test.ts', 'docs/design/unit-classes-v19.md'],
+    actionTypes: ['Attack', 'SetProductionQueue', 'Evolve'],
+  }),
+  system({
     id: 's-role-pokemon', name: '职能宝可梦（开拓队、工匠、商队）', status: 'implemented',
     summary: '职能单位固定由不在战斗阵容里的宝可梦担任：开拓队＝肯泰罗、工匠＝搬运小匠、商队＝变隐龙（所有版本的显示）。gameplay v18：只有工匠能修地块改良，一次行动完成一处，每个 3 次。',
     rules: ['显示：地图与面板用职能宝可梦贴图和金色职能标；不改变旧版规则与存档。',

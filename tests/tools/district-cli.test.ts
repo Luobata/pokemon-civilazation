@@ -6,6 +6,6 @@ test('headless CLI keeps the old default and accepts explicit gameplay 10', () =
   expect(parseSimulationArgs(['--seeds', '2'])).toEqual({ seeds: 2 });
   expect(parseSimulationArgs(['--gameplay', '10', '--seeds', '1'])).toEqual({ seeds: 1, gameplayVersion: 10 });
   expect(parseSimulationArgs(['--gameplay', '11', '--seeds', '1'])).toEqual({ seeds: 1, gameplayVersion: 11 });
-  expect(() => parseSimulationArgs(['--gameplay', '19'])).toThrow();
+  expect(() => parseSimulationArgs(['--gameplay', '20'])).toThrow();
   expect(() => parseSimulationArgs(['--gameplay', '10', '--gameplay', '9'])).toThrow();
 });
