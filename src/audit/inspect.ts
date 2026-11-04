@@ -682,6 +682,12 @@ export function inspectSystem(systemId: string, state: GameState): AuditSystemIn
   }
   if (system.id === 's29-multiplayer') return { metrics: [metric('当前局模式', state.setup.multiplayer ? '多席位' : '单人本地'), metric('席位数', Object.keys(state.players).length)],
     data: { controllerByPlayer: state.setup.players, client: '/multiplayer.html', server: 'npm run server', authority: 'HTTP server authenticates each seat and returns only its projected view.', tokens: 'Never exposed by this local audit inspector.' } };
+  if (system.id === 's-legend-wonders') {
+    const ledger = state.expansion?.legends;
+    return { metrics: [metric('当前规则', ledger ? '传说奇观 v15' : '本局未启用（需 v15 时代对局）'), metric('踪迹', Object.keys(ledger?.sites ?? {}).length),
+      metric('已建成奇观', Object.keys(ledger?.wonders ?? {}).length), metric('线索总数', Object.values(ledger?.clues ?? {}).reduce((sum, list) => sum + list.length, 0))],
+      data: { legends: ledger ?? null } };
+  }
   if (system.id === 's-roster') {
     const content = contentOf(state), owned = Object.values(state.units).filter(unit => unit.ownerId !== null && unit.kind === 'pokemon');
     return { metrics: [metric('当前规则', content.roster ? '阵容包 v14' : '本局未启用（需 v14）'), metric('物种数', Object.keys(content.species).length),

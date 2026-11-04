@@ -1,3 +1,5 @@
+import { legendEffects, mergeEffects, viewLegendEffects } from './legends.ts';
+import type { LegendView } from './legends.ts';
 import { CHARTER_IDS, CHARTERS, GOVERNMENT_IDS, GOVERNMENT_SWAP_GOLD, GOVERNMENTS, LEADER_GOVERNMENT_AFFINITY, LEADER_POLICY_AFFINITY, POLICIES, POLICY_IDS, POLICY_SWAP_GOLD } from '../content/policies.ts';
 import type { CharterId, GovernmentId, PolicyEffects, PolicyId, SlotKind } from '../content/policies.ts';
 import { eraState, gameplayAtLeast } from '../content/eras.ts';
@@ -84,7 +86,8 @@ export function policyEffects(player: Pick<PlayerState, 'leaderId'>, slotted: re
 export function playerPolicyEffects(state: Pick<GameState, 'setup' | 'expansion' | 'players'>, playerId: number | null): Required<PolicyEffects> {
   if (playerId === null || !usesPolicies(state as GameState)) return { ...ZERO };
   const ledger = state.expansion!.policies?.[playerId];
-  return policyEffects(state.players[playerId], ledger?.slotted, ledger?.government ?? null, ageEffects(eraAgeOf(state, playerId)));
+  return policyEffects(state.players[playerId], ledger?.slotted, ledger?.government ?? null,
+    state.expansion?.legends ? mergeEffects(ageEffects(eraAgeOf(state, playerId)), legendEffects(state as GameState, playerId)) : ageEffects(eraAgeOf(state, playerId)));
 }
 export function leaguePointsPerRound(state: GameState, playerId: number): number {
   const cities = Object.values(state.cities).filter(city => city.ownerId === playerId);
@@ -94,8 +97,10 @@ export function leaguePointsPerRound(state: GameState, playerId: number): number
   return 1 + cities.length + Math.floor(population / 3) + Math.floor(improvements / 2) + (satisfaction >= 50 ? 2 : 0) + ageLeaguePoints(eraAgeOf(state, playerId));
 }
 /** Same effects computed from a player's own observation (UI previews and AI). */
-export function viewPolicyEffects(view: { economy: { player: Pick<PlayerState, 'leaderId'> }; expansion?: { policies?: { slotted: PolicyId[]; government?: GovernmentId | null }; eraHonors?: { age: EraAge } } }): Required<PolicyEffects> {
-  return view.expansion?.policies ? policyEffects(view.economy.player, view.expansion.policies.slotted, view.expansion.policies.government ?? null, ageEffects(view.expansion.eraHonors?.age)) : { ...ZERO };
+export function viewPolicyEffects(view: { playerId?: number; economy: { player: Pick<PlayerState, 'leaderId'> }; expansion?: { policies?: { slotted: PolicyId[]; government?: GovernmentId | null }; eraHonors?: { age: EraAge }; legends?: LegendView } }): Required<PolicyEffects> {
+  const extra = view.expansion?.legends && view.playerId !== undefined
+    ? mergeEffects(ageEffects(view.expansion.eraHonors?.age), viewLegendEffects({ playerId: view.playerId, expansion: view.expansion })) : ageEffects(view.expansion?.eraHonors?.age);
+  return view.expansion?.policies ? policyEffects(view.economy.player, view.expansion.policies.slotted, view.expansion.policies.government ?? null, extra) : { ...ZERO };
 }
 export function ballPrice(base: number, discount: number): number { return Math.max(1, base - discount); }
 export function swapCost(ledger: PolicyPlayerState): number { return ledger.freeSwap ? 0 : POLICY_SWAP_GOLD; }

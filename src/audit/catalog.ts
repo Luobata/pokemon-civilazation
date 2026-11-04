@@ -17,6 +17,16 @@ const system = (definition: AuditSystem): AuditSystem => definition;
 
 export const AUDIT_SYSTEMS: readonly AuditSystem[] = [
   system({
+    id: 's-legend-wonders', name: '传说奇观（剧情）', status: 'implemented',
+    summary: 'gameplay v15（时代对局）：传说宝可梦做成全世界唯一的奇观，各文明各自找线索、用生产建造，配三章剧情；读取 v≤14 存档时不启用。',
+    rules: ['线索按文明各自记录：踪迹（研究野外观察后宝可梦站上去）、圣所石板、信仰、内政成就、世代、稀有战斗；每个命令后结算。',
+      '开工要有线索、世代够、选址合格，全世界未建成；先建成者得，其余同名工程作废并按一半退金。',
+      '奇观跟城市走：所在城市产出加成 + 文明方针效果加成；世代分 +4；踪迹放置不消耗随机数。'],
+    checks: ['v14 固定 48 局改动前后逐文件一致；v15 两次运行逐字节一致；统计线索、建成数与结束方式变化。', '放置、线索、开工条件、唯一与退金、易主、迷雾、回放，有单元测试。'],
+    sources: ['src/content/legend-wonders.ts', 'src/content/legend-stories.ts', 'src/core/legends.ts', 'src/ai/legend-plan.ts', 'src/browser/legend-panel.ts', 'tests/core/legends.test.ts', 'docs/design/legend-collection-v15.md'],
+    actionTypes: ['SetProductionQueue', 'Move'],
+  }),
+  system({
     id: 's-roster', name: '阵容扩充（按世代解锁）', status: 'implemented',
     summary: 'gameplay v14：新增 58 种宝可梦（原作第 1–9 世代），按每个玩家自己的世代解锁进化、野外刷新与世代招募；读取 v≤13 存档时不启用。',
     rules: ['进化成第 N 世代的物种需要本玩家进入第 N 世代；伊布按白天/夜晚/地形/世代分支进化。',

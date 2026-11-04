@@ -1,3 +1,5 @@
+import { legendCityYield } from './legends.ts';
+import { legendCost } from '../content/legend-wonders.ts';
 import { DISTRICTS } from '../content/districts.ts';
 import { cityDistrictEffects, districtOccupiedTiles } from './districts.ts';
 import { faithCityYield } from './faith-legends.ts';
@@ -106,7 +108,8 @@ export function cityYield(state: GameState, city: CityState, content: Content = 
   const policy = playerPolicyEffects(state, city.ownerId);
   const faithYield = faithCityYield(state, city);
   result.food += policy.cityFood + rareBerryCityFood(state, city.ownerId) + faithYield.food;
-  result.production += faithYield.production; result.gold += faithYield.gold; result.research += faithYield.research; result.production += policy.cityProduction; result.gold += policy.cityGold; result.research += policy.cityResearch;
+  result.production += faithYield.production; result.gold += faithYield.gold; result.research += faithYield.research; result.production += policy.cityProduction;
+  if (state.expansion?.legends) for (const [key, value] of Object.entries(legendCityYield(state, city.id)) as [keyof Yield, number][]) result[key] += value; result.gold += policy.cityGold; result.research += policy.cityResearch;
   const leader = leaderEffects(player.leaderId);
   result.research += leader.cityResearch + (city.buildingIds.includes('observatory') ? leader.laboratoryResearch : 0);
   result.gold += city.population >= 3 ? leader.cityGold : 0;
@@ -116,6 +119,7 @@ export function cityYield(state: GameState, city: CityState, content: Content = 
 }
 export function productionCost(item: ProductionItem, content: Content = CONTENT, trainingDiscountPercent = 0, settlerDiscountPercent = 0): number {
   if (item.kind === 'district') return DISTRICTS[item.defId].cost;
+  if (item.kind === 'legend') return legendCost(item.defId);
   if (item.kind === 'building') return content.buildings[item.defId].cost!;
   if (item.kind === 'logistics' && settlerDiscountPercent) return Math.max(1, Math.ceil(content.units[item.defId].trainCost * (100 - settlerDiscountPercent) / 100));
   const base = content.units[item.defId].trainCost;

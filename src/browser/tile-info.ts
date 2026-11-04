@@ -1,3 +1,5 @@
+import { LEGEND_WONDERS } from '../content/legend-wonders.ts';
+import { legendEffectText } from './legend-panel.ts';
 import { stoneEvolutionsFor } from '../content/roster.ts';
 import { promotionMovement } from '../core/promotions.ts';
 // Describes one map tile from the viewing player's knowledge only (PlayerView): terrain, yields,
@@ -26,7 +28,7 @@ import { tileYieldReader } from './tile-yields.ts';
 
 /** own = yours; ally/peace/enemy = another civilization by relation; wild = wild Pokémon; neutral = no owner. */
 export type Tone = 'own' | 'peace' | 'enemy' | 'neutral' | 'wild' | 'info';
-export type TileEntity = { kind: 'city' | 'unit' | 'resource' | 'luxury' | 'nest' | 'overlord' | 'sanctuary' | 'improvement' | 'district' | 'construction';
+export type TileEntity = { kind: 'city' | 'unit' | 'resource' | 'luxury' | 'nest' | 'overlord' | 'sanctuary' | 'legend' | 'improvement' | 'district' | 'construction';
   tone: Tone; title: string; subtitle: string; lines: string[]; hint?: string; unitId?: number; cityId?: number };
 export type TileInfo = {
   index: number;
@@ -166,6 +168,16 @@ export function describeTile(view: PlayerView, index: number): TileInfo {
     entities.push({ kind: 'sanctuary', tone: owner === null ? 'neutral' : relationTone(view, owner), title: sanctuary.name, subtitle: owner === null ? '无主圣所' : owner === view.playerId ? '你的圣所' : `${civName(view, owner)} 的圣所`,
       lines: [`守卫：${sanctuary.guardianName}（${SPECIES_NAMES[sanctuary.guardianSpeciesId]}）${sanctuary.guardianDefeated ? ' · 已击败' : ''}`, `击败守卫获得${sanctuary.tabletName}；集齐 ${CIVILIZATION_CONTENT.sanctuaries.definitions.length} 块即起源胜利。`],
       hint: owner === null ? `单位站在上面花 ${CIVILIZATION_CONTENT.sanctuaries.establishmentCost} 金即可建立，永久归你。` : owner === view.playerId && !sanctuary.guardianDefeated ? '带 1–3 只宝可梦（2 格内）挑战守卫。' : undefined });
+  }
+  // v15: a legend's trace site (shared by everyone; walking a Pokémon onto it yields that civilization's clue).
+  const trace = expansion?.legends?.sites.find(site => site.tileIndex === index);
+  if (trace && !expansion!.legends!.wonders.some(wonder => wonder.legendId === trace.legendId)) {
+    const legends = expansion!.legends!, legend = LEGEND_WONDERS[trace.legendId], hasClue = legends.clues.includes(trace.legendId);
+    const observing = view.economy.player.research.unlockedIds.includes('fieldObservation');
+    entities.push({ kind: 'legend', tone: 'info', title: `传说踪迹 · ${legend.name}`, subtitle: `第 ${legend.generation} 世代 · ${legend.wonderName}`,
+      lines: [hasClue ? '你已经得到这条线索，可以在合适的城市建造奇观。' : '派一只宝可梦站到这里，就能得到这位传说的线索（剧情第一章）。',
+        `奇观效果：${legendEffectText(trace.legendId)}`],
+      hint: hasClue ? '打开顶栏「传说」查看剧情与可建造的城市。' : observing ? '任何宝可梦走到这一格，回合内即可记录。' : '需要先研究「野外观察」。' });
   }
   const improvement = expansion?.improvements?.tiles.find(item => item.tileIndex === index);
   if (improvement) {

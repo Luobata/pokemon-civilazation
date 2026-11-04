@@ -1,3 +1,4 @@
+import { LEGEND_WONDERS } from '../content/legend-wonders.ts';
 import { DISTRICTS } from '../content/districts.ts';
 import { expansionActionType, parseExpansionAction } from '../core/expansion-commands.ts';
 import { ROSTER_CONTENT } from '../content/units.ts';
@@ -23,6 +24,7 @@ function production(value: unknown, content: Content): boolean {
   return value.item.kind === 'building' ? member(value.item.defId, content.buildings)
     : value.item.kind === 'pokemon' ? member(value.item.defId, content.species)
     : value.item.kind === 'district' ? member(value.item.defId, DISTRICTS) && integer(value.item.tileIndex)
+    : value.item.kind === 'legend' ? member(value.item.defId, LEGEND_WONDERS)
     : value.item.kind === 'logistics' && value.item.defId === 'settler';
 }
 

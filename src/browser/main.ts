@@ -1,3 +1,5 @@
+import { legendCompletionMarkup, legendScreenMarkup, legendTitle } from './legend-panel.ts';
+import type { LegendWonderId } from '../content/legend-wonders.ts';
 import type { SpeciesId } from '../content/species.ts';
 import { PROMOTION_TRAITS } from '../content/promotions.ts';
 import { LEGENDS } from '../content/faith-legends.ts';
@@ -183,6 +185,9 @@ function activityText(payload: VisibleEvent['payload']) {
     case 'GymBuilt': return `城市 ${payload.cityId} 建成${ESSENCES[payload.essence].name}道馆`;
     case 'CharterAdopted': return `文明 ${payload.playerId + 1} 确立规章「${CHARTERS[payload.charterId].name}」`;
     case 'UnitPromoted': { const unit = session.getView().units.find(item => item.id === payload.unitId); return `${unit && unit.kind === 'pokemon' ? EXPANSION_CONTENT.species[unit.speciesId].name : '宝可梦'}晋升：获得特性「${PROMOTION_TRAITS[payload.trait].name}」（第 ${payload.rank} 次）`; }
+    case 'LegendClueFound': return payload.playerId === session.getView().playerId ? `发现传说线索：${legendTitle(payload.legendId)}（剧情第一章，打开「传说」查看）` : '';
+    case 'LegendWonderCompleted': return payload.playerId === session.getView().playerId ? `★ 建成传说奇观：${legendTitle(payload.legendId)}` : `文明 ${payload.playerId + 1} 建成了传说奇观：${legendTitle(payload.legendId)}`;
+    case 'LegendWonderLost': return payload.playerId === session.getView().playerId ? `${legendTitle(payload.legendId)} 已被他人建成，城市 ${payload.cityId} 的工程作废，退还 ${payload.refund} 金` : '';
     case 'EraAgeBegan': return payload.playerId === session.getView().playerId ? `进入${ERA_AGES[payload.age].name}（上个世代 ${payload.previousScore} 分 / ${payload.previousRounds} 轮）` : '';
     case 'GovernmentChanged': return `采用体制「${GOVERNMENTS[payload.governmentId].name}」${payload.goldCost ? `（${payload.goldCost} 金）` : ''}${payload.droppedPolicies.length ? `，取下方针：${payload.droppedPolicies.map(id => POLICIES[id].name).join('、')}` : ''}`;
     case 'PoliciesChanged': return `方针更新：${payload.policyIds.map(id => POLICIES[id].name).join('、') || '无'}${payload.goldCost ? `（${payload.goldCost} 金）` : ''}`;
@@ -191,6 +196,7 @@ function activityText(payload: VisibleEvent['payload']) {
   }
 }
 function recordActivity(payload: VisibleEvent['payload']) {
+  if (payload.type === 'LegendWonderCompleted' && payload.playerId === session.getView().playerId) legendArrivals.push(payload.legendId);
   const text = activityText(payload);
   if (!text || activityLog[0]?.text === text) return;
   activityLog.unshift({ text, round: session.getView().round, routine: payload.type === 'TurnChanged' || payload.type === 'Moved' });
@@ -239,6 +245,7 @@ function controls() {
   sequence.max = String(driver.exportLog().commands.length);
   renderSelectionPanel(view, selected, selectedCity, { unit: selectUnit, city: selectCity, clear: clearSelection }, busy());
   document.querySelector<HTMLElement>('#era-panel')!.innerHTML = renderEraPanel(view);
+  renderLegends(view);
   renderPolicyPanel(view, issue, busy() || ended || pendingPeace);
   renderLeaderPanel(view);
   renderVictoryPanel(view);
@@ -365,6 +372,29 @@ function confirmDistrictPlacement() {
     ...city.queue.map(order => ({ orderId: order.id, item: order.item })),
     { item: { kind: 'district', defId: placement.kind, tileIndex: placement.tileIndex! } },
   ] }, `设施区已加入城市 ${city.id} 队列；格子已预订。`);
+}
+// ---------- v15 legendary wonders ----------
+const legendArrivals: LegendWonderId[] = [];
+/** Queues the full-screen story card (used when an own wonder completes; exported for tests). */
+export function showLegendArrival(id: LegendWonderId) { legendArrivals.push(id); controls(); }
+let legendMarkup = '';
+function renderLegends(view: PlayerView) {
+  document.querySelector<HTMLElement>('#legends-launcher')!.hidden = !view.expansion?.legends;
+  const markup = legendScreenMarkup(view), root = document.querySelector<HTMLElement>('#legend-panel')!;
+  if (markup !== legendMarkup) {
+    const open = new Set([...root.querySelectorAll<HTMLElement>('details[open]')].map(item => item.closest<HTMLElement>('[data-legend]')?.dataset.legend));
+    legendMarkup = markup; root.innerHTML = markup;
+    for (const id of open) root.querySelector(`[data-legend="${id}"] details`)?.setAttribute('open', '');
+    for (const button of root.querySelectorAll<HTMLButtonElement>('[data-legend-site]')) button.addEventListener('click', () => {
+      const index = Number(button.dataset.legendSite);
+      closeScreen(); focusHex(indexToHex(index, session.getView().map)); inspectedTile = index; selected = null; selectedCity = null; controls(); requestFrame();
+    });
+  }
+  const arrival = document.querySelector<HTMLElement>('#legend-arrival-root')!;
+  if (legendArrivals.length && !arrival.childElementCount) {
+    arrival.innerHTML = legendCompletionMarkup(legendArrivals[0]);
+    arrival.querySelector('#legend-arrival-close')!.addEventListener('click', () => { legendArrivals.shift(); arrival.innerHTML = ''; controls(); });
+  }
 }
 function evolveSelected(intoSpeciesId?: SpeciesId) {
   const view = session.getView(), unit = view.units.find(unit => unit.id === selected && unit.kind === 'pokemon');

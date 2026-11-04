@@ -2,7 +2,7 @@ import { expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
 /** Screens opened from the top-bar launcher (see src/browser/screens.ts). */
-export type ScreenId = 'victory' | 'research' | 'policy' | 'era' | 'leader' | 'diplomacy' | 'world' | 'log' | 'menu';
+export type ScreenId = 'victory' | 'research' | 'policy' | 'era' | 'legends' | 'leader' | 'diplomacy' | 'world' | 'log' | 'menu';
 
 /** Opens a launcher screen like a player would; a different open screen is closed first. */
 export async function openScreen(page: Page, id: ScreenId): Promise<void> {

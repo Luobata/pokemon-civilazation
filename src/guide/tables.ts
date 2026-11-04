@@ -1,3 +1,5 @@
+import { LEGEND_CLUE_TEXT, LEGEND_WONDERS, LEGEND_WONDER_IDS, legendCost } from '../content/legend-wonders.ts';
+import { legendEffectText, legendSprite } from '../browser/legend-panel.ts';
 import { leaderUnitFor, spawnWeightsFor, stoneEvolutionsFor } from '../content/roster.ts';
 import { evolutionOptions } from '../core/roster.ts';
 import type { EvolutionOption } from '../content/species.ts';
@@ -211,6 +213,13 @@ export function policyTable(): string {
 }
 export const policySwapGold = POLICY_SWAP_GOLD;
 export const governmentSwapGold = GOVERNMENT_SWAP_GOLD;
+export function legendWonderTable(): string {
+  return table(['#', '传说 · 奇观', '世代', '线索', '造价', '效果'], LEGEND_WONDER_IDS.map(id => {
+    const legend = LEGEND_WONDERS[id];
+    return [String(legend.dex).padStart(3, '0'), `<img class="sprite" loading="lazy" src="${legendSprite(id)}" alt=""> ${legend.name} · ${legend.wonderName}`, String(legend.generation),
+      LEGEND_CLUE_TEXT(legend.clue) + (legend.clue.kind === 'trace' ? `（${legend.clue.coastal ? '海边' : biomeList(legend.clue.biomes.slice(0, 1))}）` : ''), String(legendCost(id)), legendEffectText(id)];
+  }), [2, 4]);
+}
 export const promotionThresholds = PROMOTION_RULES.thresholds.join(' / ');
 export function promotionMeritTable(): string {
   const m = PROMOTION_RULES.merit;

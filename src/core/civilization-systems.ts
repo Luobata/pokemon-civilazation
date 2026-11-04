@@ -269,7 +269,7 @@ function guardianCombatant(site: SanctuarySite, content: CivilizationContent): B
     attack: species.attack * scale, defense: species.defense * scale, power: species.power,
   };
 }
-function stableSeed(...parts: (string | number)[]): number {
+export function stableSeed(...parts: (string | number)[]): number {
   let value = 0x811c9dc5;
   for (const part of parts) for (const byte of String(part)) {
     value ^= byte.codePointAt(0)!;

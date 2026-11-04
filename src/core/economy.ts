@@ -1,3 +1,4 @@
+import { completeLegendWonder } from './legends.ts';
 import { cityDistrictEffects } from './districts.ts';
 import { productionAfterHall } from './contests.ts';
 import { essenceTrainingBonus, gymTrainedXp } from './essences.ts';
@@ -74,6 +75,8 @@ export function resolveEconomy(state: GameState, content: Content = contentFor(s
       state.expansion!.districts!.tiles[order.item.tileIndex] = { cityId: city.id, kind: order.item.defId, tileIndex: order.item.tileIndex, builtAtRound: state.round };
       events.push({ type: 'DistrictCompleted', playerId: city.ownerId, cityId: city.id, orderId: order.id,
         tileIndex: order.item.tileIndex, kind: order.item.defId, cost, overflow });
+    } else if (order.item.kind === 'legend') {
+      events.push(...completeLegendWonder(state, city, order.item.defId) as never[]);
     } else if (order.item.kind === 'building') {
       city.buildingIds.push(order.item.defId); city.buildingIds.sort(); city.hp += content.balance.city.buildingHp;
       events.push({ type: 'BuildingCompleted', playerId: city.ownerId, cityId: city.id, orderId: order.id,

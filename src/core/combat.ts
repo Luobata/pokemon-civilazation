@@ -138,7 +138,7 @@ export function resolveAttack(state: GameState, unitId: number, target: CombatTa
       const previousOwner = city.ownerId;
       const headquarters = previousOwner !== null && state.players[previousOwner].headquartersCityId === city.id;
       if (!headquarters) for (const unit of Object.values(state.units)) if (unit.location === 'recovering' && unit.cityId === city.id) delete state.units[unit.id];
-      if (state.expansion?.districts) city.queue = city.queue.filter(order => order.item.kind !== 'district');
+      if (state.expansion?.districts) city.queue = city.queue.filter(order => order.item.kind !== 'district' && order.item.kind !== 'legend');
       city.ownerId = attacker.ownerId!; city.hp = content.balance.city.capturedHp; city.capturedAtRound = state.round;
       if (state.expansion) delete state.expansion.civilization.pendingProductionByCity[city.id];
       clearGym(state, city.id);

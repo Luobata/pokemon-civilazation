@@ -19,6 +19,8 @@ test('the game links to the handbook and every leader and species is listed from
   await expect(page.locator('#guide-nav a')).toHaveCount(await page.locator('.guide-section').count());
   const broken = await page.evaluate(async () => {
     const images = [...document.images];
+    // Lazy rows below the fold never start loading on their own; load everything to check every sprite.
+    for (const image of images) image.loading = 'eager';
     await Promise.all(images.map(image => image.decode().catch(() => undefined)));
     return images.filter(image => image.naturalWidth === 0).map(image => image.src);
   });

@@ -1,3 +1,4 @@
+import { legendWonderBlocker } from './legends.ts';
 import { districtBlocker, districtInput, releaseDistrictWorkers } from './districts.ts';
 import { visibleTiles } from './vision.ts';
 import { ballPrice, playerPolicyEffects } from './policies.ts';
@@ -61,6 +62,9 @@ export function validateEconomyAction(state: GameState, actor: number, action: E
         const reason = districtBlocker(districtInput(state, actor, visibleTiles(state, actor, content), { cityId: city.id, queue }), city.id, item.defId, item.tileIndex);
         if (reason) return reason === 'contested-territory' ? reason : 'invalid-production';
       }
+    } else if (item.kind === 'legend') {
+      if (!state.expansion?.legends || action.orders.filter(other => other.item.kind === 'legend' && other.item.defId === item.defId).length > 1) return 'invalid-production';
+      if (order.orderId === undefined && legendWonderBlocker(state, city, item.defId) !== null) return 'invalid-production';
     } else if (item.kind === 'building') {
       const def = content.buildings[item.defId];
       if (!Object.hasOwn(content.buildings, item.defId) || def.cost === null || buildings.has(item.defId)

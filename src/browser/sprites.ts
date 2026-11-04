@@ -27,7 +27,9 @@ const buildingImages = new Map<BuildingId, HTMLImageElement>();
 const MAP_BUILDINGS: readonly BuildingId[] = ['pasture', 'workshop', 'meetingHall', 'observatory', 'trainingGround'];
 
 /** Loads Pokémon sprites and the building art drawn inside city tiles; `onLoad` redraws the map. */
+let redraw: () => void = () => undefined;
 export function loadPokemonSprites(onLoad: () => void): void {
+  redraw = onLoad;
   for (const id of Object.keys(POKEDEX) as SpeciesId[]) {
     const image = new Image();
     image.onload = onLoad;
@@ -47,6 +49,21 @@ export function buildingSprite(id: BuildingId): HTMLImageElement | null {
   return image?.complete && image.naturalWidth ? image : null;
 }
 
+const pathImages = new Map<string, HTMLImageElement>();
+/** Draws any sprite file (e.g. a legendary for v15) lazily; gens 6–9 keep their aspect ratio like Pokémon sprites. */
+export function drawSpritePath(context: CanvasRenderingContext2D, path: string, x: number, y: number, box: number): boolean {
+  let image = pathImages.get(path);
+  if (!image) { image = new Image(); image.onload = () => redraw(); image.src = path; pathImages.set(path, image); }
+  if (!image.complete || !image.naturalWidth) return false;
+  const dex = Number(/(\d+)\.png$/.exec(path)?.[1] ?? 0);
+  if (!isTightSprite(dex)) { context.drawImage(image, x, y, box, box); return true; }
+  const scale = box * .77 / Math.max(image.naturalWidth, image.naturalHeight);
+  const width = Math.round(image.naturalWidth * scale), height = Math.round(image.naturalHeight * scale), smoothing = context.imageSmoothingEnabled;
+  context.imageSmoothingEnabled = true;
+  context.drawImage(image, Math.round(x + (box - width) / 2), Math.round(y + box * .92 - height), width, height);
+  context.imageSmoothingEnabled = smoothing;
+  return true;
+}
 /** Draws a Pokémon sprite into the square box at (x, y); fixed-canvas sets fill the box as before, cropped sets keep their aspect. */
 export function drawPokemonSprite(context: CanvasRenderingContext2D, id: SpeciesId, x: number, y: number, box: number): boolean {
   const image = pokemonSprite(id);

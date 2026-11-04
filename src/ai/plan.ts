@@ -1,3 +1,5 @@
+import { legendTraceTargets, planLegendWonder } from './legend-plan.ts';
+import { LEGEND_WONDERS } from '../content/legend-wonders.ts';
 import { rosterEvolution, typeCounterBonus } from './roster-plan.ts';
 import { districtCandidates } from './district-plan.ts';
 import { planCivilizationAction } from '../core/civilization-systems.ts';
@@ -173,6 +175,8 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
     const unlocksLeaderUnit = view.expansion && player.leaderId && techId === 'training' && view.expansion.leaders.recruited === 0;
     if (query.research(player, techId, content)) add({ type: 'SetResearch', techId }, 'research', unlocksLeaderUnit ? 1000 : 100 - content.techs[techId].cost + leaderResearchBonus(view, techId), 0, i);
   }
+  // v15: one legendary wonder at a time, in the most productive eligible city that is not threatened.
+  const { cityId: wonderCity, legendId: wonder } = planLegendWonder(view, threatened);
   const income = cities.reduce((sum, city) => sum + city.yields.gold, 0);
   const upkeep = [...units, ...view.recoveringUnits].reduce((sum, unit) => sum + unitDefinition(unit, content).upkeep, 0);
   for (const city of cities) {
@@ -180,6 +184,7 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
     if (work.length > city.workedTileIds.length) add({ type: 'AssignWork', cityId: city.id, workedTileIds: work, lockedTileIds: [...city.lockedTileIds] }, 'economy', 500, city.id);
     if (city.queue.length || city.pendingDeployments.length) continue;
     const queue = (item: ProductionItem, goal: Goal, benefit: number, targetId = 0) => add({ type: 'SetProductionQueue', cityId: city.id, orders: [{ item }] }, goal, benefit, city.id, targetId);
+    if (wonderCity === city.id && wonder) queue({ kind: 'legend', defId: wonder }, 'economy', 260, LEGEND_WONDERS[wonder].dex);
     const district = districtCandidates(view, city.id, content)[0];
     if (district) queue({ kind: 'district', defId: district.kind, tileIndex: district.tileIndex }, 'economy', district.score, district.tileIndex);
     if (canProduceSettler(view, ai)) queue({ kind: 'logistics', defId: 'settler' }, 'found', 50);
@@ -208,6 +213,7 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
   const visible = new Set(view.visibleTileIds), explored = new Set(view.knowledge.exploredTileIds);
   const atWar = view.diplomacy.some(pair => pair.status === 'war' && (pair.a === actorId || pair.b === actorId));
   const workers = designatedWorkers(view, content, atWar || campaignActive || preparingSiege);
+  const traceTargets = legendTraceTargets(view, content);
   for (const unit of units.filter(unit => unit.actionLeft)) {
     if (unit.kind === 'logistics') {
       if (citySite(unit.position)) add({ type: 'FoundCity', unitId: unit.id }, 'found', 1000, unit.id);
@@ -250,6 +256,8 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
       } else if (targetHq && hexDistance(to, targetHq.position) < hexDistance(unit.position, targetHq.position)) {
         add(action, 'military', 100 - hexDistance(to, targetHq.position), unit.id, index);
       }
+      const trace = traceTargets.get(unit.id);
+      if (trace && hexDistance(to, trace) < hexDistance(unit.position, trace)) add(action, 'explore', 120 - hexDistance(to, trace), unit.id, index);
       if (seek && hexDistance(to, seek) < hexDistance(unit.position, seek)) {
         add(action, 'military', 100 - hexDistance(to, seek), unit.id, index);
       }

@@ -7,7 +7,7 @@ import { hexToIndex } from '../../core/hex.ts';
 import type { Hex } from '../../core/hex.ts';
 import { HEX_RADIUS, toScreen } from '../camera.ts';
 import type { Camera, Point } from '../camera.ts';
-import { buildingSprite, drawPokemonSprite } from '../sprites.ts';
+import { buildingSprite, drawPokemonSprite, drawSpritePath } from '../sprites.ts';
 import { drawTerrain } from '../terrain.ts';
 import { drawIcon, drawPixelNumber, drawYieldRow } from '../map-icons.ts';
 import type { IconName } from '../map-icons.ts';
@@ -169,6 +169,7 @@ function drawFeatures(d: Draw) {
         context.fillStyle = '#FFF3B0'; context.fill(); context.strokeStyle = '#14211F'; context.lineWidth = 1; context.stroke();
       }
       if (item.kind === 'icon') drawIcon(context, item.icon as IconName, p.x, p.y, size * .74);
+      else if (item.kind === 'legend') drawSpritePath(context, item.path, Math.round(p.x - size * .5), Math.round(p.y - size * .55), Math.round(size));
       else {
         if (!drawPokemonSprite(context, item.speciesId, Math.round(p.x - size * .55), Math.round(p.y - size * .62), Math.round(size * 1.1))) centeredText(d, item.fallback, p, '#FFF8E5', size * .5);
       }
@@ -404,7 +405,7 @@ function cityBanner(d: Draw, city: SceneCity, p: Point, size: number) {
   const height = Math.max(16, Math.min(24, radius * .8));
   context.font = `650 ${Math.round(height * .62)}px system-ui, sans-serif`;
   const nameWidth = context.measureText(city.name).width;
-  const width = height + (city.population !== undefined ? height : 0) + nameWidth + height * .55 + (city.capital ? height * .85 : 0);
+  const width = height + (city.population !== undefined ? height : 0) + nameWidth + height * .55 + (city.capital ? height * .85 : 0) + (city.wonders ? height * .85 : 0);
   const left = p.x - width / 2, top = p.y - size * .66 - height;
   context.beginPath(); context.roundRect(left, top, width, height, height / 2);
   context.fillStyle = '#14211FE6'; context.fill();
@@ -423,7 +424,8 @@ function cityBanner(d: Draw, city: SceneCity, p: Point, size: number) {
   context.fillStyle = '#FFF8E5'; context.textAlign = 'left'; context.textBaseline = 'middle';
   context.fillText(city.name, cursor + height * .15, top + height / 2 + .5);
   cursor += nameWidth + height * .4;
-  if (city.capital) drawIcon(context, 'star', cursor + height * .35, top + height / 2, height * .7);
+  if (city.capital) { drawIcon(context, 'star', cursor + height * .35, top + height / 2, height * .7); cursor += height * .85; }
+  if (city.wonders) drawIcon(context, 'crown', cursor + height * .35, top + height / 2, height * .7);
   if (city.hp && city.hp.current < city.hp.max) {
     const barTop = top + height + 2;
     context.fillStyle = '#14211FD9'; context.fillRect(left + 4, barTop, width - 8, 4);

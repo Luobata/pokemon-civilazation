@@ -1,7 +1,7 @@
 // Full-screen system pages opened from the top-bar launcher (Civilization-style), plus the
 // right-hand context drawer for the current selection. Only one screen is open at a time.
 
-export type ScreenId = 'victory' | 'research' | 'policy' | 'era' | 'leader' | 'diplomacy' | 'world' | 'log' | 'menu';
+export type ScreenId = 'victory' | 'research' | 'policy' | 'era' | 'legends' | 'leader' | 'diplomacy' | 'world' | 'log' | 'menu';
 
 // Pages without a launcher (multiplayer.html) render panels inline; screen calls fall back to focusing them.
 const host = () => document.querySelector<HTMLElement>('#screen-host');

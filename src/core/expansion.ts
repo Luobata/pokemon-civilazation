@@ -1,3 +1,4 @@
+import { initializeLegends, recordLegends } from './legends.ts';
 import { initializeDistricts } from './districts.ts';
 import { applyPromotionAction, initializePromotions, isPromotionAction, recordPromotions, resolvePromotionRound, validatePromotionAction } from './promotions.ts';
 import { initializeEraHonors, recordEraHonors, resolveEraHonorRound } from './era-honors.ts';
@@ -37,6 +38,7 @@ export function initializeExpansion(state: GameState, content: Content): void {
   initializeDistricts(state);
   initializeEraHonors(state);
   initializePromotions(state);
+  initializeLegends(state);
 }
 export function validateExpansionAction(state: GameState, actorId: number, action: Command['action'], content: Content): boolean {
   if (!state.expansion || !expansionActionType(action.type)) return false;
@@ -93,5 +95,6 @@ export function recordExpansion(before: GameState, after: GameState, command: Co
   recordPromotions(after, events);
   const world = updateWorldRecords(before, after, command, events, content);
   const discoveries = recordDiscoveries(before, after, command, [...events, ...world], content);
-  return [...world, ...discoveries, ...recordEraHonors(before, after, [...events, ...world, ...discoveries])];
+  const honors = recordEraHonors(before, after, [...events, ...world, ...discoveries]);
+  return [...world, ...discoveries, ...honors, ...recordLegends(after, [...events, ...world, ...discoveries, ...honors], content)];
 }

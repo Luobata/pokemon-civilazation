@@ -1,6 +1,7 @@
 // Scene building: decides WHAT the map shows, from the PlayerView and UI state only.
 // Pure (no DOM, no canvas), so fog and selection rules can be unit-tested in Node.
 // Positions are tile indices plus world coordinates; the camera is applied by the renderer.
+import { legendSprite } from '../legend-panel.ts';
 import { pendingPromotions } from '../../core/promotions.ts';
 import { LEGENDS } from '../../content/faith-legends.ts';
 import type { LegendId } from '../../content/faith-legends.ts';
@@ -49,10 +50,12 @@ export type UnitMarkIdentity = UnitIdentity & { id: number; ownerId: number | nu
 export type SceneTile = { index: number; biome: BiomeId | null; world: Point; visible: boolean };
 export type SceneEdge = { index: number; direction: number; ownerId?: number };
 export type SceneBadge = { index: number; ring: string; luxury: boolean; dim: boolean }
-  & ({ kind: 'icon'; icon: string } | { kind: 'sprite'; speciesId: SpeciesId; fallback: string; crown: boolean });
+  & ({ kind: 'icon'; icon: string } | { kind: 'sprite'; speciesId: SpeciesId; fallback: string; crown: boolean } | { kind: 'legend'; path: string });
 export type SceneDistrict = { index: number; kind: DistrictId; ownerId: number | null; memory: boolean; progress?: number };
 export type SceneCity = { id: number; index: number; ownerId: number | null; selected: boolean; buildings: BuildingId[];
-  name: string; population?: number; capital: boolean; hp?: { current: number; max: number } };
+  name: string; population?: number; capital: boolean; hp?: { current: number; max: number };
+  /** v15: legendary wonders in this own city. */
+  wonders?: number };
 /** `key` is stable across frames ("unit:12") so animation can target it. */
 export type SceneUnit = { key: string; unit: UnitMarkIdentity; index: number; world: Point; actionLeft: number; enraged: boolean; status?: string;
   /** At war with the viewer: drawn with a red ring so enemies read at a glance. */
@@ -151,6 +154,9 @@ export function buildScene(input: MapRenderInput): MapScene {
     }
     for (const site of expansion.world.nests) badges.push({ kind: 'sprite', index: site.tileIndex, speciesId: site.speciesId, fallback: '巢', crown: false, ring: '#D3655C', luxury: false, dim: false });
     for (const site of expansion.world.overlords) badges.push({ kind: 'sprite', index: site.tileIndex, speciesId: site.speciesId, fallback: '霸', crown: true, ring: '#E6B85C', luxury: false, dim: false });
+    // v15 trace sites: a gold-ringed badge with the legend's sprite, where the viewer sees or remembers the tile.
+    for (const site of expansion.legends?.sites ?? []) if (!expansion.legends!.wonders.some(wonder => wonder.legendId === site.legendId))
+      badges.push({ kind: 'legend', index: site.tileIndex, path: legendSprite(site.legendId), ring: '#F2C14E', luxury: false, dim: !visible.has(site.tileIndex) });
     for (const site of expansion.civilization.sanctuaries) {
       const index = indexOf(site.position);
       if (index !== null && visible.has(index)) badges.push({ kind: 'icon', index, icon: site.guardianDefeated ? 'tablet' : 'sanctuary', ring: '#B58AD6', luxury: false, dim: false });
@@ -173,7 +179,8 @@ export function buildScene(input: MapRenderInput): MapScene {
       buildings: (own?.buildingIds ?? []).filter(id => id !== 'headquarters'),
       name: city.ownerId === null ? `中立 · 城市 ${city.id}` : `城市 ${city.id}`,
       capital: city.headquartersOf !== undefined && city.headquartersOf !== null,
-      ...(own ? { population: own.population, hp: { current: own.hp, max: maxCityHp(own) } } : {}) };
+      ...(own ? { population: own.population, hp: { current: own.hp, max: maxCityHp(own) } } : {}),
+      ...(expansion?.legends?.wonders.some(wonder => wonder.cityId === city.id) ? { wonders: expansion.legends.wonders.filter(wonder => wonder.cityId === city.id).length } : {}) };
   });
 
   // Yield rows: every known tile when the layer is on, otherwise only the selected city's work area.
@@ -250,7 +257,7 @@ export function sceneMarkedTiles(scene: MapScene): { layer: string; index: numbe
   return [
     ...scene.units.map(item => ({ layer: 'unit', index: item.index })),
     ...scene.cities.map(item => ({ layer: 'city', index: item.index })),
-    ...scene.badges.map(item => ({ layer: `badge:${item.kind === 'icon' ? item.icon : item.speciesId}`, index: item.index })),
+    ...scene.badges.map(item => ({ layer: `badge:${item.kind === 'icon' ? item.icon : item.kind === 'legend' ? item.path : item.speciesId}`, index: item.index })),
     ...scene.districts.map(item => ({ layer: 'district', index: item.index })),
     ...scene.constructionSites.map(item => ({ layer: 'construction', index: item.index })),
     ...scene.improvements.map(item => ({ layer: 'improvement', index: item.index })),

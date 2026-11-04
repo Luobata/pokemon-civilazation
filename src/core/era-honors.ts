@@ -54,6 +54,7 @@ function milestones(before: GameState, after: GameState, events: readonly EventP
       case 'FaithFounded': found.push([event.playerId, 'faithFounded']); break;
       case 'ContestHallBuilt': found.push([event.playerId, 'contestHallBuilt']); break;
       case 'DiscoveryMade': found.push([event.playerId, 'discovery']); break;
+      case 'LegendWonderCompleted': found.push([event.playerId, 'legendWonder']); break;
       case 'BattleResolved':
         if (event.capturedCity && event.target.kind === 'city') { const id = owner(event.target.id); if (id !== null) found.push([id, 'cityCaptured']); }
         break;

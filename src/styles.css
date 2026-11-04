@@ -802,5 +802,35 @@ b.age-golden { color: #F2C14E !important; } b.age-dark { color: #B9A6E8 !importa
 .promotion-choices button { display: grid; gap: 2px; text-align: left; padding: 6px 8px; border-color: #F2C14E88; }
 .promotion-choices button small { color: #C9C1A4; font-size: 10.5px; line-height: 1.3; }
 
+
+/* v15 legendary wonders */
+.legend-screen { display: grid; gap: 14px; }
+.legend-summary { margin: 0; color: #F6E3A6; font-weight: 600; }
+.legend-generation h2 { margin: 6px 0; font-size: 14px; color: #D9C7F0; }
+.legend-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+.legend-card { display: grid; grid-template-columns: 64px 1fr; gap: 10px; padding: 10px; border: 1px solid #2E4743; border-radius: 6px; background: #13221F; }
+.legend-card img { width: 64px; height: 64px; image-rendering: pixelated; }
+.legend-card.unknown img, .legend-card.locked img { filter: brightness(0) opacity(.55); }
+.legend-card.theirs { opacity: .7; }
+.legend-card.mine { border-color: #F2C14E; box-shadow: inset 0 0 0 1px #F2C14E55; }
+.legend-card.ready, .legend-card.building { border-color: #72C99E; }
+.legend-card h3 { margin: 0 0 4px; font-size: 14px; }
+.legend-dex { margin: 0; color: #81908A; font-size: 11px; }
+.legend-status { margin: 0 0 4px; color: #F2E7C9; font-size: 12px; }
+.legend-effect { margin: 0 0 6px; color: #A9B9B3; font-size: 11.5px; }
+.legend-story h4 { margin: 8px 0 2px; color: #F6E3A6; font-size: 12px; }
+.legend-story p { margin: 0; line-height: 1.55; font-size: 12.5px; color: #E2E8E4; }
+.legend-production { list-style: none; margin: 6px 0; padding: 0; display: grid; gap: 6px; }
+.legend-production li { display: grid; grid-template-columns: 40px 1fr; gap: 8px; align-items: center; padding: 6px; border: 1px solid #2E4743; border-radius: 5px; }
+.legend-production li.ready { border-color: #72C99E; }
+.legend-production small { display: block; color: #A9B9B3; font-size: 11px; }
+.legend-production .legend-blocker { color: #E0A86D; }
+.legend-arrival { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: #050B0ACC; }
+.legend-arrival-card { width: min(520px, 92vw); padding: 22px 24px; text-align: center; border: 1px solid #F2C14E; border-radius: 10px; background: linear-gradient(#1D2C28, #121D1B); }
+.legend-arrival-card img { width: 128px; height: 128px; image-rendering: pixelated; }
+.legend-arrival-card h2 { margin: 6px 0 10px; color: #F6E3A6; }
+.legend-arrival-text { line-height: 1.7; color: #E9EFEA; }
+.legend-arrival-card blockquote { margin: 10px auto; color: #CBBF95; font-style: italic; }
+
 /* Gens 6–9 sprites are tightly cropped, non-square, anti-aliased art: keep the aspect ratio and Emerald-like padding. */
 img[src*="/sprites/gen6/"], img[src*="/sprites/gen7/"], img[src*="/sprites/gen8/"], img[src*="/sprites/gen9/"] { object-fit: contain; padding: 12%; box-sizing: border-box; image-rendering: auto; }
