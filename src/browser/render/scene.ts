@@ -14,6 +14,7 @@ import type { BuildingId, Yield } from '../../content/economy.ts';
 import type { BiomeId } from '../../content/rules.ts';
 import type { SpeciesId } from '../../content/species.ts';
 import type { UnitIdentity } from '../../content/units.ts';
+import { contentForView } from '../../content/units.ts';
 import type { DistrictSite } from '../../core/districts.ts';
 import { hexDistance, hexToIndex, indexToHex, neighbors } from '../../core/hex.ts';
 import type { Hex } from '../../core/hex.ts';
@@ -82,6 +83,8 @@ export type MapScene = {
   night: boolean;
   units: SceneUnit[];
   reachable: number[];
+  /** Outer edges of the selected unit's movement range (its own tile included) and of its attack reach. */
+  moveEdges: SceneEdge[]; attackEdges: SceneEdge[]; attackArea: number[];
   targets: { index: number; pending: boolean; mode: 'attack' | 'capture' }[];
   placement: { index: number; legal: boolean; selected: boolean }[];
   fog: number[];
@@ -226,6 +229,16 @@ export function buildScene(input: MapRenderInput): MapScene {
   const placement = (input.districtPlacement?.sites ?? []).filter(site => site.reason === null || visible.has(site.tileIndex))
     .map(site => ({ index: site.tileIndex, legal: site.reason === null, selected: input.districtPlacement!.selectedTileIndex === site.tileIndex }));
   const selectedUnit = view.units.find(unit => unit.id === input.selected);
+  // Region outlines (Civilization-style): one contour around everything the unit can reach, one around what it can hit.
+  const contour = (region: ReadonlySet<number>): SceneEdge[] => [...region].sort((a, b) => a - b).flatMap(index =>
+    neighbors(indexToHex(index, view.map)).map(indexOf).flatMap((neighbor, direction) => neighbor !== null && region.has(neighbor) ? [] : [{ index, direction }]));
+  const reachable = (input.reachable ?? []).filter(index => visible.has(index));
+  const ownTile = selectedUnit ? indexOf(selectedUnit.position) : null;
+  const moveEdges = reachable.length && ownTile !== null ? contour(new Set([...reachable, ownTile])) : [];
+  const range = selectedUnit?.kind === 'pokemon' && selectedUnit.actionLeft ? contentForView(view).species[selectedUnit.speciesId].range : 0;
+  const attackArea = range && selectedUnit ? view.map.tiles.flatMap((biome, index) => biome && index !== ownTile
+    && hexDistance(indexToHex(index, view.map), selectedUnit.position) <= range ? [index] : []) : [];
+  const attackEdges = attackArea.length ? contour(new Set([...attackArea, ownTile!])) : [];
 
   const overlay = input.debugOverlay ?? 'none';
   const debug: MapScene['debug'] = { overlay, labels: [], vision: [] };
@@ -243,7 +256,7 @@ export function buildScene(input: MapRenderInput): MapScene {
   return {
     width: view.map.width, height: view.map.height, tiles, coastEdges, territoryEdges, improvements, faith, badges, districts, constructionSites,
     cities, yields, workedTiles: focusCity ? [...focusCity.workedTileIds] : [], weather, night: era?.night ?? false, units,
-    reachable: (input.reachable ?? []).filter(index => visible.has(index)), targets, placement,
+    reachable, moveEdges, attackEdges, attackArea, targets, placement,
     fog: tiles.filter(tile => tile.biome && !tile.visible).map(tile => tile.index),
     selectedUnit: selectedUnit ? indexOf(selectedUnit.position) : null,
     inspected: input.inspectedTile ?? null,

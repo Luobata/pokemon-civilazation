@@ -117,8 +117,8 @@ function drawBase(d: Draw) {
     if (tile.biome) drawTerrain(context, tile.biome, tile.index, p, d.radius);
     else { polygon(d, p); context.fillStyle = '#0C171C'; context.fill(); }
     polygon(d, p);
-    context.strokeStyle = tile.biome ? '#162E304A' : '#60807826';
-    context.lineWidth = tile.biome ? .8 : .65;
+    context.strokeStyle = tile.biome ? '#0B1A1C99' : '#60807840';
+    context.lineWidth = tile.biome ? Math.max(1, d.radius * .045) : .8;
     context.stroke();
   }
   for (const edge of scene.coastEdges) {
@@ -443,10 +443,10 @@ function drawInteraction(d: Draw) {
   for (const index of scene.reachable) if (d.onscreen(centers[index])) {
     const p = centers[index];
     polygon(d, p);
-    context.fillStyle = '#42B99622';
+    context.fillStyle = '#42B99626';
     context.fill();
-    context.strokeStyle = '#75D2AE';
-    context.lineWidth = 1.5;
+    context.strokeStyle = '#75D2AE40';
+    context.lineWidth = 1;
     context.stroke();
     context.beginPath();
     context.arc(p.x, p.y, Math.max(2, radius * .1), 0, Math.PI * 2);
@@ -454,6 +454,17 @@ function drawInteraction(d: Draw) {
     context.fill();
     context.strokeStyle = '#245A49'; context.lineWidth = 1.5; context.stroke();
   }
+  // Attack reach: faint red wash plus a dashed red contour; movement range: a solid cyan contour on top.
+  for (const index of scene.attackArea) if (d.onscreen(centers[index])) { polygon(d, centers[index]); context.fillStyle = '#E5554A12'; context.fill(); }
+  const outline = (edges: readonly { index: number; direction: number }[], color: string, width: number, dash: number[]) => {
+    context.setLineDash(dash);
+    for (const pass of [{ stroke: '#0A1214D9', width: width + 3 }, { stroke: color, width }]) for (const edge of edges) if (d.onscreen(centers[edge.index])) {
+      edgeLine(d, edge.index, edge.direction); context.strokeStyle = pass.stroke; context.lineWidth = pass.width; context.lineCap = 'round'; context.stroke();
+    }
+    context.setLineDash([]); context.lineCap = 'butt';
+  };
+  outline(scene.attackEdges, '#FF6B5E', Math.max(2, radius * .09), [Math.max(5, radius * .28), Math.max(3, radius * .16)]);
+  outline(scene.moveEdges, '#7FE3FF', Math.max(2.5, radius * .11), []);
   for (const target of scene.targets) if (d.onscreen(centers[target.index])) {
     const p = centers[target.index], capture = target.mode === 'capture';
     polygon(d, p);
