@@ -4,9 +4,9 @@ import { resolve } from 'node:path';
 import { leaderBalanceCases, simulateLeaderCase } from './leader-balance.ts';
 
 const version = Number(process.argv[2]), destination = process.argv[3];
-if (![9, 10, 11, 12, 13].includes(version) || !destination) throw new Error('Usage: node tools/district-smoke.ts <9|10|11|12|13> <output-directory>');
+if (![9, 10, 11, 12, 13, 14].includes(version) || !destination) throw new Error('Usage: node tools/district-smoke.ts <9|10|11|12|13|14> <output-directory>');
 const config = { seeds: 4, seedStart: 31, expansionVersion: 1 as const, eraProgression: 'simple-v1' as const,
-  gameplayVersion: version as 9 | 10 | 11 | 12 | 13, roundLimit: 100 as const, width: 24, height: 16 };
+  gameplayVersion: version as 9 | 10 | 11 | 12 | 13 | 14, roundLimit: 100 as const, width: 24, height: 16 };
 mkdirSync(destination, { recursive: true });
 writeFileSync(resolve(destination, 'config.json'), JSON.stringify(config, null, 2));
 for (const match of leaderBalanceCases(config).filter(match => match.rotation < 4)) {

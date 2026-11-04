@@ -1,10 +1,12 @@
+import { stoneEvolutionsFor } from '../content/roster.ts';
+import { evolutionBlocker, evolutionOptions, playerGeneration, tileBiome } from './roster.ts';
 import { eliminateCivilization } from './victory.ts';
 import { leaderAttackMultiplier, leaderCaptureBonus, evolutionGold, mistyWaterMultiplier } from './leader-systems.ts';
 import { leaderEffects } from '../content/leaders.ts';
 import { WORLD_DEFINITIONS } from '../content/world-systems.ts';
 import { relationFor } from './diplomacy.ts';
 import { unitDamage, cityDamage, cityCounterDamage } from './combat-query.ts';
-import { EXPANSION_CONTENT, CONTENT } from '../content/units.ts';
+import { contentFor } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
 import type { TechId } from '../content/economy.ts';
 import { hexDistance, hexToIndex } from './hex.ts';
@@ -28,15 +30,17 @@ const hasTech = (state: GameState, owner: number | null, tech: TechId) => owner 
 export function atWar(state: GameState, a: number, b: number): boolean {
   return state.diplomacy.some(pair => pair.a === Math.min(a, b) && pair.b === Math.max(a, b) && pair.status === 'war');
 }
-export function validateCombatAction(state: GameState, actor: number, action: CombatAction, content: Content = state.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT): Rejection | null {
+export function validateCombatAction(state: GameState, actor: number, action: CombatAction, content: Content = contentFor(state.setup)): Rejection | null {
   const unit = state.units[action.unitId];
   if (!unit || unit.ownerId !== actor || !isMapUnit(unit) || unit.kind !== 'pokemon') return 'unit-unavailable';
   if (!unit.actionLeft) return 'no-action';
   const definition = content.species[unit.speciesId], player = state.players[actor];
   if (action.type === 'Evolve') {
-    if (state.expansion && WORLD_DEFINITIONS.stoneEvolutions.some(path => path.fromSpeciesId === unit.speciesId)) return 'evolution-unavailable';
-    const evolution = definition.evolution;
-    return evolution && evolution.speciesId === action.intoSpeciesId && unit.xp >= evolution.xp && player.gold >= evolutionGold(player, evolution.gold)
+    if (state.expansion && stoneEvolutionsFor(content).some(path => path.fromSpeciesId === unit.speciesId && path.intoSpeciesId === action.intoSpeciesId)) return 'evolution-unavailable';
+    if (state.expansion && !content.roster && WORLD_DEFINITIONS.stoneEvolutions.some(path => path.fromSpeciesId === unit.speciesId)) return 'evolution-unavailable';
+    const evolution = evolutionOptions(content, unit.speciesId).find(option => option.speciesId === action.intoSpeciesId);
+    if (evolution && evolutionBlocker(content, evolution, { generation: playerGeneration(player, state.setup.eraProgression), round: state.round, biome: tileBiome(state, unit.position) })) return 'evolution-unavailable';
+    return evolution && unit.xp >= evolution.xp && player.gold >= evolutionGold(player, evolution.gold)
       && (!evolution.requiresTraining || hasTech(state, actor, 'training')) ? null : 'evolution-unavailable';
   }
   const target = action.type === 'Capture' ? state.units[action.targetUnitId]
@@ -101,7 +105,7 @@ function unitStrike(state: GameState, attacker: MapUnit, defender: MapUnit, coun
   return hit;
 }
 // Executes one validated battle, also used by neutral guards at stage 6.
-export function resolveAttack(state: GameState, unitId: number, target: CombatTarget, content: Content = state.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT, wildPhase = false): CombatEvent[] {
+export function resolveAttack(state: GameState, unitId: number, target: CombatTarget, content: Content = contentFor(state.setup), wildPhase = false): CombatEvent[] {
   const attacker = state.units[unitId];
   if (!isMapUnit(attacker) || attacker.kind !== 'pokemon') throw new Error('Expected deployed attacker');
   const defender = target.kind === 'unit' ? state.units[target.id] : state.cities[target.id];
@@ -162,7 +166,7 @@ export function resolveAttack(state: GameState, unitId: number, target: CombatTa
   events.unshift({ type: 'BattleResolved', attackerId: unitId, target: { ...target }, positions, damage: hit, counterDamage, capturedCity, knockedDownUnitIds, knockdowns });
   return events;
 }
-export function applyCombatAction(state: GameState, actor: number, action: CombatAction, content: Content = state.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT): CombatEvent[] {
+export function applyCombatAction(state: GameState, actor: number, action: CombatAction, content: Content = contentFor(state.setup)): CombatEvent[] {
   if (action.type === 'Attack') return resolveAttack(state, action.unitId, action.target, content);
   const unit = state.units[action.unitId];
   if (!isMapUnit(unit) || unit.kind !== 'pokemon') throw new Error('Expected deployed pokemon');
@@ -170,7 +174,7 @@ export function applyCombatAction(state: GameState, actor: number, action: Comba
   const player = state.players[actor];
   if (action.type === 'Evolve') {
     const before = content.species[unit.speciesId], after = content.species[action.intoSpeciesId];
-    player.gold -= evolutionGold(player, before.evolution!.gold);
+    player.gold -= evolutionGold(player, evolutionOptions(content, unit.speciesId).find(option => option.speciesId === action.intoSpeciesId)!.gold);
     unit.hp = Math.max(1, Math.floor(unit.hp * after.maxHp / before.maxHp));
     unit.speciesId = action.intoSpeciesId; unit.xp = 0; registerSpecies(player, unit);
     return [{ type: 'Evolved', playerId: actor, unitId: unit.id, speciesId: unit.speciesId }];

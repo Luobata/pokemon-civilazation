@@ -1,8 +1,9 @@
-import { EXPANSION_CONTENT, CONTENT } from '../content/units.ts';
+import { contentFor } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
 import type { BiomeId } from '../content/rules.ts';
 import type { SpeciesId } from '../content/species.ts';
-import { SPAWN_WEIGHTS, WANDERERS } from '../content/wild.ts';
+import { spawnWeightsFor, speciesGeneration, wanderersFor } from '../content/roster.ts';
+import { regionGeneration } from './roster.ts';
 import { hexDistance, hexToIndex, indexToHex, neighbors } from './hex.ts';
 import { isMapUnit } from './model.ts';
 import type { EventPayload, GameState } from './model.ts';
@@ -18,7 +19,7 @@ function roulette<T extends string>(state: GameState, entries: [T, number][]): T
   for (const [id, weight] of entries) { if (roll < weight) return id; roll -= weight; }
   throw new Error('Empty roulette');
 }
-export function spawnWild(state: GameState, initial = false, content: Content = state.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT): EventPayload[] {
+export function spawnWild(state: GameState, initial = false, content: Content = contentFor(state.setup)): EventPayload[] {
   const events: EventPayload[] = [], regionColumns = Math.ceil(state.map.width / 8);
   const regionCount = regionColumns * Math.ceil(state.map.height / 8);
   const regionOf = (index: number) => Math.floor(Math.floor(index / state.map.width) / 8) * regionColumns + Math.floor(index % state.map.width / 8);
@@ -31,8 +32,11 @@ export function spawnWild(state: GameState, initial = false, content: Content = 
     const counts: Partial<Record<BiomeId, number>> = {};
     for (const i of tiles) { const biome = state.map.tiles[i]; counts[biome] = (counts[biome] ?? 0) + 1; }
     const biome = roulette(state, Object.entries(counts) as [BiomeId, number][]);
-    const speciesId = roulette(state, (Object.entries(SPAWN_WEIGHTS[biome]) as [SpeciesId, number][])
-      .map(([id, weight]) => [id, content.species[id].rare ? Math.floor(weight * 250 / 1000) : weight]));
+    // v14: only species up to the generation of the civilization nearest this region can appear.
+    const generation = content.roster ? regionGeneration(state, tiles) : Infinity;
+    const pool = (Object.entries(spawnWeightsFor(content, biome)) as [SpeciesId, number][]).filter(([id]) => speciesGeneration(content, id) <= generation);
+    if (!pool.length) continue;
+    const speciesId = roulette(state, pool.map(([id, weight]) => [id, content.species[id].rare ? Math.floor(weight * 250 / 1000) : weight]));
     const definition = content.species[speciesId], identity = { kind: 'pokemon' as const, speciesId };
     const occupied = new Set([...Object.values(state.units).filter(isMapUnit), ...Object.values(state.cities)].map(entity => hexToIndex(entity.position, state.map)));
     const candidates = tiles.filter(i => state.map.tiles[i] === biome && definition.spawnBiomes.includes(biome)
@@ -45,12 +49,12 @@ export function spawnWild(state: GameState, initial = false, content: Content = 
   }
   return events;
 }
-export function actWild(state: GameState, content: Content = state.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT): EventPayload[] {
+export function actWild(state: GameState, content: Content = contentFor(state.setup)): EventPayload[] {
   const events: EventPayload[] = [];
   for (const id of Object.values(state.units).filter(unit => unit.ownerId === null).map(unit => unit.id).sort((a, b) => a - b)) {
     const unit = state.units[id];
     if (!unit || !isMapUnit(unit) || unit.kind !== 'pokemon' || state.expansion?.world.rampagingUnitIds.includes(id)) continue;
-    if (WANDERERS.includes(unit.speciesId)) {
+    if (wanderersFor(content).includes(unit.speciesId)) {
       const occupied = new Set(Object.values(state.units).filter(isMapUnit).map(other => hexToIndex(other.position, state.map)));
       const candidates = neighbors(unit.position).filter(position => {
         const index = hexToIndex(position, state.map);
@@ -69,6 +73,6 @@ export function actWild(state: GameState, content: Content = state.setup.expansi
   }
   return events;
 }
-export function resolveWild(state: GameState, content: Content = state.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT): EventPayload[] {
+export function resolveWild(state: GameState, content: Content = contentFor(state.setup)): EventPayload[] {
   return [...spawnWild(state, false, content), ...actWild(state, content)];
 }

@@ -1,7 +1,7 @@
 import { gameVersions } from '../core/versions.ts';
 import { createGame } from '../core/game.ts';
 import { step } from '../core/step.ts';
-import { EXPANSION_CONTENT, CONTENT } from '../content/units.ts';
+import { CONTENT, STOCK_CONTENTS } from '../content/units.ts';
 import { isLeaderId } from '../content/leaders.ts';
 import type { Content } from '../content/units.ts';
 import type { GameState } from '../core/model.ts';
@@ -20,7 +20,7 @@ export function serializeSave(state: GameState, log: CommandLog): string {
 }
 export function deserializeSave(text: string, content?: Content): SaveFile {
   const save = JSON.parse(text) as SaveFile;
-  content ??= save?.contentVersion === EXPANSION_CONTENT.version ? EXPANSION_CONTENT : CONTENT;
+  content ??= STOCK_CONTENTS.find(stock => stock.version === save?.contentVersion) ?? CONTENT;
   const versions = gameVersions(save?.state?.setup ?? {});
   if (save?.formatVersion !== 1 || save.schemaVersion !== versions.schemaVersion || save.rulesVersion !== versions.rulesVersion || save.contentVersion !== content.version
     || save.state?.schemaVersion !== save.schemaVersion || save.state.rulesVersion !== save.rulesVersion || save.state.contentVersion !== save.contentVersion

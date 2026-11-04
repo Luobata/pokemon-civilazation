@@ -2,7 +2,7 @@ import { isEraProgression, isGameplayVersion, LATEST_GAMEPLAY_VERSION, type EraP
 import { isLeaderId, LEADER_IDS, type LeaderId } from '../content/leaders.ts';
 import { canonicalSerialize, type JsonValue } from '../core/snapshot.ts';
 import { parseAuditAction } from '../audit/commands.ts';
-import { EXPANSION_CONTENT } from '../content/units.ts';
+import { ROSTER_CONTENT } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
 import type { Command, PlayerView } from '../core/model.ts';
 
@@ -107,7 +107,7 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
  * legacy and expansion actions cannot drift between browser and server. Extra
  * fields are rejected by comparing the input with the parser's clean clone.
  */
-export function isCommandAction(value: unknown, content: Content = EXPANSION_CONTENT): value is Command['action'] {
+export function isCommandAction(value: unknown, content: Content = ROSTER_CONTENT): value is Command['action'] {
   try {
     const parsed = parseAuditAction(value, content);
     return canonicalSerialize(parsed) === canonicalSerialize(value as JsonValue);
@@ -128,7 +128,7 @@ export function validateJoinRequest(value: unknown, authorization: string | null
   return { seatId, ...(value.name === undefined ? {} : { name: value.name }), joinToken: supplied };
 }
 
-export function validateCommandRequest(value: unknown, content: Content = EXPANSION_CONTENT): { expectedSeq: number; action: Command['action'] } | null {
+export function validateCommandRequest(value: unknown, content: Content = ROSTER_CONTENT): { expectedSeq: number; action: Command['action'] } | null {
   if (!isRecord(value) || Object.keys(value).length !== 2) return null;
   const expectedSeq = value.expectedSeq;
   if (typeof expectedSeq !== 'number' || !Number.isSafeInteger(expectedSeq) || expectedSeq < 0 || !isCommandAction(value.action, content)) return null;

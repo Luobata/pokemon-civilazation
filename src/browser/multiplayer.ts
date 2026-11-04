@@ -1,8 +1,9 @@
+import type { SpeciesId } from '../content/species.ts';
 import { renderEraPanel } from './era-panel.ts';
 import { LEADERS, LEADER_IDS, type LeaderId } from '../content/leaders.ts';
 import type { EraProgression } from '../content/eras.ts';
 import { EXPANSION_ACTION_FIELDS } from '../core/expansion-commands.ts';
-import { CONTENT as BASE_CONTENT, EXPANSION_CONTENT } from '../content/units.ts';
+import { CONTENT as BASE_CONTENT, contentForView } from '../content/units.ts';
 import { hexToIndex, indexToHex } from '../core/hex.ts';
 import { reachablePaths } from '../core/movement.ts';
 import type { Command, PlayerView } from '../core/model.ts';
@@ -253,17 +254,17 @@ function confirmDistrictPlacement(): void {
     { item: { kind: 'district', defId: placement.kind, tileIndex: placement.tileIndex! } },
   ] });
 }
-function evolveSelected(): void {
+function evolveSelected(intoSpeciesId?: SpeciesId): void {
   const currentView = view;
   const unit = currentView?.units.find(candidate => candidate.id === selectedUnit
     && candidate.ownerId === currentView.playerId && candidate.kind === 'pokemon');
-  const content = currentView?.expansion ? EXPANSION_CONTENT : BASE_CONTENT;
+  const content = currentView ? contentForView(currentView) : BASE_CONTENT;
   const evolution = unit?.kind === 'pokemon' ? content.species[unit.speciesId].evolution : null;
-  if (!currentView || !unit || !evolution) {
+  if (!currentView || !unit || !(intoSpeciesId ?? evolution)) {
     say('当前单位没有可用的常规进化。', true);
     return;
   }
-  issue({ type: 'Evolve', unitId: unit.id, intoSpeciesId: evolution.speciesId });
+  issue({ type: 'Evolve', unitId: unit.id, intoSpeciesId: intoSpeciesId ?? evolution!.speciesId });
 }
 
 function issue(action: Command['action']): void {

@@ -1,3 +1,4 @@
+import { leaderUnitFor, stoneEvolutionsFor } from '../content/roster.ts';
 import { FAITH_RULES, LEGENDS, LEGEND_IDS, TENETS, TENET_IDS } from '../content/faith-legends.ts';
 import type { LegendId, TenetId } from '../content/faith-legends.ts';
 import { CONTEST_RULES } from '../core/contests.ts';
@@ -5,7 +6,7 @@ import { RARE_BERRIES, RARE_BERRY_IDS, RARE_BERRY_RULES } from '../content/rare-
 import type { Command, PlayerView } from '../core/model.ts';
 import { LEADER_KITS } from '../core/leader-systems.ts';
 import { hexDistance } from '../core/hex.ts';
-import { CONTENT as BASE_CONTENT, EXPANSION_CONTENT, unitDefinition } from '../content/units.ts';
+import { unitDefinition, contentForView } from '../content/units.ts';
 import { CIVILIZATION_CONTENT } from '../content/civilization-systems.ts';
 import { WORLD_DEFINITIONS } from '../content/world-systems.ts';
 import { parseAuditAction } from '../audit/commands.ts';
@@ -13,7 +14,7 @@ import { parseAuditAction } from '../audit/commands.ts';
 const escape = (value: unknown) => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 export function renderExpansionPanel(view: PlayerView, selectedUnitId: number | null, selectedCityId: number | null,
   issue: (action: Command['action']) => void, disabled: boolean): void {
-  const CONTENT = view.expansion ? EXPANSION_CONTENT : BASE_CONTENT;
+  const CONTENT = contentForView(view);
   const root = document.querySelector<HTMLElement>('#expansion-panel')!;
   if (!view.expansion) { root.innerHTML = '<p>此存档使用经典规则。新建对局可启用扩展系统。</p>'; return; }
   const opened = new Set([...root.querySelectorAll<HTMLDetailsElement>('details[open]')].map(element => element.dataset.system));
@@ -33,7 +34,7 @@ export function renderExpansionPanel(view: PlayerView, selectedUnitId: number | 
     + button(leader.active, { type: 'UseLeaderAbility' }, player.gold >= 20 && exp.leaders.readyAtRound <= view.round)
     + (city ? `<p>当前城市 #${city.id}：${escape(leader.building)}提供本城领袖专长产出 +2；专属部队拥有 +8 攻防和 +1 视野。</p>`
       + button(`建造${leader.building} · 90 金`, { type: 'BuildLeaderBuilding', cityId: city.id }, player.gold >= 90 && !exp.leaders.uniqueCityIds.includes(city.id))
-      + button(`招募${unitDefinition({ kind: 'pokemon', speciesId: leader.unit }, CONTENT).name} · 100 金`, { type: 'RecruitLeaderUnit', cityId: city.id }, player.gold >= 100 && exp.leaders.recruited < 3 && player.research.unlockedIds.includes('training')) : ''));
+      + button(`招募${unitDefinition({ kind: 'pokemon', speciesId: leaderUnitFor(CONTENT, player.leaderId!, leader.unit) }, CONTENT).name} · 100 金`, { type: 'RecruitLeaderUnit', cityId: city.id }, player.gold >= 100 && exp.leaders.recruited < 3 && player.research.unlockedIds.includes('training')) : ''));
   const world = exp.world, records = Object.values(world.player?.pokedex ?? {});
   html += card('s22-pokedex', '图鉴与探索胜利', `<p>完整记录 ${records.filter(record => record.observed && (record.battled || record.captured)).length}/${world.victory?.targetDocumentedSpecies ?? 18}。观察 ${records.filter(record => record.observed).length} · 对战 ${records.filter(record => record.battled).length} · 捕捉 ${records.filter(record => record.captured).length}。已观察且战斗或捕捉的物种计入完整记录。</p><p>${records.filter(record => record.observed).map(record => escape(CONTENT.species[record.speciesId].name)).join('、') || '尚未观察'}</p>`);
   html += card('s18-nests', '暴走巢穴', '<p>靠近巢穴后派宝可梦清剿，消耗行动点；巢穴会周期性派出敌对野生单位。</p>'
@@ -47,7 +48,7 @@ export function renderExpansionPanel(view: PlayerView, selectedUnitId: number | 
     + world.resources.map(site => `<p>${escape(site.definitionId)} · (${site.position.q},${site.position.r}) · 剩余 ${site.remaining}</p>`
       + (unit ? button('采集', { type: 'HarvestResource', unitId: unit.id, tileIndex: site.tileIndex }, Boolean(unit.actionLeft) && site.remaining > 0 && hexDistance(unit.position, site.position) === 0) : '')).join('')
     + `<p>进化石：${escape(JSON.stringify(world.player?.stoneInventory ?? {}))}</p>`
-    + (unit?.kind === 'pokemon' ? WORLD_DEFINITIONS.stoneEvolutions.filter(path => path.fromSpeciesId === unit.speciesId).map(path => button(`${CONTENT.species[path.intoSpeciesId].name} · ${path.stoneId}`, { type: 'UseEvolutionStone', unitId: unit.id, intoSpeciesId: path.intoSpeciesId, stoneId: path.stoneId }, Boolean(unit.actionLeft) && (world.player?.stoneInventory[path.stoneId] ?? 0) > 0 && unit.xp >= path.requiredXp)).join('') : ''));
+    + (unit?.kind === 'pokemon' ? stoneEvolutionsFor(CONTENT).filter(path => path.fromSpeciesId === unit.speciesId).map(path => button(`${CONTENT.species[path.intoSpeciesId].name} · ${path.stoneId}`, { type: 'UseEvolutionStone', unitId: unit.id, intoSpeciesId: path.intoSpeciesId, stoneId: path.stoneId }, Boolean(unit.actionLeft) && (world.player?.stoneInventory[path.stoneId] ?? 0) > 0 && unit.xp >= path.requiredXp)).join('') : ''));
   const rare = exp.rareBerries;
   if (rare) {
     const partners = exp.civilization.relations.filter(relation => relation.tradeSinceRound !== null && !relation.targetEliminated);

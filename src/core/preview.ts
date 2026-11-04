@@ -1,4 +1,4 @@
-import { EXPANSION_CONTENT, CONTENT } from '../content/units.ts';
+import { contentForView } from '../content/units.ts';
 import { leaderEffects } from '../content/leaders.ts';
 import type { Content } from '../content/units.ts';
 import type { BallId } from '../content/economy.ts';
@@ -20,7 +20,7 @@ export type AttackPreview = { ok: true; damage: { min: number; max: number };
   knockdown: 'guaranteed' | 'possible' | 'none' } | { ok: false; reason: string };
 export type CapturePreview = { ok: true; probability: number } | { ok: false; reason: string };
 // Queries consume only the observation, never state, RNG, or last-known entities as live targets.
-export function previewAttack(view: PlayerView, unitId: number, target: CombatTarget, content: Content = view.expansion ? EXPANSION_CONTENT : CONTENT): AttackPreview {
+export function previewAttack(view: PlayerView, unitId: number, target: CombatTarget, content: Content = contentForView(view)): AttackPreview {
   const unit = view.units.find(unit => unit.id === unitId && unit.ownerId === view.playerId);
   const defender = target.kind === 'unit' ? view.units.find(unit => unit.id === target.id) : view.cities.find(city => city.id === target.id);
   if (!unit || unit.kind !== 'pokemon' || !unit.actionLeft || view.outcome || view.activePlayerId !== view.playerId || !defender) return { ok: false, reason: 'attack-unavailable' };
@@ -64,7 +64,7 @@ export function previewAttack(view: PlayerView, unitId: number, target: CombatTa
   return { ok: true, damage: { min, max }, counter: { trigger, damage: trigger === 'never' ? 0 : counter },
     knockdown: min >= hp ? 'guaranteed' : max >= hp ? 'possible' : 'none' };
 }
-export function previewCapture(view: PlayerView, unitId: number, targetUnitId: number, ballId: BallId, content: Content = view.expansion ? EXPANSION_CONTENT : CONTENT): CapturePreview {
+export function previewCapture(view: PlayerView, unitId: number, targetUnitId: number, ballId: BallId, content: Content = contentForView(view)): CapturePreview {
   const unit = view.units.find(unit => unit.id === unitId && unit.ownerId === view.playerId), target = view.units.find(unit => unit.id === targetUnitId);
   const player = view.economy.player;
   if (!unit || unit.kind !== 'pokemon' || !unit.actionLeft || view.outcome || view.activePlayerId !== view.playerId || !target || target.kind !== 'pokemon'

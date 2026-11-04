@@ -1,3 +1,4 @@
+import { stoneEvolutionsFor } from '../content/roster.ts';
 import { promotionMovement } from '../core/promotions.ts';
 // Describes one map tile from the viewing player's knowledge only (PlayerView): terrain, yields,
 // ownership and everything standing on it, each with a relation tone and a short "what can I do".
@@ -12,7 +13,7 @@ import type { RareBerryId } from '../content/rare-berries.ts';
 import { SPECIES_NAMES } from '../content/species.ts';
 import type { TypeId } from '../content/species.ts';
 import { TYPE_NAMES } from '../content/type-names.ts';
-import { CONTENT, EXPANSION_CONTENT, unitDefinition } from '../content/units.ts';
+import { unitDefinition, contentForView } from '../content/units.ts';
 import { WORLD_DEFINITIONS } from '../content/world-systems.ts';
 import type { BerryId, StoneId } from '../content/world-systems.ts';
 import { CIVILIZATION_CONTENT } from '../content/civilization-systems.ts';
@@ -53,7 +54,7 @@ const typeText = (types: readonly (TypeId | undefined)[]) => types.filter((type)
 const ROLE_NAMES = { ranged: '远程', melee: '近战', scout: '侦察', fast: '快速', siege: '攻城', naval: '水面', air: '飞行' } as const;
 
 export function describeTile(view: PlayerView, index: number): TileInfo {
-  const content = view.expansion ? EXPANSION_CONTENT : CONTENT;
+  const content = contentForView(view);
   const biome = view.map.tiles[index] ?? null;
   const visible = view.visibleTileIds.includes(index);
   const hex = indexToHex(index, view.map);
@@ -141,7 +142,7 @@ export function describeTile(view: PlayerView, index: number): TileInfo {
       hint: '单位站在上面、3 格内有你的城市时可以采集。' });
   } else if (resource?.kind === 'stone') {
     const stone = WORLD_DEFINITIONS.stones[resource.definitionId as StoneId];
-    const uses = WORLD_DEFINITIONS.stoneEvolutions.filter(path => path.stoneId === resource.definitionId).map(path => `${SPECIES_NAMES[path.fromSpeciesId]} → ${SPECIES_NAMES[path.intoSpeciesId]}`);
+    const uses = stoneEvolutionsFor(content).filter(path => path.stoneId === resource.definitionId).map(path => `${SPECIES_NAMES[path.fromSpeciesId]} → ${SPECIES_NAMES[path.intoSpeciesId]}`);
     entities.push({ kind: 'resource', tone: 'info', title: stone.name, subtitle: resource.remaining ? '进化石矿脉' : '已采空的矿脉',
       lines: [`用途：${uses.join('、')}`, '城市耕作这一格：生产 +1'], hint: resource.remaining ? '宝可梦站在上面可以采集，只能采一次。' : undefined });
   }

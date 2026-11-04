@@ -1,3 +1,7 @@
+import type { SpeciesId } from '../content/species.ts';
+import { stoneEvolutionsFor } from '../content/roster.ts';
+import type { EvolutionOption } from '../content/species.ts';
+import { EVOLUTION_BLOCKER_TEXT, evolutionBlocker, evolutionOptions, playerGeneration, tileBiome } from '../core/roster.ts';
 import { promotionMarkup } from './promotion-panel.ts';
 import { promotionMovement } from '../core/promotions.ts';
 import { ERA_ABILITIES, ERA_ABILITY_RULES } from '../content/era-abilities.ts';
@@ -14,7 +18,7 @@ import { improvementOptions, improvementYield } from '../core/improvements.ts';
 import { exertsZoc, ignoresZoc, usesTactics } from '../core/tactics.ts';
 import { IMPROVEMENT_WORK, IMPROVEMENTS } from '../content/improvements.ts';
 import type { ImprovementId } from '../content/improvements.ts';
-import { CONTENT as BASE_CONTENT, EXPANSION_CONTENT, unitDefinition } from '../content/units.ts';
+import { unitDefinition, contentForView } from '../content/units.ts';
 import type { BallId } from '../content/economy.ts';
 import type { Command, CombatTarget, PlayerView } from '../core/model.ts';
 import { previewAttack, previewCapture } from '../core/preview.ts';
@@ -28,7 +32,7 @@ type Callbacks = {
   mode: (mode: ActionMode) => void;
   confirm: () => void;
   cancel: () => void;
-  evolve: () => void;
+  evolve: (intoSpeciesId?: SpeciesId) => void;
   ball: (ballId: BallId) => void;
   found: () => void;
   improve?: (tileIndex: number, kind: ImprovementId) => void;
@@ -37,7 +41,7 @@ type Callbacks = {
 
 export function renderUnitPanel(view: PlayerView, selected: number | null, mode: ActionMode,
   target: PendingTarget | null, ballId: BallId, busy: boolean, callbacks: Callbacks): void {
-  const CONTENT = view.expansion ? EXPANSION_CONTENT : BASE_CONTENT;
+  const CONTENT = contentForView(view);
   const root = document.querySelector<HTMLElement>('#unit-panel')!;
   const unit = view.units.find(unit => unit.id === selected && unit.ownerId === view.playerId);
   if (!unit) { root.innerHTML = ''; return; }
@@ -59,11 +63,24 @@ export function renderUnitPanel(view: PlayerView, selected: number | null, mode:
     return;
   }
   const definition = unitDefinition(unit, CONTENT), species = CONTENT.species[unit.speciesId];
-  const evolution = species.evolution;
-  const stoneEvolution = view.expansion && WORLD_DEFINITIONS.stoneEvolutions.find(path => path.fromSpeciesId === unit.speciesId);
   const player = view.economy.player;
-  const canEvolve = evolution && !stoneEvolution && unit.xp >= evolution.xp && player.gold >= evolution.gold
-    && (!evolution.requiresTraining || player.research.unlockedIds.includes('training'));
+  const meets = (option: { xp: number; gold: number; requiresTraining: boolean }) => unit.xp >= option.xp && player.gold >= option.gold
+    && (!option.requiresTraining || player.research.unlockedIds.includes('training'));
+  // v14 roster: evolution branches with generation / day-night / biome conditions; stone paths stay in the world panel.
+  const stonePaths = stoneEvolutionsFor(CONTENT).filter(path => path.fromSpeciesId === unit.speciesId);
+  const branchContext = { generation: playerGeneration(player, view.eraProgression), round: view.round, biome: tileBiome(view, unit.position) };
+  const branches = CONTENT.roster ? evolutionOptions(CONTENT, unit.speciesId).filter(option => !stonePaths.some(path => path.intoSpeciesId === option.speciesId)) : [];
+  const branchReady = (option: EvolutionOption) => meets(option) && !evolutionBlocker(CONTENT, option, branchContext);
+  // Main button: a branch that can evolve now, else one whose conditions hold (only EXP / gold missing), else the first.
+  const evolution = CONTENT.roster ? branches.find(branchReady) ?? branches.find(option => !evolutionBlocker(CONTENT, option, branchContext)) ?? branches[0] ?? null : species.evolution;
+  const stoneEvolution = view.expansion && (CONTENT.roster ? !branches.length && stonePaths[0] : WORLD_DEFINITIONS.stoneEvolutions.find(path => path.fromSpeciesId === unit.speciesId));
+  const canEvolve = evolution && !stoneEvolution && (CONTENT.roster ? branchReady(evolution as EvolutionOption) : meets(evolution));
+  const otherBranches = branches.filter(option => option.speciesId !== evolution?.speciesId);
+  const branchMarkup = otherBranches.length ? `<div class="evolution-branches" id="evolution-branches"><p class="section-label">其他进化方向</p>${otherBranches.map(option => {
+    const blocker = evolutionBlocker(CONTENT, option, branchContext);
+    return `<button type="button" data-evolve="${option.speciesId}" title="${blocker ? EVOLUTION_BLOCKER_TEXT[blocker] : `EXP ${option.xp} + ${option.gold} 金币`}" ${busy || !unit.actionLeft || !branchReady(option) ? 'disabled' : ''}>进化→${CONTENT.species[option.speciesId].name}${blocker ? `（${EVOLUTION_BLOCKER_TEXT[blocker]}）` : ''}</button>`;
+  }).join('')}</div>` : '';
+  const evolutionNote = CONTENT.roster && evolution && !canEvolve ? evolutionBlocker(CONTENT, evolution as EvolutionOption, branchContext) : null;
   const canCapture = player.research.unlockedIds.includes('domestication')
     && (player.ballInventory.pokeBall > 0 || (player.research.unlockedIds.includes('ballCraft') && player.ballInventory.greatBall > 0));
   const targetUnit = target?.kind === 'unit' ? view.units.find(unit => unit.id === target.id) : null;
@@ -123,13 +140,16 @@ export function renderUnitPanel(view: PlayerView, selected: number | null, mode:
     ${promotionMarkup(view, unit.id, busy)}
     ${eraMarkup}
     ${improvementMarkup}
+    ${branchMarkup}
+    ${evolutionNote ? `<p class="unit-note" id="evolution-blocker">进化→${CONTENT.species[evolution!.speciesId].name}：${EVOLUTION_BLOCKER_TEXT[evolutionNote]}。</p>` : ''}
     ${!canCapture ? '<p class="unit-note">捕捉需要研究「驯化」，并在城市采购精灵球。</p>' : ''}
     ${mode && mode !== 'move' ? `<div class="action-config">${mode === 'capture' ? `<label>球种<select id="capture-ball"><option value="pokeBall" ${ballId === 'pokeBall' ? 'selected' : ''}>精灵球（${view.economy.player.ballInventory.pokeBall}）</option><option value="greatBall" ${ballId === 'greatBall' ? 'selected' : ''}>超级球（${view.economy.player.ballInventory.greatBall}）</option></select></label>` : ''}<button id="cancel-action">取消目标</button></div>${preview}<div class="action-confirm"><button id="confirm-action" class="primary" ${!target || (mode === 'attack' ? attackPreview?.ok !== true : capturePreview?.ok !== true) ? 'disabled' : ''}>确认${mode === 'attack' ? '攻击' : '捕捉'}</button></div>` : ''}
     ${stoneEvolution ? `<p class="unit-note">进化需要 ${WORLD_DEFINITIONS.stones[stoneEvolution.stoneId].name} + EXP ${stoneEvolution.requiredXp}，请在「树果、进化石与满意度」中使用。</p>` : evolution ? `<p class="unit-note">进化条件：EXP ${evolution.xp} + ${evolution.gold} 金币${evolution.requiresTraining ? ' + 特训法' : ''}；经验、金币与科技条件需同时满足。</p>` : ''}</div>`;
   root.querySelector('#move-unit')!.addEventListener('click', () => callbacks.mode(mode === 'move' ? null : 'move'));
   root.querySelector('#attack-unit')!.addEventListener('click', () => callbacks.mode(mode === 'attack' ? null : 'attack'));
   root.querySelector('#capture-unit')!.addEventListener('click', () => callbacks.mode(mode === 'capture' ? null : 'capture'));
-  root.querySelector('#evolve-unit')!.addEventListener('click', callbacks.evolve);
+  root.querySelector('#evolve-unit')!.addEventListener('click', () => callbacks.evolve(CONTENT.roster && evolution ? evolution.speciesId : undefined));
+  for (const button of root.querySelectorAll<HTMLButtonElement>('[data-evolve]')) button.addEventListener('click', () => callbacks.evolve(button.dataset.evolve as SpeciesId));
   for (const button of root.querySelectorAll<HTMLButtonElement>('[data-promote]')) button.addEventListener('click', () => callbacks.issue?.({ type: 'PromoteUnit', unitId: unit.id, trait: button.dataset.promote as never }));
   for (const button of root.querySelectorAll<HTMLButtonElement>('[data-era-action]')) button.addEventListener('click', () => callbacks.issue?.(JSON.parse(button.dataset.eraAction!)));
   root.querySelector('#terastallize')?.addEventListener('click', () => callbacks.issue?.({ type: 'Terastallize', unitId: unit.id, typeId: root.querySelector<HTMLSelectElement>('#tera-type')!.value as TypeId }));

@@ -1,6 +1,6 @@
 import { isGameplayVersion } from '../src/content/eras.ts';
 import type { GameplayVersion } from '../src/content/eras.ts';
-import { CONTENT, EXPANSION_CONTENT } from '../src/content/units.ts';
+import { contentFor } from '../src/content/units.ts';
 import { AI_THRESHOLDS } from '../src/ai/thresholds.ts';
 import { RULE_QUERIES } from '../src/ai/query.ts';
 import type { SimulationOptions } from './patch.ts';
@@ -18,7 +18,7 @@ import { collectTelemetry, createTelemetry } from './telemetry.ts';
 import { classifyRejection } from './rejections.ts';
 
 export function simulateMatch(match: Match, roundLimit: 100 | 200 | 300 = 100, options?: SimulationOptions, gameplayVersion?: GameplayVersion) {
-  const content = options?.content ?? (gameplayVersion ? EXPANSION_CONTENT : CONTENT), ai = options?.ai ?? AI_THRESHOLDS;
+  const content = options?.content ?? contentFor(gameplayVersion ? { expansionVersion: 1, gameplayVersion } : {}), ai = options?.ai ?? AI_THRESHOLDS;
   const query = { ...RULE_QUERIES, content, ai }, memory: RejectedCitySite[] = [];
   const setup = { ...matchSetup(match, roundLimit), ...(gameplayVersion ? { expansionVersion: 1 as const, eraProgression: 'simple-v1' as const, gameplayVersion } : {}) };
   let state: GameState;
@@ -74,7 +74,7 @@ export function parseSimulationArgs(args: string[]): { seeds: number; gameplayVe
   for (let index = 0; index < args.length; index++) {
     if (args[index] !== '--gameplay') { remaining.push(args[index]); continue; }
     const value = Number(args[++index]);
-    if (gameplayVersion !== undefined || !isGameplayVersion(value)) throw new Error('Expected --gameplay 1..13');
+    if (gameplayVersion !== undefined || !isGameplayVersion(value)) throw new Error('Expected --gameplay 1..14');
     gameplayVersion = value;
   }
   return { seeds: parseSeedCount(remaining), ...(gameplayVersion ? { gameplayVersion } : {}) };

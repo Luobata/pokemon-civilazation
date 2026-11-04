@@ -5,7 +5,7 @@ import type { RejectedCitySite } from '../ai/memory.ts';
 import { planNext } from '../ai/plan.ts';
 import { isMapUnit } from '../core/model.ts';
 import { deserializeSave, serializeSave } from './save.ts';
-import { EXPANSION_CONTENT, CONTENT } from '../content/units.ts';
+import { contentFor, STOCK_CONTENTS } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
 import { createGame } from '../core/game.ts';
 import { cityCounterAttack } from '../core/city.ts';
@@ -19,7 +19,7 @@ import { CIVILIZATION_CONTENT } from '../content/civilization-systems.ts';
 
 export type CommandLog = { version: 1; schemaVersion: GameState['schemaVersion']; rulesVersion: GameState['rulesVersion']; contentVersion: string; setup: GameSetup; commands: Command[]; aiRejectedCitySites?: RejectedCitySite[] };
 
-export function replay(log: CommandLog, through = log.commands.length, checkpoint?: GameState, content: Content = log.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT): GameState {
+export function replay(log: CommandLog, through = log.commands.length, checkpoint?: GameState, content: Content = contentFor(log.setup)): GameState {
   const versions = gameVersions(log.setup);
   if (log.version !== 1 || log.schemaVersion !== versions.schemaVersion || log.rulesVersion !== versions.rulesVersion || log.contentVersion !== content.version
     || !Number.isInteger(through) || through < 0 || through > log.commands.length) throw new Error('Unsupported log or replay sequence.');
@@ -62,7 +62,7 @@ export class GameSession {
   presentationQueue: VisibleEvent[] = [];
   lastRejected: { command: Command; reason: string } | null = null;
 
-  constructor(setup: GameSetup, content: Content = setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT) {
+  constructor(setup: GameSetup, content: Content = contentFor(setup)) {
     this.content = content;
     this.state = createGame(setup, content);
     this.endComputerTurns();
@@ -144,9 +144,9 @@ export class GameSession {
   }
   save(): string { return serializeSave(this.getState(), this.exportLog()); }
   load(text: string): void {
-    const stock = this.content === CONTENT || this.content === EXPANSION_CONTENT;
+    const stock = STOCK_CONTENTS.includes(this.content);
     const save = deserializeSave(text, stock ? undefined : this.content);
-    if (stock) this.content = save.state.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT;
+    if (stock) this.content = contentFor(save.state.setup);
     this.state = save.state;
     this.commands = save.log.commands;
     this.aiRejectedCitySites = save.log.aiRejectedCitySites ?? [];

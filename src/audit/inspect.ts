@@ -4,7 +4,7 @@ import { slotCounts } from '../core/policies.ts';
 import { FLANK_MAX, FLANK_PER_UNIT, usesTactics } from '../core/tactics.ts';
 import { RULE_QUERIES } from '../ai/query.ts';
 import { knownCombatCount, planNext } from '../ai/plan.ts';
-import { CONTENT, EXPANSION_CONTENT, unitDefinition } from '../content/units.ts';
+import { unitDefinition, contentFor } from '../content/units.ts';
 import { LEADERS } from '../content/leaders.ts';
 import { cityYield, growthThreshold, maxCityHp, workRadius } from '../core/city.ts';
 import { relationFor } from '../core/diplomacy.ts';
@@ -22,7 +22,7 @@ import type { AuditSystem } from './catalog.ts';
 export type AuditMetric = { label: string; value: string | number };
 export type AuditSystemInspection = { metrics: AuditMetric[]; data: unknown };
 
-const contentFor = (state: GameState) => state.expansion ? EXPANSION_CONTENT : CONTENT;
+const contentOf = (state: GameState) => contentFor(state.setup);
 const metric = (label: string, value: string | number): AuditMetric => ({ label, value });
 const tally = <T>(values: readonly T[]): Record<string, number> => values.reduce<Record<string, number>>((result, value) => {
   const key = String(value);
@@ -58,7 +58,7 @@ const plannedEvidence = (systemId: string, state: GameState): Record<string, unk
   const pokemon = pokemonOnMap(Object.values(state.units));
   const firstCity = Object.values(state.cities)[0];
   switch (systemId) {
-    case 'x11-content-editor': return { currentContentKeys: Object.keys(contentFor(state)), contentVersion: contentFor(state).version };
+    case 'x11-content-editor': return { currentContentKeys: Object.keys(contentOf(state)), contentVersion: contentOf(state).version };
     case 's18-nests': return { unitAuthorityFields: Object.keys(state.units), wildUnitCount: pokemon.filter(unit => unit.ownerId === null).length };
     case 's19-overlords': return { cityAuthorityFields: Object.keys(firstCity ?? {}), neutralCityCount: Object.values(state.cities).filter(city => city.ownerId === null).length };
     case 's20-berries': return { mapAuthorityFields: Object.keys(state.map), tileBiomeCount: state.map.tiles.length, berryBuildingPresent: Object.values(state.cities).some(city => city.buildingIds.includes('pasture')) };
@@ -71,7 +71,7 @@ const plannedEvidence = (systemId: string, state: GameState): Record<string, unk
     case 's27-championship': return { unitAuthorityFields: Object.keys(state.units), outcomeKinds: ['conquest', 'score', 'playerDefeat'] };
     case 's28-deep-diplomacy': return { diplomacyAuthorityFields: Object.keys(state.diplomacy[0] ?? {}), relationCount: state.diplomacy.length };
     case 's29-multiplayer': return { setupAuthorityFields: Object.keys(state.setup), turnOrder: state.turnOrder, authoritativeSession: 'local only; outside GameState' };
-    case 's30-type-expansion': return { contentTypeIds: Object.values(contentFor(state).species).map(species => species.typeId), speciesTypeShape: 'single typeId' };
+    case 's30-type-expansion': return { contentTypeIds: Object.values(contentOf(state).species).map(species => species.typeId), speciesTypeShape: 'single typeId' };
     default: return {};
   }
 };
@@ -165,11 +165,11 @@ function inspectPopulation(state: GameState): AuditSystemInspection {
 function inspectEconomy(state: GameState): AuditSystemInspection {
   const cities = Object.values(state.cities).filter(city => city.ownerId !== null);
   const yields = cities.map(city => cityYield(state, city));
-  const upkeep = sum(Object.values(state.units).filter(unit => unit.ownerId !== null).map(unit => unitDefinition(unit, contentFor(state)).upkeep));
+  const upkeep = sum(Object.values(state.units).filter(unit => unit.ownerId !== null).map(unit => unitDefinition(unit, contentOf(state)).upkeep));
   const playerRows = Object.values(state.players).map(player => {
     const owned = cities.filter(city => city.ownerId === player.id);
     const income = sum(owned.map(city => cityYield(state, city).gold));
-    const playerUpkeep = sum(Object.values(state.units).filter(unit => unit.ownerId === player.id).map(unit => unitDefinition(unit, contentFor(state)).upkeep));
+    const playerUpkeep = sum(Object.values(state.units).filter(unit => unit.ownerId === player.id).map(unit => unitDefinition(unit, contentOf(state)).upkeep));
     return { playerId: player.id, gold: player.gold, income, upkeep: playerUpkeep,
       netGold: income - playerUpkeep, deficitRisk: player.gold + income - playerUpkeep < 0 };
   });
@@ -189,7 +189,7 @@ function inspectEconomy(state: GameState): AuditSystemInspection {
 
 function inspectBuildings(state: GameState): AuditSystemInspection {
   const cities = Object.values(state.cities);
-  const buildingIds = Object.keys(contentFor(state).buildings);
+  const buildingIds = Object.keys(contentOf(state).buildings);
   const counts = Object.fromEntries(buildingIds.map(id => [id, sum(cities.map(city => city.buildingIds.filter(value => value === id).length))]));
   return {
     metrics: [
@@ -197,7 +197,7 @@ function inspectBuildings(state: GameState): AuditSystemInspection {
       metric('建筑实例', sum(Object.values(counts))),
       metric('生产队列项', sum(cities.map(city => city.queue.length))),
       metric('待部署单位', sum(cities.map(city => city.pendingDeployments.length))),
-      metric('建筑 HP 加成', sum(cities.map(city => maxCityHp(city) - contentFor(state).balance.city.baseHp))),
+      metric('建筑 HP 加成', sum(cities.map(city => maxCityHp(city) - contentOf(state).balance.city.baseHp))),
     ],
     data: { counts, queueCount: sum(cities.map(city => city.queue.length)),
       pendingDeployments: sum(cities.map(city => city.pendingDeployments.length)),
@@ -215,7 +215,7 @@ function inspectResearch(state: GameState): AuditSystemInspection {
   return {
     metrics: [
       ...baseMetrics(AUDIT_SYSTEM_BY_ID.get('s7-research')!, state),
-      metric('科技定义', Object.keys(contentFor(state).techs).length),
+      metric('科技定义', Object.keys(contentOf(state).techs).length),
       metric('已解锁记录', sum(players.map(player => player.research.unlockedIds.length))),
       metric('当前课题', players.filter(player => player.research.techId !== null).length),
       metric('科研储备', sum(players.map(player => player.research.reserve))),
@@ -232,12 +232,12 @@ function inspectSpecies(state: GameState): AuditSystemInspection {
   return {
     metrics: [
       ...baseMetrics(AUDIT_SYSTEM_BY_ID.get('s8-species')!, state),
-      metric('内容物种', Object.keys(contentFor(state).species).length),
+      metric('内容物种', Object.keys(contentOf(state).species).length),
       metric('已登记并集', registered.size),
       metric('地图宝可梦', mapPokemon.length),
       metric('地图物种', new Set(mapPokemon.map(unit => unit.speciesId)).size),
     ],
-    data: { contentSpeciesCount: Object.keys(contentFor(state).species).length, registeredUnion: [...registered].sort(),
+    data: { contentSpeciesCount: Object.keys(contentOf(state).species).length, registeredUnion: [...registered].sort(),
       registeredByPlayer: Object.values(state.players).map(player => ({ playerId: player.id, speciesIds: player.registeredSpeciesIds })),
       mapPokemonByOwner: byOwner, mapPokemonBySpecies: tally(mapPokemon.map(unit => unit.speciesId)) },
   };
@@ -295,15 +295,15 @@ function inspectEvolution(state: GameState): AuditSystemInspection {
     .filter(unit => {
       const owner = unit.ownerId === null ? undefined : state.players[unit.ownerId];
       if (!owner || unit.ownerId !== state.activePlayerId || unit.actionLeft !== 1 || state.outcome) return false;
-      const evolution = contentFor(state).species[unit.speciesId].evolution;
+      const evolution = contentOf(state).species[unit.speciesId].evolution;
       return evolution !== null && unit.xp >= evolution.xp && owner.gold >= evolution.gold
         && (!evolution.requiresTraining || owner.research.unlockedIds.includes('training'));
     });
-  const nodes = Object.entries(contentFor(state).species).filter(([, species]) => species.evolution !== null);
+  const nodes = Object.entries(contentOf(state).species).filter(([, species]) => species.evolution !== null);
   const blockedByGold = pokemonOnMap(Object.values(state.units))
     .filter(unit => {
       const owner = unit.ownerId === null ? undefined : state.players[unit.ownerId];
-      const evolution = owner === undefined ? null : contentFor(state).species[unit.speciesId].evolution;
+      const evolution = owner === undefined ? null : contentOf(state).species[unit.speciesId].evolution;
       return owner !== undefined && evolution !== null && unit.xp >= evolution.xp && owner.gold < evolution.gold;
     });
   return {
@@ -316,8 +316,8 @@ function inspectEvolution(state: GameState): AuditSystemInspection {
     data: { evolutionNodes: nodes.map(([id, species]) => ({ from: id, to: species.evolution?.speciesId,
       xp: species.evolution?.xp, gold: species.evolution?.gold, requiresTraining: species.evolution?.requiresTraining ?? false })),
       candidates: candidates.map(unit => ({ unitId: unit.id, ownerId: unit.ownerId, from: unit.speciesId,
-        to: contentFor(state).species[unit.speciesId].evolution?.speciesId, xp: unit.xp })),
-      blockedByGold: blockedByGold.map(unit => ({ unitId: unit.id, ownerId: unit.ownerId, goldNeeded: contentFor(state).species[unit.speciesId].evolution?.gold })) },
+        to: contentOf(state).species[unit.speciesId].evolution?.speciesId, xp: unit.xp })),
+      blockedByGold: blockedByGold.map(unit => ({ unitId: unit.id, ownerId: unit.ownerId, goldNeeded: contentOf(state).species[unit.speciesId].evolution?.gold })) },
   };
 }
 
@@ -333,9 +333,9 @@ function inspectMovement(state: GameState): AuditSystemInspection {
       metric('当前方地图单位', units.length),
       metric('有行动点单位', rows.filter(row => row.actionLeft === 1).length),
       metric('可达格子总数', sum(rows.map(row => row.reachableTiles))),
-      metric('地形消耗定义', Object.keys(contentFor(state).moveCosts).length),
+      metric('地形消耗定义', Object.keys(contentOf(state).moveCosts).length),
     ],
-    data: { activePlayerId: actorId, units: rows, moveCosts: contentFor(state).moveCosts },
+    data: { activePlayerId: actorId, units: rows, moveCosts: contentOf(state).moveCosts },
   };
 }
 
@@ -343,7 +343,7 @@ function inspectCombat(state: GameState): AuditSystemInspection {
   const units = Object.values(state.units);
   const mapUnits = units.filter(isMapUnit);
   const recovering = units.filter(unit => unit.location === 'recovering');
-  const totalMaxHp = sum(units.map(unit => maxUnitHp(unit, contentFor(state))));
+  const totalMaxHp = sum(units.map(unit => maxUnitHp(unit, contentOf(state))));
   const currentHp = sum(units.map(unit => unit.hp));
   const cities = Object.values(state.cities);
   const cityMaxHp = sum(cities.map(city => maxCityHp(city)));
@@ -370,13 +370,13 @@ function inspectTypes(state: GameState): AuditSystemInspection {
   return {
     metrics: [
       ...baseMetrics(AUDIT_SYSTEM_BY_ID.get('s14-types')!, state),
-      metric('内容属性', new Set(Object.values(contentFor(state).species).map(species => species.typeId)).size),
+      metric('内容属性', new Set(Object.values(contentOf(state).species).map(species => species.typeId)).size),
       metric('文明宝可梦', pokemon.filter(unit => unit.ownerId !== null).length),
       metric('野生宝可梦', pokemon.filter(unit => unit.ownerId === null).length),
     ],
-    data: { contentTypes: tally(Object.values(contentFor(state).species).map(species => species.typeId)),
-      civilizationTypes: tally(pokemon.filter(unit => unit.ownerId !== null).map(unit => contentFor(state).species[unit.speciesId].typeId)),
-      wildTypes: tally(pokemon.filter(unit => unit.ownerId === null).map(unit => contentFor(state).species[unit.speciesId].typeId)),
+    data: { contentTypes: tally(Object.values(contentOf(state).species).map(species => species.typeId)),
+      civilizationTypes: tally(pokemon.filter(unit => unit.ownerId !== null).map(unit => contentOf(state).species[unit.speciesId].typeId)),
+      wildTypes: tally(pokemon.filter(unit => unit.ownerId === null).map(unit => contentOf(state).species[unit.speciesId].typeId)),
       limitation: '当前状态没有对战属性命中事件，不能统计实际克制次数。' },
   };
 }
@@ -456,18 +456,18 @@ function inspectLeaders(state: GameState): AuditSystemInspection {
 }
 
 function inspectContent(state: GameState): AuditSystemInspection {
-  const counts = { species: Object.keys(contentFor(state).species).length, buildings: Object.keys(contentFor(state).buildings).length,
-    techs: Object.keys(contentFor(state).techs).length, balls: Object.keys(contentFor(state).balls).length,
-    biomes: Object.keys(contentFor(state).biomes).length, moveCosts: Object.keys(contentFor(state).moveCosts).length };
+  const counts = { species: Object.keys(contentOf(state).species).length, buildings: Object.keys(contentOf(state).buildings).length,
+    techs: Object.keys(contentOf(state).techs).length, balls: Object.keys(contentOf(state).balls).length,
+    biomes: Object.keys(contentOf(state).biomes).length, moveCosts: Object.keys(contentOf(state).moveCosts).length };
   return {
     metrics: [
       ...baseMetrics(AUDIT_SYSTEM_BY_ID.get('x1-content')!, state),
-      metric('内容版本', `${state.contentVersion} / ${contentFor(state).version}`),
+      metric('内容版本', `${state.contentVersion} / ${contentOf(state).version}`),
       metric('物种', counts.species), metric('建筑', counts.buildings),
       metric('科技', counts.techs), metric('球种', counts.balls),
     ],
-    data: { stateContentVersion: state.contentVersion, loadedContentVersion: contentFor(state).version, counts,
-      compatible: state.contentVersion === contentFor(state).version },
+    data: { stateContentVersion: state.contentVersion, loadedContentVersion: contentOf(state).version, counts,
+      compatible: state.contentVersion === contentOf(state).version },
   };
 }
 
@@ -510,7 +510,7 @@ function inspectPersistence(state: GameState): AuditSystemInspection {
       metric('Schema', state.schemaVersion), metric('规则版本', state.rulesVersion),
       metric('内容版本', state.contentVersion), metric('玩家一致', `${setupIds.join(',')} → ${stateIds.join(',')}`),
     ],
-    data: { supported: { ...gameVersions(state.setup), contentVersion: contentFor(state).version },
+    data: { supported: { ...gameVersions(state.setup), contentVersion: contentOf(state).version },
       setupPlayerIds: setupIds, statePlayerIds: stateIds, commandSeq: state.commandSeq,
       playerSeats: state.setup.players.map(player => ({ id: player.id, controller: player.controller, leaderId: player.leaderId ?? null })),
       limitation: 'GameState inspection cannot prove localStorage save/load success; that is exercised by save/session tests.' },
@@ -582,14 +582,14 @@ function inspectValidation(state: GameState): AuditSystemInspection {
   return {
     metrics: [
       ...baseMetrics(AUDIT_SYSTEM_BY_ID.get('x9-validation')!, state),
-      metric('内容物种', Object.keys(contentFor(state).species).length),
+      metric('内容物种', Object.keys(contentOf(state).species).length),
       metric('权威 Schema', state.schemaVersion),
       metric('规则版本', state.rulesVersion),
       metric('内容版本', state.contentVersion),
     ],
     data: { versions: { schemaVersion: state.schemaVersion, rulesVersion: state.rulesVersion, contentVersion: state.contentVersion },
-      staticCounts: { species: Object.keys(contentFor(state).species).length, buildings: Object.keys(contentFor(state).buildings).length,
-        techs: Object.keys(contentFor(state).techs).length, balls: Object.keys(contentFor(state).balls).length },
+      staticCounts: { species: Object.keys(contentOf(state).species).length, buildings: Object.keys(contentOf(state).buildings).length,
+        techs: Object.keys(contentOf(state).techs).length, balls: Object.keys(contentOf(state).balls).length },
       testResults: 'not claimed from GameState; run the repository test commands for current evidence' },
   };
 }
@@ -682,6 +682,12 @@ export function inspectSystem(systemId: string, state: GameState): AuditSystemIn
   }
   if (system.id === 's29-multiplayer') return { metrics: [metric('当前局模式', state.setup.multiplayer ? '多席位' : '单人本地'), metric('席位数', Object.keys(state.players).length)],
     data: { controllerByPlayer: state.setup.players, client: '/multiplayer.html', server: 'npm run server', authority: 'HTTP server authenticates each seat and returns only its projected view.', tokens: 'Never exposed by this local audit inspector.' } };
+  if (system.id === 's-roster') {
+    const content = contentOf(state), owned = Object.values(state.units).filter(unit => unit.ownerId !== null && unit.kind === 'pokemon');
+    return { metrics: [metric('当前规则', content.roster ? '阵容包 v14' : '本局未启用（需 v14）'), metric('物种数', Object.keys(content.species).length),
+      metric('在场的新物种单位', owned.filter(unit => unit.kind === 'pokemon' && content.species[unit.speciesId]?.generation !== undefined).length)],
+      data: { contentVersion: content.version, generationRecruits: content.roster?.generationRecruits ?? null } };
+  }
   if (system.id === 's-promotions') {
     const ledger = state.expansion?.promotions, records = Object.values(ledger?.units ?? {});
     return { metrics: [metric('当前规则', ledger ? '玩法 v13' : '本局未启用（需 v13）'), metric('有战功的单位', records.length),
@@ -756,9 +762,9 @@ export function inspectSystem(systemId: string, state: GameState): AuditSystemIn
     return { metrics: [metric('当前规则', faith ? '时代玩法 v9' : '本局未启用（需时代玩法 v9）'), metric('已创立信仰', faith ? Object.keys(faith.faiths).length : 0)],
       data: { faith: faith ?? null } };
   }
-  if (system.id === 's30-type-expansion') return { metrics: [metric('当前规则', state.expansion ? '18 属性、双属性防御' : '经典克制表'), metric('物种数', Object.keys(contentFor(state).species).length)],
-    data: { species: contentFor(state).species, rule: 'Primary attack type; multiply defensive types; immunity zero; one final floor.' } };
-  if (system.id === 'x11-content-editor') return { metrics: [metric('内容版本', contentFor(state).version), metric('物种数', Object.keys(contentFor(state).species).length)],
+  if (system.id === 's30-type-expansion') return { metrics: [metric('当前规则', state.expansion ? '18 属性、双属性防御' : '经典克制表'), metric('物种数', Object.keys(contentOf(state).species).length)],
+    data: { species: contentOf(state).species, rule: 'Primary attack type; multiply defensive types; immunity zero; one final floor.' } };
+  if (system.id === 'x11-content-editor') return { metrics: [metric('内容版本', contentOf(state).version), metric('物种数', Object.keys(contentOf(state).species).length)],
     data: { editor: '/editor.html', editable: ['species', 'buildings', 'techs', 'balls', 'balance'], validation: 'src/editor/content.ts', execution: 'src/editor/sandbox.ts', sharedContent: 'Immutable baseline; editor drafts are isolated.' } };
   if (system.status === 'planned') return inspectPlanned(system, state);
   const inspector = IMPLEMENTED_INSPECTORS[system.id];

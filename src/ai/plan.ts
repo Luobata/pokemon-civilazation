@@ -1,3 +1,4 @@
+import { rosterEvolution, typeCounterBonus } from './roster-plan.ts';
 import { districtCandidates } from './district-plan.ts';
 import { planCivilizationAction } from '../core/civilization-systems.ts';
 import { CIVILIZATION_CONTENT } from '../content/civilization-systems.ts';
@@ -7,7 +8,7 @@ import { planLeaderAction } from '../core/leader-systems.ts';
 import type { Command, MapUnit, PlayerView, ProductionItem } from '../core/model.ts';
 import { hexDistance, hexToIndex, indexToHex } from '../core/hex.ts';
 import { workRadius } from '../core/city.ts';
-import { CONTENT, EXPANSION_CONTENT, unitDefinition } from '../content/units.ts';
+import { CONTENT, unitDefinition, contentForView } from '../content/units.ts';
 import type { BallId, BuildingId, TechId } from '../content/economy.ts';
 import { knownCities, RULE_QUERIES } from './query.ts';
 import type { RuleQueries } from './query.ts';
@@ -43,7 +44,7 @@ export function knownCombatCount(view: PlayerView, ownerId: number): number {
 export function canCaptureByPersonality(view: PlayerView, target: MapUnit, query: RuleQueries = RULE_QUERIES): boolean {
   if (target.kind !== 'pokemon' || target.ownerId !== null) return false;
   const strategy = AI_STRATEGIES[view.economy.player.personality], ai = query.ai ?? AI_THRESHOLDS;
-  const content = view.expansion && query.content === CONTENT ? EXPANSION_CONTENT : query.content;
+  const content = query.content === CONTENT ? contentForView(view) : query.content;
   if (strategy.captureHpPercent !== null && target.hp * 100 >= content.species[target.speciesId].maxHp * ai[strategy.captureHpPercent]) return false;
   if (strategy.captureTerritoryOnly !== null && ai[strategy.captureTerritoryOnly]) {
     const tile = hexToIndex(target.position, view.map);
@@ -86,7 +87,7 @@ export function siegeObjectives(view: PlayerView, ai: AiThresholds = AI_THRESHOL
   return { hqs, searching };
 }
 export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, memory: readonly RejectedCitySite[] = []): Command {
-  const actorId = view.playerId, player = view.economy.player, content = view.expansion && query.content === CONTENT ? EXPANSION_CONTENT : query.content, ai = query.ai ?? AI_THRESHOLDS;
+  const actorId = view.playerId, player = view.economy.player, content = query.content === CONTENT ? contentForView(view) : query.content, ai = query.ai ?? AI_THRESHOLDS;
   const strategy = AI_STRATEGIES[player.personality], declaration = strategy.declareWar;
   const citySite = (position: MapUnit['position']) => !rejectedCitySite(memory, view, position) && query.citySite(view, position);
   const result = (action: Command['action']): Command => ({ actorId, expectedSeq: view.commandSeq, action });
@@ -190,12 +191,12 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
         + (id === 'trainingGround' && threatened.has(city.id) ? 1000 : 0), i);
     }
     if (combat.length < Math.max(4, cities.length * 2) && (income > upkeep || player.gold >= 80)) {
-      for (const [i, id] of trainableSpeciesIds(player, view.gameplayVersion).entries()) {
+      for (const [i, id] of trainableSpeciesIds(player, view.gameplayVersion, content, view.eraProgression).entries()) {
         const species = content.species[id];
         if (species.role === 'fast' && !player.research.unlockedIds.includes('riding')) continue;
         queue({ kind: 'pokemon', defId: id }, 'military', species.attack + species.defense - species.trainCost
           + (preparingSiege && species.role === 'siege' && strategy.siegeTrainingBonus !== null ? ai[strategy.siegeTrainingBonus] : 0)
-          + roleTrainingBonus(view, id, content, preparingSiege), i);
+          + roleTrainingBonus(view, id, content, preparingSiege) + typeCounterBonus(view, id, content), i);
       }
     }
   }
@@ -211,8 +212,8 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
     if (unit.kind === 'logistics') {
       if (citySite(unit.position)) add({ type: 'FoundCity', unitId: unit.id }, 'found', 1000, unit.id);
     } else {
-      const evolution = content.species[unit.speciesId].evolution;
-      const needsStone = view.expansion && WORLD_DEFINITIONS.stoneEvolutions.some(path => path.fromSpeciesId === unit.speciesId);
+      const evolution = content.roster ? rosterEvolution(view, unit, content) : content.species[unit.speciesId].evolution;
+      const needsStone = view.expansion && !content.roster && WORLD_DEFINITIONS.stoneEvolutions.some(path => path.fromSpeciesId === unit.speciesId);
       if (evolution && !needsStone && unit.xp >= evolution.xp && player.gold >= evolution.gold && (!evolution.requiresTraining || player.research.unlockedIds.includes('training'))) add({ type: 'Evolve', unitId: unit.id, intoSpeciesId: evolution.speciesId }, 'military', 200, unit.id);
       for (const target of view.units.filter(target => target.ownerId !== actorId).sort((a, b) => a.id - b.id)) {
         if (canCaptureByPersonality(view, target, query)) for (const ballId of ['pokeBall', 'greatBall'] as BallId[]) {

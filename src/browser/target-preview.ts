@@ -1,6 +1,6 @@
 // What the selected unit could do to the things on one tile: attack damage, counter-attack,
 // capture chance, or why not. Reuses previewAttack/previewCapture (player knowledge only). Pure.
-import { CONTENT, EXPANSION_CONTENT, unitDefinition } from '../content/units.ts';
+import { unitDefinition, contentForView } from '../content/units.ts';
 import type { BallId } from '../content/economy.ts';
 import { hexDistance, hexToIndex } from '../core/hex.ts';
 import type { Command, PlayerView } from '../core/model.ts';
@@ -15,7 +15,7 @@ const BALL_NAMES: Record<BallId, string> = { pokeBall: '精灵球', greatBall: '
 export function targetPreviews(view: PlayerView, unitId: number | null, index: number): TargetPreview[] {
   const unit = unitId === null ? undefined : view.units.find(item => item.id === unitId && item.ownerId === view.playerId);
   if (!unit) return [];
-  const content = view.expansion ? EXPANSION_CONTENT : CONTENT;
+  const content = contentForView(view);
   const at = (position: { q: number; r: number }) => hexToIndex(position, view.map) === index;
   const attacker = unitDefinition(unit, content).name;
   const generic = unit.kind !== 'pokemon' ? '开拓队不能战斗。' : !unit.actionLeft ? `${attacker}本回合已行动。`

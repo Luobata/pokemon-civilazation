@@ -1,6 +1,7 @@
+import { leaderUnitFor, stoneEvolutionsFor } from '../content/roster.ts';
 import { doctrineEffects } from './leader-doctrines.ts';
 import type { LeaderId } from '../content/leaders.ts';
-import { CONTENT, EXPANSION_CONTENT } from '../content/units.ts';
+import { contentFor, contentForView } from '../content/units.ts';
 import type { Content, SpeciesId } from '../content/units.ts';
 import type { GameState, PlayerView } from './model.ts';
 import { maxCityHp } from './city.ts';
@@ -9,7 +10,7 @@ import { createMapUnit, maxUnitHp } from './unit.ts';
 import { leaderEffects } from '../content/leaders.ts';
 import { hexToIndex, neighbors } from './hex.ts';
 import type { Hex } from './hex.ts';
-import { STONE_IDS, WORLD_DEFINITIONS } from '../content/world-systems.ts';
+import { STONE_IDS } from '../content/world-systems.ts';
 
 export const LEADER_KITS: Record<LeaderId, { active: string; description: string; unit: SpeciesId; building: string }> = {
   oak: { active: '研究突破', description: '20 金币：获得 20 科研。冷却 8 轮。', unit: 'kadabra', building: '生态研究站' },
@@ -35,7 +36,7 @@ export function isLeaderAction(action: { type: string }): action is LeaderAction
   return ['UseLeaderAbility', 'RecruitLeaderUnit', 'BuildLeaderBuilding'].includes(action.type);
 }
 export function validateLeaderAction(state: GameState, actor: number, action: LeaderAction,
-  content: Content = state.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT): string | null {
+  content: Content = contentFor(state.setup)): string | null {
   const player = state.players[actor], ledger = state.expansion?.leaders.players[actor];
   if (!ledger || !player?.leaderId || player.eliminated) return 'leader-unavailable';
   if (action.type === 'UseLeaderAbility') return state.round < ledger.readyAtRound || player.gold < 20 ? 'leader-cooldown-or-gold' : null;
@@ -43,12 +44,12 @@ export function validateLeaderAction(state: GameState, actor: number, action: Le
   if (!city || city.ownerId !== actor || city.capturedAtRound === state.round) return 'city-unavailable';
   if (action.type === 'BuildLeaderBuilding') return player.gold < 90 || ledger.uniqueCityIds.includes(city.id) ? 'building-unavailable' : null;
   if (player.gold < 100 || ledger.recruited >= 3 || !player.research.unlockedIds.includes('training')) return 'recruitment-unavailable';
-  try { initialUnitPosition(state, city.position, { kind: 'pokemon', speciesId: LEADER_KITS[player.leaderId].unit }, content); }
+  try { initialUnitPosition(state, city.position, { kind: 'pokemon', speciesId: leaderUnitFor(content, player.leaderId, LEADER_KITS[player.leaderId].unit) }, content); }
   catch { return 'deployment-blocked'; }
   return null;
 }
 export function applyLeaderAction(state: GameState, actor: number, action: LeaderAction,
-  content: Content = state.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT): LeaderEvent[] {
+  content: Content = contentFor(state.setup)): LeaderEvent[] {
   const player = state.players[actor], leaderId = player.leaderId!, ledger = state.expansion!.leaders.players[actor];
   if (action.type === 'UseLeaderAbility') {
     player.gold -= 20; ledger.readyAtRound = state.round + 8; ledger.activeUntilRound = state.round + 1;
@@ -79,7 +80,7 @@ export function applyLeaderAction(state: GameState, actor: number, action: Leade
     return [{ type: 'LeaderBuildingBuilt', playerId: actor, leaderId, cityId: city.id }];
   }
   player.gold -= 100; ledger.recruited++;
-  const identity = { kind: 'pokemon' as const, speciesId: LEADER_KITS[leaderId].unit, uniqueLeader: leaderId };
+  const identity = { kind: 'pokemon' as const, speciesId: leaderUnitFor(content, leaderId, LEADER_KITS[leaderId].unit), uniqueLeader: leaderId };
   const id = state.nextEntityId++, position = initialUnitPosition(state, city.position, identity, content);
   const xp = 20 + doctrineEffects(player, state.setup.eraProgression, identity, content).trainedXpBonus;
   state.units[id] = createMapUnit(identity, id, actor, position, content, xp, 0);
@@ -137,7 +138,7 @@ export function observeLeaders(state: GameState, playerId: number): LeaderSystem
 }
 /** Uses only projected information; each leader follows its own spending priority. */
 export function planLeaderAction(view: PlayerView,
-  content: Content = view.expansion ? EXPANSION_CONTENT : CONTENT): LeaderAction | null {
+  content: Content = contentForView(view)): LeaderAction | null {
   const ledger = view.expansion?.leaders, player = view.economy.player, id = player.leaderId;
   if (!ledger || !id) return null;
   const units = view.units.filter(unit => unit.ownerId === player.id && unit.kind === 'pokemon');
@@ -149,7 +150,7 @@ export function planLeaderAction(view: PlayerView,
     || (id === 'joy' && [...units, ...view.recoveringUnits].some(unit => unit.hp + 15 < maxUnitHp(unit, content)))
     || (id === 'jenny' && view.economy.cities.some(city => city.hp + 20 < maxCityHp(city, content)))
     || (id === 'brock' && view.economy.cities.some(city => city.queue.length > 0))
-    || (id === 'steven' && view.round >= 20 && units.some(unit => unit.kind === 'pokemon' && WORLD_DEFINITIONS.stoneEvolutions.some(path => path.fromSpeciesId === unit.speciesId)))
+    || (id === 'steven' && view.round >= 20 && units.some(unit => unit.kind === 'pokemon' && stoneEvolutionsFor(content).some(path => path.fromSpeciesId === unit.speciesId)))
     || (id === 'jasmine' && view.economy.cities.length >= 3)
     || (id === 'misty' && units.some(unit => unit.hp + 10 < maxUnitHp(unit, content)))
     || (id === 'giovanni' && player.research.unlockedIds.includes('domestication'));

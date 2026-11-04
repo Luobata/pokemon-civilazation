@@ -1,3 +1,4 @@
+import { playerGeneration } from './roster.ts';
 import type { EraProgression, GameplayVersion } from '../content/eras.ts';
 import type { Content, SpeciesId, UnitIdentity } from '../content/units.ts';
 import type { TechId } from '../content/economy.ts';
@@ -44,11 +45,17 @@ export const ERA_TECH_RECRUITS: Readonly<Partial<Record<TechId, SpeciesId>>> = {
   training: 'machop',
 };
 
+/** Species a player may train. v14 (`content.roster`): roster tech recruits plus one recruit per reached generation. */
 export function trainableSpeciesIds(player: { registeredSpeciesIds: readonly SpeciesId[]; research: { unlockedIds: readonly TechId[] } },
-  gameplay: GameplayVersion | undefined): SpeciesId[] {
+  gameplay: GameplayVersion | undefined, content?: Content, mode?: EraProgression): SpeciesId[] {
   const ids = new Set(player.registeredSpeciesIds);
-  if (gameplay !== undefined) for (const [techId, speciesId] of Object.entries(ERA_TECH_RECRUITS) as [TechId, SpeciesId][]) {
+  const recruits = content?.roster?.techRecruits ?? ERA_TECH_RECRUITS;
+  if (gameplay !== undefined) for (const [techId, speciesId] of Object.entries(recruits) as [TechId, SpeciesId][]) {
     if (player.research.unlockedIds.includes(techId)) ids.add(speciesId);
+  }
+  if (content?.roster) {
+    const generation = playerGeneration(player, mode);
+    for (const [reached, speciesId] of Object.entries(content.roster.generationRecruits)) if (Number(reached) <= generation && speciesId) ids.add(speciesId);
   }
   return [...ids].sort();
 }

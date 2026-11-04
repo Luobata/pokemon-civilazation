@@ -1,5 +1,5 @@
 import type { ExpansionAction } from './expansion-model.ts';
-import { EXPANSION_CONTENT } from '../content/units.ts';
+import { ROSTER_CONTENT } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
 import { IMPROVEMENT_IDS } from '../content/improvements.ts';
 import { CHARTER_IDS, GOVERNMENT_IDS, POLICY_IDS } from '../content/policies.ts';
@@ -10,7 +10,7 @@ import { LEGEND_IDS, TENET_IDS } from '../content/faith-legends.ts';
 import { PROMOTION_TRAIT_IDS } from '../content/promotions.ts';
 
 type Fields = Record<string, 'id' | 'ids' | 'string' | 'boolean' | 'policyIds' | 'tenets' | readonly string[]>;
-export function expansionActionFields(content: Content = EXPANSION_CONTENT): Record<ExpansionAction['type'], Fields> {
+export function expansionActionFields(content: Content = ROSTER_CONTENT): Record<ExpansionAction['type'], Fields> {
   return {
   UseLeaderAbility: {}, RecruitLeaderUnit: { cityId: 'id' }, BuildLeaderBuilding: { cityId: 'id' },
   ClearNest: { unitId: 'id', nestId: 'id' },
@@ -48,7 +48,7 @@ export function expansionActionType(type: unknown): type is ExpansionAction['typ
 export function isExpansionAction(action: { type: unknown }): action is ExpansionAction {
   return expansionActionType(action.type);
 }
-export function parseExpansionAction(input: unknown, content: Content = EXPANSION_CONTENT): ExpansionAction {
+export function parseExpansionAction(input: unknown, content: Content = ROSTER_CONTENT): ExpansionAction {
   if (!input || typeof input !== 'object' || Array.isArray(input) || !('type' in input) || !expansionActionType(input.type)) throw new Error('Unknown expansion action');
   const value = input as Record<string, unknown>, fields = expansionActionFields(content)[input.type];
   const output: Record<string, unknown> = { type: input.type };

@@ -1,0 +1,68 @@
+{
+  "source": "PokeAPI/sprites",
+  "commit": "1dd55c0436d2a5b6e324c0b780e1b1b416fbfb64",
+  "path": "sprites/pokemon/versions/generation-vi/x-y",
+  "note": "Official Pokemon X/Y in-game model renders (static PNG, palette with binary transparency, no anti-aliasing, so they read like pixel sprites at small sizes). Chosen over omega-ruby-alpha-sapphire (anti-aliased edges) and over the 96x96 black-white/default sprites (fan-made above #650). Canvas size varies per file (width 47-192 px, height 43-125 px in this folder) and is cropped tight to the Pokemon (bounding box = full canvas, no padding); scale by the longer side. Zygarde (718) is 50% Forme.",
+  "files": [
+    {
+      "id": 661,
+      "file": "661.png",
+      "sha256": "944fe5c866dea970ee701784d464abb501e05afc1329c247d061b1a84de5c4dd",
+      "bytes": 1561
+    },
+    {
+      "id": 662,
+      "file": "662.png",
+      "sha256": "2959cb0643e8fd3788a8f6d8e842233bbea57aed0be132b0e534d36ad8c4a14c",
+      "bytes": 2168
+    },
+    {
+      "id": 663,
+      "file": "663.png",
+      "sha256": "e683992a80dd0cd8610594f11e4ad4706431eecf0e54a9508633a8bb90e1144b",
+      "bytes": 3678
+    },
+    {
+      "id": 679,
+      "file": "679.png",
+      "sha256": "781844c9306902cfec05519c45b26fc028ba880015bc159a6bb3f89522671ebc",
+      "bytes": 2698
+    },
+    {
+      "id": 680,
+      "file": "680.png",
+      "sha256": "52fc22552fef8637959c19b65c22d505f6452062aeb09301f559bd1596ae5979",
+      "bytes": 3482
+    },
+    {
+      "id": 681,
+      "file": "681.png",
+      "sha256": "6587ce99b365c88705df8bcb2974600f4d45cce06f6e47f73b34553e1c325b83",
+      "bytes": 3335
+    },
+    {
+      "id": 700,
+      "file": "700.png",
+      "sha256": "307692ec2380e8ed187767e41db5c8fad77323d2748d2159247e946a61e151cc",
+      "bytes": 2667
+    },
+    {
+      "id": 716,
+      "file": "716.png",
+      "sha256": "e7440e8b32525c20ed5d70481bbea5f468031798e9ed86653b2358418c68ebc6",
+      "bytes": 4010
+    },
+    {
+      "id": 717,
+      "file": "717.png",
+      "sha256": "6707dd6a393ecc698916213df059bd4db33f8f06b72a15724530774f0cba530a",
+      "bytes": 3274
+    },
+    {
+      "id": 718,
+      "file": "718.png",
+      "sha256": "40ccee5f116bf9ba57c9f1cc1b8d2d0eebb1ec8b51626ab486162e17e88472f8",
+      "bytes": 4300
+    }
+  ]
+}

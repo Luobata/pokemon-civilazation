@@ -1,4 +1,4 @@
-import { CONTENT as BASE_CONTENT, EXPANSION_CONTENT } from '../content/units.ts';
+import { contentForView } from '../content/units.ts';
 import type { TechId } from '../content/economy.ts';
 import { canResearch } from '../core/economy-commands.ts';
 import type { Command, PlayerView } from '../core/model.ts';
@@ -19,7 +19,7 @@ export function resetResearchPanel(): void {
  * tree stays as the keyboard path (R / T focuses it).
  */
 export function renderResearchPanel(view: PlayerView, issue: (action: Command['action']) => void, disabled: boolean): void {
-  const CONTENT = view.expansion ? EXPANSION_CONTENT : BASE_CONTENT;
+  const CONTENT = contentForView(view);
   const player = view.economy.player, research = player.research;
   const found = view.expansion?.discoveries;
   const signature = JSON.stringify([research, disabled, found]);
@@ -39,7 +39,7 @@ export function renderResearchPanel(view: PlayerView, issue: (action: Command['a
       <header><strong>${tech.name}</strong><span class="tech-cost">${tech.cost}</span></header>
       <p class="tech-state">${label}</p>
       <div class="tech-progress" aria-hidden="true"><span style="width:${done ? 100 : percent(id)}%"></span></div>
-      <ul class="tech-unlocks">${techUnlocks(id).map(item => `<li class="${item.kind}">${item.text}</li>`).join('')}</ul>
+      <ul class="tech-unlocks">${techUnlocks(id, CONTENT).map(item => `<li class="${item.kind}">${item.text}</li>`).join('')}</ul>
       ${eureka}${action}
     </article>`;
   };

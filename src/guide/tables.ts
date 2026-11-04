@@ -1,3 +1,7 @@
+import { leaderUnitFor, spawnWeightsFor, stoneEvolutionsFor } from '../content/roster.ts';
+import { evolutionOptions } from '../core/roster.ts';
+import type { EvolutionOption } from '../content/species.ts';
+import { LATEST_GAMEPLAY_VERSION } from '../content/eras.ts';
 // Handbook tables are rendered from the live content modules, so numbers cannot drift from the rules.
 // Only the default new-game setup (expansion v1 + era mode + LATEST_GAMEPLAY_VERSION) is described.
 import { FULL_TYPE_CHART } from '../content/combat.ts';
@@ -20,7 +24,7 @@ import type { BiomeId } from '../content/rules.ts';
 import { SPECIES_NAMES } from '../content/species.ts';
 import type { SpeciesDefinition, SpeciesId, TypeId } from '../content/species.ts';
 import { TYPE_NAMES } from '../content/type-names.ts';
-import { EXPANSION_CONTENT } from '../content/units.ts';
+import { contentFor } from '../content/units.ts';
 import { SPAWN_WEIGHTS } from '../content/wild.ts';
 import { WORLD_DEFINITIONS } from '../content/world-systems.ts';
 import { CIVILIZATION_CONTENT } from '../content/civilization-systems.ts';
@@ -32,7 +36,7 @@ import { ERA_AGES, ERA_HONOR_RULES, ERA_MILESTONES, ERA_MILESTONE_IDS } from '..
 import { PROMOTION_RULES, PROMOTION_TRAITS, PROMOTION_TRAIT_IDS } from '../content/promotions.ts';
 import { techUnlocks } from '../browser/tech-info.ts';
 
-const content = EXPANSION_CONTENT;
+const content = contentFor({ expansionVersion: 1, gameplayVersion: LATEST_GAMEPLAY_VERSION });
 
 export const escape = (text: string | number) => String(text).replace(/[&<>"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[char]!);
 export function table(headers: readonly string[], rows: readonly (readonly string[])[], numeric: readonly number[] = [], className = ''): string {
@@ -91,7 +95,7 @@ export function techTable(): string {
   const ids = Object.keys(TECHS) as TechId[];
   return table(['科技', '层级', '花费', '效果与解锁', '图鉴发现（立减 ' + DISCOVERY_PERCENT + '%）'],
     ids.map(id => {
-      return [techName(id), String(TECHS[id].tier), String(TECHS[id].cost), techUnlocks(id).map(item => item.text).join('；'),
+      return [techName(id), String(TECHS[id].tier), String(TECHS[id].cost), techUnlocks(id, content).map(item => item.text).join('；'),
         `<strong>${DISCOVERIES[id].name}</strong>：${DISCOVERIES[id].hint}`];
     }), [1, 2]);
 }
@@ -113,31 +117,41 @@ export function ballTable(): string {
 
 // ---------- Pokémon ----------
 export function speciesTable(): string {
-  const stones = new Map(WORLD_DEFINITIONS.stoneEvolutions.map(path => [path.fromSpeciesId, path]));
+  const stones = new Map(stoneEvolutionsFor(content).map(path => [path.fromSpeciesId, path]));
   const spawnText = (id: SpeciesId) => {
-    const biomes = BIOME_ORDER.filter(biome => SPAWN_WEIGHTS[biome][id]);
+    const biomes = BIOME_ORDER.filter(biome => spawnWeightsFor(content, biome)[id]);
     return biomes.length ? biomeList(biomes) : '—';
   };
   const ids = Object.keys(content.species) as SpeciesId[];
-  const recruitTech = (id: SpeciesId) => (Object.entries(ERA_TECH_RECRUITS) as [TechId, SpeciesId][]).find(([, s]) => s === id)?.[0];
-  const leaderOf = (id: SpeciesId) => LEADER_IDS.find(leader => LEADER_KITS[leader].unit === id);
+  const recruits = content.roster?.techRecruits ?? ERA_TECH_RECRUITS;
+  const recruitTech = (id: SpeciesId) => (Object.entries(recruits) as [TechId, SpeciesId][]).find(([, s]) => s === id)?.[0];
+  const generationRecruit = (id: SpeciesId) => Object.entries(content.roster?.generationRecruits ?? {}).find(([, s]) => s === id)?.[0];
+  const leaderOf = (id: SpeciesId) => LEADER_IDS.find(leader => leaderUnitFor(content, leader, LEADER_KITS[leader].unit) === id);
   const dex = (id: SpeciesId) => Number(/(\d+)\.png$/.exec(pokemonSpritePath(id))![1]);
+  const conditionText = (option: EvolutionOption) => [option.minGeneration && option.minGeneration > 1 ? `第 ${option.minGeneration} 世代起` : '',
+    option.time === 'day' ? '白天' : option.time === 'night' ? '夜晚' : '', option.biome ? `站在${biomeList([option.biome])}` : ''].filter(Boolean).join('、');
   ids.sort((a, b) => dex(a) - dex(b));
-  return table(['#', '宝可梦', '属性', '阶段', '定位', 'HP', '攻', '防', '移动', '射程', '视野', '训练', '维护', '野外出没', '进化 / 获取'],
+  return table(['#', '宝可梦', '属性', '阶段', '定位', 'HP', '攻', '防', '移动', '射程', '视野', '训练', '维护', '世代', '野外出没', '进化 / 获取'],
     ids.map(id => {
       const s = content.species[id];
       const stone = stones.get(id);
-      // Expansion games forbid XP evolution for species that have a stone path (src/core/combat.ts).
-      const evolution = stone ? `→ ${speciesName(stone.intoSpeciesId)}（只能用${WORLD_DEFINITIONS.stones[stone.stoneId].name}，需 ${stone.requiredXp} 经验，不花金币）`
-        : s.evolution ? `→ ${speciesName(s.evolution.speciesId)}（${s.evolution.xp} 经验 + ${s.evolution.gold} 金${s.evolution.requiresTraining ? '，需特训法' : ''}）` : '';
+      // Expansion games forbid XP evolution into a stone path's target (src/core/combat.ts).
+      const options = evolutionOptions(content, id).filter(option => option.speciesId !== stone?.intoSpeciesId);
+      const evolution = [stone ? `→ ${speciesName(stone.intoSpeciesId)}（只能用${WORLD_DEFINITIONS.stones[stone.stoneId].name}，需 ${stone.requiredXp} 经验，不花金币）` : '',
+        ...options.map(option => `→ ${speciesName(option.speciesId)}（${option.xp} 经验 + ${option.gold} 金${option.requiresTraining ? '，需特训法' : ''}${conditionText(option) ? `，${conditionText(option)}` : ''}）`)].filter(Boolean).join('；');
       const sources = [evolution,
-        recruitTech(id) ? `研究${techName(recruitTech(id)!)}后各城可招募` : '', leaderOf(id) ? `${LEADERS[leaderOf(id)!].name}的专属宝可梦` : '',
+        recruitTech(id) ? `研究${techName(recruitTech(id)!)}后各城可招募` : '', generationRecruit(id) ? `进入第 ${generationRecruit(id)} 世代后各城可招募` : '',
+        leaderOf(id) ? `${LEADERS[leaderOf(id)!].name}的专属宝可梦` : '',
         s.rare ? '稀有（出现率 ×0.25，捕捉率减半）' : ''].filter(Boolean);
       return [String(dex(id)).padStart(3, '0'), `<img class="sprite" loading="lazy" src="${pokemonSpritePath(id)}" alt=""> ${s.name}`,
         [s.typeId, s.secondaryTypeId].filter((t): t is TypeId => !!t).map(typeChip).join(''), String(s.stage), ROLE_NAMES[s.role],
         String(s.maxHp), String(s.attack), String(s.defense), String(s.move), String(s.range), String(s.vision), String(s.trainCost), String(s.upkeep),
-        spawnText(id), sources.join('；') || '—'];
-    }), [3, 5, 6, 7, 8, 9, 10, 11, 12]);
+        String(s.generation ?? 1), spawnText(id), sources.join('；') || '—'];
+    }), [3, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
+}
+/** v14: one recruit per reached generation. */
+export function generationRecruitTable(): string {
+  return table(['进入世代', '各城可招募'], Object.entries(content.roster?.generationRecruits ?? {}).map(([generation, id]) => [`第 ${generation} 世代`, speciesName(id!)]), [0]);
 }
 export function roleTable(): string {
   const roles = Object.keys(ROLE_CITY_ASSAULT) as (keyof typeof ROLE_CITY_ASSAULT)[];

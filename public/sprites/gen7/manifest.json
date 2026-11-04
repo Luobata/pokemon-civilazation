@@ -1,0 +1,44 @@
+{
+  "source": "PokeAPI/sprites",
+  "commit": "1dd55c0436d2a5b6e324c0b780e1b1b416fbfb64",
+  "path": "sprites/pokemon/versions/generation-ix/scarlet-violet/icons",
+  "note": "Official Pokemon Scarlet/Violet 2D art (static PNG, RGBA, anti-aliased edges, transparent background), stored in PokeAPI under scarlet-violet/icons although these are full-size images, not menu icons. Chosen because Gen 7+ games are 3D: PokeAPI's in-game battle sets for them are animated (ultra-sun-ultra-moon GIF, sword-shield / scarlet-violet 512x512 animated WebP), the static PNG icons are tiny (gen-vii 40x30, sword-shield 68x68), and the 96x96 pixel sprites under generation-v/black-white and the default sprites/pokemon/{id}.png are fan-made (Smogon) above #650, not original game art. Canvas size varies per file (width 92-229 px, height 96-198 px in this folder) and is cropped tight to the Pokemon (bounding box = full canvas, no padding); scale by the longer side.",
+  "files": [
+    {
+      "id": 747,
+      "file": "747.png",
+      "sha256": "f97d815c278b514ca0842bc5b4efc471a82cab5a388f462b2d05ae04e227d070",
+      "bytes": 12390
+    },
+    {
+      "id": 748,
+      "file": "748.png",
+      "sha256": "d47dc348564dc2df9b6ecb0205387f83630be4f95b07ae63017ed6426b8bcd5c",
+      "bytes": 18731
+    },
+    {
+      "id": 778,
+      "file": "778.png",
+      "sha256": "71b928504dec056f7b9afb8734cfda4de535f12de3d8f0127acdbf684854b0a2",
+      "bytes": 8585
+    },
+    {
+      "id": 791,
+      "file": "791.png",
+      "sha256": "fe30bb79f6a2ea25047ab7dd24326c0c8d6113c0b522a7921e6373e38153667b",
+      "bytes": 30599
+    },
+    {
+      "id": 792,
+      "file": "792.png",
+      "sha256": "7c2c52663e757cd4fc3193f91b5e250def4f8646150565c78e439f11d58b0669",
+      "bytes": 34997
+    },
+    {
+      "id": 800,
+      "file": "800.png",
+      "sha256": "9d51ef19fdff2b0127df6256703f8c7905ef78b2e31f7b9a1b1dfbaf03526489",
+      "bytes": 28982
+    }
+  ]
+}

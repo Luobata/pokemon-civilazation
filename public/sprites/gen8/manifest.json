@@ -1,0 +1,62 @@
+{
+  "source": "PokeAPI/sprites",
+  "commit": "1dd55c0436d2a5b6e324c0b780e1b1b416fbfb64",
+  "path": "sprites/pokemon/versions/generation-ix/scarlet-violet/icons",
+  "note": "Official Pokemon Scarlet/Violet 2D art (static PNG, RGBA, anti-aliased edges, transparent background), stored in PokeAPI under scarlet-violet/icons although these are full-size images, not menu icons. Chosen because Gen 7+ games are 3D: PokeAPI's in-game battle sets for them are animated (ultra-sun-ultra-moon GIF, sword-shield / scarlet-violet 512x512 animated WebP), the static PNG icons are tiny (gen-vii 40x30, sword-shield 68x68), and the 96x96 pixel sprites under generation-v/black-white and the default sprites/pokemon/{id}.png are fan-made (Smogon) above #650, not original game art. Canvas size varies per file (width 79-241 px, height 87-198 px in this folder) and is cropped tight to the Pokemon (bounding box = full canvas, no padding); scale by the longer side.",
+  "files": [
+    {
+      "id": 821,
+      "file": "821.png",
+      "sha256": "af8ffcc8c05ad9810a7e9910220dd151e468586c7d375d72a4ba3d15a67b3651",
+      "bytes": 9859
+    },
+    {
+      "id": 822,
+      "file": "822.png",
+      "sha256": "190d9a627b54a3149062bf24bd23b18f7529773b849f8268bd6c93f82b23344a",
+      "bytes": 9831
+    },
+    {
+      "id": 823,
+      "file": "823.png",
+      "sha256": "3aa11f499167f8c62a77f965f9eaa1a45e856e20e3dce8e23e96806d4f0306e5",
+      "bytes": 17942
+    },
+    {
+      "id": 885,
+      "file": "885.png",
+      "sha256": "61528740a5fb0e25a4d951c6b13b915cb093b50254686ee48fec23535c0d7dd1",
+      "bytes": 8126
+    },
+    {
+      "id": 886,
+      "file": "886.png",
+      "sha256": "64c680048a252a2f8f4915a0d2acf095b5685662da83948a304d196a5a651a56",
+      "bytes": 11740
+    },
+    {
+      "id": 887,
+      "file": "887.png",
+      "sha256": "fc57fd502f3bfbfea7ea103ea9983fa1c61a1267376cbf243c88fd88007c773f",
+      "bytes": 28591
+    },
+    {
+      "id": 888,
+      "file": "888.png",
+      "sha256": "7080c2996c0f5454865ecd2bb9fb2b5bfaabe2bad2099cec75e6c397e770e828",
+      "bytes": 12988
+    },
+    {
+      "id": 889,
+      "file": "889.png",
+      "sha256": "c2a094eea3ee88065c587de370a7cf3eaf023d589d12980724410c5000984b50",
+      "bytes": 15711
+    },
+    {
+      "id": 890,
+      "file": "890.png",
+      "sha256": "0695d4f6c66d74291681c3c501fa6ac130836fdd929547cce760e9ea4fb3b8ce",
+      "bytes": 26801
+    }
+  ]
+}

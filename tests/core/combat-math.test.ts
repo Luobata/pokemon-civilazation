@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { SPECIES, SPECIES_NAMES, speciesDisplay, validateSpecies } from '../../src/content/species.ts';
+import { BASE_SPECIES_NAMES, SPECIES, speciesDisplay, validateSpecies } from '../../src/content/species.ts';
 import { captureProbability, damage, dualEffectiveness, effectiveness, terrainMultiplier } from '../../src/core/combat-math.ts';
 import { EXPANSION_CONTENT } from '../../src/content/units.ts';
 
@@ -35,7 +35,7 @@ describe('GDD v0.6 integer fixtures', () => {
 
 test('47 species, budgets/costs, nine rare, legacy D15 all same-stage pairs ≤60%', () => {
   expect(Object.keys(SPECIES)).toHaveLength(47);
-  expect(Object.keys(SPECIES)).toEqual(Object.keys(SPECIES_NAMES));
+  expect(Object.keys(SPECIES)).toEqual(Object.keys(BASE_SPECIES_NAMES));
   expect(() => validateSpecies(SPECIES)).not.toThrow();
   expect(() => validateSpecies({ ...SPECIES, bulbasaur: { ...SPECIES.bulbasaur, maxHp: 500 } })).toThrow();
   const definitions = Object.values(SPECIES);

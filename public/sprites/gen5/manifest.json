@@ -1,0 +1,68 @@
+{
+  "source": "PokeAPI/sprites",
+  "commit": "1dd55c0436d2a5b6e324c0b780e1b1b416fbfb64",
+  "path": "sprites/pokemon/versions/generation-v/black-white",
+  "note": "Official Pokemon Black/White front sprites (static PNG, 96x96, transparent background, pixel art), the last generation with 2D game sprites. All files here are <= #649, so they are original game art (PokeAPI notes that IDs > 650 in this folder are Smogon fan-made). Bounding box typically ~78% of the canvas side.",
+  "files": [
+    {
+      "id": 529,
+      "file": "529.png",
+      "sha256": "daeefe1b4718d7b224149895065d62e578e78ce3be5f73294d90faaef878064f",
+      "bytes": 778
+    },
+    {
+      "id": 530,
+      "file": "530.png",
+      "sha256": "33e75c9f0ccc5f11033476ee2868aa469b11c0956271a80012150bf338d41f31",
+      "bytes": 1084
+    },
+    {
+      "id": 624,
+      "file": "624.png",
+      "sha256": "43682888bc742393150e4941ab6442d88a07b3895d65f5fd33b61da8540d757e",
+      "bytes": 631
+    },
+    {
+      "id": 625,
+      "file": "625.png",
+      "sha256": "c815492417371c0109122842a16eb34ce4604a3af56613bb5e2fe98cab889fe3",
+      "bytes": 948
+    },
+    {
+      "id": 633,
+      "file": "633.png",
+      "sha256": "98f039c13c25090174b0edaf80ddeb4862c86ca691e1d8819d5feb2f8edb2817",
+      "bytes": 553
+    },
+    {
+      "id": 634,
+      "file": "634.png",
+      "sha256": "e7551e6450c94df7bd2667a75a74d8de7f5b62aae082e9d56e547552b20b7f42",
+      "bytes": 874
+    },
+    {
+      "id": 635,
+      "file": "635.png",
+      "sha256": "2307eb6cfa64b5bc591719fb95e56fa5f0718c8868369c954894a2f1785d8fb5",
+      "bytes": 1354
+    },
+    {
+      "id": 643,
+      "file": "643.png",
+      "sha256": "c45da257df77e015ca964221066c34129268ad578eb9e288778962dd1c711bc7",
+      "bytes": 1564
+    },
+    {
+      "id": 644,
+      "file": "644.png",
+      "sha256": "52097cba8e0bd8e1889e72802cd11c6f0e1a6f568e9150b8b1c26c21dd39cb12",
+      "bytes": 1692
+    },
+    {
+      "id": 646,
+      "file": "646.png",
+      "sha256": "16b05a5420407f3d5aed368b1c9e69d5bc1b164bd820bab7e647c645cbe36647",
+      "bytes": 1384
+    }
+  ]
+}

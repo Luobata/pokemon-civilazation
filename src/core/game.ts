@@ -6,7 +6,7 @@ import { CLASSIC_LEADER_IDS, isLeaderId } from '../content/leaders.ts';
 import { createMapUnit } from './unit.ts';
 import type { TechId } from '../content/economy.ts';
 import { assignNewWorkers, createCity } from './city.ts';
-import { EXPANSION_CONTENT, CONTENT, STARTER_IDS } from '../content/units.ts';
+import { STARTER_IDS, contentFor } from '../content/units.ts';
 import type { Content, StarterId } from '../content/units.ts';
 import { generateMap } from './map.ts';
 import { indexToHex } from './hex.ts';
@@ -15,7 +15,7 @@ import { initialUnitPosition } from './movement.ts';
 import { emptyKnowledge, refreshKnowledge } from './vision.ts';
 import type { GameSetup, GameState } from './model.ts';
 
-export function createGame(setup: GameSetup, content: Content = setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT): GameState {
+export function createGame(setup: GameSetup, content: Content = contentFor(setup)): GameState {
   if (setup.players.some(player => player.leaderId !== undefined && !isLeaderId(player.leaderId))) {
     throw new Error('Unknown leader.');
   }

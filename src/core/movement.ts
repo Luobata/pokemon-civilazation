@@ -2,7 +2,7 @@ import { doctrineEffects } from './leader-doctrines.ts';
 import { promotionMovement } from './promotions.ts';
 import { inZoc, usesTactics, zocTiles } from './tactics.ts';
 import { isMapUnit } from './model.ts';
-import { CONTENT, EXPANSION_CONTENT, unitDefinition } from '../content/units.ts';
+import { CONTENT, unitDefinition, contentFor, contentForView } from '../content/units.ts';
 import type { Content, UnitIdentity } from '../content/units.ts';
 import type { BiomeId } from '../content/rules.ts';
 import { hexDistance, hexToIndex, indexToHex, neighbors } from './hex.ts';
@@ -15,7 +15,7 @@ export function canEnter(unit: UnitIdentity, biome: BiomeId, content: Content = 
 
 // D28 B3: initial placement searches all rings, with tile index breaking ties.
 export function initialUnitPosition(state: GameState, city: Hex, unit: UnitIdentity,
-  content: Content = state.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT): Hex {
+  content: Content = contentFor(state.setup)): Hex {
   const occupied = new Set(Object.values(state.units).filter(isMapUnit).map(other => hexToIndex(other.position, state.map)));
   const cities = new Set(Object.values(state.cities).map(other => hexToIndex(other.position, state.map)));
   const candidates = state.map.tiles.flatMap((biome, i) => !occupied.has(i) && !cities.has(i) && canEnter(unit, biome, content) ? [i] : []);
@@ -27,7 +27,7 @@ export function initialUnitPosition(state: GameState, city: Hex, unit: UnitIdent
 // Dijkstra over the player's known terrain only. Hidden occupants never affect
 // this query; remembered unit markers are not current occupancy information.
 export function reachablePaths(view: PlayerView, unitId: number,
-  content: Content = view.expansion ? EXPANSION_CONTENT : CONTENT): Record<number, Hex[]> {
+  content: Content = contentForView(view)): Record<number, Hex[]> {
   const unit = view.units.find(candidate => candidate.id === unitId && candidate.ownerId === view.playerId);
   if (!unit || unit.actionLeft === 0 || view.activePlayerId !== view.playerId) return {};
   const origin = hexToIndex(unit.position, view.map)!;

@@ -7,7 +7,7 @@ import { hexToIndex } from '../../core/hex.ts';
 import type { Hex } from '../../core/hex.ts';
 import { HEX_RADIUS, toScreen } from '../camera.ts';
 import type { Camera, Point } from '../camera.ts';
-import { buildingSprite, pokemonSprite } from '../sprites.ts';
+import { buildingSprite, drawPokemonSprite } from '../sprites.ts';
 import { drawTerrain } from '../terrain.ts';
 import { drawIcon, drawPixelNumber, drawYieldRow } from '../map-icons.ts';
 import type { IconName } from '../map-icons.ts';
@@ -170,9 +170,7 @@ function drawFeatures(d: Draw) {
       }
       if (item.kind === 'icon') drawIcon(context, item.icon as IconName, p.x, p.y, size * .74);
       else {
-        const sprite = pokemonSprite(item.speciesId);
-        if (sprite) context.drawImage(sprite, Math.round(p.x - size * .55), Math.round(p.y - size * .62), Math.round(size * 1.1), Math.round(size * 1.1));
-        else centeredText(d, item.fallback, p, '#FFF8E5', size * .5);
+        if (!drawPokemonSprite(context, item.speciesId, Math.round(p.x - size * .55), Math.round(p.y - size * .62), Math.round(size * 1.1))) centeredText(d, item.fallback, p, '#FFF8E5', size * .5);
       }
       context.restore();
     }
@@ -321,10 +319,9 @@ function unitMark(d: Draw, unit: UnitMarkIdentity, point: Point, actionLeft?: nu
   context.beginPath();
   context.arc(point.x, point.y + size * .2, marker * .43, 0, Math.PI * 2);
   context.strokeStyle = actionLeft === 0 ? '#81908A' : '#F2E7C9'; context.lineWidth = 1.2; context.stroke();
-  const sprite = unit.kind === 'pokemon' ? pokemonSprite(unit.speciesId) : null;
-  if (sprite) context.drawImage(sprite, Math.round(point.x - size * .54), Math.round(point.y - size * .62), Math.round(size * 1.08), Math.round(size * 1.08));
-  else if (unit.kind === 'pokemon') centeredText(d, speciesDisplay(unit.speciesId).abbreviation, point, '#FFF3D4', size * .42);
-  else {
+  if (unit.kind === 'pokemon') {
+    if (!drawPokemonSprite(context, unit.speciesId, Math.round(point.x - size * .54), Math.round(point.y - size * .62), Math.round(size * 1.08))) centeredText(d, speciesDisplay(unit.speciesId).abbreviation, point, '#FFF3D4', size * .42);
+  } else {
     const pixel = size / 24;
     const block = (color: string, x: number, y: number, width: number, height: number) => {
       context.fillStyle = color;

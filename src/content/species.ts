@@ -1,5 +1,5 @@
 import type { BiomeId } from './rules.ts';
-export const SPECIES_NAMES = {
+export const BASE_SPECIES_NAMES = {
   clefable: '皮可西',
   sandshrew: '穿山鼠', ekans: '阿柏蛇', caterpie: '绿毛虫', swinub: '小山猪', magnemite: '小磁怪', umbreon: '月亮伊布', clefairy: '皮皮',
   bulbasaur: '妙蛙种子',
@@ -42,7 +42,24 @@ export const SPECIES_NAMES = {
   dragonair: '哈克龙',
   dragonite: '快龙',
 } as const;
-export type SpeciesId = keyof typeof SPECIES_NAMES;
+/** Gameplay v14 roster species (data: roster-v14-data.ts); only the roster-v14 content defines them. */
+export const ROSTER_SPECIES_NAMES = {
+  sandslash: '穿山王', arbok: '阿柏怪', zubat: '超音蝠', golbat: '大嘴蝠', magneton: '三合一磁怪', exeggcute: '蛋蛋',
+  exeggutor: '椰蛋树', horsea: '小海马', seadra: '海刺龙', scyther: '飞天螳螂', eevee: '伊布', crobat: '叉字蝠',
+  espeon: '太阳伊布', steelix: '大钢蛇', scizor: '巨钳螳螂', sneasel: '狃拉', piloswine: '长毛猪', kingdra: '刺龙王',
+  trapinch: '大颚蚁', vibrava: '超音波幼虫', flygon: '沙漠蜻蜓', beldum: '铁哑铃', metang: '金属怪', metagross: '巨金怪',
+  riolu: '利欧路', lucario: '路卡利欧', magnezone: '自爆磁怪', leafeon: '叶伊布', glaceon: '冰伊布', mamoswine: '象牙猪',
+  weavile: '玛狃拉', drilbur: '螺钉地鼠', excadrill: '龙头地鼠', pawniard: '驹刀小兵', bisharp: '劈斩司令', deino: '单首龙',
+  zweilous: '双首暴龙', hydreigon: '三首恶龙', fletchling: '小箭雀', fletchinder: '火箭雀', talonflame: '烈箭鹰', honedge: '独剑鞘',
+  doublade: '双剑鞘', aegislash: '坚盾剑怪', sylveon: '仙子伊布', mareanie: '好坏星', toxapex: '超坏星', mimikyu: '谜拟Q',
+  rookidee: '稚山雀', corvisquire: '蓝鸦', corviknight: '钢铠鸦', dreepy: '多龙梅西亚', drakloak: '多龙奇', dragapult: '多龙巴鲁托',
+  kingambit: '仆刀将军', tinkatink: '小锻匠', tinkatuff: '巧锻匠', tinkaton: '巨锻匠',
+} as const;
+export const SPECIES_NAMES = { ...BASE_SPECIES_NAMES, ...ROSTER_SPECIES_NAMES } as const;
+/** The 47 species of every content up to expansion-v1. */
+export type BaseSpeciesId = keyof typeof BASE_SPECIES_NAMES;
+export type RosterSpeciesId = keyof typeof ROSTER_SPECIES_NAMES;
+export type SpeciesId = BaseSpeciesId | RosterSpeciesId;
 export function speciesDisplay(speciesId: SpeciesId): { name: string; abbreviation: string } {
   const name = SPECIES_NAMES[speciesId];
   return { name, abbreviation: name.slice(0, 1) };
@@ -54,10 +71,18 @@ export type SpeciesDefinition = {
   maxHp: number; attack: number; defense: number; move: number; range: number; power: number; vision: number;
   rare: boolean; immunities: TypeId[]; trainCost: number; upkeep: number; terrain: BiomeId[]; spawnBiomes: BiomeId[];
   evolution: { speciesId: SpeciesId; xp: number; gold: number; requiresTraining: boolean } | null;
+  /** Gameplay v14 roster species only: original Pokédex number and generation (gates evolution and wild spawns per player). */
+  dex?: number; generation?: number;
+  /** Gameplay v14: further evolution targets (branches) after `evolution`, each with optional conditions. */
+  branches?: EvolutionOption[];
+  /** Gameplay v14: conditions on `evolution` itself (e.g. a cross-generation evolution). */
+  evolutionCondition?: EvolutionCondition;
 };
+export type EvolutionCondition = { minGeneration?: number; time?: 'day' | 'night'; biome?: BiomeId };
+export type EvolutionOption = { speciesId: SpeciesId; xp: number; gold: number; requiresTraining: boolean } & EvolutionCondition;
 const land: BiomeId[] = ['grassland', 'forest', 'mountain', 'desert', 'snow'];
 const allTerrain: BiomeId[] = [...land, 'ocean', 'volcano'];
-export const SPECIES: Record<SpeciesId, SpeciesDefinition> = {
+export const SPECIES: Record<BaseSpeciesId, SpeciesDefinition> = {
   clefable: { name: '皮可西', typeId: 'fairy', stage: 2, role: 'ranged', maxHp: 75, attack: 75, defense: 75, move: 3, range: 2, power: 10, vision: 2, rare: false, immunities: [], trainCost: 28, upkeep: 2, terrain: land, spawnBiomes: [], evolution: null },
   sandshrew: { name: '穿山鼠', typeId: 'ground', stage: 1, role: 'melee', maxHp: 55, attack: 50, defense: 60, move: 3, range: 1, power: 10, vision: 2, rare: false, immunities: [], trainCost: 20, upkeep: 1, terrain: land, spawnBiomes: [], evolution: null },
   ekans: { name: '阿柏蛇', typeId: 'poison', stage: 1, role: 'melee', maxHp: 55, attack: 48, defense: 57, move: 3, range: 1, power: 10, vision: 2, rare: false, immunities: [], trainCost: 20, upkeep: 1, terrain: land, spawnBiomes: [], evolution: null },
@@ -107,9 +132,10 @@ export const SPECIES: Record<SpeciesId, SpeciesDefinition> = {
   dragonair: { name: '哈克龙', typeId: 'dragon', stage: 2, role: 'ranged', maxHp: 75, attack: 85, defense: 72, move: 3, range: 2, power: 10, vision: 2, rare: true, immunities: [], trainCost: 29, upkeep: 2, terrain: land, spawnBiomes: [], evolution: { speciesId: 'dragonite', xp: 250, gold: 80, requiresTraining: true } },
   dragonite: { name: '快龙', typeId: 'dragon', secondaryTypeId: 'flying', stage: 3, role: 'air', maxHp: 105, attack: 112, defense: 98, move: 5, range: 2, power: 10, vision: 3, rare: true, immunities: [], trainCost: 39, upkeep: 3, terrain: allTerrain, spawnBiomes: [], evolution: null },
 };
-export function validateSpecies(species: Record<SpeciesId, SpeciesDefinition>): void {
+export function validateSpecies(species: Partial<Record<SpeciesId, SpeciesDefinition>>): void {
   const budgets = [[150, 170], [210, 240], [280, 320]];
   for (const [id, definition] of Object.entries(species)) {
+    if (!definition) continue;
     const sum = definition.maxHp + definition.attack + definition.defense;
     const [min, max] = budgets[definition.stage - 1];
     if (sum < min || sum > max || definition.trainCost !== Math.floor(sum / 8)) throw new Error(`Invalid species budget/cost: ${id}`);

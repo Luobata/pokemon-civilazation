@@ -1,6 +1,6 @@
 import { DISTRICTS } from '../content/districts.ts';
 import { expansionActionType, parseExpansionAction } from '../core/expansion-commands.ts';
-import { EXPANSION_CONTENT } from '../content/units.ts';
+import { ROSTER_CONTENT } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
 import type { Command } from '../core/model.ts';
 
@@ -27,7 +27,7 @@ function production(value: unknown, content: Content): boolean {
 }
 
 /** Validate input shape; gameplay eligibility remains the engine's responsibility. */
-export function parseAuditAction(value: unknown, content: Content = EXPANSION_CONTENT): Command['action'] {
+export function parseAuditAction(value: unknown, content: Content = ROSTER_CONTENT): Command['action'] {
   if (!record(value)) throw new Error('命令需要 action 对象');
   if (expansionActionType(value.type)) return parseExpansionAction(value, content);
   let valid = false;

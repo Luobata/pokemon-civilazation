@@ -1,3 +1,5 @@
+import { nestPriorityFor, speciesGeneration, stoneEvolutionsFor } from '../content/roster.ts';
+import { generationAllows, maxGeneration } from './roster.ts';
 import { gameplayAtLeast } from '../content/eras.ts';
 import { resolveAttack } from './combat.ts';
 import { cityDamage } from './combat-query.ts';
@@ -184,8 +186,14 @@ function takePlacement(state: GameState, candidates: number[], used: Set<number>
 
 function representativeNestSpecies(state: GameState, tileIndex: number, content: Content): SpeciesId {
   const biome = state.map.tiles[tileIndex];
-  const preferred: SpeciesId[] = ['sandshrew', 'ekans', 'caterpie', 'swinub', 'magnemite', 'umbreon', 'clefairy'];
+  const preferred = nestPriorityFor(content);
   const compatible = preferred.filter(speciesId => content.species[speciesId]?.terrain.includes(biome));
+  const weights = content.roster?.nestWeights;
+  if (compatible.length && weights) {
+    // v14: weighted pick (umbreon kept but rarer, per the user's request).
+    let roll = randomBelow(state.rng, compatible.reduce((sum, id) => sum + (weights[id] ?? 1), 0));
+    for (const id of compatible) { roll -= weights[id] ?? 1; if (roll < 0) return id; }
+  }
   if (compatible.length) return compatible[randomBelow(state.rng, compatible.length)];
   const fallback = (Object.keys(content.species) as SpeciesId[])
     .filter(speciesId => content.species[speciesId].spawnBiomes.includes(biome) && !content.species[speciesId].rare)
@@ -196,7 +204,7 @@ function representativeNestSpecies(state: GameState, tileIndex: number, content:
 
 function rareOverlordSpecies(state: GameState, content: Content): SpeciesId[] {
   const rare = (Object.keys(content.species) as SpeciesId[])
-    .filter(speciesId => content.species[speciesId].rare)
+    .filter(speciesId => content.species[speciesId].rare && speciesGeneration(content, speciesId) <= (content.roster ? maxGeneration(state.setup.eraProgression) : Infinity))
     .sort((a, b) => a < b ? -1 : a > b ? 1 : 0);
   if (rare.length < Object.keys(state.players).length) throw new Error('Not enough rare species for unique overlords.');
   return shuffled(rare, state.rng);
@@ -210,7 +218,7 @@ export function initializeWorld(state: GameState, content: Content = WORLD_CONTE
     version: 'world-v1', initializedAtRound: state.round, nests: {}, rampagingUnitIds: [],
     overlords: {}, resources: {}, players,
     // Gameplay v3 accelerates economies; the documented-species target rises so the Pokédex stays a long-game victory.
-    victory: { targetDocumentedSpecies: gameplayAtLeast(state.setup, 3) ? Math.min(Object.keys(content.species).length, definitions.pokedex.targetDocumentedSpecies + 3) : definitions.pokedex.targetDocumentedSpecies, achievedAtRound: null },
+    victory: { targetDocumentedSpecies: gameplayAtLeast(state.setup, 3) ? Math.min(Object.keys(content.species).length, definitions.pokedex.targetDocumentedSpecies + 3 + (content.roster?.pokedexTargetBonus ?? 0)) : definitions.pokedex.targetDocumentedSpecies, achievedAtRound: null },
   };
   state.expansion.world = world;
 
@@ -347,8 +355,9 @@ export function validateWorldAction(state: GameState, actorId: number, action: W
   }
   const unit = actorUnit(state, actorId, action.unitId);
   if (!unit || unit.kind !== 'pokemon' || !unit.actionLeft) return 'unit-unavailable';
-  const rule = WORLD().stoneEvolutions.find(candidate =>
+  const rule = stoneEvolutionsFor(content).find(candidate =>
     candidate.fromSpeciesId === unit.speciesId && candidate.intoSpeciesId === action.intoSpeciesId && candidate.stoneId === action.stoneId);
+  if (rule && !generationAllows(content, state.players[actorId], state.setup.eraProgression, rule.intoSpeciesId)) return 'world-target-unavailable';
   if (!rule || unit.xp < rule.requiredXp || (world.players[actorId]?.stoneInventory[action.stoneId] ?? 0) < 1) return 'world-target-unavailable';
   return null;
 }
@@ -731,8 +740,9 @@ export function planWorldAction(view: PlayerView, content: WorldSystemContent = 
   }
   for (const unit of ownUnits) {
     if (unit.kind !== 'pokemon') continue;
-    const rule = content.world.stoneEvolutions.find(candidate =>
+    const rule = stoneEvolutionsFor(content.base).find(candidate =>
       candidate.fromSpeciesId === unit.speciesId && unit.xp >= candidate.requiredXp
+      && generationAllows(content.base, view.economy.player, view.eraProgression, candidate.intoSpeciesId)
       && (playerState.stoneInventory[candidate.stoneId] ?? 0) > 0);
     if (rule) return { type: 'UseEvolutionStone', unitId: unit.id, intoSpeciesId: rule.intoSpeciesId, stoneId: rule.stoneId };
   }

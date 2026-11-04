@@ -1,0 +1,98 @@
+{
+  "source": "PokeAPI/sprites",
+  "commit": "1dd55c0436d2a5b6e324c0b780e1b1b416fbfb64",
+  "path": "sprites/pokemon/versions/generation-iv/platinum",
+  "note": "Official Pokemon Platinum front sprites (DS pixel art, static, 80x80, transparent background). Chosen over diamond-pearl / heartgold-soulsilver as the definitive Gen 4 main-series set; same front-facing pixel style as the Gen 3 Emerald sprites, with similar padding (Pokemon bounding box typically ~75% of the canvas side, comparable to Emerald's 64x64). Giratina (487) is Altered Forme.",
+  "files": [
+    {
+      "id": 447,
+      "file": "447.png",
+      "sha256": "2f8684c83bc749b752e2fa9d376b136e1fc8121942998f0970837120857684fe",
+      "bytes": 575
+    },
+    {
+      "id": 448,
+      "file": "448.png",
+      "sha256": "f63acd0d6b2b7a225fa94474d8595201133db038664cdcc525551a2f15850433",
+      "bytes": 739
+    },
+    {
+      "id": 461,
+      "file": "461.png",
+      "sha256": "2a06ee0d38c9a06708f2595a8e6dd866826ef66b0fecb33308a6ebb3764fcda1",
+      "bytes": 829
+    },
+    {
+      "id": 462,
+      "file": "462.png",
+      "sha256": "5bfde26d5a1d500854a72801aff3b6fed38a38af99917a4a40e2ae5a3bfbb5a7",
+      "bytes": 980
+    },
+    {
+      "id": 470,
+      "file": "470.png",
+      "sha256": "28b1563b6f059b6307a51631530618351b7f548d5ae1c910ea70d4a1883e5a8b",
+      "bytes": 874
+    },
+    {
+      "id": 471,
+      "file": "471.png",
+      "sha256": "bc955219aafdf4f55673fe741f42a883f4b9be2f35d1d9b69e6e9547721ffac2",
+      "bytes": 699
+    },
+    {
+      "id": 473,
+      "file": "473.png",
+      "sha256": "0a43c7593ee25aae6d44b07a4ec37dc285a7e8f3e0e0b7f0418610eaa87ebe49",
+      "bytes": 1159
+    },
+    {
+      "id": 480,
+      "file": "480.png",
+      "sha256": "0fa57d45840f25afeddc34a1e274bb2f406083c2a9ec68e8f5d0ea608ff2093d",
+      "bytes": 647
+    },
+    {
+      "id": 481,
+      "file": "481.png",
+      "sha256": "f116daee957b1c698f99cf4c89f47946246baa2e3ad15950157ef53327e0aff4",
+      "bytes": 773
+    },
+    {
+      "id": 482,
+      "file": "482.png",
+      "sha256": "abd1fc90bee29ac366183bcdd42efa0176086af0b287cc21f8b5f119b39dcb8e",
+      "bytes": 702
+    },
+    {
+      "id": 483,
+      "file": "483.png",
+      "sha256": "2e03d1c711b7969fe0eeadc0056b5a726626fa026eb25b7897572f8863da3d08",
+      "bytes": 1430
+    },
+    {
+      "id": 484,
+      "file": "484.png",
+      "sha256": "13ebd3743f8b6a06b82fdd90dcbb0fb9e22336c1007dc2539bab742ea57c4570",
+      "bytes": 1558
+    },
+    {
+      "id": 487,
+      "file": "487.png",
+      "sha256": "49e1984dd788aa3474d433d563cd952cc55b272532b9dd269bcc4dd1a8960628",
+      "bytes": 1588
+    },
+    {
+      "id": 491,
+      "file": "491.png",
+      "sha256": "a1d96de9274d5055b4847f8be9e5c33fdc9613d27571272f028e9ad362498a0e",
+      "bytes": 932
+    },
+    {
+      "id": 493,
+      "file": "493.png",
+      "sha256": "65ed574ea0ed7ab4c1a5a9a2dfcf3a7615717a0f111c0d6e71e0c3008141c8d5",
+      "bytes": 1192
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { LEADERS, LEADER_IDS } from '../../src/content/leaders.ts';
-import { EXPANSION_CONTENT } from '../../src/content/units.ts';
+import { contentFor } from '../../src/content/units.ts';
+import { LATEST_GAMEPLAY_VERSION } from '../../src/content/eras.ts';
 
 test('the game links to the handbook and every leader and species is listed from live content', async ({ page }) => {
   const errors: string[] = [];
@@ -13,8 +14,8 @@ test('the game links to the handbook and every leader and species is listed from
   await expect(page.locator('#startup-notice')).toBeHidden();
   await expect(page.locator('.leader-card')).toHaveCount(LEADER_IDS.length);
   for (const id of LEADER_IDS) await expect(page.locator('.leader-card h3', { hasText: LEADERS[id].name })).toHaveCount(1);
-  const species = Object.values(EXPANSION_CONTENT.species);
-  await expect(page.locator('#pokemon tbody tr')).toHaveCount(species.length);
+  const species = Object.values(contentFor({ expansionVersion: 1, gameplayVersion: LATEST_GAMEPLAY_VERSION }).species);
+  await expect(page.locator('#pokemon table').first().locator('tbody tr')).toHaveCount(species.length);
   await expect(page.locator('#guide-nav a')).toHaveCount(await page.locator('.guide-section').count());
   const broken = await page.evaluate(async () => {
     const images = [...document.images];

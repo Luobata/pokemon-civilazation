@@ -17,6 +17,17 @@ const system = (definition: AuditSystem): AuditSystem => definition;
 
 export const AUDIT_SYSTEMS: readonly AuditSystem[] = [
   system({
+    id: 's-roster', name: '阵容扩充（按世代解锁）', status: 'implemented',
+    summary: 'gameplay v14：新增 58 种宝可梦（原作第 1–9 世代），按每个玩家自己的世代解锁进化、野外刷新与世代招募；读取 v≤13 存档时不启用。',
+    rules: ['进化成第 N 世代的物种需要本玩家进入第 N 世代；伊布按白天/夜晚/地形/世代分支进化。',
+      '野外刷新只抽“离该区域中心最近的文明”已到达世代的物种；巢穴按权重抽取（月亮伊布权重较低）。',
+      '每进入一个世代，各城可招募该世代的代表物种；新增 3 项科技招募；小椿、坂木的专属宝可梦升为二阶。',
+      'AI 训练时对视野内交战对手的属性克制加减分（±30 封顶）。'],
+    checks: ['v13 固定 48 局改动前后逐文件一致；v14 两次运行逐字节一致；统计新物种使用与结束方式变化。', '世代门槛、分支条件、刷新世代、招募、领袖专属、回放一致，有单元测试。'],
+    sources: ['src/content/roster-v14-data.ts', 'src/content/roster.ts', 'src/core/roster.ts', 'src/ai/roster-plan.ts', 'tests/core/roster.test.ts', 'docs/design/roster-v14.md'],
+    actionTypes: ['Evolve', 'SetProductionQueue'],
+  }),
+  system({
     id: 's-promotions', name: '战功与晋升', status: 'implemented',
     summary: 'gameplay v13：宝可梦在战斗中累积战功，达到 6 / 14 / 24 时各选一个特性；读取 v≤12 存档时不启用。',
     rules: ['战功只来自 BattleResolved：主动攻击造成伤害 +2、反击 +1、击倒 +3、攻下城市 +3；与进化经验分开。',
@@ -187,14 +198,14 @@ export const AUDIT_SYSTEMS: readonly AuditSystem[] = [
     id: 's8-species',
     name: '物种数据与登记',
     status: 'implemented',
-    summary: '经典模式 39 种、扩展模式 47 种宝可梦作为数据驱动单位；捕捉或训练会登记可生产物种。',
+    summary: '经典模式 39 种、扩展模式 47 种、阵容包 v14 共 105 种宝可梦作为数据驱动单位；捕捉或训练会登记可生产物种。',
     rules: [
       '每种物种定义类型、阶段、角色、数值、行动、射程、视野、地形、刷新群系与进化。',
       '阶段总预算分别限制在 150–170、210–240、280–320，训练成本等于预算 / 8。',
       '只有 registeredSpeciesIds 内的宝可梦可在城市训练；快速角色需骑行科技。',
     ],
     checks: [
-      '经典 CONTENT.species 固定为 39 种；EXPANSION_CONTENT 为 47 种，预算与完整双属性 D15 校验通过。',
+      '经典 CONTENT.species 固定为 39 种；EXPANSION_CONTENT 为 47 种；ROSTER_CONTENT（v14）为 105 种，预算与完整双属性 D15 校验通过。',
       '登记物种与初始御三家、捕捉和训练结果一致。',
       '地图单位物种均可解析并具有合法地形/刷新定义。',
     ],

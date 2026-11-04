@@ -16,7 +16,7 @@ import { leaderVisionBonus, observeLeaders } from './leader-systems.ts';
 import { isMapUnit } from './model.ts';
 import { cityCounterAttack, cityYield, workCandidates, workRadius } from './city.ts';
 import { leaderEffects } from '../content/leaders.ts';
-import { EXPANSION_CONTENT, CONTENT, unitDefinition } from '../content/units.ts';
+import { unitDefinition, contentFor } from '../content/units.ts';
 import type { Content, UnitIdentity } from '../content/units.ts';
 import { hexDistance, hexToIndex } from './hex.ts';
 import type { GameState, PlayerView, KnowledgeState, MapUnit, GameEvent, VisibleEvent, Diplomacy } from './model.ts';
@@ -28,7 +28,7 @@ export function unitIdentity(unit: UnitIdentity): UnitIdentity {
 export function emptyKnowledge(): KnowledgeState {
   return { exploredTileIds: [], rememberedTiles: {}, lastKnownUnits: {}, lastKnownCities: {} };
 }
-export function visibleTiles(state: GameState, playerId: number, content: Content = state.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT): Set<number> {
+export function visibleTiles(state: GameState, playerId: number, content: Content = contentFor(state.setup)): Set<number> {
   const sources = Object.values(state.cities).filter(city => city.ownerId === playerId)
     .map(city => ({ position: city.position, radius: 2 + leaderEffects(state.players[playerId].leaderId).cityVision + leaderVisionBonus(state, playerId, city.id) + playerPolicyEffects(state, playerId).visionBonus }));
   sources.push(...worldVisionSources(state, playerId));
@@ -65,7 +65,7 @@ export function territoryOwners(state: GameState): number[][] {
 }
 
 // Called only on the new authoritative state, never as a side effect of observe.
-export function refreshKnowledge(state: GameState, content: Content = state.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT): void {
+export function refreshKnowledge(state: GameState, content: Content = contentFor(state.setup)): void {
   const territory = territoryOwners(state);
   for (const playerId of state.turnOrder) {
     const visible = visibleTiles(state, playerId, content);
@@ -101,7 +101,7 @@ function projectDiplomacy(pair: Diplomacy, playerId: number): Diplomacy {
     citiesLostSinceWar: involved ? { [playerId]: pair.citiesLostSinceWar[playerId] ?? 0 } : {} };
 }
 
-export function observe(state: GameState, playerId: number, content: Content = state.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT): PlayerView {
+export function observe(state: GameState, playerId: number, content: Content = contentFor(state.setup)): PlayerView {
   const visible = visibleTiles(state, playerId, content);
   const knowledge = JSON.parse(JSON.stringify(state.knowledge[playerId])) as KnowledgeState;
   const territory = territoryOwners(state);
@@ -149,7 +149,7 @@ export function observe(state: GameState, playerId: number, content: Content = s
 }
 
 export function projectEvents(before: GameState, after: GameState, events: readonly GameEvent[],
-  playerId: number, content: Content = before.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT): VisibleEvent[] {
+  playerId: number, content: Content = contentFor(before.setup)): VisibleEvent[] {
   const visible = new Set([...visibleTiles(before, playerId, content), ...visibleTiles(after, playerId, content)]);
   const projected: VisibleEvent[] = [];
   for (const event of events) {

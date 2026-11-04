@@ -1,3 +1,4 @@
+import type { SpeciesId } from '../content/species.ts';
 import { PROMOTION_TRAITS } from '../content/promotions.ts';
 import { LEGENDS } from '../content/faith-legends.ts';
 import { RARE_BERRIES } from '../content/rare-berries.ts';
@@ -29,7 +30,7 @@ import type { ActionMode, PendingTarget } from './unit-panel.ts';
 import type { AiPersonality, CitySummary, Command, GameSetup } from '../core/model.ts';
 import { GameSession } from '../app/session.ts';
 import type { PlayerSession } from '../app/session.ts';
-import { CONTENT as BASE_CONTENT, EXPANSION_CONTENT, unitDefinition } from '../content/units.ts';
+import { EXPANSION_CONTENT, unitDefinition, contentForView } from '../content/units.ts';
 import type { StarterId } from '../content/units.ts';
 import type { BallId } from '../content/economy.ts';
 import { LEADER_IDS } from '../content/leaders.ts';
@@ -141,7 +142,7 @@ function summary(payload: VisibleEvent['payload']) {
 /** Labels of units seen earlier, so a unit removed by the battle (e.g. a defeated settler) still has a name. */
 const knownUnitLabels = new Map<number, string>();
 export function battleActivityText(payload: BattlePayload, view: PlayerView, known: ReadonlyMap<number, string> = knownUnitLabels): string {
-  const CONTENT = view.expansion ? EXPANSION_CONTENT : BASE_CONTENT;
+  const CONTENT = contentForView(view);
   const unitLabel = (id: number) => {
     const unit = view.units.find(candidate => candidate.id === id) ?? view.recoveringUnits.find(candidate => candidate.id === id && candidate.ownerId === view.playerId);
     if (!unit) return known.get(id) ?? '未知单位';
@@ -197,7 +198,7 @@ function recordActivity(payload: VisibleEvent['payload']) {
 }
 function controls() {
   const view = session.getView();
-  const CONTENT = view.expansion ? EXPANSION_CONTENT : BASE_CONTENT;
+  const CONTENT = contentForView(view);
   const ended = view.outcome !== null, pendingPeace = hasPendingPeace(view);
   if (selected !== null && !view.units.some(unit => unit.id === selected && unit.ownerId === view.playerId)) {
     selected = null; resetAction();
@@ -365,11 +366,11 @@ function confirmDistrictPlacement() {
     { item: { kind: 'district', defId: placement.kind, tileIndex: placement.tileIndex! } },
   ] }, `设施区已加入城市 ${city.id} 队列；格子已预订。`);
 }
-function evolveSelected() {
+function evolveSelected(intoSpeciesId?: SpeciesId) {
   const view = session.getView(), unit = view.units.find(unit => unit.id === selected && unit.kind === 'pokemon');
-  const CONTENT = view.expansion ? EXPANSION_CONTENT : BASE_CONTENT;
+  const CONTENT = contentForView(view);
   const evolution = unit?.kind === 'pokemon' ? CONTENT.species[unit.speciesId].evolution : null;
-  if (unit && evolution) issue({ type: 'Evolve', unitId: unit.id, intoSpeciesId: evolution.speciesId });
+  if (unit && (intoSpeciesId ?? evolution)) issue({ type: 'Evolve', unitId: unit.id, intoSpeciesId: intoSpeciesId ?? evolution!.speciesId });
 }
 function requestFrame() {
   if (session && !frameRequested) { frameRequested = true; requestAnimationFrame(frame); }

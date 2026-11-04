@@ -8,14 +8,14 @@ import { resolveWild } from './wild.ts';
 import { isMapUnit } from './model.ts';
 import { applyEconomyAction, validateEconomyAction } from './economy-commands.ts';
 import { resolveEconomy } from './economy.ts';
-import { EXPANSION_CONTENT, CONTENT } from '../content/units.ts';
+import { contentFor } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
 import { hexToIndex } from './hex.ts';
 import { canEnter, reachablePaths } from './movement.ts';
 import { observe, refreshKnowledge, visibleTiles } from './vision.ts';
 import type { Command, EventPayload, GameState, StepResult } from './model.ts';
 
-export function step(state: GameState, command: Command, content: Content = state.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT): StepResult {
+export function step(state: GameState, command: Command, content: Content = contentFor(state.setup)): StepResult {
   if (state.outcome) return { ok: false, reason: 'game-ended' };
   if (command.actorId !== state.activePlayerId) return { ok: false, reason: 'not-your-turn' };
   if (command.expectedSeq !== state.commandSeq) return { ok: false, reason: 'stale-command' };

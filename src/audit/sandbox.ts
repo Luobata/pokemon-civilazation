@@ -7,7 +7,7 @@ import { createGame } from '../core/game.ts';
 import type { Command, GameEvent, GameState } from '../core/model.ts';
 import { step } from '../core/step.ts';
 import { observe } from '../core/vision.ts';
-import { CONTENT, EXPANSION_CONTENT } from '../content/units.ts';
+import { EXPANSION_CONTENT, contentFor } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
 import { parseAuditAction } from './commands.ts';
 
@@ -36,7 +36,7 @@ export class AuditSandbox {
     if (text) {
       const save = deserializeSave(text);
       this.state = save.state;
-      this.content = this.state.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT;
+      this.content = contentFor(this.state.setup);
       this.log = { ...save.log, commands: save.log.commands.slice(0, save.state.commandSeq),
         aiRejectedCitySites: (save.log.aiRejectedCitySites ?? []).filter(site => site.seq < save.state.commandSeq) };
     } else {

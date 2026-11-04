@@ -3,7 +3,10 @@ import { BALANCE } from './balance.ts';
 import type { Balance } from './balance.ts';
 import { SPECIES, validateSpecies } from './species.ts';
 import { LEGACY_SPECIES } from './legacy-species.ts';
-import type { SpeciesDefinition, SpeciesId } from './species.ts';
+import type { BaseSpeciesId, EvolutionOption, SpeciesDefinition, SpeciesId } from './species.ts';
+import { EXISTING_EVOLUTION_ADDITIONS, EXISTING_SPAWN_BIOME_ADDITIONS, GENERATION_RECRUITS_V14, LEADER_UNITS_V14, NEST_PRIORITY_V14, NEST_WEIGHTS_V14,
+  ROSTER_V14_SPECIES, SPAWN_WEIGHTS_V14, STONE_EVOLUTIONS_V14_ADDITIONS, TECH_RECRUITS_V14, WANDERERS_V14 } from './roster-v14-data.ts';
+import type { RosterEvolution, RosterTerrain } from './roster-v14-data.ts';
 export { speciesDisplay } from './species.ts';
 export type { SpeciesId } from './species.ts';
 import { BALLS, BIOME_YIELDS, BUILDINGS, TECHS } from './economy.ts';
@@ -21,6 +24,25 @@ export type Content = {
   units: Record<string, UnitDefinition>;
   species: Record<string, SpeciesDefinition>;
   moveCosts: Record<BiomeId, number>;
+  /** Gameplay v14 only: species-keyed tables that older contents read from their global constants. */
+  roster?: RosterTables;
+};
+/** A stone evolution path (same shape as `WORLD_DEFINITIONS.stoneEvolutions`). */
+export type RosterStoneEvolution = { fromSpeciesId: SpeciesId; intoSpeciesId: SpeciesId; stoneId: 'fireStone' | 'waterStone' | 'leafStone' | 'thunderStone' | 'moonStone'; requiredXp: number };
+export type RosterTables = {
+  spawnWeights: Record<BiomeId, Partial<Record<SpeciesId, number>>>;
+  wanderers: readonly SpeciesId[];
+  techRecruits: Partial<Record<keyof typeof TECHS, SpeciesId>>;
+  /** Generation (2–9) -> species every city may train once the player reaches that generation. */
+  generationRecruits: Partial<Record<number, SpeciesId>>;
+  leaderUnits: Partial<Record<LeaderId, SpeciesId>>;
+  /** Added to the world's stone evolutions. */
+  stoneEvolutions: readonly RosterStoneEvolution[];
+  nestPriority: readonly SpeciesId[];
+  /** More species to document for the Pokédex victory (the wild is richer). */
+  pokedexTargetBonus: number;
+  /** Weights for the nest picker (absent = uniform). */
+  nestWeights?: Partial<Record<SpeciesId, number>>;
 };
 const land: BiomeId[] = ['grassland', 'forest', 'mountain', 'desert', 'snow'];
 export const CONTENT: Content = {
@@ -43,12 +65,61 @@ for (const [id, stats] of Object.entries({
   gyarados: { maxHp: 90, attack: 60, defense: 90 },
   bulbasaur: { maxHp: 55, attack: 45, defense: 57 },
   gastly: { maxHp: 53, attack: 43, defense: 60 },
-})) Object.assign(expandedSpecies[id as SpeciesId], stats);
+})) Object.assign(expandedSpecies[id as BaseSpeciesId], stats);
 validateSpecies(expandedSpecies);
 export const EXPANSION_CONTENT: Content = {
   ...CONTENT, version: 'expansion-v1', species: expandedSpecies,
   units: { ...expandedSpecies, settler: CONTENT.units.settler },
 };
+/** Gameplay v14: expansion-v1's 47 species plus the 58 roster species (data in roster-v14-data.ts, spec docs/design/roster-v14.md). */
+const TERRAIN: Record<Exclude<RosterTerrain, BiomeId[]>, BiomeId[]> = { land, all: [...land, 'ocean', 'volcano'], ocean: ['ocean'] };
+function toOption(evolution: RosterEvolution): EvolutionOption | null {
+  const condition = evolution.condition;
+  if (condition && typeof condition === 'object' && 'stone' in condition) return null; // stone paths live in roster.stoneEvolutions
+  return { speciesId: evolution.speciesId as SpeciesId, xp: evolution.xp, gold: evolution.gold, requiresTraining: evolution.requiresTraining,
+    ...(evolution.minGeneration ? { minGeneration: evolution.minGeneration } : {}),
+    ...(condition === 'day' || condition === 'night' ? { time: condition } : condition && 'biome' in condition ? { biome: condition.biome } : {}) };
+}
+/** First option becomes `evolution` (+ `evolutionCondition`), the rest become `branches`. */
+function withEvolutions(species: SpeciesDefinition, evolutions: readonly RosterEvolution[], stoneTargets: readonly string[]): SpeciesDefinition {
+  const options = evolutions.map(evolution => toOption(evolution) ?? (stoneTargets.includes(evolution.speciesId)
+    ? { speciesId: evolution.speciesId as SpeciesId, xp: evolution.xp, gold: evolution.gold, requiresTraining: evolution.requiresTraining } : null))
+    .filter((option): option is EvolutionOption => option !== null);
+  if (!options.length) return species;
+  const [first, ...rest] = species.evolution ? [{ ...species.evolution }, ...options] : options;
+  const { speciesId, xp, gold, requiresTraining, ...condition } = first;
+  return { ...species, evolution: { speciesId, xp, gold, requiresTraining },
+    ...(Object.keys(condition).length ? { evolutionCondition: condition } : {}), ...(rest.length ? { branches: rest } : {}) };
+}
+const rosterStoneTargets = STONE_EVOLUTIONS_V14_ADDITIONS.map(path => path.intoSpeciesId);
+const rosterSpecies = JSON.parse(JSON.stringify(expandedSpecies)) as Record<SpeciesId, SpeciesDefinition>;
+for (const [id, additions] of Object.entries(EXISTING_EVOLUTION_ADDITIONS)) rosterSpecies[id as SpeciesId] = withEvolutions(rosterSpecies[id as SpeciesId], additions, rosterStoneTargets);
+for (const [id, biomes] of Object.entries(EXISTING_SPAWN_BIOME_ADDITIONS)) rosterSpecies[id as SpeciesId].spawnBiomes = [...new Set([...rosterSpecies[id as SpeciesId].spawnBiomes, ...biomes])];
+for (const [id, data] of Object.entries(ROSTER_V14_SPECIES)) {
+  const { evolutions, terrain, ...rest } = data;
+  rosterSpecies[id as SpeciesId] = withEvolutions({ ...rest, terrain: Array.isArray(terrain) ? [...terrain] : [...TERRAIN[terrain]], spawnBiomes: [...data.spawnBiomes], evolution: null }, evolutions, rosterStoneTargets);
+}
+validateSpecies(rosterSpecies);
+export const ROSTER_CONTENT: Content = {
+  ...EXPANSION_CONTENT, version: 'roster-v14', species: rosterSpecies,
+  units: { ...rosterSpecies, settler: CONTENT.units.settler },
+  roster: {
+    spawnWeights: SPAWN_WEIGHTS_V14 as RosterTables['spawnWeights'], wanderers: WANDERERS_V14 as SpeciesId[],
+    techRecruits: TECH_RECRUITS_V14 as RosterTables['techRecruits'], generationRecruits: GENERATION_RECRUITS_V14 as RosterTables['generationRecruits'],
+    leaderUnits: LEADER_UNITS_V14 as RosterTables['leaderUnits'], stoneEvolutions: STONE_EVOLUTIONS_V14_ADDITIONS as RosterStoneEvolution[],
+    nestPriority: NEST_PRIORITY_V14 as SpeciesId[], nestWeights: NEST_WEIGHTS_V14 as RosterTables['nestWeights'], pokedexTargetBonus: 5,
+  },
+};
+type ContentSetup = { expansionVersion?: 1; gameplayVersion?: number };
+/** The single place that maps a game setup to its content table; logs and saves record `content.version`. */
+export function contentFor(setup: ContentSetup): Content {
+  return setup.expansionVersion !== 1 ? CONTENT : (setup.gameplayVersion ?? 0) >= 14 ? ROSTER_CONTENT : EXPANSION_CONTENT;
+}
+/** Same choice from a player's view (views carry `expansion` and `gameplayVersion` but not the setup). */
+export function contentForView(view: { expansion?: unknown; gameplayVersion?: number }): Content {
+  return view.expansion ? contentFor({ expansionVersion: 1, gameplayVersion: view.gameplayVersion }) : CONTENT;
+}
+export const STOCK_CONTENTS: readonly Content[] = [CONTENT, EXPANSION_CONTENT, ROSTER_CONTENT];
 export function unitDefinition(unit: UnitIdentity, content: Content = CONTENT): UnitDefinition {
   const base = content.units[unit.kind === 'pokemon' ? unit.speciesId : unit.role];
   return unit.kind === 'pokemon' && unit.uniqueLeader ? { ...base, name: `${base.name}·${unit.uniqueLeader}`, vision: base.vision + 1 } : base;

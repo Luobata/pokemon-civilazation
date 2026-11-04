@@ -3,7 +3,7 @@ import { AUDIT_SYSTEMS } from '../audit/catalog.ts';
 import { inspectSystem } from '../audit/inspect.ts';
 import { AUDIT_SNAPSHOT_KEY, AuditSandbox } from '../audit/sandbox.ts';
 import { parseAuditAction } from '../audit/commands.ts';
-import { CONTENT as BASE_CONTENT, EXPANSION_CONTENT, unitDefinition } from '../content/units.ts';
+import { unitDefinition, contentFor } from '../content/units.ts';
 import type { SpeciesId } from '../content/units.ts';
 import { BALLS, BUILDINGS, TECHS } from '../content/economy.ts';
 import type { BallId, BuildingId, TechId } from '../content/economy.ts';
@@ -86,7 +86,7 @@ function input(name: string, label: string, value: string | number = '', numeric
 function renderFields() {
   if (current.status === 'planned') return;
   const state = sandbox.getState(), type = element<HTMLSelectElement>('debug-command').value;
-  const CONTENT = state.expansion ? EXPANSION_CONTENT : BASE_CONTENT;
+  const CONTENT = contentFor(state.setup);
   const units = Object.values(state.units).filter(unit => unit.ownerId === state.activePlayerId && unit.location === 'map')
     .map(unit => ({ id: unit.id, label: `#${unit.id} ${unitDefinition(unit, CONTENT).name} · HP ${unit.hp} · 行动 ${unit.actionLeft}` }));
   const cities = Object.values(state.cities).filter(city => city.ownerId === state.activePlayerId).map(city => ({ id: city.id, label: `城市 #${city.id} · 人口 ${city.population}` }));

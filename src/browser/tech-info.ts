@@ -1,6 +1,7 @@
 // Player-facing description of what each technology does, shared by the research tree
 // and the handbook. Rule effects that live in src/core are summarised here by hand;
 // unlocked buildings, districts and recruits are derived from content.
+import type { Content } from '../content/units.ts';
 import { DISTRICTS, DISTRICT_IDS } from '../content/districts.ts';
 import { BUILDINGS, TECHS } from '../content/economy.ts';
 import type { TechId } from '../content/economy.ts';
@@ -23,8 +24,8 @@ export const TECH_EFFECTS: Record<TechId, string> = {
 };
 
 export type TechUnlock = { kind: 'effect' | 'building' | 'district' | 'recruit'; text: string };
-export function techUnlocks(id: TechId): TechUnlock[] {
-  const recruit = ERA_TECH_RECRUITS[id];
+export function techUnlocks(id: TechId, content?: Content): TechUnlock[] {
+  const recruit = (content?.roster?.techRecruits ?? ERA_TECH_RECRUITS)[id];
   return [
     { kind: 'effect', text: TECH_EFFECTS[id] },
     ...Object.values(BUILDINGS).filter(building => building.requiredTech === id).map(building => ({ kind: 'building' as const, text: `建筑「${building.name}」` })),

@@ -1,3 +1,4 @@
+import { contentFor } from '../src/content/units.ts';
 import { PROMOTION_TRAIT_IDS } from '../src/content/promotions.ts';
 import type { PromotionTrait } from '../src/content/promotions.ts';
 import { DISTRICT_IDS } from '../src/content/districts.ts';
@@ -11,7 +12,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { CONTENT, EXPANSION_CONTENT } from '../src/content/units.ts';
+import { CONTENT,  } from '../src/content/units.ts';
 import type { Content } from '../src/content/units.ts';
 import { CLASSIC_LEADER_IDS, LEADER_IDS } from '../src/content/leaders.ts';
 import type { LeaderId } from '../src/content/leaders.ts';
@@ -84,6 +85,8 @@ export type LeaderGameResult = {
   eraAges?: { playerId: number; eraIndex: number; age: string; ratePermille: number; rounds: number }[];
   /** v13+: UnitPromoted events per trait. */
   promotions?: Record<PromotionTrait, number>;
+  /** v14+: owned Pokémon at the end of the game, by species (deployed and recovering). */
+  finalSpecies?: Record<string, number>;
   id: string;
   seed: number;
   personality: AiPersonality;
@@ -259,7 +262,7 @@ function finalRanking(state: GameState, content: Content = CONTENT): Score[] {
 }
 
 export function simulateLeaderCase(match: LeaderBalanceCase, onState?: (state: GameState) => void): LeaderGameResult {
-  const content = match.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT;
+  const content = contentFor(match.setup);
   let state: GameState;
   try {
     state = createGame(match.setup, content);
@@ -346,6 +349,9 @@ export function simulateLeaderCase(match: LeaderBalanceCase, onState?: (state: G
     ...((match.setup.gameplayVersion ?? 0) >= 11 ? { governmentAdoptions } : {}),
     ...((match.setup.gameplayVersion ?? 0) >= 12 ? { eraAges } : {}),
     ...((match.setup.gameplayVersion ?? 0) >= 13 ? { promotions } : {}),
+    ...((match.setup.gameplayVersion ?? 0) >= 14 ? { finalSpecies: Object.fromEntries(Object.entries(Object.values(state.units)
+      .reduce<Record<string, number>>((counts, unit) => { if (unit.ownerId !== null && unit.kind === 'pokemon') counts[unit.speciesId] = (counts[unit.speciesId] ?? 0) + 1; return counts; }, {}))
+      .sort(([a], [b]) => a < b ? -1 : 1)) } : {}),
   };
 }
 
@@ -691,7 +697,7 @@ export function runLeaderBalance(config: LeaderBalanceConfig, context?: { comman
   const matches = leaderBalanceCases(config);
   const games = matches.map(match => simulateLeaderCase(match));
   const aggregate = aggregateLeaderGames(games);
-  const content = config.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT;
+  const content = contentFor(config);
   const scheduleSha256 = createHash('sha256').update(canonicalSerialize(matches)).digest('hex');
   const toolSha256 = createHash('sha256').update(readFileSync(new URL('./leader-balance.ts', import.meta.url))).digest('hex');
   const contentJson = JSON.parse(JSON.stringify(content));
@@ -724,7 +730,7 @@ export function parseLeaderBalanceArgs(args: string[]): { config: LeaderBalanceC
     const key = args[index];
     if (!['--seeds', '--seed-start', '--expansion', '--eras', '--gameplay', '--round-limit', '--out'].includes(key)
       || !args[index + 1] || args[index + 1].startsWith('--') || Object.hasOwn(flags, key)) {
-      throw new Error(`Usage: node tools/leader-balance.ts --seeds <1..100> [--seed-start <1..>] [--expansion <true|false>] [--eras <none|simple|full>] [--gameplay <0..13>] --round-limit <100|200|300> [--out <file.json>]`);
+      throw new Error(`Usage: node tools/leader-balance.ts --seeds <1..100> [--seed-start <1..>] [--expansion <true|false>] [--eras <none|simple|full>] [--gameplay <0..14>] --round-limit <100|200|300> [--out <file.json>]`);
     }
     flags[key] = args[index + 1];
   }

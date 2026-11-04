@@ -1,8 +1,9 @@
-import type { SpeciesId } from '../content/species.ts';
+import type { BaseSpeciesId, SpeciesId } from '../content/species.ts';
+import { ROSTER_V14_SPECIES } from '../content/roster-v14-data.ts';
 import type { BuildingId } from '../content/economy.ts';
 import { buildingArtPath } from './building-art.ts';
 
-const POKEDEX: Record<SpeciesId, number> = {
+const BASE_POKEDEX: Record<BaseSpeciesId, number> = {
   clefable: 36, sandshrew: 27, ekans: 23, caterpie: 10, swinub: 220, magnemite: 81, umbreon: 197, clefairy: 35,
   bulbasaur: 1, ivysaur: 2, venusaur: 3, charmander: 4, charmeleon: 5, charizard: 6,
   squirtle: 7, wartortle: 8, blastoise: 9, pikachu: 25, raichu: 26,
@@ -13,7 +14,13 @@ const POKEDEX: Record<SpeciesId, number> = {
   dratini: 147, dragonair: 148, dragonite: 149,
 };
 
-export const pokemonSpritePath = (id: SpeciesId) => `/sprites/gen3/${POKEDEX[id]}.png`;
+const POKEDEX = { ...BASE_POKEDEX, ...Object.fromEntries(Object.entries(ROSTER_V14_SPECIES).map(([id, species]) => [id, species.dex])) } as Record<SpeciesId, number>;
+/** Sprite folder per Pokédex number (generations 1–3 share the Emerald set). */
+// Sources (public/sprites/<folder>/manifest.json): Emerald, Platinum, Black/White, X/Y renders, Scarlet/Violet art for gens 7–9.
+const spriteFolder = (dex: number) => dex <= 386 ? 'gen3' : dex <= 493 ? 'gen4' : dex <= 649 ? 'gen5' : dex <= 721 ? 'gen6' : dex <= 809 ? 'gen7' : dex <= 905 ? 'gen8' : 'gen9';
+/** Gens 6–9 come as tightly cropped, non-square images: fit by the long side at Emerald's typical fill (~0.77). */
+const isTightSprite = (dex: number) => dex > 649;
+export const pokemonSpritePath = (id: SpeciesId) => `/sprites/${spriteFolder(POKEDEX[id])}/${POKEDEX[id]}.png`;
 const images = new Map<SpeciesId, HTMLImageElement>();
 
 const buildingImages = new Map<BuildingId, HTMLImageElement>();
@@ -40,6 +47,19 @@ export function buildingSprite(id: BuildingId): HTMLImageElement | null {
   return image?.complete && image.naturalWidth ? image : null;
 }
 
+/** Draws a Pokémon sprite into the square box at (x, y); fixed-canvas sets fill the box as before, cropped sets keep their aspect. */
+export function drawPokemonSprite(context: CanvasRenderingContext2D, id: SpeciesId, x: number, y: number, box: number): boolean {
+  const image = pokemonSprite(id);
+  if (!image) return false;
+  if (!isTightSprite(POKEDEX[id])) { context.drawImage(image, x, y, box, box); return true; }
+  const scale = box * .77 / Math.max(image.naturalWidth, image.naturalHeight);
+  const width = Math.round(image.naturalWidth * scale), height = Math.round(image.naturalHeight * scale);
+  const smoothing = context.imageSmoothingEnabled;
+  context.imageSmoothingEnabled = true; // anti-aliased art downscales cleanly only with smoothing
+  context.drawImage(image, Math.round(x + (box - width) / 2), Math.round(y + box * .92 - height), width, height);
+  context.imageSmoothingEnabled = smoothing;
+  return true;
+}
 export function pokemonSprite(id: SpeciesId): HTMLImageElement | null {
   const image = images.get(id);
   return image?.complete && image.naturalWidth ? image : null;

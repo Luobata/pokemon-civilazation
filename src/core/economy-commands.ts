@@ -3,7 +3,7 @@ import { visibleTiles } from './vision.ts';
 import { ballPrice, playerPolicyEffects } from './policies.ts';
 import { trainableSpeciesIds } from './role-tactics.ts';
 import { isMapUnit } from './model.ts';
-import { EXPANSION_CONTENT, CONTENT } from '../content/units.ts';
+import { CONTENT, contentFor } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
 import type { TechId } from '../content/economy.ts';
 import { hexDistance, hexToIndex } from './hex.ts';
@@ -16,7 +16,7 @@ export function canResearch(player: PlayerState, techId: TechId, content: Conten
   const tier = content.techs[techId].tier;
   return tier === 1 || player.research.unlockedIds.some(id => content.techs[id].tier === tier - 1);
 }
-export function validateEconomyAction(state: GameState, actor: number, action: EconomyAction, content: Content = state.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT): Rejection | null {
+export function validateEconomyAction(state: GameState, actor: number, action: EconomyAction, content: Content = contentFor(state.setup)): Rejection | null {
   const player = state.players[actor];
   if (action.type === 'FoundCity') {
     const unit = state.units[action.unitId];
@@ -67,13 +67,13 @@ export function validateEconomyAction(state: GameState, actor: number, action: E
         || (def.requiredTech && !player.research.unlockedIds.includes(def.requiredTech))) return 'invalid-production';
       buildings.add(item.defId);
     } else if (item.kind === 'pokemon') {
-      if (!trainableSpeciesIds(player, state.setup.gameplayVersion).includes(item.defId) || !Object.hasOwn(content.units, item.defId)) return 'invalid-production';
+      if (!trainableSpeciesIds(player, state.setup.gameplayVersion, content, state.setup.eraProgression).includes(item.defId) || !Object.hasOwn(content.units, item.defId)) return 'invalid-production';
       if (content.species[item.defId].role === 'fast' && !player.research.unlockedIds.includes('riding')) return 'invalid-production';
     } else if (item.kind !== 'logistics' || item.defId !== 'settler') return 'invalid-production';
   }
   return null;
 }
-export function applyEconomyAction(state: GameState, actor: number, action: EconomyAction, content: Content = state.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT): EconomyEvent[] {
+export function applyEconomyAction(state: GameState, actor: number, action: EconomyAction, content: Content = contentFor(state.setup)): EconomyEvent[] {
   const player = state.players[actor];
   if (action.type === 'FoundCity') {
     const unit = state.units[action.unitId], id = state.nextEntityId++;
