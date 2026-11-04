@@ -10,7 +10,7 @@ import type { RareBerryId } from '../content/rare-berries.ts';
 import { SPECIES_NAMES } from '../content/species.ts';
 import type { TypeId } from '../content/species.ts';
 import { TYPE_NAMES } from '../content/type-names.ts';
-import { EXPANSION_CONTENT, unitDefinition } from '../content/units.ts';
+import { CONTENT, EXPANSION_CONTENT, unitDefinition } from '../content/units.ts';
 import { WORLD_DEFINITIONS } from '../content/world-systems.ts';
 import type { BerryId, StoneId } from '../content/world-systems.ts';
 import { CIVILIZATION_CONTENT } from '../content/civilization-systems.ts';
@@ -36,7 +36,6 @@ export type TileInfo = {
   entities: TileEntity[];
 };
 
-const content = EXPANSION_CONTENT;
 const civName = (view: PlayerView, id: number) => {
   const leader = view.civilizations.find(civ => civ.id === id)?.leaderId;
   return `文明 ${id + 1}${leader ? `（${LEADERS[leader].name}）` : ''}`;
@@ -52,6 +51,7 @@ const typeText = (types: readonly (TypeId | undefined)[]) => types.filter((type)
 const ROLE_NAMES = { ranged: '远程', melee: '近战', scout: '侦察', fast: '快速', siege: '攻城', naval: '水面', air: '飞行' } as const;
 
 export function describeTile(view: PlayerView, index: number): TileInfo {
+  const content = view.expansion ? EXPANSION_CONTENT : CONTENT;
   const biome = view.map.tiles[index] ?? null;
   const visible = view.visibleTileIds.includes(index);
   const hex = indexToHex(index, view.map);

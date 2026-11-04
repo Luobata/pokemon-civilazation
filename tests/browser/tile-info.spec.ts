@@ -75,3 +75,31 @@ test('plain terrain shows yields and the hover tooltip names the tile', async ({
   await page.mouse.move(5, 5);
   await expect(page.locator('#map-tooltip')).toBeHidden();
 });
+
+for (const [fixture, button] of [['attack', '攻击'], ['capture-success', '用精灵球捕捉']] as const) test(`selected unit → click target → ${button} from the tile panel`, async ({ page }) => {
+  const recorded = reachableFixture(fixture), action = recorded.action!;
+  await importSave(page, recorded.save);
+  await page.locator('#fit').click();
+  const unitId = 'unitId' in action ? action.unitId : -1;
+  const targetId = action.type === 'Attack' ? action.target.id : action.type === 'Capture' ? action.targetUnitId : -1;
+  const index = (id: number) => page.evaluate(async id => {
+    const mainPath = '/src/browser/main.ts', hexPath = '/src/core/hex.ts';
+    const { session } = await import(mainPath), { hexToIndex } = await import(hexPath);
+    const view = session.getView();
+    return hexToIndex(view.units.find((unit: { id: number }) => unit.id === id).position, view.map);
+  }, id);
+  await page.locator('#unit-select').selectOption(String(unitId));
+  await page.locator('#fit').click();
+  // Hovering the target with the unit selected already shows the preview in the tooltip.
+  const point = await tilePoint(page, await index(targetId));
+  await page.mouse.move(point.x, point.y);
+  await expect(page.locator('#map-tooltip')).toContainText(action.type === 'Attack' ? '攻击' : '%');
+  await page.mouse.click(point.x, point.y);
+  const preview = page.locator('#tile-info .tile-preview');
+  await expect(preview).toContainText(action.type === 'Attack' ? '伤害' : '成功率');
+  await expect(page.locator('#unit-panel')).not.toBeEmpty();
+  await page.screenshot({ path: `${reports}/tile-preview-${fixture}.png` });
+  const before = await page.evaluate(async () => { const path = '/src/browser/main.ts'; return (await import(path)).developerAdapter.getState().commandSeq; });
+  await preview.getByRole('button', { name: button }).click();
+  await expect.poll(async () => page.evaluate(async () => { const path = '/src/browser/main.ts'; return (await import(path)).developerAdapter.getState().commandSeq; })).toBe(before + 1);
+});

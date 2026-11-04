@@ -702,3 +702,11 @@ button.danger { border-color: var(--danger); background: #9E4B43; color: var(--o
 .tile-terrain dd { margin: 0; color: var(--ink-secondary); }
 .tile-note { margin: 0; padding: 0 14px 10px; color: var(--ink-muted); font-size: 11px; }
 .tile-body .tile-note { padding: 0; }
+.tile-preview { display: grid; gap: 5px; margin-top: 6px; padding: 7px 8px; border: 1px solid #5B4A2A; border-radius: 6px; background: #1E1A12; }
+.tile-preview-head { color: #F4DFA6 !important; font-weight: 650; }
+.tile-preview-row { display: flex; align-items: center; gap: 8px; }
+.tile-preview-row button { flex: none; min-height: 30px; margin: 0; padding: 3px 12px; font-size: 12px; }
+.tile-preview-row span { color: var(--ink-secondary); font-size: 11px; line-height: 1.45; }
+.tile-preview-row.blocked span { color: var(--ink-muted); }
+.tile-preview-label { flex: none; min-width: 56px; padding: 2px 8px; border: 1px dashed var(--border-strong); border-radius: 6px; color: var(--ink-muted) !important; text-align: center; }
+.context-drawer { grid-auto-rows: max-content; }

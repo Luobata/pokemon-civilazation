@@ -47,6 +47,7 @@ import type { DebugOverlay, Track } from './render/index.ts';
 import { battleTrack, captureTrack, evolveTrack, moveTrack, tapTrack } from './render/animation.ts';
 import { describeTile, tileSummary } from './tile-info.ts';
 import { renderTilePanel } from './tile-panel.ts';
+import { previewSummary, targetPreviews } from './target-preview.ts';
 import { fitCamera, hexToWorld, toWorld, worldToHex, zoomAt } from './camera.ts';
 import type { Camera, Point } from './camera.ts';
 
@@ -219,7 +220,8 @@ function controls() {
   const targets = selected === null ? [] : actionTargets(view, selected, actionMode, selectedBall);
   const placementSite = districtPlacement && districtPlacement.tileIndex !== null
     ? previewDistrict(view, districtPlacement.cityId, districtPlacement.kind, districtPlacement.tileIndex) : null;
-  selection.textContent = unit ? `${unitDefinition(unit, CONTENT).name} · 行动点 ${unit.actionLeft} · ${unit.actionLeft ? '点击高亮格直接移动，或右键移动' : '本回合已行动'}`
+  selection.textContent = unit && inspectedTile !== null ? `${unitDefinition(unit, CONTENT).name} → ${tileSummary(describeTile(view, inspectedTile))} · 右侧可直接攻击或捕捉`
+    : unit ? `${unitDefinition(unit, CONTENT).name} · 行动点 ${unit.actionLeft} · ${unit.actionLeft ? '点击高亮格直接移动，或右键移动' : '本回合已行动'}`
     : selectedCity !== null ? `已选城市 ${selectedCity} · 在城市面板建造、训练或采购`
     : inspectedTile !== null ? `查看：${tileSummary(describeTile(view, inspectedTile))}`
     : '点选城市管理生产，点选单位执行行动，点任意地块查看详情；拖动地图平移，滚轮缩放。';
@@ -236,7 +238,8 @@ function controls() {
   renderVictoryPanel(view);
   renderExpansionPanel(view, selected, selectedCity, issue, busy() || ended || pendingPeace);
   document.querySelector<HTMLElement>('#selection-empty')!.hidden = selected !== null || selectedCity !== null || neutralCity !== null || inspectedTile !== null;
-  renderTilePanel(view, inspectedTile, id => selectUnit(id, false));
+  renderTilePanel(view, inspectedTile, { onSelectUnit: id => selectUnit(id, false), selectedUnitId: selected, disabled: busy() || ended || pendingPeace,
+    onAction: action => { resetAction(); issue(action); } });
   renderUnitPanel(view, selected, actionMode, pendingTarget, selectedBall, busy() || ended || pendingPeace, {
     mode: mode => { actionMode = mode; pendingTarget = null; notice = ''; controls(); requestFrame(); },
     confirm: confirmAction,
@@ -520,8 +523,12 @@ function activateIndex(index: number | null, confirmSelection = false) {
   tapFeedback(index);
   const hex = indexToHex(index, view.map);
   const city = view.cities.find(city => hexToIndex(city.position, view.map) === index);
+  // With one of your units selected, clicking a foreign/wild unit or a city keeps the unit, so the
+  // inspector can show what it could do to the target (Civilization-style combat preview).
+  const keepUnit = selected !== null && (view.units.some(unit => unit.ownerId !== view.playerId && hexToIndex(unit.position, view.map) === index)
+    || (city !== undefined && city.ownerId !== view.playerId));
   if (city?.ownerId === null) {
-    neutralCity = city; selected = null; selectedCity = null; inspectedTile = index; resetAction(); notice = '';
+    neutralCity = city; selected = keepUnit ? selected : null; selectedCity = null; inspectedTile = index; resetAction(); notice = '';
     controls(); requestFrame(); return;
   }
   neutralCity = null;
@@ -532,7 +539,8 @@ function activateIndex(index: number | null, confirmSelection = false) {
   if (!construction && selected !== null && reachablePaths(view, selected)[index]) { inspectedTile = null; issue({ type: 'Move', unitId: selected, to: hex }); }
   else {
     // Anything else (terrain, a foreign unit or city, a resource) opens the tile inspector.
-    selected = null; selectedCity = null; resetAction(); inspectedTile = index; notice = construction ?? '';
+    if (!keepUnit) selected = null;
+    selectedCity = null; resetAction(); inspectedTile = index; notice = construction ?? '';
   }
   controls(); requestFrame();
 }
@@ -553,14 +561,18 @@ canvas.addEventListener('pointerdown', event => {
 });
 // Hover tooltip (mouse only): one line naming what is under the pointer.
 const tooltip = document.querySelector<HTMLElement>('#map-tooltip')!;
-let tooltipIndex: number | null = null;
-function hideTooltip() { tooltip.hidden = true; tooltipIndex = null; }
+let tooltipKey: string | null = null;
+function hideTooltip() { tooltip.hidden = true; tooltipKey = null; }
 function updateTooltip(event: PointerEvent) {
   if (event.pointerType !== 'mouse' || drag?.moved || !session) { hideTooltip(); return; }
   const point = localPoint(event), view = session.getView();
   const index = hexToIndex(worldToHex(toWorld(point, camera)), view.map);
   if (index === null) { hideTooltip(); return; }
-  if (index !== tooltipIndex) { tooltip.textContent = tileSummary(describeTile(view, index)); tooltipIndex = index; }
+  if (`${index}:${selected}` !== tooltipKey) {
+    const preview = previewSummary(targetPreviews(view, selected, index));
+    tooltip.textContent = tileSummary(describeTile(view, index)) + (preview ? ` · ${preview}` : '');
+    tooltipKey = `${index}:${selected}`;
+  }
   tooltip.hidden = false;
   const x = Math.min(point.x + 16, canvas.clientWidth - tooltip.offsetWidth - 8), y = point.y + 18 + tooltip.offsetHeight > canvas.clientHeight ? point.y - tooltip.offsetHeight - 10 : point.y + 18;
   tooltip.style.transform = `translate(${Math.max(8, x)}px, ${Math.max(8, y)}px)`;
@@ -583,7 +595,7 @@ canvas.addEventListener('pointermove', event => {
 });
 canvas.addEventListener('pointercancel', () => { drag = null; });
 canvas.addEventListener('pointerup', event => {
-  const click = drag && !drag.moved; drag = null; tooltipIndex = null;
+  const click = drag && !drag.moved; drag = null; tooltipKey = null;
   if (!click || busy()) return;
   const hex = worldToHex(toWorld(localPoint(event), camera));
   activateIndex(hexToIndex(hex, session.getView().map));
