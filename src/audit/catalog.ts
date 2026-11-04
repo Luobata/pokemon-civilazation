@@ -17,6 +17,16 @@ const system = (definition: AuditSystem): AuditSystem => definition;
 
 export const AUDIT_SYSTEMS: readonly AuditSystem[] = [
   system({
+    id: 's-combat-strength', name: '战斗力（文明 6 式战斗）', status: 'implemented',
+    summary: 'gameplay v20：攻/防换算成战斗力（×0.4 + 15），所有宝可梦 100 HP；每个加成是带名字的战斗力加减，伤害 = 15 × e^(差/25) × 掷骰，反击减半。读取 v≤19 存档时仍用乘法公式。',
+    rules: ['属性：每个效果拔群 +10（研究后 +12），效果不好 −10，无效 0 伤害；掩护 +5、居高临下 +5。',
+      '其余已有倍率按 25 × ln(倍率) 换算成最接近的整数战斗力（×1.2 → +5），查固定整数表，浏览器与 Node 一致。',
+      '攻击预览返回完整对比明细，与权威结算共用同一份因素列表。'],
+    checks: ['v19 固定 48 局改动前后逐文件一致；v20 两次运行逐字节一致。', '预览与结算一致、属性步数、换算表、100 HP，有单元测试。'],
+    sources: ['src/core/strength.ts', 'src/browser/strength-panel.ts', 'tests/core/strength.test.ts', 'docs/design/combat-strength-v20.md'],
+    actionTypes: ['Attack'],
+  }),
+  system({
     id: 's-unit-classes', name: '兵种与属性契合', status: 'implemented',
     summary: 'gameplay v19：兵种相克 ×1.2、攻城打宝可梦 ×0.8、属性契合 +15%；秘传学习器解锁水面/攻城/快速/飞行训练；最终形态训练需要金银时代与对应属性徽章；神奇糖果。读取 v≤18 存档时不启用。',
     rules: ['兵种倍率与契合乘在已有伤害链上（中性时不改变数值），预览与结算共用。',

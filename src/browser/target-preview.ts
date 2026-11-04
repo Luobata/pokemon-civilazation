@@ -1,5 +1,6 @@
 // What the selected unit could do to the things on one tile: attack damage, counter-attack,
 // capture chance, or why not. Reuses previewAttack/previewCapture (player knowledge only). Pure.
+import { strengthTotals } from './strength-panel.ts';
 import { classModifierLabels } from '../core/unit-classes.ts';
 import { unitDefinition, contentForView } from '../content/units.ts';
 import type { BallId } from '../content/economy.ts';
@@ -28,7 +29,8 @@ export function targetPreviews(view: PlayerView, unitId: number | null, index: n
       const knockdown = preview.knockdown === 'guaranteed' ? (kind === 'city' ? ' · 必定攻下' : ' · 必定击倒') : preview.knockdown === 'possible' ? (kind === 'city' ? ' · 可能攻下' : ' · 可能击倒') : '';
       const counter = preview.counter.trigger === 'never' ? '无反击' : `${preview.counter.trigger === 'possible' ? '可能' : ''}反击 −${preview.counter.damage}（你的 HP ${unit.hp}）`;
       const defender = kind === 'unit' ? view.units.find(item => item.id === id) ?? null : null;
-      const modifiers = classModifierLabels(view, unit, defender, content).map(label => ` · ${label}`).join('');
+      const totals = preview.strength ? strengthTotals(preview.strength) : null;
+      const modifiers = totals ? ` · 战斗力 ${totals.attack} 对 ${totals.defense}` : classModifierLabels(view, unit, defender, content).map(label => ` · ${label}`).join('');
       return { label: '攻击', ok: true, text: `伤害 ${preview.damage.min}–${preview.damage.max}（对方 HP ${hp}）${knockdown} · ${counter}${modifiers}`, action: { type: 'Attack', unitId: unit.id, target: { kind, id } }, short: `攻击 ${preview.damage.min}–${preview.damage.max}` };
     }
     const distance = hexDistance(unit.position, position);

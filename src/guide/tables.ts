@@ -1,3 +1,4 @@
+import { STRENGTH_RULES, strengthFromPermille } from '../core/strength.ts';
 import { CLASS_COUNTERS, CLASS_HMS, CLASS_IDS, CLASS_NAMES, CLASS_NATIVE_TYPES, CLASS_RULES } from '../content/unit-classes.ts';
 import { hasAffinity } from '../core/unit-classes.ts';
 import { BUILDER_RULES, ROLE_IDS, ROLE_POKEMON } from '../content/roles.ts';
@@ -84,7 +85,7 @@ export function biomeTable(): string {
   const weight = (biome: BiomeId) => BIOME_WEIGHTS.find(item => item.id === biome)?.weight;
   const essence = (biome: BiomeId) => ESSENCE_IDS.find(id => ESSENCES[id].biome === biome);
   const berry = (biome: BiomeId) => RARE_BERRY_IDS.find(id => RARE_BERRIES[id].biome === biome);
-  const combat = (biome: BiomeId) => biome === 'forest' || biome === 'mountain' ? '防守方受伤 ×0.8' + (biome === 'mountain' ? '；从山地出手 ×1.2' : '') : '—';
+  const combat = (biome: BiomeId) => biome === 'forest' || biome === 'mountain' ? '防守方战斗力 +5' + (biome === 'mountain' ? '；从山地出手 +5' : '') : '—';
   return table(['群系', '出现权重', '基础产出', '移动消耗', '战斗地形', '属性精华', '稀有树果', '可建改良', '野生宝可梦（权重）'],
     BIOME_ORDER.map(biome => {
       const essenceId = essence(biome), berryId = berry(biome);
@@ -228,9 +229,27 @@ export function legendWonderTable(): string {
 export const networkRules = CITY_NETWORK_RULES;
 export const builderCharges = BUILDER_RULES.charges;
 export const classRules = CLASS_RULES;
+/** v20: the flat strength bonuses a player meets most, computed from the same conversion the rules use. */
+export function strengthTable(): string {
+  const row = (label: string, value: string, note: string) => [label, value, note];
+  const s = (permille: number) => { const v = strengthFromPermille(permille); return `${v >= 0 ? '+' : '−'}${Math.abs(v)}`; };
+  return table(['加成', '战斗力', '说明'], [
+    row('属性克制（每个“效果拔群”）', `+${STRENGTH_RULES.typeStep}`, `研究属性研究后 +${STRENGTH_RULES.researchedTypeStep}；双属性两个都克则叠加`),
+    row('效果不好（每个）', `−${STRENGTH_RULES.typeStep}`, '属性无效时不造成伤害'),
+    row('森林 / 山地掩护', `防守方 +${STRENGTH_RULES.cover}`, '防守方站在森林或山地'),
+    row('居高临下', `+${STRENGTH_RULES.highGround}`, '从山地出手，且对方不在掩护地形'),
+    row('兵种克制', s(CLASS_RULES.counter), '见「兵种与属性契合」'),
+    row('攻城打宝可梦', s(CLASS_RULES.siegeVsUnits), '攻城宝可梦只擅长破城'),
+    row('属性契合', s(CLASS_RULES.affinity), '属性和兵种对路'),
+    row('夹击（1 / 2 / 3 只友军相邻）', `${s(1100)} / ${s(1200)} / ${s(1300)}`, '只对主动攻击宝可梦'),
+    row('主场防守', `防守方 ${s(900).replace('−', '+')}`, '站在本属性精华群系'),
+    row('激怒', s(1200), '捕捉失败后被激怒的野生宝可梦'),
+    row('领袖专属单位', `+${STRENGTH_RULES.uniqueLeader}`, '攻防都算'),
+  ]);
+}
 /** v19: one row per class: what it counters, what counters it, native types, the HM it needs, and its Pokémon by generation. */
 export function unitClassTable(): string {
-  return table(['兵种', '克制（×1.2）', '怕', '契合属性（+15%）', '训练需要', '这类宝可梦（★ = 属性契合）'], CLASS_IDS.map(role => {
+  return table(['兵种', '克制（战斗力 +5）', '怕', '契合属性（战斗力 +3）', '训练需要', '这类宝可梦（★ = 属性契合）'], CLASS_IDS.map(role => {
     const beatenBy = CLASS_IDS.filter(other => CLASS_COUNTERS[other].beats.includes(role));
     const hm = CLASS_HMS[role];
     const members = (Object.keys(content.species) as SpeciesId[]).filter(id => content.species[id].role === role)

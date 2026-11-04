@@ -858,5 +858,16 @@ b.age-golden { color: #F2C14E !important; } b.age-dark { color: #B9A6E8 !importa
 .trade-destinations li { display: grid; gap: 2px; }
 .trade-destinations small { color: #A9B9B3; font-size: 11px; }
 
+
+/* v20 combat strength breakdown */
+.strength-breakdown { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; margin-top: 6px; font-size: 12px; }
+.strength-side p { display: flex; justify-content: space-between; margin: 0; }
+.strength-side ul { list-style: none; margin: 2px 0; padding: 0; color: #A9B9B3; }
+.strength-side li { display: flex; justify-content: space-between; gap: 6px; }
+.strength-side li span { color: #F6E3A6; }
+.strength-total { font-weight: 700; color: #FFF8E5; border-top: 1px solid #2E4743; padding-top: 2px; }
+.strength-gap { grid-column: 1 / -1; margin: 0; color: #F2C14E; }
+.strength-note { margin: 4px 0 0; color: #A9B9B3; font-size: 12px; }
+
 /* Gens 6–9 sprites are tightly cropped, non-square, anti-aliased art: keep the aspect ratio and Emerald-like padding. */
 img[src*="/sprites/gen6/"], img[src*="/sprites/gen7/"], img[src*="/sprites/gen8/"], img[src*="/sprites/gen9/"] { object-fit: contain; padding: 12%; box-sizing: border-box; image-rendering: auto; }

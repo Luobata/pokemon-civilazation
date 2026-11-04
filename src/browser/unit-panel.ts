@@ -1,3 +1,4 @@
+import { strengthMarkup } from './strength-panel.ts';
 import { candyGold } from '../core/unit-classes.ts';
 import { evolutionGold } from '../core/leader-systems.ts';
 import { classModifierLabels, hasAffinity, usesUnitClasses } from '../core/unit-classes.ts';
@@ -61,7 +62,7 @@ function actionPointLabel(view: PlayerView, unit: MapUnit, content: Content): st
 function classNoteMarkup(view: PlayerView, unit: MapUnit, content: Content): string {
   if (!usesUnitClasses(view) || unit.kind !== 'pokemon') return '';
   const role = content.species[unit.speciesId].role, beatenBy = CLASS_IDS.filter(other => CLASS_COUNTERS[other].beats.includes(role));
-  return `<p class="unit-note" id="class-note">兵种「${CLASS_NAMES[role]}」：${CLASS_COUNTERS[role].beats.length ? `克制${CLASS_COUNTERS[role].beats.map(other => CLASS_NAMES[other]).join('、')}（×1.2）` : CLASS_COUNTERS[role].note}${beatenBy.length ? `；怕${beatenBy.map(other => CLASS_NAMES[other]).join('、')}` : ''}${hasAffinity(unit, content) ? '；<b>属性契合</b>，伤害 +15%' : `；契合属性：${CLASS_NATIVE_TYPES[role].map(type => TYPE_NAMES[type]).join('、')}`}</p>`;
+  return `<p class="unit-note" id="class-note">兵种「${CLASS_NAMES[role]}」：${CLASS_COUNTERS[role].beats.length ? `克制${CLASS_COUNTERS[role].beats.map(other => CLASS_NAMES[other]).join('、')}（${content.combat === 'strength' ? '战斗力 +5' : '×1.2'}）` : CLASS_COUNTERS[role].note}${beatenBy.length ? `；怕${beatenBy.map(other => CLASS_NAMES[other]).join('、')}` : ''}${hasAffinity(unit, content) ? (content.combat === 'strength' ? '；<b>属性契合</b>，战斗力 +3' : '；<b>属性契合</b>，伤害 +15%') : `；契合属性：${CLASS_NATIVE_TYPES[role].map(type => TYPE_NAMES[type]).join('、')}`}</p>`;
 }
 export function renderUnitPanel(view: PlayerView, selected: number | null, mode: ActionMode,
   target: PendingTarget | null, ballId: BallId, busy: boolean, callbacks: Callbacks): void {
@@ -146,7 +147,7 @@ export function renderUnitPanel(view: PlayerView, selected: number | null, mode:
   const reasonText = (reason: string) => ({ 'at-peace': '未处于战争状态', 'out-of-range': '超出射程', 'attack-unavailable': '当前不可攻击', 'capture-unavailable': '当前不可捕捉' })[reason] ?? reason;
   const attackText = attackPreview
     ? attackPreview.ok
-      ? `预计伤害 ${attackPreview.damage.min}–${attackPreview.damage.max}；${attackPreview.counter.trigger === 'never' ? '无反击' : `${attackPreview.counter.trigger === 'always' ? '预计反击' : '可能反击'} ${attackPreview.counter.damage}`}；击坠：${attackPreview.knockdown === 'guaranteed' ? '必定' : attackPreview.knockdown === 'possible' ? '可能' : '无'}${classModifierLabels(view, unit, targetUnit ?? null, CONTENT).map(label => `；${label}`).join('')}`
+      ? `预计伤害 ${attackPreview.damage.min}–${attackPreview.damage.max}；${attackPreview.counter.trigger === 'never' ? '无反击' : `${attackPreview.counter.trigger === 'always' ? '预计反击' : '可能反击'} ${attackPreview.counter.damage}`}；击坠：${attackPreview.knockdown === 'guaranteed' ? '必定' : attackPreview.knockdown === 'possible' ? '可能' : '无'}${attackPreview.strength ? '' : classModifierLabels(view, unit, targetUnit ?? null, CONTENT).map(label => `；${label}`).join('')}`
       : `不可攻击：${reasonText(attackPreview.reason)}`
     : '选择红色虚线目标查看伤害、反击与击坠。';
   const captureText = capturePreview
@@ -154,7 +155,7 @@ export function renderUnitPanel(view: PlayerView, selected: number | null, mode:
       : `不可捕捉：${reasonText(capturePreview.reason)}`
     : '选择野生宝可梦查看成功率。';
   const preview = mode === 'attack'
-    ? `<div class="combat-preview"><p class="eyebrow">战斗结算预览</p><strong>${targetLabel ?? '未选择目标'}</strong><p id="battle-preview">${attackText}</p></div>`
+    ? `<div class="combat-preview"><p class="eyebrow">战斗结算预览</p><strong>${targetLabel ?? '未选择目标'}</strong><p id="battle-preview">${attackText}</p>${attackPreview?.ok && attackPreview.strength ? strengthMarkup(attackPreview.strength, definition.name, targetLabel ?? '目标') : ''}</div>`
     : mode === 'capture'
       ? `<div class="combat-preview"><p class="eyebrow">捕捉预览</p><strong>${targetLabel ?? '未选择目标'}</strong><p id="capture-preview">${captureText}</p></div>`
       : '';
@@ -186,12 +187,12 @@ export function renderUnitPanel(view: PlayerView, selected: number | null, mode:
     ${!eraButtons.length && !teraOptions.length && !status.tera ? `<p class="unit-note">${era.unlocked.length ? '本单位暂无可用时代能力。' : '进入金银时代后解锁昼夜，宝石时代解锁天气；完整世代模式还有 Mega、Z 招式、极巨化与太晶化。'}</p>` : ''}</section>` : '';
   root.innerHTML = `<div class="unit-card"><div class="unit-head"><div class="unit-portrait"><img src="${pokemonSpritePath(unit.speciesId)}" alt="${definition.name}" width="64" height="64"></div><div><strong>${definition.name}</strong><small>宝可梦 · 文明 ${view.playerId + 1}${unit.enraged ? ' · 激怒' : ''}</small></div><span class="unit-ap ${unit.actionLeft ? '' : 'spent'}">${actionPointLabel(view, unit, CONTENT)}</span></div>
     <div class="unit-vitals"><span>HP <strong>${unit.hp}/${species.maxHp}</strong><span class="vital-bar" aria-hidden="true"><span style="width:${Math.max(0, Math.min(100, unit.hp * 100 / species.maxHp))}%"></span></span></span><span>EXP <strong>${unit.xp}${evolution ? `/${evolution.xp}` : ''}</strong>${evolution ? `<span class="vital-bar xp" aria-hidden="true"><span style="width:${Math.max(0, Math.min(100, unit.xp * 100 / evolution.xp))}%"></span></span>` : ''}</span></div>
-    <div class="unit-details"><div class="unit-detail"><small>攻</small><strong>${species.attack}</strong></div><div class="unit-detail"><small>防</small><strong>${species.defense}</strong></div><div class="unit-detail"><small>程</small><strong>${species.range}</strong></div><div class="unit-detail"><small>移</small><strong>${species.move + doctrineEffects(player, view.eraProgression, unit, CONTENT).movementBonus + promotionMovement(view, unit.id)}</strong></div><div class="unit-detail"><small>视</small><strong>${species.vision}</strong></div><div class="unit-detail"><small>P</small><strong>${species.power}</strong></div></div>
+    <div class="unit-details"><div class="unit-detail"><small>${CONTENT.combat === 'strength' ? '攻击战斗力' : '攻'}</small><strong>${species.attack}</strong></div><div class="unit-detail"><small>${CONTENT.combat === 'strength' ? '防御战斗力' : '防'}</small><strong>${species.defense}</strong></div><div class="unit-detail"><small>程</small><strong>${species.range}</strong></div><div class="unit-detail"><small>移</small><strong>${species.move + doctrineEffects(player, view.eraProgression, unit, CONTENT).movementBonus + promotionMovement(view, unit.id)}</strong></div><div class="unit-detail"><small>视</small><strong>${species.vision}</strong></div>${CONTENT.combat === 'strength' ? '' : `<div class="unit-detail"><small>P</small><strong>${species.power}</strong></div>`}</div>
     ${classNoteMarkup(view, unit, CONTENT)}
     ${view.gameplayVersion ? `<p class="unit-note" id="assault-role">兵种：${ROLE_CITY_ASSAULT[species.role].label} · ${ROLE_CITY_ASSAULT[species.role].note}${doctrineEffects(player, view.eraProgression, unit, CONTENT).cityDamageBonus ? `；领袖战术再 +${doctrineEffects(player, view.eraProgression, unit, CONTENT).cityDamageBonus / 10}%` : ''}</p>` : ''}
     <div class="unit-actions"><button id="move-unit" class="${mode === 'move' ? 'selected' : ''}" ${busy || !unit.actionLeft ? 'disabled' : ''}>${mode === 'move' ? '取消移动' : '移动'}</button><button id="attack-unit" class="${mode === 'attack' ? 'selected' : ''}" ${busy || !unit.actionLeft ? 'disabled' : ''}>攻击</button><button id="capture-unit" class="${mode === 'capture' ? 'selected' : ''}" ${busy || !unit.actionLeft || !canCapture ? 'disabled' : ''}>捕捉</button><button id="evolve-unit" ${busy || !unit.actionLeft || !canEvolve ? 'disabled' : ''}>${evolution ? `${unit.xp < evolution.xp && candyPrice(evolution) !== null ? `神奇糖果 · ${candyPrice(evolution)} 金 → ` : '进化→'}${CONTENT.species[evolution.speciesId].name}` : '不可进化'}</button></div>
-    ${view.expansion?.essences ? `<p class="unit-note" id="essence-note">属性精华：${identityEssences(unit, CONTENT).map(id => ESSENCES[id].name).join('、')} · 在${identityEssences(unit, CONTENT).map(id => BIOME_LABEL[ESSENCES[id].biome]).join('、')}防守时受伤 −10%</p>` : ''}
-    ${usesTactics(view) ? `<p class="unit-note" id="zoc-note">${exertsZoc(unit, CONTENT) ? '控制区：相邻敌军移动到此即停下。' : ''}${ignoresZoc(unit, CONTENT) ? '可无视敌方控制区。' : '进入敌方近战/快速单位相邻格会停下。'}夹击：每只相邻目标的友军 +10% 伤害（最多 +30%）。</p>` : ''}
+    ${view.expansion?.essences ? `<p class="unit-note" id="essence-note">属性精华：${identityEssences(unit, CONTENT).map(id => ESSENCES[id].name).join('、')} · 在${identityEssences(unit, CONTENT).map(id => BIOME_LABEL[ESSENCES[id].biome]).join('、')}防守时${CONTENT.combat === 'strength' ? '战斗力 +3' : '受伤 −10%'}</p>` : ''}
+    ${usesTactics(view) ? `<p class="unit-note" id="zoc-note">${exertsZoc(unit, CONTENT) ? '控制区：相邻敌军移动到此即停下。' : ''}${ignoresZoc(unit, CONTENT) ? '可无视敌方控制区。' : '进入敌方近战/快速单位相邻格会停下。'}${CONTENT.combat === 'strength' ? '夹击：相邻目标的友军 1 / 2 / 3 只，战斗力 +2 / +5 / +7。' : '夹击：每只相邻目标的友军 +10% 伤害（最多 +30%）。'}</p>` : ''}
     ${promotionMarkup(view, unit.id, busy)}
     ${eraMarkup}
     ${improvementMarkup}

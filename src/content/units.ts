@@ -26,6 +26,8 @@ export type Content = {
   units: Record<string, UnitDefinition>;
   species: Record<string, SpeciesDefinition>;
   moveCosts: Record<BiomeId, number>;
+  /** Gameplay v20: Civilization 6-style combat strength (attack/defense are strengths, every unit has 100 HP). */
+  combat?: 'strength';
   /** Gameplay v14 only: species-keyed tables that older contents read from their global constants. */
   roster?: RosterTables;
 };
@@ -114,16 +116,21 @@ export const ROSTER_CONTENT: Content = {
     nestPriority: NEST_PRIORITY_V14 as SpeciesId[], nestWeights: NEST_WEIGHTS_V14 as RosterTables['nestWeights'], pokedexTargetBonus: 5,
   },
 };
+/** Gameplay v20: the roster with attack / defense turned into combat strength (×0.4 + 15) and 100 HP for every Pokémon. */
+const battleSpecies = Object.fromEntries(Object.entries(ROSTER_CONTENT.species).map(([id, species]) => [id,
+  { ...species, attack: Math.max(1, Math.round(species.attack * 0.4) + 15), defense: Math.max(1, Math.round(species.defense * 0.4) + 15), maxHp: 100 }])) as Record<SpeciesId, SpeciesDefinition>;
+export const BATTLE_CONTENT: Content = { ...ROSTER_CONTENT, version: 'battle-v20', combat: 'strength', species: battleSpecies,
+  units: { ...ROSTER_CONTENT.units, ...battleSpecies } };
 type ContentSetup = { expansionVersion?: 1; gameplayVersion?: number };
 /** The single place that maps a game setup to its content table; logs and saves record `content.version`. */
 export function contentFor(setup: ContentSetup): Content {
-  return setup.expansionVersion !== 1 ? CONTENT : (setup.gameplayVersion ?? 0) >= 14 ? ROSTER_CONTENT : EXPANSION_CONTENT;
+  return setup.expansionVersion !== 1 ? CONTENT : (setup.gameplayVersion ?? 0) >= 20 ? BATTLE_CONTENT : (setup.gameplayVersion ?? 0) >= 14 ? ROSTER_CONTENT : EXPANSION_CONTENT;
 }
 /** Same choice from a player's view (views carry `expansion` and `gameplayVersion` but not the setup). */
 export function contentForView(view: { expansion?: unknown; gameplayVersion?: number }): Content {
   return view.expansion ? contentFor({ expansionVersion: 1, gameplayVersion: view.gameplayVersion }) : CONTENT;
 }
-export const STOCK_CONTENTS: readonly Content[] = [CONTENT, EXPANSION_CONTENT, ROSTER_CONTENT];
+export const STOCK_CONTENTS: readonly Content[] = [CONTENT, EXPANSION_CONTENT, ROSTER_CONTENT, BATTLE_CONTENT];
 export function unitDefinition(unit: UnitIdentity, content: Content = CONTENT): UnitDefinition {
   const base = content.units[unit.kind === 'pokemon' ? unit.speciesId : unit.role];
   return unit.kind === 'pokemon' && unit.uniqueLeader ? { ...base, name: `${base.name}·${unit.uniqueLeader}`, vision: base.vision + 1 } : base;

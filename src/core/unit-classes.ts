@@ -24,6 +24,15 @@ export function classStrikeMultiplier(source: Versioned, attacker: UnitIdentity,
   const counter = CLASS_COUNTERS[a.role].beats.includes(d.role) ? CLASS_RULES.counter : a.role === 'siege' ? CLASS_RULES.siegeVsUnits : 1000;
   return counter * (hasAffinity(attacker, content) ? CLASS_RULES.affinity : 1000) / 1000;
 }
+/** The two parts of `classStrikeMultiplier`, for labelled combat-strength bonuses (v20). */
+export function classCounterPermille(source: Versioned, attacker: UnitIdentity, defender: UnitIdentity, content: Content): number {
+  if (!usesUnitClasses(source)) return 1000;
+  const a = speciesOf(attacker, content), d = speciesOf(defender, content);
+  if (!a || !d) return 1000;
+  return CLASS_COUNTERS[a.role].beats.includes(d.role) ? CLASS_RULES.counter : a.role === 'siege' ? CLASS_RULES.siegeVsUnits : 1000;
+}
+export const affinityPermille = (source: Versioned, attacker: UnitIdentity, content: Content) =>
+  usesUnitClasses(source) && hasAffinity(attacker, content) ? CLASS_RULES.affinity : 1000;
 /** Permille factor on a Pokémon's city attack (affinity only). */
 export const classCityMultiplier = (source: Versioned, attacker: UnitIdentity, content: Content) =>
   usesUnitClasses(source) && hasAffinity(attacker, content) ? CLASS_RULES.affinity : 1000;

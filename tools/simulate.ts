@@ -74,7 +74,7 @@ export function parseSimulationArgs(args: string[]): { seeds: number; gameplayVe
   for (let index = 0; index < args.length; index++) {
     if (args[index] !== '--gameplay') { remaining.push(args[index]); continue; }
     const value = Number(args[++index]);
-    if (gameplayVersion !== undefined || !isGameplayVersion(value)) throw new Error('Expected --gameplay 1..19');
+    if (gameplayVersion !== undefined || !isGameplayVersion(value)) throw new Error('Expected --gameplay 1..20');
     gameplayVersion = value;
   }
   return { seeds: parseSeedCount(remaining), ...(gameplayVersion ? { gameplayVersion } : {}) };
