@@ -1,3 +1,4 @@
+import { cityNetworkYield } from './city-network.ts';
 import { legendCityYield } from './legends.ts';
 import { legendCost } from '../content/legend-wonders.ts';
 import { DISTRICTS } from '../content/districts.ts';
@@ -109,7 +110,8 @@ export function cityYield(state: GameState, city: CityState, content: Content = 
   const faithYield = faithCityYield(state, city);
   result.food += policy.cityFood + rareBerryCityFood(state, city.ownerId) + faithYield.food;
   result.production += faithYield.production; result.gold += faithYield.gold; result.research += faithYield.research; result.production += policy.cityProduction;
-  if (state.expansion?.legends) for (const [key, value] of Object.entries(legendCityYield(state, city.id)) as [keyof Yield, number][]) result[key] += value; result.gold += policy.cityGold; result.research += policy.cityResearch;
+  if (state.expansion?.legends) for (const [key, value] of Object.entries(legendCityYield(state, city.id)) as [keyof Yield, number][]) result[key] += value;
+  if (state.expansion?.cityNetwork) for (const [key, value] of Object.entries(cityNetworkYield(state, city)) as [keyof Yield, number][]) result[key] += value; result.gold += policy.cityGold; result.research += policy.cityResearch;
   const leader = leaderEffects(player.leaderId);
   result.research += leader.cityResearch + (city.buildingIds.includes('observatory') ? leader.laboratoryResearch : 0);
   result.gold += city.population >= 3 ? leader.cityGold : 0;

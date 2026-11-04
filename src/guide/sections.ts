@@ -179,6 +179,20 @@ export const SECTIONS: readonly GuideSection[] = [
     ${T.legendWonderTable()}
     ${tip('踪迹类传说要求城市范围内有对应地形（例如急冻鸟要雪原）。抢奇观时，先看对手是否也拿到了线索——奇观页面会显示已被谁建成。')}` },
 
+  { id: 'city-network', group: '文明发展', title: '城市规划与城市网络', badge: 'v17 新增', html: `
+    <p>城市之间不再各自为战。v17 加入三层联系：</p>
+    <ul>
+      <li><strong>设施区相邻</strong>：每个设施区旁边每有一个设施区（任何人的），主产出 +1（道馆区为出场经验 +10），最多 +${T.networkRules.districtAdjacencyCap}；部分组合还有额外加成（见下表）。规划时把设施区挨着放。</li>
+      <li><strong>区域辐射</strong>：发电厂、花园会给 ${T.networkRules.regionRadius} 格内的其他己方城市各 +1 生产 / 食物（每城最多 +${T.networkRules.regionalCap}）；宝可梦中心让 ${T.networkRules.regionRadius} 格内的己方宝可梦每轮多恢复 ${T.networkRules.centreHealing} HP。城市间距因此有讲究。</li>
+      <li><strong>属性城市</strong>：建了属性道馆的城市就是该属性的城市。${T.networkRules.regionRadius} 格内同属性的己方城市互相 +1（最多 +${T.networkRules.allianceCap}）；互补属性的城市相邻还有组合加成。</li>
+      <li><strong>商路</strong>：有友好商店的城市可以训练<strong>商队</strong>（选一只随行宝可梦驮货）。商队走到另一座己方城市旁边即可开通商路：目的城 食物 +2、生产 +1，出发城 金币 +3，一直有效；商路条数最多等于城市数，城市易主就中断。商队在路上会被攻击。</li>
+      <li><strong>开拓队随行</strong>：训练开拓队时选一只已登记的宝可梦随行，它的属性决定新城的开局特长（见下表）。</li>
+    </ul>
+    ${T.districtComboTable()}
+    ${T.complementTable()}
+    ${T.escortTable()}
+    ${tip('早期把研究所区和发电厂挨着建，再在旁边的城市建花园；第一座友好商店建好后，马上派商队把首都和第二座城连起来。')}` },
+
   { id: 'districts', group: '文明发展', title: '设施区', badge: 'v10 新增', html: `
     <p>设施区是在城市周边单独占用一格的专业化区域，在城市生产队列里下单建造。</p>
     <ul>

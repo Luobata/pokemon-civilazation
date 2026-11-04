@@ -1,3 +1,4 @@
+import { networkHealing } from './city-network.ts';
 import { faithHealing } from './faith-legends.ts';
 import { playerPolicyEffects } from './policies.ts';
 import { promotionHealing } from './promotions.ts';
@@ -41,7 +42,7 @@ export function resolveRecovery(state: GameState, content: Content = contentFor(
       ? (player.research.unlockedIds.includes('medicine') ? 10 : 5)
         + (unit.kind === 'pokemon' ? leaderEffects(player.leaderId).territoryHealing : 0) + doctrine.territoryHealingBonus
       : doctrine.fieldHealing;
-    unit.hp = Math.min(maxUnitHp(unit, content), unit.hp + heal + (unit.kind === 'pokemon' ? playerPolicyEffects(state, unit.ownerId).healing + faithHealing(state, unit, content) + promotionHealing(state, unit.id) : 0));
+    unit.hp = Math.min(maxUnitHp(unit, content), unit.hp + heal + (unit.kind === 'pokemon' ? playerPolicyEffects(state, unit.ownerId).healing + faithHealing(state, unit, content) + promotionHealing(state, unit.id) + networkHealing(state, unit) : 0));
   }
   return events;
 }

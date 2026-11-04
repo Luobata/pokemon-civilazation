@@ -1,3 +1,5 @@
+import { applyEscortBonus } from './city-network.ts';
+import { CITY_NETWORK_RULES } from '../content/city-network.ts';
 import { legendWonderBlocker } from './legends.ts';
 import { districtBlocker, districtInput, releaseDistrictWorkers } from './districts.ts';
 import { visibleTiles } from './vision.ts';
@@ -21,7 +23,7 @@ export function validateEconomyAction(state: GameState, actor: number, action: E
   const player = state.players[actor];
   if (action.type === 'FoundCity') {
     const unit = state.units[action.unitId];
-    if (!unit || unit.ownerId !== actor || unit.kind !== 'logistics' || !isMapUnit(unit)) return 'unit-unavailable';
+    if (!unit || unit.ownerId !== actor || unit.kind !== 'logistics' || unit.role !== 'settler' || !isMapUnit(unit)) return 'unit-unavailable';
     if (!unit.actionLeft) return 'no-action';
     if (state.map.tiles[hexToIndex(unit.position, state.map)!] === 'ocean'
       || Object.values(state.cities).some(city => hexDistance(city.position, unit.position) < 4)) return 'invalid-city-site';
@@ -73,7 +75,10 @@ export function validateEconomyAction(state: GameState, actor: number, action: E
     } else if (item.kind === 'pokemon') {
       if (!trainableSpeciesIds(player, state.setup.gameplayVersion, content, state.setup.eraProgression).includes(item.defId) || !Object.hasOwn(content.units, item.defId)) return 'invalid-production';
       if (content.species[item.defId].role === 'fast' && !player.research.unlockedIds.includes('riding')) return 'invalid-production';
-    } else if (item.kind !== 'logistics' || item.defId !== 'settler') return 'invalid-production';
+    } else if (item.kind !== 'logistics' || (item.defId !== 'settler' && item.defId !== 'trader')) return 'invalid-production';
+    else if (!state.expansion?.cityNetwork ? item.defId !== 'settler' || item.escortId !== undefined
+      : (item.escortId !== undefined && !player.registeredSpeciesIds.includes(item.escortId))
+        || (item.defId === 'trader' && !city.buildingIds.includes(CITY_NETWORK_RULES.trader.building))) return 'invalid-production';
   }
   return null;
 }
@@ -85,7 +90,8 @@ export function applyEconomyAction(state: GameState, actor: number, action: Econ
     const city = createCity(id, actor, unit.position, false, content); state.cities[id] = city; delete state.units[unit.id];
     for (const existing of Object.values(state.cities)) cleanWork(state, existing, content);
     assignNewWorkers(state, city, city.population, content);
-    return [{ type: 'CityFounded', playerId: actor, cityId: id, unitId: unit.id, position: { ...city.position } }];
+    return [{ type: 'CityFounded', playerId: actor, cityId: id, unitId: unit.id, position: { ...city.position } },
+      ...applyEscortBonus(state, actor, city, unit.kind === 'logistics' ? unit.escortId : undefined, content) as EconomyEvent[]];
   }
   if (action.type === 'SetResearch') {
     player.research.techId = action.techId;

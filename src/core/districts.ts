@@ -1,3 +1,4 @@
+import { CITY_NETWORK_RULES, DISTRICT_COMBOS } from '../content/city-network.ts';
 import { DISTRICTS, emptyDistrictEffects } from '../content/districts.ts';
 import type { DistrictId, DistrictEffects } from '../content/districts.ts';
 import { gameplayAtLeast } from '../content/eras.ts';
@@ -69,7 +70,9 @@ export function districtViewInput(view: PlayerView): DistrictInput {
     berryTiles: new Set(view.expansion?.rareBerries?.deposits.map(item => item.tileIndex) ?? []) };
 }
 /** Same arithmetic for complete authority input and partial observed input. No hidden reads. */
-export function districtEffects(input: Pick<DistrictInput, 'map' | 'cities' | 'improvements'> & Partial<Pick<DistrictInput, 'visible'>>, kind: DistrictId, tileIndex: number): DistrictBreakdown {
+const MAIN_EFFECT: Record<DistrictId, 'research' | 'trainedXp' | 'gold' | 'production' | 'food'> = {
+  researchDistrict: 'research', gymDistrict: 'trainedXp', harborDistrict: 'gold', powerPlantDistrict: 'production', gardenDistrict: 'food' };
+export function districtEffects(input: Pick<DistrictInput, 'map' | 'cities' | 'improvements'> & Partial<Pick<DistrictInput, 'visible' | 'gameplayVersion' | 'completed'>>, kind: DistrictId, tileIndex: number): DistrictBreakdown {
   const definition = DISTRICTS[kind], base = { ...definition.base }, total = { ...base };
   const adjacent = neighbors(indexToHex(tileIndex, input.map)).flatMap(hex => { const index = hexToIndex(hex, input.map); return index === null ? [] : [index]; }).sort((a, b) => a - b);
   const unknownAdjacentTileIds = adjacent.filter(index => input.map.tiles[index] === null || (input.visible !== undefined && !input.visible.has(index)));
@@ -81,6 +84,19 @@ export function districtEffects(input: Pick<DistrictInput, 'map' | 'cities' | 'i
     total[rule.effect] += value;
     return { id: rule.id, label: rule.label, effect: rule.effect, tileIndices, perTile: rule.perTile, cap: rule.cap, value };
   });
+  // v17 city planning: districts reward neighbouring districts (any owner), plus themed combos.
+  if ((input.gameplayVersion ?? 0) >= 17 && input.completed) {
+    const neighbours = input.completed.filter(item => item.tileIndex !== tileIndex && adjacent.includes(item.tileIndex));
+    const main = MAIN_EFFECT[kind], perTile = main === 'trainedXp' ? 10 : 1, cap = CITY_NETWORK_RULES.districtAdjacencyCap * perTile;
+    const tileIndices = neighbours.map(item => item.tileIndex).sort((a, b) => a - b), value = Math.min(cap, tileIndices.length * perTile);
+    total[main] += value;
+    adjacency.push({ id: 'district', label: '相邻设施区', effect: main, tileIndices, perTile, cap, value });
+    for (const combo of DISTRICT_COMBOS.filter(item => item.district === kind)) {
+      const matches = neighbours.filter(item => item.kind === combo.with).map(item => item.tileIndex).sort((a, b) => a - b), comboValue = matches.length ? combo.amount : 0;
+      total[combo.effect] += comboValue;
+      adjacency.push({ id: `combo-${combo.with}`, label: combo.label, effect: combo.effect, tileIndices: matches, perTile: combo.amount, cap: combo.amount, value: comboValue });
+    }
+  }
   return { base, adjacency, total, incomplete: unknownAdjacentTileIds.length > 0, unknownAdjacentTileIds };
 }
 export function districtBlocker(input: DistrictInput, cityId: number, kind: DistrictId, tileIndex: number): string | null {
@@ -122,7 +138,8 @@ export function districtSites(view: PlayerView, cityId: number, kind: DistrictId
 export function cityDistrictEffects(state: GameState, cityId: number): DistrictEffects {
   const total = emptyDistrictEffects(), city = state.cities[cityId];
   if (!state.expansion?.districts || !city || city.ownerId === null || city.capturedAtRound === state.round) return total;
-  const input = { map: state.map, cities: Object.values(state.cities),
+  const input = { map: state.map, cities: Object.values(state.cities), gameplayVersion: state.setup.gameplayVersion,
+    completed: Object.values(state.expansion.districts.tiles).filter(item => item.builtAtRound < state.round),
     improvements: Object.entries(state.expansion.improvements?.tiles ?? {}).map(([index, item]) => ({ ...item, tileIndex: Number(index) })) };
   for (const item of Object.values(state.expansion.districts.tiles).sort(compare).filter(item => item.cityId === cityId && item.builtAtRound < state.round)) {
     const effects = districtEffects(input, item.kind, item.tileIndex).total;

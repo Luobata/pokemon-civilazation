@@ -1,3 +1,4 @@
+import { pickEscort, traderPlan, wantsTrader } from './network-plan.ts';
 import { legendTraceTargets, planLegendWonder } from './legend-plan.ts';
 import { LEGEND_WONDERS } from '../content/legend-wonders.ts';
 import { rosterEvolution, typeCounterBonus } from './roster-plan.ts';
@@ -56,8 +57,8 @@ export function canCaptureByPersonality(view: PlayerView, target: MapUnit, query
 }
 export function canProduceSettler(view: PlayerView, ai: AiThresholds = AI_THRESHOLDS): boolean {
   const player = view.economy.player, cities = view.economy.cities;
-  const queued = cities.some(city => [...city.queue, ...city.pendingDeployments].some(order => order.item.kind === 'logistics'));
-  if (queued || view.units.some(unit => unit.ownerId === view.playerId && unit.kind === 'logistics')) return false;
+  const queued = cities.some(city => [...city.queue, ...city.pendingDeployments].some(order => order.item.kind === 'logistics' && order.item.defId === 'settler'));
+  if (queued || view.units.some(unit => unit.ownerId === view.playerId && unit.kind === 'logistics' && unit.role === 'settler')) return false;
   const strategy = AI_STRATEGIES[player.personality];
   if (strategy.settlerMinCities !== null && cities.length < ai[strategy.settlerMinCities]) return false;
   if (strategy.settlerPeaceOnly && view.diplomacy.some(pair => (pair.a === view.playerId || pair.b === view.playerId) && pair.status === 'war')) return false;
@@ -187,7 +188,8 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
     if (wonderCity === city.id && wonder) queue({ kind: 'legend', defId: wonder }, 'economy', 260, LEGEND_WONDERS[wonder].dex);
     const district = districtCandidates(view, city.id, content)[0];
     if (district) queue({ kind: 'district', defId: district.kind, tileIndex: district.tileIndex }, 'economy', district.score, district.tileIndex);
-    if (canProduceSettler(view, ai)) queue({ kind: 'logistics', defId: 'settler' }, 'found', 50);
+    if (canProduceSettler(view, ai)) { const escortId = pickEscort(view, content); queue({ kind: 'logistics', defId: 'settler', ...(escortId ? { escortId } : {}) }, 'found', 50); }
+    if (wantsTrader(view, city.id)) { const escortId = pickEscort(view, content); queue({ kind: 'logistics', defId: 'trader', ...(escortId ? { escortId } : {}) }, 'economy', 140); }
     for (const [i, id] of (Object.keys(content.buildings) as BuildingId[]).entries()) {
       const building = content.buildings[id];
       if (building.cost === null || city.buildingIds.includes(id) || (building.requiredTech && !player.research.unlockedIds.includes(building.requiredTech))) continue;
@@ -215,7 +217,9 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
   const workers = designatedWorkers(view, content, atWar || campaignActive || preparingSiege);
   const traceTargets = legendTraceTargets(view, content);
   for (const unit of units.filter(unit => unit.actionLeft)) {
-    if (unit.kind === 'logistics') {
+    const trader = traderPlan(view, unit);
+    if (trader.action) add(trader.action, 'economy', 900, unit.id);
+    if (unit.kind === 'logistics' && unit.role === 'trader') { /* traders only trade and walk */ } else if (unit.kind === 'logistics') {
       if (citySite(unit.position)) add({ type: 'FoundCity', unitId: unit.id }, 'found', 1000, unit.id);
     } else {
       const evolution = content.roster ? rosterEvolution(view, unit, content) : content.species[unit.speciesId].evolution;
@@ -241,13 +245,14 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
     }
     const paths = query.paths(view, unit.id, content);
     if (workers.has(unit.id)) for (const suggestion of improvementSuggestions(view, unit, content, paths)) add(suggestion.action, 'economy', suggestion.benefit, unit.id);
-    const sites = unit.kind === 'logistics' ? view.map.tiles.flatMap((_, index) => citySite(indexToHex(index, view.map)) ? [indexToHex(index, view.map)] : []) : [];
+    const sites = unit.kind === 'logistics' && unit.role === 'settler' ? view.map.tiles.flatMap((_, index) => citySite(indexToHex(index, view.map)) ? [indexToHex(index, view.map)] : []) : [];
     const targetHq = eraCampaign?.target ?? [...objectives.hqs].sort((a, b) => hexDistance(unit.position, a.position) - hexDistance(unit.position, b.position) || a.id - b.id)[0];
     const seek = unit.kind === 'pokemon' && objectives.searching ? seekUnknownHeadquarters(view, unit, paths) : null;
     for (const [indexText, path] of Object.entries(paths)) {
       // A visible route cannot hit a hidden first-step blocker and be rejected.
       if (!path.every(position => visible.has(hexToIndex(position, view.map)!))) continue;
       const index = Number(indexText), to = indexToHex(index, view.map), action = { type: 'Move' as const, unitId: unit.id, to };
+      if (trader.destination && hexDistance(to, trader.destination) < hexDistance(unit.position, trader.destination)) add(action, 'economy', 110 - hexDistance(to, trader.destination), unit.id, index);
       if (unit.kind === 'logistics' && sites.length) {
         const before = Math.min(...sites.map(site => hexDistance(unit.position, site))), after = Math.min(...sites.map(site => hexDistance(to, site)));
         const ring = view.map.tiles.filter((_, tile) => hexDistance(indexToHex(tile, view.map), to) <= 2);

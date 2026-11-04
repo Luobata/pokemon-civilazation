@@ -1,5 +1,6 @@
 // Civilization-style notifications: a short toast stack for the viewer's own milestones (research, production,
 // growth, wonders, war). Pure description from the PlayerView; main.ts decides what a click does.
+import { ESCORT_BONUSES } from '../content/city-network.ts';
 import type { PlayerView, VisibleEvent } from '../core/model.ts';
 import { contentForView } from '../content/units.ts';
 import { DISTRICTS } from '../content/districts.ts';
@@ -77,6 +78,15 @@ export function toastFor(payload: VisibleEvent['payload'], view: PlayerView): To
       if (relation.status === 'war' && relation.changedAtRound === view.round && relation.declaredBy !== me) return toast('war', '⚔', `文明 ${other + 1} 向你宣战！`, '保护城市和开拓队。', { kind: 'screen', screen: 'diplomacy' }, '外交');
       return null;
     }
+    case 'EscortBonus':
+      if (payload.playerId !== me) return null;
+      return toast('growth', '✚', `随行的${content.species[payload.escortId].name}帮了新城一把`, ESCORT_BONUSES[payload.kind].label, { kind: 'city', cityId: payload.cityId }, '查看城市');
+    case 'TradeRouteEstablished':
+      if (payload.playerId !== me) return null;
+      return toast('production', '⇄', `商路开通：城市 ${payload.fromCityId} → 城市 ${payload.toCityId}`, '目的城 食物 +2、生产 +1，出发城 金币 +3。', { kind: 'city', cityId: payload.toCityId }, '查看城市');
+    case 'TradeRouteLost':
+      if (payload.playerId !== me) return null;
+      return toast('war', '✕', `商路中断：城市 ${payload.fromCityId} ↔ 城市 ${payload.toCityId}`, '其中一座城市已经易主。', null);
     case 'CivilizationEliminated':
       return toast('war', '☠', `文明 ${payload.eliminatedPlayerId + 1} 出局`, '', null);
     default: return null;

@@ -17,6 +17,16 @@ const system = (definition: AuditSystem): AuditSystem => definition;
 
 export const AUDIT_SYSTEMS: readonly AuditSystem[] = [
   system({
+    id: 's-city-network', name: '城市规划与城市网络', status: 'implemented',
+    summary: 'gameplay v17：设施区相邻加成、区域辐射、属性城市联盟、商队与国内商路、开拓队随行宝可梦；读取 v≤16 存档时不启用。',
+    rules: ['设施区每相邻一个设施区主产出 +1（封顶），特定组合额外加成；只在 v17 计算。',
+      '发电厂/花园辐射 6 格内其他己方城市；宝可梦中心辐射治疗；同属性道馆城市互相加成，互补属性组合加成。',
+      '商队（需友好商店）走到另一座己方城市旁开通商路，条数≤城市数，城市易主中断；开拓队随行宝可梦按属性给新城开局加成。'],
+    checks: ['v16 固定 48 局改动前后逐文件一致；v17 两次运行逐字节一致；统计商路、随行与结束方式变化。', '相邻、辐射、联盟、商路校验与中断、随行加成，有单元测试。'],
+    sources: ['src/content/city-network.ts', 'src/core/city-network.ts', 'src/ai/network-plan.ts', 'tests/core/city-network.test.ts', 'docs/design/city-network-v17.md'],
+    actionTypes: ['EstablishTradeRoute', 'SetProductionQueue', 'FoundCity'],
+  }),
+  system({
     id: 's-movement-points', name: '移动力（先走后打）', status: 'implemented',
     summary: 'gameplay v16：单位每轮按移动力移动，还有移动力时仍可攻击、捕捉、进化或施工；开局开拓队站在首都旁边。读取 v≤15 存档时不启用。',
     rules: ['移动消耗所走地块的移动花费，记在 movesSpent；用尽或停在敌方控制区（按到达后的视野判断）时本轮结束。',

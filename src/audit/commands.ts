@@ -25,7 +25,7 @@ function production(value: unknown, content: Content): boolean {
     : value.item.kind === 'pokemon' ? member(value.item.defId, content.species)
     : value.item.kind === 'district' ? member(value.item.defId, DISTRICTS) && integer(value.item.tileIndex)
     : value.item.kind === 'legend' ? member(value.item.defId, LEGEND_WONDERS)
-    : value.item.kind === 'logistics' && value.item.defId === 'settler';
+    : value.item.kind === 'logistics' && (value.item.defId === 'settler' || value.item.defId === 'trader') && (value.item.escortId === undefined || member(value.item.escortId, content.species));
 }
 
 /** Validate input shape; gameplay eligibility remains the engine's responsibility. */
@@ -52,7 +52,7 @@ export function parseAuditAction(value: unknown, content: Content = ROSTER_CONTE
   if (record(clean.to)) clean.to = pick(clean.to, ['q', 'r']);
   if (record(clean.target)) clean.target = pick(clean.target, ['kind', 'id']);
   if (Array.isArray(clean.orders)) clean.orders = clean.orders.map((order: RecordValue) => ({
-    ...pick(order, ['orderId']), item: pick(order.item as RecordValue, (order.item as RecordValue).kind === 'district' ? ['kind', 'defId', 'tileIndex'] : ['kind', 'defId']),
+    ...pick(order, ['orderId']), item: pick(order.item as RecordValue, (order.item as RecordValue).kind === 'district' ? ['kind', 'defId', 'tileIndex'] : (order.item as RecordValue).kind === 'logistics' ? ['kind', 'defId', 'escortId'] : ['kind', 'defId']),
   }));
   return structuredClone(clean) as Command['action'];
 }

@@ -1,3 +1,4 @@
+import { CITY_NETWORK_RULES, COMPLEMENTS, DISTRICT_COMBOS, ESCORT_BONUSES } from '../content/city-network.ts';
 import { LEGEND_CLUE_TEXT, LEGEND_WONDERS, LEGEND_WONDER_IDS, legendCost } from '../content/legend-wonders.ts';
 import { legendEffectText, legendSprite } from '../browser/legend-panel.ts';
 import { leaderUnitFor, spawnWeightsFor, stoneEvolutionsFor } from '../content/roster.ts';
@@ -219,6 +220,17 @@ export function legendWonderTable(): string {
     return [String(legend.dex).padStart(3, '0'), `<img class="sprite" loading="lazy" src="${legendSprite(id)}" alt=""> ${legend.name} · ${legend.wonderName}`, String(legend.generation),
       LEGEND_CLUE_TEXT(legend.clue) + (legend.clue.kind === 'trace' ? `（${legend.clue.coastal ? '海边' : biomeList(legend.clue.biomes.slice(0, 1))}）` : ''), String(legendCost(id)), legendEffectText(id)];
   }), [2, 4]);
+}
+export const networkRules = CITY_NETWORK_RULES;
+export function districtComboTable(): string {
+  return table(['设施区', '相邻', '加成'], DISTRICT_COMBOS.map(combo => [DISTRICTS[combo.district].name, DISTRICTS[combo.with].name,
+    `${combo.label.replace(/（.*$/, '')}：${({ research: '科研', food: '食物', production: '生产', gold: '金币', trainedXp: '出场经验' })[combo.effect]} +${combo.amount}`]));
+}
+export function complementTable(): string {
+  return table(['互补属性城市', '加成'], COMPLEMENTS.map(rule => [rule.label.split('：')[0], `${rule.label.split('：')[1]}：两城各 ${({ research: '科研', food: '食物', production: '生产', gold: '金币' })[rule.yield]} +1`]));
+}
+export function escortTable(): string {
+  return table(['随行宝可梦属性', '新城开局'], Object.values(ESCORT_BONUSES).map(bonus => [bonus.types.map(typeChip).join(''), bonus.label]));
 }
 export const promotionThresholds = PROMOTION_RULES.thresholds.join(' / ');
 export function promotionMeritTable(): string {

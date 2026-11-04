@@ -1,3 +1,5 @@
+import type { Content, SpeciesId } from '../content/units.ts';
+import { CITY_NETWORK_RULES, ESCORT_BONUSES, escortBonusKind } from '../content/city-network.ts';
 import { buildableLegends, legendEffectText, legendProductionMarkup, legendSprite, legendTitle } from './legend-panel.ts';
 import { openScreen } from './screens.ts';
 import { DISTRICTS } from '../content/districts.ts';
@@ -47,6 +49,26 @@ function buildingEffect(id: BuildingId): string {
   if (definition.trainedXp) yields.push(`新训练宝可梦经验 +${definition.trainedXp}`);
   return [...yields, `城市最大 HP +${BASE_CONTENT.balance.city.buildingHp}`].join('；');
 }
+const YIELD_LABEL = { food: '食物', production: '生产', gold: '金币', research: '科研' } as const;
+/** v17: the city's network bonuses (regional districts, type alliances, trade routes). */
+function networkMarkup(view: PlayerView, cityId: number): string {
+  const network = view.expansion?.cityNetwork;
+  if (!network) return '';
+  const bonuses = network.bonuses[cityId] ?? [];
+  const gym = view.expansion?.essences?.gyms.find(item => item.cityId === cityId)?.essence;
+  return `<section id="city-network" class="city-network"><p class="section-label">城市网络${gym ? ` · ${ESSENCES[gym].name}系城市` : ''}</p>${bonuses.length
+    ? `<ul>${bonuses.map(bonus => `<li>${bonus.label}<b>${Object.entries(bonus.yield).map(([key, value]) => `${YIELD_LABEL[key as keyof typeof YIELD_LABEL]} +${value}`).join('、')}</b></li>`).join('')}</ul>`
+    : `<p class="unit-note">还没有来自其他城市的加成。${CITY_NETWORK_RULES.regionRadius} 格内的己方发电厂、花园会辐射过来；建属性道馆成为属性城市，同属性或互补属性的城市互相加成；用商队开通商路。</p>`}</section>`;
+}
+/** v17: escort / carrier choice for settlers and traders (registered species; the type decides the new city's head start). */
+function escortSelectMarkup(view: PlayerView, content: Content): string {
+  const ids = [...view.economy.player.registeredSpeciesIds].filter(id => content.species[id]).sort();
+  return `<label class="escort-select">随行宝可梦<select id="escort-species">${ids.map(id => `<option value="${id}">${content.species[id].name} · ${ESCORT_BONUSES[escortBonusKind(content.species[id].typeId)].label}</option>`).join('')}</select></label>`;
+}
+function withEscort(item: LegacyProductionItem, root: HTMLElement): LegacyProductionItem {
+  const escort = root.querySelector<HTMLSelectElement>('#escort-species')?.value;
+  return item.kind === 'logistics' && escort ? { ...item, escortId: escort as SpeciesId } : item;
+}
 export function renderEconomyPanel(view: PlayerView, selectedCity: number | null,
   issue: (action: Command['action']) => void, disabled = false,
   onDistrictPlacement?: (cityId: number, kind: DistrictId) => void): void {
@@ -61,7 +83,7 @@ export function renderEconomyPanel(view: PlayerView, selectedCity: number | null
   const city = cities.find(city => city.id === selectedCity);
   root.hidden = !city;
   if (!city) { root.innerHTML = ''; return; }
-  const itemName = (item: ProductionItem) => item.kind === 'legend' ? `${legendTitle(item.defId)}（传说奇观）` : item.kind === 'district' ? `${DISTRICTS[item.defId].name}（设施区）` : item.kind === 'building' ? CONTENT.buildings[item.defId].name : CONTENT.units[item.defId].name;
+  const itemName = (item: ProductionItem): string => item.kind === 'logistics' && item.escortId ? `${CONTENT.units[item.defId].name}（随行 ${CONTENT.species[item.escortId].name}）` : item.kind === 'legend' ? `${legendTitle(item.defId)}（传说奇观）` : item.kind === 'district' ? `${DISTRICTS[item.defId].name}（设施区）` : item.kind === 'building' ? CONTENT.buildings[item.defId].name : CONTENT.units[item.defId].name;
   const readYield = tileYieldReader(view);
   root.innerHTML = `<div class="economy-head"><p class="eyebrow">当前城市 · 建设与训练</p><h2 class="economy-title">城市 ${city.id}<span class="civ-badge">文明 ${view.playerId + 1}</span></h2>
     <p id="resources"><span>金币 <strong>${player.gold}</strong></span><span>精灵球 <strong>${player.ballInventory.pokeBall}</strong></span><span>超级球 <strong>${player.ballInventory.greatBall}</strong></span><span>储备科研 <strong>${player.research.reserve}</strong></span></p></div>
@@ -74,6 +96,7 @@ export function renderEconomyPanel(view: PlayerView, selectedCity: number | null
     }).map(defId => ({ kind: 'building' as const, defId })),
     ...trainableSpeciesIds(player, view.gameplayVersion, contentForView(view), view.eraProgression).map(defId => ({ kind: 'pokemon' as const, defId })),
     { kind: 'logistics', defId: 'settler' },
+    ...(view.expansion?.cityNetwork && city.buildingIds.includes(CITY_NETWORK_RULES.trader.building) ? [{ kind: 'logistics' as const, defId: 'trader' as const }] : []),
     ...buildableLegends(view, city).map(defId => ({ kind: 'legend' as const, defId })),
   ];
   const options = allOptions.filter(item => item.kind === productionKind);
@@ -96,6 +119,7 @@ export function renderEconomyPanel(view: PlayerView, selectedCity: number | null
     <p id="city-summary">城市 ${city.id} · 人口 ${city.population} · HP ${city.hp}/${maxCityHp(city)} · 观测者 ${city.population - city.workedTileIds.length}</p>
     <div class="yield-grid" aria-label="城市产出"><div class="yield-item"><small>食物</small><strong>${city.yields.food}</strong></div><div class="yield-item"><small>生产</small><strong>${city.yields.production}</strong></div><div class="yield-item"><small>金币</small><strong>${city.yields.gold}</strong></div><div class="yield-item"><small>科研</small><strong>${city.yields.research}</strong></div></div>
     ${bondMarkup}
+    ${networkMarkup(view, city.id)}
     <p id="city-yields">产出：食物 ${city.yields.food} / 生产 ${city.yields.production} / 金币 ${city.yields.gold} / 科研 ${city.yields.research}</p>
     ${essenceMarkup}
     <p id="city-growth"><strong>食物消耗 ${city.population * 2} → 盈余 ${net >= 0 ? '+' : ''}${net}</strong><br>库存 ${city.food}/${growthThreshold(city)} · ${net > 0 ? Math.max(1, Math.ceil(remaining / net)) + ' 轮后人口 +1' : '暂无增长'}</p>
@@ -113,8 +137,9 @@ export function renderEconomyPanel(view: PlayerView, selectedCity: number | null
       }).join('')}</tbody></table></div></section>
       <section class="production-section" ${citySection !== 'production' ? 'hidden' : ''}><p class="section-label">${selectedBuilding ? CONTENT.buildings[selectedBuilding].name : '城市生产'} · ${city.yields.production} 生产 / 轮${view.expansion?.contests?.own.building[city.id] !== undefined ? `（其中 ${Math.max(1, Math.floor(city.yields.production / 2))} 投入华丽大赛馆）` : ''}</p>
       <div class="production-tabs" role="group" aria-label="生产类别">${(Object.keys(productionLabels) as ProductionItem['kind'][]).filter(kind => (kind !== 'district' || view.expansion?.districts) && (kind !== 'legend' || view.expansion?.legends)).map(kind => `<button data-production-kind="${kind}" aria-pressed="${kind === productionKind}" ${disabled ? 'disabled' : ''}>${productionLabels[kind]}</button>`).join('')}</div>
-      <p class="production-help">${productionKind === 'legend' ? '传说奇观全世界只有一座：先建成的文明得到它，别人在建的同名奇观作废并按一半退还金币。奇观跟着城市走。' : productionKind === 'district' ? '选择设施区类型，再在地图上选格预览；确认后才会加入队列。' : productionKind === 'logistics' ? '训练完成后，开拓队出现在城市周围。选中它，前往新的土地建城。' : productionKind === 'pokemon' ? '训练已经登记的宝可梦。完成后在城市周围出场。' : '建筑留在这座城市内，建成后自动提供产出或训练效果。'}</p>
+      <p class="production-help">${productionKind === 'legend' ? '传说奇观全世界只有一座：先建成的文明得到它，别人在建的同名奇观作废并按一半退还金币。奇观跟着城市走。' : productionKind === 'district' ? '选择设施区类型，再在地图上选格预览；确认后才会加入队列。' : productionKind === 'logistics' ? (view.expansion?.cityNetwork ? `开拓队建新城；随行宝可梦的属性决定新城的开局特长。商队需要本城有友好商店，走到另一座己方城市旁边即可开通商路（目的城 食物 +2、生产 +1，出发城 金币 +3）。${city.buildingIds.includes(CITY_NETWORK_RULES.trader.building) ? '' : '本城还没有友好商店，不能训练商队。'}` : '训练完成后，开拓队出现在城市周围。选中它，前往新的土地建城。') : productionKind === 'pokemon' ? '训练已经登记的宝可梦。完成后在城市周围出场。' : '建筑留在这座城市内，建成后自动提供产出或训练效果。'}</p>
       ${productionKind === 'district' ? districtTypeCards(view, city.id, disabled) : `<div class="production-adder"><select id="production-item" aria-label="生产项目">${options.map((item, i) => `<option value="${i}">${itemName(item)} (${productionCost(item, CONTENT, policy.trainingDiscountPercent, leaderEffects(player.leaderId).settlerDiscountPercent)})</option>`).join('')}</select>
+      ${productionKind === 'logistics' && view.expansion?.cityNetwork ? escortSelectMarkup(view, CONTENT) : ''}
       <button id="add-production" ${disabled || city.queue.length >= 5 || !options.length ? 'disabled' : ''}>加入队列</button></div>`}
       ${productionKind === 'legend' ? legendProductionMarkup(view, city) : ''}
       <div id="production-preview"></div>
@@ -181,7 +206,7 @@ export function renderEconomyPanel(view: PlayerView, selectedCity: number | null
   const setQueue = (orders: ProductionOrder[]) => issue({ type: 'SetProductionQueue', cityId: city.id,
     orders: orders.map(order => ({ orderId: order.id, item: order.item })) });
   root.querySelector('#add-production')?.addEventListener('click', () => issue({ type: 'SetProductionQueue', cityId: city.id,
-    orders: [...city.queue.map(order => ({ orderId: order.id, item: order.item })), { item: options[Number(root.querySelector<HTMLSelectElement>('#production-item')!.value)] }] }));
+    orders: [...city.queue.map(order => ({ orderId: order.id, item: order.item })), { item: withEscort(options[Number(root.querySelector<HTMLSelectElement>('#production-item')!.value)], root) }] }));
   for (const button of root.querySelectorAll<HTMLButtonElement>('[data-up], [data-down], [data-remove]')) button.addEventListener('click', () => {
     const orders = [...city.queue];
     if (button.dataset.remove !== undefined) orders.splice(Number(button.dataset.remove), 1);

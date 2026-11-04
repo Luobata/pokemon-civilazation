@@ -244,6 +244,7 @@ function soundFor(payload: VisibleEvent['payload'], view: PlayerView): SoundId |
     case 'CityFounded': return payload.playerId === me ? 'cityFounded' : null;
     case 'BuildingCompleted': case 'DistrictCompleted': case 'UnitTrained': return payload.playerId === me ? 'production' : null;
     case 'TechCompleted': case 'DiscoveryMade': return payload.playerId === me ? 'research' : null;
+    case 'TradeRouteEstablished': return payload.playerId === me ? 'production' : null;
     case 'UnitPromoted': return 'promotion';
     case 'LegendWonderCompleted': return 'wonder';
     case 'LegendClueFound': case 'EraAgeBegan': return payload.playerId === me ? 'notify' : null;

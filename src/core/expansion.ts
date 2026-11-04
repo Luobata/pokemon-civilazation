@@ -1,3 +1,4 @@
+import { applyCityNetworkAction, initializeCityNetwork, isCityNetworkAction, resolveCityNetworkRound, validateCityNetworkAction } from './city-network.ts';
 import { initializeLegends, recordLegends } from './legends.ts';
 import { initializeDistricts } from './districts.ts';
 import { applyPromotionAction, initializePromotions, isPromotionAction, recordPromotions, resolvePromotionRound, validatePromotionAction } from './promotions.ts';
@@ -39,11 +40,13 @@ export function initializeExpansion(state: GameState, content: Content): void {
   initializeEraHonors(state);
   initializePromotions(state);
   initializeLegends(state);
+  initializeCityNetwork(state);
 }
 export function validateExpansionAction(state: GameState, actorId: number, action: Command['action'], content: Content): boolean {
   if (!state.expansion || !expansionActionType(action.type)) return false;
   try {
     const clean = parseExpansionAction(action, content);
+    if (isCityNetworkAction(clean)) return validateCityNetworkAction(state, actorId, clean) === null;
     if (isPromotionAction(clean)) return validatePromotionAction(state, actorId, clean) === null;
     if (isImprovementAction(clean)) return validateImprovementAction(state, actorId, clean) === null;
     if (isPolicyAction(clean)) return validatePolicyAction(state, actorId, clean) === null;
@@ -60,6 +63,7 @@ export function validateExpansionAction(state: GameState, actorId: number, actio
   return false;
 }
 export function applyExpansionAction(state: GameState, actorId: number, action: Command['action'], content: Content): EventPayload[] {
+  if (isCityNetworkAction(action)) return applyCityNetworkAction(state, actorId, action);
   if (isPromotionAction(action)) return applyPromotionAction(state, actorId, action);
   if (isImprovementAction(action)) return applyImprovementAction(state, actorId, action, content);
   if (isPolicyAction(action)) return applyPolicyAction(state, actorId, action);
@@ -84,6 +88,7 @@ export function resolveExpansionRound(state: GameState, content: Content): Event
   if (!state.outcome) events.push(...resolveRareBerryRound(state));
   if (!state.outcome) events.push(...resolveEraHonorRound(state));
   if (!state.outcome) events.push(...resolvePromotionRound(state));
+  if (!state.outcome) events.push(...resolveCityNetworkRound(state));
   if (!state.outcome) events.push(...resolveBondRound(state));
   if (!state.outcome) events.push(...resolveContestRound(state, content));
   if (!state.outcome) events.push(...resolveFaithRound(state, content));

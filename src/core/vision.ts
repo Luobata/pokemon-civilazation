@@ -1,3 +1,4 @@
+import { observeCityNetwork } from './city-network.ts';
 import { observeLegends } from './legends.ts';
 import { observeEraHonors } from './era-honors.ts';
 import { observePromotions } from './promotions.ts';
@@ -118,6 +119,7 @@ export function observe(state: GameState, playerId: number, content: Content = c
       ...(state.expansion.districts ? { districts: observeDistricts(state, playerId, visible) } : {}),
       ...(state.expansion.eraHonors ? { eraHonors: observeEraHonors(state, playerId) } : {}),
       ...(state.expansion.legends ? { legends: observeLegends(state, playerId, visible) } : {}),
+      ...(state.expansion.cityNetwork ? { cityNetwork: observeCityNetwork(state, playerId) } : {}),
       ...(state.expansion.promotions ? { promotions: observePromotions(state, playerId, visible, hex => hexToIndex(hex, state.map)) } : {}),
       ...(state.expansion.faith ? { faith: observeFaith(state, playerId) } : {}),
       ...(state.expansion.contests ? { contests: observeContests(state, playerId, content) } : {}),

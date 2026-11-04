@@ -1,3 +1,5 @@
+import { tradeDestinations } from '../core/city-network.ts';
+import { ESCORT_BONUSES, escortBonusKind } from '../content/city-network.ts';
 import type { MapUnit } from '../core/model.ts';
 import type { Content } from '../content/units.ts';
 import { movementBudget, usesMovementPoints } from '../core/movement.ts';
@@ -55,6 +57,16 @@ export function renderUnitPanel(view: PlayerView, selected: number | null, mode:
   const root = document.querySelector<HTMLElement>('#unit-panel')!;
   const unit = view.units.find(unit => unit.id === selected && unit.ownerId === view.playerId);
   if (!unit) { root.innerHTML = ''; return; }
+  if (unit.kind === 'logistics' && unit.role === 'trader') {
+    const destinations = tradeDestinations(view, unit.id), carrier = unit.escortId ? CONTENT.species[unit.escortId] : null;
+    root.innerHTML = `<div class="unit-card trader-card"><div class="unit-head"><div class="unit-portrait">${unit.escortId ? `<img src="${pokemonSpritePath(unit.escortId)}" alt="" width="64" height="64">` : '⚖'}</div><div><strong>商队${carrier ? ` · ${carrier.name}` : ''}</strong><small>出发城市 ${unit.homeCityId ?? '—'} · 文明 ${view.playerId + 1}</small></div><span class="unit-ap ${unit.actionLeft ? '' : 'spent'}">${actionPointLabel(view, unit, CONTENT)}</span></div>
+      <p class="settler-intro">走到另一座己方城市旁边，开通商路：目的城 食物 +2、生产 +1，出发城 金币 +3，一直有效（城市易主则中断）。路上被敌人攻击会被打散。</p>
+      <ul class="trade-destinations">${destinations.map(item => `<li><button type="button" data-trade-route="${item.cityId}" ${busy || item.reason ? 'disabled' : ''}>通往城市 ${item.cityId}</button>${item.reason ? `<small>${item.reason}</small>` : ''}</li>`).join('') || '<li><small>还没有别的己方城市。</small></li>'}</ul>
+      <div class="unit-actions"><button id="move-unit" ${busy || !unit.actionLeft ? 'disabled' : ''}>${mode === 'move' ? '取消移动' : '移动'}</button></div></div>`;
+    root.querySelector('#move-unit')!.addEventListener('click', () => callbacks.mode(mode === 'move' ? null : 'move'));
+    for (const button of root.querySelectorAll<HTMLButtonElement>('[data-trade-route]')) button.addEventListener('click', () => callbacks.issue?.({ type: 'EstablishTradeRoute', unitId: unit.id, toCityId: Number(button.dataset.tradeRoute) }));
+    return;
+  }
   if (unit.kind === 'logistics') {
     const nearest = [...view.cities, ...Object.values(view.knowledge.lastKnownCities)]
       .reduce((distance, city) => Math.min(distance, hexDistance(unit.position, city.position)), Infinity);
@@ -64,7 +76,8 @@ export function renderUnitPanel(view: PlayerView, selected: number | null, mode:
       : nearest < 4 ? `距最近已知城市 ${nearest} 格，至少需要 4 格。请继续向外探索。` : null;
     root.innerHTML = `<div class="unit-card settler-card"><div class="unit-head"><div class="unit-portrait settler-portrait" aria-hidden="true">⚑</div><div><strong>开拓队</strong><small>建立城市 · 文明 ${view.playerId + 1}</small></div><span class="unit-ap ${unit.actionLeft ? '' : 'spent'}">${actionPointLabel(view, unit, CONTENT)}</span></div>
       <p class="settler-intro">在新的土地上建立一座人口为 1 的城市。</p>
-      <ol class="founding-steps"><li>移动到陆地，与其他城市至少相距 4 格。</li><li>移动会消耗行动点；下一回合再建城。</li><li>建城消耗这支开拓队，随后进入城市管理。</li></ol>
+      ${unit.escortId ? `<p class="unit-note" id="escort-note">随行：${CONTENT.species[unit.escortId].name} · 建城时 ${ESCORT_BONUSES[escortBonusKind(CONTENT.species[unit.escortId].typeId)].label}</p>` : ''}
+      <ol class="founding-steps"><li>移动到陆地，与其他城市至少相距 4 格。</li><li>${usesMovementPoints(view) ? '移动消耗移动力；还有移动力就能当回合建城。' : '移动会消耗行动点；下一回合再建城。'}</li><li>建城消耗这支开拓队，随后进入城市管理。</li></ol>
       <p id="founding-status" class="founding-status ${reason ? 'unavailable' : ''}">${reason ?? '已知选址条件满足，可以在此建立城市。'}</p>
       <div class="unit-actions"><button id="move-unit" ${busy || !unit.actionLeft ? 'disabled' : ''}>${mode === 'move' ? '取消移动' : '移动'}</button><button id="found-city" class="primary" ${busy || reason ? 'disabled' : ''}>在此建立城市</button></div>
       <p class="unit-note">需要更多开拓队：选中城市 → 训练开拓队 → 加入队列（30 生产）。</p></div>`;

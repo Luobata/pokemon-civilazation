@@ -209,6 +209,19 @@ function drawFeatures(d: Draw) {
 
 const citySize = (radius: number) => Math.max(28, Math.min(42, radius * 1.65));
 /** City tiles: selection outline, plaza, built buildings and the town sprite. */
+/** v17 trade routes: a dashed gold line between the two cities. */
+function drawTradeRoutes(d: Draw) {
+  const { context, centers, radius, scene } = d;
+  context.save(); context.setLineDash([radius * .35, radius * .25]); context.lineCap = 'round';
+  for (const route of scene.tradeRoutes) {
+    const a = centers[route.from], b = centers[route.to];
+    if (!a || !b || (!d.onscreen(a) && !d.onscreen(b))) continue;
+    for (const pass of [{ color: '#10191BCC', width: Math.max(4, radius * .16) }, { color: '#F2C14E', width: Math.max(2, radius * .08) }]) {
+      context.beginPath(); context.moveTo(a.x, a.y); context.lineTo(b.x, b.y); context.strokeStyle = pass.color; context.lineWidth = pass.width; context.stroke();
+    }
+  }
+  context.restore();
+}
 function drawCities(d: Draw) {
   const { context, centers, radius, scene } = d;
   for (const city of scene.cities) {
@@ -322,6 +335,13 @@ function unitMark(d: Draw, unit: UnitMarkIdentity, point: Point, actionLeft?: nu
   context.strokeStyle = actionLeft === 0 ? '#81908A' : '#F2E7C9'; context.lineWidth = 1.2; context.stroke();
   if (unit.kind === 'pokemon') {
     if (!drawPokemonSprite(context, unit.speciesId, Math.round(point.x - size * .54), Math.round(point.y - size * .62), Math.round(size * 1.08))) centeredText(d, speciesDisplay(unit.speciesId).abbreviation, point, '#FFF3D4', size * .42);
+  } else if (unit.role === 'trader') {
+    // v17 trader: the carrier Pokémon with a gold pack badge.
+    if (!unit.escortId || !drawPokemonSprite(context, unit.escortId, Math.round(point.x - size * .5), Math.round(point.y - size * .58), Math.round(size))) centeredText(d, '商', point, '#FFF3D4', size * .42);
+    const q = { x: point.x - size * .36, y: point.y - size * .34 };
+    context.beginPath(); context.arc(q.x, q.y, size * .17, 0, Math.PI * 2); context.fillStyle = '#F2C14E'; context.fill();
+    context.strokeStyle = '#10191B'; context.lineWidth = 1.5; context.stroke();
+    centeredText(d, '商', q, '#10191B', size * .22);
   } else {
     const pixel = size / 24;
     const block = (color: string, x: number, y: number, width: number, height: number) => {
@@ -340,6 +360,8 @@ function unitMark(d: Draw, unit: UnitMarkIdentity, point: Point, actionLeft?: nu
     block('#F0E5C4', 7, -14, 1.5, 22);
     block(ownerColor(unit.ownerId), 8.5, -13, 8, 5);
     block('#F2C14E', 8.5, -8, 5, 1.5);
+    // v17 escort: a small portrait of the escort Pokémon beside the settler.
+    if (unit.escortId) drawPokemonSprite(context, unit.escortId, Math.round(point.x - size * .62), Math.round(point.y - size * .05), Math.round(size * .55));
   }
   ownerBadge(d, unit.ownerId, point, size);
   if (actionLeft === 0) {
@@ -652,6 +674,7 @@ export function createCanvas2DRenderer(canvas: HTMLCanvasElement, options: Rende
       base = baseLayer.cache;
 
       drawFeatures(d);
+      drawTradeRoutes(d);
       drawCities(d);
       drawYields(d);
       drawWeather(d);

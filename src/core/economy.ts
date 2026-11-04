@@ -18,7 +18,8 @@ import type { CityState, EconomyEvent, GameState, PendingDeployment } from './mo
 function deploy(state: GameState, city: CityState, pending: PendingDeployment, content: Content, events: EconomyEvent[]): boolean {
   if (city.ownerId === null) return false;
   const identity: UnitIdentity = pending.item.kind === 'pokemon'
-    ? { kind: 'pokemon', speciesId: pending.item.defId } : { kind: 'logistics', role: 'settler' };
+    ? { kind: 'pokemon', speciesId: pending.item.defId }
+    : { kind: 'logistics', role: pending.item.defId, ...(pending.item.escortId ? { escortId: pending.item.escortId } : {}), ...(pending.item.defId === 'trader' ? { homeCityId: city.id } : {}) };
   const occupied = new Set([...Object.values(state.units).filter(isMapUnit), ...Object.values(state.cities)]
     .map(entity => hexToIndex(entity.position, state.map)));
   const position = neighbors(city.position).filter(hex => {

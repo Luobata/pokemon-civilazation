@@ -79,6 +79,8 @@ export type MapScene = {
   cities: SceneCity[];
   yields: SceneYield[];
   workedTiles: number[];
+  /** v17: the viewer's trade routes as city tile indices. */
+  tradeRoutes: { from: number; to: number }[];
   weather: SceneWeather[];
   night: boolean;
   units: SceneUnit[];
@@ -255,7 +257,11 @@ export function buildScene(input: MapRenderInput): MapScene {
 
   return {
     width: view.map.width, height: view.map.height, tiles, coastEdges, territoryEdges, improvements, faith, badges, districts, constructionSites,
-    cities, yields, workedTiles: focusCity ? [...focusCity.workedTileIds] : [], weather, night: era?.night ?? false, units,
+    cities, yields, workedTiles: focusCity ? [...focusCity.workedTileIds] : [],
+    tradeRoutes: (expansion?.cityNetwork?.routes ?? []).flatMap(route => {
+      const from = view.cities.find(city => city.id === route.fromCityId), to = view.cities.find(city => city.id === route.toCityId);
+      return from && to ? [{ from: indexOf(from.position)!, to: indexOf(to.position)! }] : [];
+    }), weather, night: era?.night ?? false, units,
     reachable, moveEdges, attackEdges, attackArea, targets, placement,
     fog: tiles.filter(tile => tile.biome && !tile.visible).map(tile => tile.index),
     selectedUnit: selectedUnit ? indexOf(selectedUnit.position) : null,

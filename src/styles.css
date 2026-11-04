@@ -832,8 +832,6 @@ b.age-golden { color: #F2C14E !important; } b.age-dark { color: #B9A6E8 !importa
 .legend-arrival-text { line-height: 1.7; color: #E9EFEA; }
 .legend-arrival-card blockquote { margin: 10px auto; color: #CBBF95; font-style: italic; }
 
-/* Gens 6–9 sprites are tightly cropped, non-square, anti-aliased art: keep the aspect ratio and Emerald-like padding. */
-img[src*="/sprites/gen6/"], img[src*="/sprites/gen7/"], img[src*="/sprites/gen8/"], img[src*="/sprites/gen9/"] { object-fit: contain; padding: 12%; box-sizing: border-box; image-rendering: auto; }
 
 /* Notifications (Civilization-style toasts) */
 .toast-host { position: fixed; top: 150px; left: 50%; transform: translateX(-50%); z-index: 50; display: grid; gap: 8px; width: min(420px, calc(100vw - 24px)); pointer-events: none; }
@@ -848,3 +846,17 @@ img[src*="/sprites/gen6/"], img[src*="/sprites/gen7/"], img[src*="/sprites/gen8/
 .toast-wonder { border-left-color: #D9A857; } .toast-war { border-left-color: #E5554A; } .toast-info { border-left-color: #B58AD6; }
 @keyframes toast-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .toast { animation: none; } }
+
+/* v17 city network */
+.city-network { display: grid; gap: 4px; }
+.city-network .section-label { margin: 0; color: #F2C14E; }
+.city-network ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
+.city-network li { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: #D4DED5; }
+.city-network li b { color: #F6E3A6; font-weight: 600; white-space: nowrap; }
+.escort-select { display: grid; gap: 4px; font-size: 12px; color: #A9B9B3; }
+.trade-destinations { list-style: none; margin: 0 14px 10px; padding: 0; display: grid; gap: 6px; }
+.trade-destinations li { display: grid; gap: 2px; }
+.trade-destinations small { color: #A9B9B3; font-size: 11px; }
+
+/* Gens 6–9 sprites are tightly cropped, non-square, anti-aliased art: keep the aspect ratio and Emerald-like padding. */
+img[src*="/sprites/gen6/"], img[src*="/sprites/gen7/"], img[src*="/sprites/gen8/"], img[src*="/sprites/gen9/"] { object-fit: contain; padding: 12%; box-sizing: border-box; image-rendering: auto; }
