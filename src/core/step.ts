@@ -11,7 +11,8 @@ import { resolveEconomy } from './economy.ts';
 import { contentFor } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
 import { hexToIndex } from './hex.ts';
-import { canEnter, reachablePaths } from './movement.ts';
+import { canEnter, movementBudget, reachablePaths, stepCost, usesMovementPoints } from './movement.ts';
+import { inZoc, usesTactics, zocTiles } from './tactics.ts';
 import { observe, refreshKnowledge, visibleTiles } from './vision.ts';
 import type { Command, EventPayload, GameState, StepResult } from './model.ts';
 
@@ -64,7 +65,15 @@ export function step(state: GameState, command: Command, content: Content = cont
     const moving = next.units[action.unitId];
     if (!isMapUnit(moving)) throw new Error('Expected deployed unit');
     moving.position = { ...path[path.length - 1] };
-    next.units[action.unitId].actionLeft = 0;
+    if (usesMovementPoints(state)) {
+      // v16: pay the entered tiles; the unit keeps acting while points remain, unless it stopped in a hostile zone of control.
+      // The zone of control is judged from the new position, so an enemy revealed on arrival still stops the unit.
+      const view = observe(next, command.actorId, content);
+      const spent = (moving.movesSpent ?? 0) + path.slice(1).reduce((sum, position) => sum + stepCost(moving, state.map.tiles[hexToIndex(position, state.map)!], content), 0);
+      const stopped = usesTactics(view) && inZoc(moving.position, zocTiles(moving, view.units, view.diplomacy, content));
+      moving.movesSpent = spent;
+      if (stopped || spent >= movementBudget(view, moving, content)) moving.actionLeft = 0;
+    } else next.units[action.unitId].actionLeft = 0;
     events.push({ type: 'Moved', unitId: action.unitId, path });
   } else if (action.type === 'EndTurn') {
     events.push(...expirePeaceProposals(next, command.actorId));
@@ -81,7 +90,7 @@ export function step(state: GameState, command: Command, content: Content = cont
       events.push(...recordExpansion(state, next, command, events, content));
       if (!next.outcome && next.round >= (next.setup.roundLimit ?? 100)) events.push(...finishGame(next, 'score', undefined, content));
       else if (!next.outcome) next.round++;
-      for (const unit of Object.values(next.units)) unit.actionLeft = !next.outcome && isMapUnit(unit) ? 1 : 0;
+      for (const unit of Object.values(next.units)) { unit.actionLeft = !next.outcome && isMapUnit(unit) ? 1 : 0; delete unit.movesSpent; }
     }
     if (!next.outcome) events.push({ type: 'TurnChanged', activePlayerId: next.activePlayerId, round: next.round });
   }

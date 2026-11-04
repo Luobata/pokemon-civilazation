@@ -1,3 +1,8 @@
+import { audio, audioSettingsMarkup, bindAudioSettings } from './audio/index.ts';
+import type { SoundId } from './audio/index.ts';
+import { usesMovementPoints } from '../core/movement.ts';
+import { toastFor, toastMarkup } from './notifications.ts';
+import type { Toast } from './notifications.ts';
 import { legendCompletionMarkup, legendScreenMarkup, legendTitle } from './legend-panel.ts';
 import type { LegendWonderId } from '../content/legend-wonders.ts';
 import type { SpeciesId } from '../content/species.ts';
@@ -195,8 +200,64 @@ function activityText(payload: VisibleEvent['payload']) {
     default: return '';
   }
 }
+// ---------- notifications (Civilization-style toasts) ----------
+const toasts: Toast[] = [];
+function pushToast(item: Toast | null) {
+  if (!item) return;
+  toasts.push(item); toasts.splice(0, Math.max(0, toasts.length - 4));
+  window.setTimeout(() => dismissToast(item.id), 7000);
+  renderToasts();
+}
+function dismissToast(id: number) {
+  const index = toasts.findIndex(item => item.id === id);
+  if (index >= 0) { toasts.splice(index, 1); renderToasts(); }
+}
+function renderToasts() {
+  const host = document.querySelector<HTMLElement>('#toast-host');
+  if (!host) return;
+  host.innerHTML = toastMarkup(toasts);
+  for (const button of host.querySelectorAll<HTMLButtonElement>('[data-toast-close]')) button.addEventListener('click', () => dismissToast(Number(button.dataset.toastClose)));
+  for (const button of host.querySelectorAll<HTMLButtonElement>('[data-toast-action]')) button.addEventListener('click', () => {
+    const item = toasts.find(candidate => candidate.id === Number(button.dataset.toastAction));
+    dismissToast(Number(button.dataset.toastAction));
+    const target = item?.target;
+    if (!target) return;
+    if (target.kind === 'screen') openScreen(target.screen);
+    else if (target.kind === 'city') { closeScreen(); selectCity(target.cityId); }
+    else { closeScreen(); selectUnit(target.unitId); }
+  });
+}
+/** Music follows the situation: war while the viewer is at war, otherwise exploration. */
+function syncMusic() {
+  if (!session) return;
+  const view = session.getView();
+  audio.setMood(view.outcome ? 'menu' : view.diplomacy.some(pair => pair.status === 'war' && (pair.a === view.playerId || pair.b === view.playerId)) ? 'war' : 'peace');
+}
+/** The effect for one presented event (only what the viewer did, or what happened to the viewer). */
+function soundFor(payload: VisibleEvent['payload'], view: PlayerView): SoundId | null {
+  const me = view.playerId;
+  switch (payload.type) {
+    case 'Moved': return payload.unit.ownerId === me ? 'move' : null;
+    case 'BattleResolved': return payload.knockedDownUnitIds.length ? 'knockdown' : 'hit';
+    case 'Captured': return payload.playerId !== me ? null : payload.success ? 'capture' : 'captureFail';
+    case 'Evolved': case 'WorldStoneEvolution': return payload.playerId === me ? 'evolve' : null;
+    case 'CityFounded': return payload.playerId === me ? 'cityFounded' : null;
+    case 'BuildingCompleted': case 'DistrictCompleted': case 'UnitTrained': return payload.playerId === me ? 'production' : null;
+    case 'TechCompleted': case 'DiscoveryMade': return payload.playerId === me ? 'research' : null;
+    case 'UnitPromoted': return 'promotion';
+    case 'LegendWonderCompleted': return 'wonder';
+    case 'LegendClueFound': case 'EraAgeBegan': return payload.playerId === me ? 'notify' : null;
+    case 'DiplomacyChanged': return payload.relation.a !== me && payload.relation.b !== me ? null : payload.relation.status === 'war' && payload.relation.changedAtRound === view.round ? 'war' : payload.relation.status === 'peace' && payload.relation.changedAtRound === view.round ? 'peace' : null;
+    case 'TurnChanged': return payload.activePlayerId === me ? 'turn' : null;
+    default: return null;
+  }
+}
 function recordActivity(payload: VisibleEvent['payload']) {
+  const sound = soundFor(payload, session.getView());
+  if (sound) audio.play(sound);
+  if (payload.type === 'DiplomacyChanged' || payload.type === 'GameEnded') syncMusic();
   if (payload.type === 'LegendWonderCompleted' && payload.playerId === session.getView().playerId) legendArrivals.push(payload.legendId);
+  pushToast(toastFor(payload, session.getView()));
   const text = activityText(payload);
   if (!text || activityLog[0]?.text === text) return;
   activityLog.unshift({ text, round: session.getView().round, routine: payload.type === 'TurnChanged' || payload.type === 'Moved' });
@@ -290,7 +351,8 @@ function controls() {
   document.querySelector('#turn-reminders')!.innerHTML = ended ? '' : turnReminders(view, CONTENT).map(item => `<button type="button" data-reminder="${item.target}">${item.label}</button>`).join('');
   for (const button of document.querySelectorAll<HTMLButtonElement>('[data-reminder]')) button.onclick = () => {
     const kind = button.dataset.reminder!;
-    if (kind.startsWith('unit:')) { selectUnit(Number(kind.slice(5))); notice = '附近有野生或敌方宝可梦：让宝可梦护送，或先撤回城市。'; controls(); return; }
+    if (kind.startsWith('danger:')) { selectUnit(Number(kind.slice(7))); notice = '附近有野生或敌方宝可梦：让宝可梦护送，或先撤回城市。'; controls(); return; }
+    if (kind.startsWith('unit:')) { selectUnit(Number(kind.slice(5))); notice = '开拓队：移动到离其他城市至少 4 格的陆地，下一回合点「在此建立城市」。'; controls(); return; }
     if (kind === 'city' || kind === 'unit') { cycleIdle(kind); return; }
     const target = document.querySelector<HTMLElement>(kind);
     if (target) revealPanel(target);
@@ -323,9 +385,11 @@ function turnReminders(view: PlayerView, content: typeof EXPANSION_CONTENT): { l
     && !view.economy.cities.some(city => hexDistance(city.position, unit.position) === 0)
     && view.units.some(other => other.kind === 'pokemon' && other.ownerId !== view.playerId && (other.ownerId === null || view.diplomacy.some(pair => pair.status === 'war' && (pair.a === other.ownerId || pair.b === other.ownerId) && (pair.a === view.playerId || pair.b === view.playerId))) && hexDistance(other.position, unit.position) <= 2)
     && !view.units.some(guard => guard.ownerId === view.playerId && guard.kind === 'pokemon' && hexDistance(guard.position, unit.position) <= 1));
-  if (exposed.length) items.push({ label: `开拓队有危险`, target: `unit:${exposed[0].id}` });
+  if (exposed.length) items.push({ label: `开拓队有危险`, target: `danger:${exposed[0].id}` });
   const idleCities = view.economy.cities.filter(city => city.queue.length === 0).length;
   if (idleCities) items.push({ label: `${idleCities} 城空闲`, target: 'city' });
+  const settler = view.units.find(unit => unit.ownerId === view.playerId && unit.kind === 'logistics' && unit.actionLeft);
+  if (settler && !exposed.length) items.push({ label: '开拓队：去建新城', target: `unit:${settler.id}` });
   const idleUnits = view.units.filter(unit => unit.ownerId === view.playerId && unit.actionLeft).length;
   if (idleUnits) items.push({ label: `${idleUnits} 单位待命`, target: 'unit' });
   return items;
@@ -341,17 +405,33 @@ function issue(action: Command['action'], successNotice?: string) {
       : result.reason === 'invalid-city-site' ? '此处不能建城：需要陆地，且距所有城市至少 4 格'
       : result.reason === 'no-action' ? '本回合已行动，请结束回合后再试' : result.reason;
     notice = `${action.type} 被拒绝：${reason}`;
+    audio.play('error');
   }
   else {
     notice = successNotice ?? '';
+    if (action.type === 'Attack') audio.play('attack');
     if (action.type === 'Attack' || action.type === 'Capture' || action.type === 'Move' || action.type === 'EndTurn') resetAction();
     if (action.type === 'SetProductionQueue' && action.orders.some(order => order.item.kind === 'district')) districtPlacement = null;
     if (action.type === 'FoundCity') {
       selected = null; selectedCity = session.getView().economy.cities.at(-1)!.id; resetAction();
       notice = `城市 ${selectedCity} 已建立。现在可以建造建筑或训练新的单位。`;
     }
+    advanceToNextUnit(action);
   }
   controls(); requestFrame();
+}
+/** v16 (Civilization-style): when the selected unit has used up its turn, select the nearest unit still waiting for orders. */
+function advanceToNextUnit(action: Command['action']) {
+  const view = session.getView();
+  if (!usesMovementPoints(view) || selected === null || !('unitId' in action) || action.unitId !== selected || action.type === 'PromoteUnit') return;
+  const current = view.units.find(unit => unit.id === selected);
+  if (current?.actionLeft) return;
+  const origin = current?.position;
+  const next = view.units.filter(unit => unit.ownerId === view.playerId && unit.actionLeft && unit.id !== selected)
+    .sort((a, b) => (origin ? hexDistance(origin, a.position) - hexDistance(origin, b.position) : 0) || a.id - b.id)[0];
+  if (!next) return;
+  selectUnit(next.id);
+  notice = `下一个待命单位：${next.kind === 'pokemon' ? contentForView(view).species[next.speciesId].name : '开拓队'}（还有 ${view.units.filter(unit => unit.ownerId === view.playerId && unit.actionLeft).length} 个单位待命）`;
 }
 function confirmAction() {
   if (selected === null || !pendingTarget) return;
@@ -480,6 +560,7 @@ function selectUnit(id: number | null, focus = true) {
   const unit = session.getView().units.find(unit => unit.id === id && unit.ownerId === session.getView().playerId);
   selected = unit?.id ?? null; selectedCity = null; neutralCity = null; inspectedTile = null;
   resetAction(); notice = '';
+  if (unit) audio.play('select');
   if (unit && focus) focusHex(unit.position);
   controls(); requestFrame();
 }
@@ -748,6 +829,11 @@ if (!import.meta.env.DEV) {
 }
 new ResizeObserver(() => { if (session) requestFrame(); }).observe(canvas);
 installScreens();
+// ---------- audio (original Web Audio music and effects; starts on the first gesture) ----------
+document.querySelector<HTMLElement>('#audio-settings-root')!.innerHTML = audioSettingsMarkup();
+bindAudioSettings(document.querySelector<HTMLElement>('#audio-settings-root')!);
+for (const type of ['pointerdown', 'keydown'] as const) window.addEventListener(type, () => { audio.unlock(); syncMusic(); }, { passive: true });
+document.addEventListener('click', event => { if ((event.target as HTMLElement).closest('button')) audio.play('click'); }, true);
 // The map fills the stage; redraw when a screen closes so the canvas picks up any resize.
 onScreenChange(screen => { if (screen === null && session) requestFrame(); });
 document.querySelector<HTMLInputElement>('#activity-important')!.addEventListener('change', event => { activityImportantOnly = (event.target as HTMLInputElement).checked; controls(); });

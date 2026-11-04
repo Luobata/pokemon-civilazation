@@ -114,6 +114,7 @@
         <header class="screen-head"><h2 id="screen-title-menu">游戏菜单</h2><button type="button" class="screen-close" data-close-screen aria-label="关闭游戏菜单">×</button></header>
         <div class="screen-body">
           <div class="menu-links"><a href="/guide.html" target="_blank">训练家手册 ↗</a><a href="/multiplayer.html">联机大厅 ↗</a></div>
+          <div id="audio-settings-root"></div>
           <section id="controls" aria-label="游戏与存档控制">
             <fieldset id="leader-setup" tabindex="-1">
               <legend>下局领袖</legend>
@@ -141,6 +142,7 @@
     <dialog id="peace-response"><h2>停战提议待回应</h2><p><strong id="peace-proposer"></strong> 提出停战。必须接受或拒绝后才能结束当前行动回合；不回应视为拒绝。</p><div class="dialog-actions"><button id="reject-peace">拒绝停战</button><button id="accept-peace" class="primary">接受停战</button></div></dialog>
     <dialog id="gameover-dialog"><h2 id="outcome-title">对局结束</h2><p id="outcome-summary"></p><div class="score-scroll"><table><thead><tr><th>#</th><th>文明</th><th>总分</th><th>城市</th><th>人口</th><th>物种</th><th>科技</th><th>击坠</th></tr></thead><tbody id="outcome-ranking"></tbody></table></div><div class="dialog-actions"><button id="gameover-close">返回查看</button><button id="gameover-new" class="primary">开始新局</button></div></dialog>
     <script type="module" src="/src/browser/main.ts"></script>
+    <div id="toast-host" class="toast-host" aria-live="polite"></div>
     <div id="legend-arrival-root"></div>
   </body>
 </html>

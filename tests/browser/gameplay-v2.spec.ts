@@ -22,7 +22,8 @@ test('new games use gameplay v2: tile improvements, discoveries and field tactic
   await expect(farm).toContainText('+2');
   const tile = Number((await farm.getAttribute('data-improve'))!.split(':')[0]);
   await farm.click();
-  await expect(page.locator('#improvement-box')).toContainText('本回合行动点已用完');
+  // Working a tile ends the unit's turn; v16 then selects the next unit waiting for orders.
+  await expect(page.locator('#action-notice')).toContainText('下一个待命单位');
   expect((await state(page)).expansion!.improvements!.projects[tile]).toMatchObject({ kind: 'berryFarm', progress: 2, playerId: 0 });
   await page.locator('#end-turn').click();
   await expect(page.locator('#round-display')).toContainText('2');

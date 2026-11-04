@@ -7,7 +7,7 @@ import type { Content, UnitIdentity } from '../content/units.ts';
 import type { BiomeId } from '../content/rules.ts';
 import { hexDistance, hexToIndex, indexToHex, neighbors } from './hex.ts';
 import type { Hex } from './hex.ts';
-import type { PlayerView, GameState } from './model.ts';
+import type { MapUnit, PlayerView, GameState } from './model.ts';
 
 export function canEnter(unit: UnitIdentity, biome: BiomeId, content: Content = CONTENT): boolean {
   return unitDefinition(unit, content).terrain.includes(biome);
@@ -24,6 +24,17 @@ export function initialUnitPosition(state: GameState, city: Hex, unit: UnitIdent
   return indexToHex(candidates[0], state.map);
 }
 
+/** Movement points for a full round (species move + leader doctrine + 疾行). */
+export function movementBudget(view: PlayerView, unit: MapUnit, content: Content): number {
+  return unitDefinition(unit, content).move + doctrineEffects(view.economy.player, view.eraProgression, unit, content).movementBonus + promotionMovement(view, unit.id);
+}
+/** Cost of entering one tile (ghosts pay 1 everywhere). */
+export const stepCost = (unit: UnitIdentity, biome: BiomeId, content: Content) =>
+  unit.kind === 'pokemon' && content.species[unit.speciesId].typeId === 'ghost' ? 1 : content.moveCosts[biome];
+/** Gameplay v16: movement points let a unit move, then still act. */
+export const usesMovementPoints = (source: { gameplayVersion?: number; setup?: { gameplayVersion?: number } }) =>
+  ((source.setup?.gameplayVersion ?? source.gameplayVersion) ?? 0) >= 16;
+
 // Dijkstra over the player's known terrain only. Hidden occupants never affect
 // this query; remembered unit markers are not current occupancy information.
 export function reachablePaths(view: PlayerView, unitId: number,
@@ -39,8 +50,7 @@ export function reachablePaths(view: PlayerView, unitId: number,
   const costs = new Map([[origin, 0]]);
   const paths: Record<number, Hex[]> = { [origin]: [{ ...unit.position }] };
   const pending = new Set([origin]);
-  const budget = unitDefinition(unit, content).move
-    + doctrineEffects(view.economy.player, view.eraProgression, unit, content).movementBonus + promotionMovement(view, unit.id);
+  const budget = movementBudget(view, unit, content) - (unit.movesSpent ?? 0);
   // Gameplay v2: entering a visible hostile zone of control ends movement there.
   const zoc = usesTactics(view) ? zocTiles(unit, view.units, view.diplomacy, content) : [];
   while (pending.size) {
@@ -52,7 +62,7 @@ export function reachablePaths(view: PlayerView, unitId: number,
       if (index === null || blocked.has(index)) continue;
       const biome = view.map.tiles[index];
       if (biome === null || !canEnter(unit, biome, content)) continue;
-      const cost = costs.get(current)! + (unit.kind === 'pokemon' && content.species[unit.speciesId].typeId === 'ghost' ? 1 : content.moveCosts[biome]);
+      const cost = costs.get(current)! + stepCost(unit, biome, content);
       if (cost > budget || cost >= (costs.get(index) ?? Infinity)) continue;
       costs.set(index, cost);
       paths[index] = [...paths[current], hex];

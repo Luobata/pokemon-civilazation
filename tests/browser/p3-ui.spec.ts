@@ -89,7 +89,7 @@ for (const width of widths) {
 
     const danger = exposedSettlerSave();
     await importSave(page, danger);
-    const dangerButton = page.locator('[data-reminder^="unit:"]');
+    const dangerButton = page.locator('[data-reminder^="danger:"]');
     await expect(dangerButton).toHaveText('开拓队有危险');
     await dangerButton.click();
     await expect(page.locator('#action-notice')).toContainText('让宝可梦护送，或先撤回城市');

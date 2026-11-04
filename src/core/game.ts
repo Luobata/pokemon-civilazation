@@ -1,3 +1,4 @@
+import { isMapUnit } from './model.ts';
 import { gameVersions } from './versions.ts';
 import { isEraProgression, isGameplayVersion } from '../content/eras.ts';
 import { initializeExpansion } from './expansion.ts';
@@ -60,6 +61,11 @@ export function createGame(setup: GameSetup, content: Content = contentFor(setup
   }
   for (const player of setup.players) {
     const city = Object.values(state.cities).find(city => city.ownerId === player.id)!;
+    // v16: the starting settler stands beside the capital instead of hidden under it.
+    if ((setup.gameplayVersion ?? 0) >= 16) {
+      const settler = Object.values(state.units).find(unit => unit.ownerId === player.id && unit.kind === 'logistics')!;
+      if (isMapUnit(settler)) settler.position = initialUnitPosition(state, city.position, settler, content);
+    }
     const unit = { kind: 'pokemon' as const, speciesId: state.players[player.id].starterId };
     const position = initialUnitPosition(state, city.position, unit, content);
     const id = state.nextEntityId++;

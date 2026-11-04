@@ -56,13 +56,14 @@ test('found city, finish production, save/load JSON and continue identically in 
   await page.goto('/?seed=12345'); await page.locator('#animate').uncheck();
   const initial = await state(page), settler = Object.values(initial.units).find(u => u.ownerId === 0 && u.kind === 'logistics')!;
   const route = foundingRoute(createGame(initial.setup), settler.id);
-  expect(route.length).toBeGreaterThanOrEqual(4);
+  // v16: the settler starts beside the capital, so the route is shorter than when it started on the capital.
+  expect(route.length).toBeGreaterThanOrEqual(2);
   for (const destination of route) {
     const current = (await state(page)).units[settler.id];
     if (!isMapUnit(current)) throw new Error('Settler must remain on map before founding');
     await clickHex(page, current.position);
     await clickHex(page, destination);
-    await expect(page.locator('#selection')).toContainText('行动点 0');
+    await expect.poll(async () => { const unit = (await state(page)).units[settler.id]; return isMapUnit(unit) ? unit.position : null; }).toEqual(destination);
     await page.locator('#end-turn').click();
     await expect(page.locator('#selection')).toContainText('行动点 1');
   }

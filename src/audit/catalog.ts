@@ -17,6 +17,16 @@ const system = (definition: AuditSystem): AuditSystem => definition;
 
 export const AUDIT_SYSTEMS: readonly AuditSystem[] = [
   system({
+    id: 's-movement-points', name: '移动力（先走后打）', status: 'implemented',
+    summary: 'gameplay v16：单位每轮按移动力移动，还有移动力时仍可攻击、捕捉、进化或施工；开局开拓队站在首都旁边。读取 v≤15 存档时不启用。',
+    rules: ['移动消耗所走地块的移动花费，记在 movesSpent；用尽或停在敌方控制区（按到达后的视野判断）时本轮结束。',
+      '攻击、捕捉等动作仍结束本轮；轮末清空 movesSpent。',
+      '开局开拓队放在首都相邻格（不消耗随机数）。'],
+    checks: ['v15 固定 48 局改动前后逐文件一致；v16 两次运行逐字节一致。', '先走后打、控制区停步、移动力用尽、轮末重置、开拓队位置，有单元测试。'],
+    sources: ['src/core/movement.ts', 'src/core/step.ts', 'src/core/game.ts', 'tests/core/movement-v16.test.ts'],
+    actionTypes: ['Move', 'Attack'],
+  }),
+  system({
     id: 's-legend-wonders', name: '传说奇观（剧情）', status: 'implemented',
     summary: 'gameplay v15（时代对局）：传说宝可梦做成全世界唯一的奇观，各文明各自找线索、用生产建造，配三章剧情；读取 v≤14 存档时不启用。',
     rules: ['线索按文明各自记录：踪迹（研究野外观察后宝可梦站上去）、圣所石板、信仰、内政成就、世代、稀有战斗；每个命令后结算。',

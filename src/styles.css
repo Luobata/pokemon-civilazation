@@ -834,3 +834,17 @@ b.age-golden { color: #F2C14E !important; } b.age-dark { color: #B9A6E8 !importa
 
 /* Gens 6–9 sprites are tightly cropped, non-square, anti-aliased art: keep the aspect ratio and Emerald-like padding. */
 img[src*="/sprites/gen6/"], img[src*="/sprites/gen7/"], img[src*="/sprites/gen8/"], img[src*="/sprites/gen9/"] { object-fit: contain; padding: 12%; box-sizing: border-box; image-rendering: auto; }
+
+/* Notifications (Civilization-style toasts) */
+.toast-host { position: fixed; top: 150px; left: 50%; transform: translateX(-50%); z-index: 50; display: grid; gap: 8px; width: min(420px, calc(100vw - 24px)); pointer-events: none; }
+.toast { pointer-events: auto; display: grid; grid-template-columns: 32px 1fr auto auto; align-items: center; gap: 10px; padding: 9px 10px 9px 12px;
+  border: 1px solid #2E4743; border-left: 4px solid #72C99E; border-radius: 8px; background: #13221FF2; box-shadow: 0 8px 24px #0009; animation: toast-in .22s ease-out; }
+.toast-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: #1F332F; font-size: 16px; }
+.toast-body strong { display: block; color: #FFF8E5; font-size: 13px; }
+.toast-body small { display: block; color: #A9B9B3; font-size: 11.5px; margin-top: 2px; }
+.toast-action { padding: 5px 10px; font-size: 12px; border-color: #F2C14E88; color: #F6E3A6; }
+.toast-close { padding: 2px 6px; background: none; border: none; color: #81908A; font-size: 16px; }
+.toast-research { border-left-color: #75AFC7; } .toast-production { border-left-color: #F2C14E; } .toast-growth { border-left-color: #72C99E; }
+.toast-wonder { border-left-color: #D9A857; } .toast-war { border-left-color: #E5554A; } .toast-info { border-left-color: #B58AD6; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .toast { animation: none; } }

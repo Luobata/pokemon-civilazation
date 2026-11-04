@@ -682,6 +682,11 @@ export function inspectSystem(systemId: string, state: GameState): AuditSystemIn
   }
   if (system.id === 's29-multiplayer') return { metrics: [metric('当前局模式', state.setup.multiplayer ? '多席位' : '单人本地'), metric('席位数', Object.keys(state.players).length)],
     data: { controllerByPlayer: state.setup.players, client: '/multiplayer.html', server: 'npm run server', authority: 'HTTP server authenticates each seat and returns only its projected view.', tokens: 'Never exposed by this local audit inspector.' } };
+  if (system.id === 's-movement-points') {
+    const enabled = (state.setup.gameplayVersion ?? 0) >= 16, moved = Object.values(state.units).filter(unit => (unit.movesSpent ?? 0) > 0);
+    return { metrics: [metric('当前规则', enabled ? '移动力 v16' : '每轮一次行动（v≤15）'), metric('本轮已移动的单位', moved.length)],
+      data: { movesSpent: Object.fromEntries(moved.map(unit => [unit.id, unit.movesSpent])) } };
+  }
   if (system.id === 's-legend-wonders') {
     const ledger = state.expansion?.legends;
     return { metrics: [metric('当前规则', ledger ? '传说奇观 v15' : '本局未启用（需 v15 时代对局）'), metric('踪迹', Object.keys(ledger?.sites ?? {}).length),

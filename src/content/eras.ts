@@ -99,11 +99,12 @@ export function eraState(player: EraPlayer, mode?: EraProgression): EraState | n
  * 13: adds battle merit and trait promotions.
  * 14: adds the roster pack (58 species across generations 1–9, unlocked per player generation).
  * 15: adds legendary wonders with story chapters (era games).
+ * 16: Civilization-style movement points (move, then still attack) and a starting settler beside the capital.
  */
-export type GameplayVersion = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15;
-export const LATEST_GAMEPLAY_VERSION: GameplayVersion = 15;
+export type GameplayVersion = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16;
+export const LATEST_GAMEPLAY_VERSION: GameplayVersion = 16;
 export function isGameplayVersion(value: unknown): value is GameplayVersion {
-  return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 15;
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 16;
 }
 export function gameplayAtLeast(source: { gameplayVersion?: GameplayVersion }, version: GameplayVersion): boolean {
   return (source.gameplayVersion ?? 0) >= version;

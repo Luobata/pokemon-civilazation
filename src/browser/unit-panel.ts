@@ -1,3 +1,6 @@
+import type { MapUnit } from '../core/model.ts';
+import type { Content } from '../content/units.ts';
+import { movementBudget, usesMovementPoints } from '../core/movement.ts';
 import type { SpeciesId } from '../content/species.ts';
 import { stoneEvolutionsFor } from '../content/roster.ts';
 import type { EvolutionOption } from '../content/species.ts';
@@ -39,6 +42,13 @@ type Callbacks = {
   issue?: (action: Command['action']) => void;
 };
 
+/** v16: remaining movement points (a unit can still attack while it has any); older rules: one action per round. */
+function actionPointLabel(view: PlayerView, unit: MapUnit, content: Content): string {
+  if (!usesMovementPoints(view)) return `行动点 ${unit.actionLeft}`;
+  if (!unit.actionLeft) return '本轮已行动';
+  const budget = movementBudget(view, unit, content);
+  return `移动 ${Math.max(0, budget - (unit.movesSpent ?? 0))}/${budget}`;
+}
 export function renderUnitPanel(view: PlayerView, selected: number | null, mode: ActionMode,
   target: PendingTarget | null, ballId: BallId, busy: boolean, callbacks: Callbacks): void {
   const CONTENT = contentForView(view);
@@ -52,7 +62,7 @@ export function renderUnitPanel(view: PlayerView, selected: number | null, mode:
     const reason = !unit.actionLeft ? '本回合已行动。结束回合后，开拓队恢复行动点。'
       : biome === 'ocean' ? '海洋上无法建城，请选择陆地。'
       : nearest < 4 ? `距最近已知城市 ${nearest} 格，至少需要 4 格。请继续向外探索。` : null;
-    root.innerHTML = `<div class="unit-card settler-card"><div class="unit-head"><div class="unit-portrait settler-portrait" aria-hidden="true">⚑</div><div><strong>开拓队</strong><small>建立城市 · 文明 ${view.playerId + 1}</small></div><span class="unit-ap ${unit.actionLeft ? '' : 'spent'}">行动点 ${unit.actionLeft}</span></div>
+    root.innerHTML = `<div class="unit-card settler-card"><div class="unit-head"><div class="unit-portrait settler-portrait" aria-hidden="true">⚑</div><div><strong>开拓队</strong><small>建立城市 · 文明 ${view.playerId + 1}</small></div><span class="unit-ap ${unit.actionLeft ? '' : 'spent'}">${actionPointLabel(view, unit, CONTENT)}</span></div>
       <p class="settler-intro">在新的土地上建立一座人口为 1 的城市。</p>
       <ol class="founding-steps"><li>移动到陆地，与其他城市至少相距 4 格。</li><li>移动会消耗行动点；下一回合再建城。</li><li>建城消耗这支开拓队，随后进入城市管理。</li></ol>
       <p id="founding-status" class="founding-status ${reason ? 'unavailable' : ''}">${reason ?? '已知选址条件满足，可以在此建立城市。'}</p>
@@ -130,7 +140,7 @@ export function renderUnitPanel(view: PlayerView, selected: number | null, mode:
     ${status.tera ? `<p class="unit-note">太晶属性：${TYPE_NAMES[status.tera]}</p>` : teraOptions.length ? `<div class="tera-row"><select id="tera-type">${teraOptions.map(type => `<option value="${type}">${TYPE_NAMES[type]}（${ESSENCES[TYPE_ESSENCE[type]].name}）</option>`).join('')}</select><button type="button" id="terastallize" ${busy ? 'disabled' : ''} title="${ERA_ABILITIES.tera.description}">太晶化 · ${ERA_ABILITY_RULES.teraCost}</button></div>` : ''}
     ${essence && stock && eraButtons.length ? `<p class="unit-note">消耗本属性精华「${ESSENCES[essence].name}」，来自${ESSENCES[essence].biome === 'ocean' ? '海洋' : ({ grassland: '草原', forest: '森林', mountain: '山地', desert: '荒漠', snow: '雪原', volcano: '火山' } as Record<string, string>)[ESSENCES[essence].biome]}地块；城市耕作对应地形即可积累。</p>` : ''}
     ${!eraButtons.length && !teraOptions.length && !status.tera ? `<p class="unit-note">${era.unlocked.length ? '本单位暂无可用时代能力。' : '进入金银时代后解锁昼夜，宝石时代解锁天气；完整世代模式还有 Mega、Z 招式、极巨化与太晶化。'}</p>` : ''}</section>` : '';
-  root.innerHTML = `<div class="unit-card"><div class="unit-head"><div class="unit-portrait"><img src="${pokemonSpritePath(unit.speciesId)}" alt="${definition.name}" width="64" height="64"></div><div><strong>${definition.name}</strong><small>宝可梦 · 文明 ${view.playerId + 1}${unit.enraged ? ' · 激怒' : ''}</small></div><span class="unit-ap ${unit.actionLeft ? '' : 'spent'}">行动点 ${unit.actionLeft}</span></div>
+  root.innerHTML = `<div class="unit-card"><div class="unit-head"><div class="unit-portrait"><img src="${pokemonSpritePath(unit.speciesId)}" alt="${definition.name}" width="64" height="64"></div><div><strong>${definition.name}</strong><small>宝可梦 · 文明 ${view.playerId + 1}${unit.enraged ? ' · 激怒' : ''}</small></div><span class="unit-ap ${unit.actionLeft ? '' : 'spent'}">${actionPointLabel(view, unit, CONTENT)}</span></div>
     <div class="unit-vitals"><span>HP <strong>${unit.hp}/${species.maxHp}</strong><span class="vital-bar" aria-hidden="true"><span style="width:${Math.max(0, Math.min(100, unit.hp * 100 / species.maxHp))}%"></span></span></span><span>EXP <strong>${unit.xp}${evolution ? `/${evolution.xp}` : ''}</strong>${evolution ? `<span class="vital-bar xp" aria-hidden="true"><span style="width:${Math.max(0, Math.min(100, unit.xp * 100 / evolution.xp))}%"></span></span>` : ''}</span></div>
     <div class="unit-details"><div class="unit-detail"><small>攻</small><strong>${species.attack}</strong></div><div class="unit-detail"><small>防</small><strong>${species.defense}</strong></div><div class="unit-detail"><small>程</small><strong>${species.range}</strong></div><div class="unit-detail"><small>移</small><strong>${species.move + doctrineEffects(player, view.eraProgression, unit, CONTENT).movementBonus + promotionMovement(view, unit.id)}</strong></div><div class="unit-detail"><small>视</small><strong>${species.vision}</strong></div><div class="unit-detail"><small>P</small><strong>${species.power}</strong></div></div>
     ${view.gameplayVersion ? `<p class="unit-note" id="assault-role">兵种：${ROLE_CITY_ASSAULT[species.role].label} · ${ROLE_CITY_ASSAULT[species.role].note}${doctrineEffects(player, view.eraProgression, unit, CONTENT).cityDamageBonus ? `；领袖战术再 +${doctrineEffects(player, view.eraProgression, unit, CONTENT).cityDamageBonus / 10}%` : ''}</p>` : ''}

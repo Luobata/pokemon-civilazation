@@ -56,7 +56,7 @@ for (const seed of [12345, 0]) {
     expect(initial.state).toBe(canonicalSerialize(createGame(initial.log.setup)));
     await page.locator('#animate').uncheck();
     const points = await clickMove(page);
-    await expect(page.locator('#selection')).toContainText('行动点 0');
+    await expect.poll(async () => JSON.parse((await snapshot(page)).state).commandSeq).toBe(1);
     await expect(page.locator('#end-turn')).toBeEnabled();
     const moved = await snapshot(page);
     const movedState = JSON.parse(moved.state);
@@ -133,7 +133,7 @@ test('camera pan/zoom changes hit coordinates while DPR is capped and game state
   await expect.poll(async () => page.locator('canvas').evaluate(canvas => (canvas as HTMLCanvasElement).width / canvas.clientWidth)).toBe(2);
   expect((await snapshot(page)).digest).toBe(before.digest);
   await page.locator('#animate').uncheck(); await clickMove(page);
-  await expect(page.locator('#selection')).toContainText('行动点 0');
+  await expect.poll(async () => JSON.parse((await snapshot(page)).state).commandSeq).toBe(1);
   await context.close();
 });
 
@@ -182,7 +182,7 @@ test('keyboard cursor selects and moves a unit through the existing command path
   await expect(page.locator('#selection')).toContainText('行动点 1');
   await page.keyboard.press(fixture.key);
   await page.keyboard.press('Enter');
-  await expect(page.locator('#selection')).toContainText('行动点 0');
+  await expect.poll(async () => JSON.parse((await snapshot(page)).state).units[fixture.unitId].position).toEqual(fixture.destination);
   const moved = JSON.parse((await snapshot(page)).state);
   expect(moved.units[fixture.unitId].position).toEqual(fixture.destination);
 });
