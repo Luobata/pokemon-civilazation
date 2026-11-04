@@ -17,6 +17,16 @@ const system = (definition: AuditSystem): AuditSystem => definition;
 
 export const AUDIT_SYSTEMS: readonly AuditSystem[] = [
   system({
+    id: 's-promotions', name: '战功与晋升', status: 'implemented',
+    summary: 'gameplay v13：宝可梦在战斗中累积战功，达到 6 / 14 / 24 时各选一个特性；读取 v≤12 存档时不启用。',
+    rules: ['战功只来自 BattleResolved：主动攻击造成伤害 +2、反击 +1、击倒 +3、攻下城市 +3；与进化经验分开。',
+      '特性：破城（攻城 +25%）、猛攻（主动攻击宝可梦 +15%）、坚守（受到宝可梦伤害 −15%）、疾行（移动 +1）、再生（每轮 +5 HP）。',
+      '特性对看得见该单位的玩家公开；战斗预览与权威结算共用同一组倍率。'],
+    checks: ['v12 固定 48 局改动前后逐文件一致；v13 48 局两次运行逐字节一致；统计晋升次数与特性占比。', '战功、晋升校验、倍率与预览一致、疾行、再生、回放一致，有单元测试。'],
+    sources: ['src/content/promotions.ts', 'src/core/promotions.ts', 'src/browser/promotion-panel.ts', 'tests/core/promotions.test.ts', 'docs/design/promotions-v13.md'],
+    actionTypes: ['PromoteUnit', 'Attack'],
+  }),
+  system({
     id: 's-era-honors', name: '世代荣誉（黄金/黑暗世代）', status: 'implemented',
     summary: 'gameplay v12：按上一世代平均每轮世代分决定新世代为黄金、普通或黑暗世代；读取 v≤11 存档时不启用。',
     rules: ['世代分只来自既有事件（图鉴、建城、进化、捕捉、规章、设施区、巢穴、圣所、信仰、华丽馆、图鉴发现、攻城），每个命令结算一次。',

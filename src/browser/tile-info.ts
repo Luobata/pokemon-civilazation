@@ -1,6 +1,8 @@
+import { promotionMovement } from '../core/promotions.ts';
 // Describes one map tile from the viewing player's knowledge only (PlayerView): terrain, yields,
 // ownership and everything standing on it, each with a relation tone and a short "what can I do".
 // Pure (no DOM): shared by the hover tooltip and the click inspector, and tested in Node.
+import { promotionLine } from './promotion-panel.ts';
 import { DISTRICTS } from '../content/districts.ts';
 import { ESSENCES, BIOME_ESSENCE } from '../content/essences.ts';
 import { IMPROVEMENTS } from '../content/improvements.ts';
@@ -105,8 +107,10 @@ export function describeTile(view: PlayerView, index: number): TileInfo {
     }
     const species = content.species[unit.speciesId];
     const lines = [`${typeText([species.typeId, species.secondaryTypeId])} · ${ROLE_NAMES[species.role]} · 第 ${species.stage} 阶段`,
-      `HP ${unit.hp}/${maxUnitHp(unit, content)} · 攻 ${species.attack} · 防 ${species.defense} · 移动 ${species.move} · 射程 ${species.range}`];
+      `HP ${unit.hp}/${maxUnitHp(unit, content)} · 攻 ${species.attack} · 防 ${species.defense} · 移动 ${species.move + promotionMovement(view, unit.id)} · 射程 ${species.range}`];
     if (unit.enraged) lines.push('被激怒：下一次攻击伤害 ×1.2');
+    const promotion = promotionLine(view, unit.id);
+    if (promotion) lines.push(promotion);
     let subtitle: string, hint: string | undefined;
     if (unit.ownerId === null) {
       subtitle = rampaging.has(unit.id) ? '暴走宝可梦（来自巢穴）' : '野生宝可梦';

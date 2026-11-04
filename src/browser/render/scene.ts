@@ -1,6 +1,7 @@
 // Scene building: decides WHAT the map shows, from the PlayerView and UI state only.
 // Pure (no DOM, no canvas), so fog and selection rules can be unit-tested in Node.
 // Positions are tile indices plus world coordinates; the camera is applied by the renderer.
+import { pendingPromotions } from '../../core/promotions.ts';
 import { LEGENDS } from '../../content/faith-legends.ts';
 import type { LegendId } from '../../content/faith-legends.ts';
 import { ERA_ABILITY_RULES, WEATHERS } from '../../content/era-abilities.ts';
@@ -55,7 +56,9 @@ export type SceneCity = { id: number; index: number; ownerId: number | null; sel
 /** `key` is stable across frames ("unit:12") so animation can target it. */
 export type SceneUnit = { key: string; unit: UnitMarkIdentity; index: number; world: Point; actionLeft: number; enraged: boolean; status?: string;
   /** At war with the viewer: drawn with a red ring so enemies read at a glance. */
-  hostile: boolean };
+  hostile: boolean;
+  /** v13: number of promotion traits (public), and whether an own unit can be promoted now. */
+  rank?: number; promotable?: boolean };
 export type SceneYield = { index: number; yields: Yield; workable: boolean; inFocus: boolean };
 export type SceneWeather = { color: string; mark: string; tiles: number[]; center: number | null };
 
@@ -203,8 +206,11 @@ export function buildScene(input: MapRenderInput): MapScene {
   const units: SceneUnit[] = view.units.map(unit => {
     const index = indexOf(unit.position)!, status = era?.units[unit.id];
     const label = !status ? undefined : status.mega ? 'M' : (status.dynamaxUntilRound ?? 0) >= view.round ? '极' : status.tera ? '晶' : status.zPrimed ? 'Z' : undefined;
+    const promotion = view.expansion?.promotions?.units[unit.id];
     return { key: `unit:${unit.id}`, unit, index, world: world[index], actionLeft: unit.actionLeft, enraged: unit.enraged ?? false,
-      hostile: unit.ownerId !== null && atWar.has(unit.ownerId), ...(label ? { status: label } : {}) };
+      hostile: unit.ownerId !== null && atWar.has(unit.ownerId), ...(label ? { status: label } : {}),
+      ...(promotion?.traits.length ? { rank: promotion.traits.length } : {}),
+      ...(unit.ownerId === view.playerId && pendingPromotions(promotion) ? { promotable: true } : {}) };
   });
 
   const mode = input.actionMode ?? null;

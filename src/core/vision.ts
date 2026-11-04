@@ -1,4 +1,5 @@
 import { observeEraHonors } from './era-honors.ts';
+import { observePromotions } from './promotions.ts';
 import { observeDistricts, rememberDistricts } from './districts.ts';
 import { observeFaith } from './faith-legends.ts';
 import { observeContests } from './contests.ts';
@@ -115,6 +116,7 @@ export function observe(state: GameState, playerId: number, content: Content = s
       ...(state.expansion.bonds ? { bonds: observeBonds(state, playerId) } : {}),
       ...(state.expansion.districts ? { districts: observeDistricts(state, playerId, visible) } : {}),
       ...(state.expansion.eraHonors ? { eraHonors: observeEraHonors(state, playerId) } : {}),
+      ...(state.expansion.promotions ? { promotions: observePromotions(state, playerId, visible, hex => hexToIndex(hex, state.map)) } : {}),
       ...(state.expansion.faith ? { faith: observeFaith(state, playerId) } : {}),
       ...(state.expansion.contests ? { contests: observeContests(state, playerId, content) } : {}),
       ...(state.expansion.rareBerries ? { rareBerries: observeRareBerries(state, playerId, visible) } : {}),

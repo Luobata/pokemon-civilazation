@@ -358,6 +358,25 @@ function unitMark(d: Draw, unit: UnitMarkIdentity, point: Point, actionLeft?: nu
   }
 }
 
+/** v13 promotions: gold chevrons per trait at the lower right; a gold arrow when an own unit can promote. */
+function rankMark(d: Draw, p: Point, rank: number, promotable: boolean) {
+  const { context, radius } = d;
+  const w = Math.max(6, radius * .24), x = p.x + radius * .5, y = p.y + radius * .42;
+  for (let i = 0; i < rank; i++) {
+    const cy = y - i * w * .55;
+    context.beginPath(); context.moveTo(x - w / 2, cy); context.lineTo(x, cy - w * .4); context.lineTo(x + w / 2, cy);
+    context.strokeStyle = '#10191B'; context.lineWidth = 4; context.stroke();
+    context.strokeStyle = '#F2C14E'; context.lineWidth = 2; context.stroke();
+  }
+  if (promotable) {
+    const q = { x: p.x + radius * .55, y: p.y - radius * .55 }, size = Math.max(8, radius * .28);
+    context.beginPath(); context.arc(q.x, q.y, size, 0, Math.PI * 2); context.fillStyle = '#F2C14E'; context.fill();
+    context.strokeStyle = '#10191B'; context.lineWidth = 1.5; context.stroke();
+    context.beginPath(); context.moveTo(q.x - size * .5, q.y + size * .3); context.lineTo(q.x, q.y - size * .45); context.lineTo(q.x + size * .5, q.y + size * .3);
+    context.strokeStyle = '#10191B'; context.lineWidth = 2; context.stroke();
+  }
+}
+
 /** Units at their tiles, except those an animation is currently posing elsewhere. */
 function drawUnits(d: Draw, frame: AnimationFrame, camera: Camera) {
   const { context, centers, radius, scene } = d;
@@ -377,6 +396,7 @@ function drawUnits(d: Draw, frame: AnimationFrame, camera: Camera) {
       context.strokeStyle = '#F6EACA'; context.lineWidth = 1; context.stroke();
       centeredText(d, item.status, q, '#FFF8E5', size * 1.1);
     }
+    if ((item.rank || item.promotable) && d.onscreen(p)) rankMark(d, p, item.rank ?? 0, item.promotable ?? false);
   }
   for (const pose of frame.poses) unitMark(d, pose.unit, toScreen(pose.position, camera));
 }

@@ -7,6 +7,7 @@ import { observe } from '../../src/core/vision.ts';
 import { step } from '../../src/core/step.ts';
 import { canonicalSerialize } from '../../src/core/snapshot.ts';
 import { distinctRareBerries, ownedRareBerries, resolveRareBerryRound } from '../../src/core/rare-berries.ts';
+import { planRareBerryAction } from '../../src/ai/rare-berry-plan.ts';
 import { parseAuditAction } from '../../src/audit/commands.ts';
 import type { GameSetup } from '../../src/core/model.ts';
 import type { GameplayVersion } from '../../src/content/eras.ts';
@@ -69,6 +70,14 @@ test('gifts need an active trade and a surplus copy; the receiver gains the kind
   expect(ownedRareBerries(result.state, 1)[kind]).toBe(1);
   expect(result.state.players[0].gold).toBe(gold + RARE_BERRY_RULES.giftGold);
   expect(step(result.state, { actorId: 0, expectedSeq: 1, action: gift }).ok).toBe(false);
+  // The AI sees its own gift cooldown and does not propose a gift the rules would reject.
+  expect(planRareBerryAction(observe(state, 0))).toEqual(gift);
+  state.expansion!.rareBerries!.lastGiftRound['0>1'] = state.round;
+  expect(observe(state, 0).expansion!.rareBerries!.lastGiftRoundByTarget).toEqual({ 1: state.round });
+  expect(observe(state, 1).expansion!.rareBerries!.lastGiftRoundByTarget).toEqual({});
+  expect(planRareBerryAction(observe(state, 0))).toBeNull();
+  state.round += RARE_BERRY_RULES.giftCooldown;
+  expect(planRareBerryAction(observe(state, 0))).toEqual(gift);
 });
 
 test('gameplay v7 keeps exact save/load and replay', () => {

@@ -11,7 +11,9 @@ import type { EventPayload, GameState } from './model.ts';
 export type RareBerryState = { deposits: Record<number, RareBerryId>; gifts: Record<number, Partial<Record<RareBerryId, number>>>; lastGiftRound: Record<string, number> };
 export type RareBerryAction = { type: 'GiftBerry'; targetPlayerId: number; berry: RareBerryId };
 export type RareBerryEvent = { type: 'BerryGifted'; playerId: number; targetPlayerId: number; berry: RareBerryId; public: true };
-export type RareBerryView = { deposits: { tileIndex: number; berry: RareBerryId }[]; owned: Record<RareBerryId, number>; distinct: number; festival: boolean };
+export type RareBerryView = { deposits: { tileIndex: number; berry: RareBerryId }[]; owned: Record<RareBerryId, number>; distinct: number; festival: boolean;
+  /** Own gifts only: target player ID -> round of the last gift (for the cooldown). */
+  lastGiftRoundByTarget?: Record<number, number> };
 
 export const usesRareBerries = (state: Pick<GameState, 'setup' | 'expansion'>) => state.expansion !== undefined && gameplayAtLeast(state.setup, 7);
 export function isRareBerryAction(action: { type: unknown }): action is RareBerryAction { return action.type === 'GiftBerry'; }
@@ -95,7 +97,9 @@ export function observeRareBerries(state: GameState, playerId: number, visible: 
   if (!ledger) return undefined;
   const remembered = state.knowledge[playerId]?.rememberedTiles ?? {};
   const owned = ownedRareBerries(state, playerId), distinct = Object.values(owned).filter(count => count > 0).length;
-  return { deposits: Object.entries(ledger.deposits).map(([index, berry]) => ({ tileIndex: Number(index), berry }))
+  const lastGiftRoundByTarget = Object.fromEntries(Object.entries(ledger.lastGiftRound).filter(([key]) => key.startsWith(`${playerId}>`))
+    .map(([key, round]) => [Number(key.slice(key.indexOf('>') + 1)), round]));
+  return { lastGiftRoundByTarget, deposits: Object.entries(ledger.deposits).map(([index, berry]) => ({ tileIndex: Number(index), berry }))
     .filter(item => visible.has(item.tileIndex) || Object.hasOwn(remembered, item.tileIndex)).sort((a, b) => a.tileIndex - b.tileIndex),
     owned, distinct, festival: distinct >= RARE_BERRY_RULES.festivalTypes };
 }

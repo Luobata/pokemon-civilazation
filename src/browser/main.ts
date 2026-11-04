@@ -1,3 +1,4 @@
+import { PROMOTION_TRAITS } from '../content/promotions.ts';
 import { LEGENDS } from '../content/faith-legends.ts';
 import { RARE_BERRIES } from '../content/rare-berries.ts';
 import { ERA_ABILITIES, WEATHERS } from '../content/era-abilities.ts';
@@ -180,6 +181,7 @@ function activityText(payload: VisibleEvent['payload']) {
     case 'CityDefected': return `城市 ${payload.cityId} 羁绊耗尽，脱离文明 ${payload.playerId + 1} 成为中立营地`;
     case 'GymBuilt': return `城市 ${payload.cityId} 建成${ESSENCES[payload.essence].name}道馆`;
     case 'CharterAdopted': return `文明 ${payload.playerId + 1} 确立规章「${CHARTERS[payload.charterId].name}」`;
+    case 'UnitPromoted': { const unit = session.getView().units.find(item => item.id === payload.unitId); return `${unit && unit.kind === 'pokemon' ? EXPANSION_CONTENT.species[unit.speciesId].name : '宝可梦'}晋升：获得特性「${PROMOTION_TRAITS[payload.trait].name}」（第 ${payload.rank} 次）`; }
     case 'EraAgeBegan': return payload.playerId === session.getView().playerId ? `进入${ERA_AGES[payload.age].name}（上个世代 ${payload.previousScore} 分 / ${payload.previousRounds} 轮）` : '';
     case 'GovernmentChanged': return `采用体制「${GOVERNMENTS[payload.governmentId].name}」${payload.goldCost ? `（${payload.goldCost} 金）` : ''}${payload.droppedPolicies.length ? `，取下方针：${payload.droppedPolicies.map(id => POLICIES[id].name).join('、')}` : ''}`;
     case 'PoliciesChanged': return `方针更新：${payload.policyIds.map(id => POLICIES[id].name).join('、') || '无'}${payload.goldCost ? `（${payload.goldCost} 金）` : ''}`;

@@ -27,6 +27,7 @@ import { usesTactics } from '../core/tactics.ts';
 import { planPolicyAction } from './policy-plan.ts';
 import { planEssenceAction, siteEssenceBonus } from './essence-plan.ts';
 import { planEraAbilityAction } from './era-ability-plan.ts';
+import { planPromotionAction } from './promotion-plan.ts';
 import { planBondAction, threatenedCityIds } from './bond-plan.ts';
 import { planRareBerryAction, siteRareBerryBonus } from './rare-berry-plan.ts';
 import { planContestAction } from './contest-plan.ts';
@@ -90,6 +91,8 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
   const citySite = (position: MapUnit['position']) => !rejectedCitySite(memory, view, position) && query.citySite(view, position);
   const result = (action: Command['action']): Command => ({ actorId, expectedSeq: view.commandSeq, action });
   if (view.outcome || view.activePlayerId !== actorId || player.eliminated) return result({ type: 'EndTurn' });
+  const promotionAction = planPromotionAction(view, content);
+  if (promotionAction) return result(promotionAction);
   const policyAction = planPolicyAction(view);
   if (policyAction) return result(policyAction);
   const essenceAction = planEssenceAction(view, content);

@@ -1,3 +1,5 @@
+import { PROMOTION_TRAIT_IDS } from '../src/content/promotions.ts';
+import type { PromotionTrait } from '../src/content/promotions.ts';
 import { DISTRICT_IDS } from '../src/content/districts.ts';
 import { GOVERNMENT_IDS } from '../src/content/policies.ts';
 import type { GovernmentId } from '../src/content/policies.ts';
@@ -80,6 +82,8 @@ export type LeaderGameResult = {
   governmentAdoptions?: Record<GovernmentId, number>;
   /** v12+: one entry per era change: the age chosen and the finished era's points per round (permille). */
   eraAges?: { playerId: number; eraIndex: number; age: string; ratePermille: number; rounds: number }[];
+  /** v13+: UnitPromoted events per trait. */
+  promotions?: Record<PromotionTrait, number>;
   id: string;
   seed: number;
   personality: AiPersonality;
@@ -274,10 +278,12 @@ export function simulateLeaderCase(match: LeaderBalanceCase, onState?: (state: G
   const districtCompletions = Object.fromEntries(DISTRICT_IDS.map(kind => [kind, 0])) as Record<DistrictId, number>;
   const governmentAdoptions = Object.fromEntries(GOVERNMENT_IDS.map(id => [id, 0])) as Record<GovernmentId, number>;
   const eraAges: NonNullable<LeaderGameResult['eraAges']> = [];
+  const promotions = Object.fromEntries(PROMOTION_TRAIT_IDS.map(id => [id, 0])) as Record<PromotionTrait, number>;
   const countDistricts = (events: readonly GameEvent[]) => {
     for (const event of events) {
       if (event.payload.type === 'DistrictCompleted') districtCompletions[event.payload.kind]++;
       if (event.payload.type === 'GovernmentChanged') governmentAdoptions[event.payload.governmentId]++;
+      if (event.payload.type === 'UnitPromoted') promotions[event.payload.trait]++;
       if (event.payload.type === 'EraAgeBegan') eraAges.push({ playerId: event.payload.playerId, eraIndex: event.payload.eraIndex, age: event.payload.age,
         ratePermille: event.payload.previousRounds ? Math.floor(event.payload.previousScore * 1000 / event.payload.previousRounds) : 0, rounds: event.payload.previousRounds });
     }
@@ -339,6 +345,7 @@ export function simulateLeaderCase(match: LeaderBalanceCase, onState?: (state: G
     ...((match.setup.gameplayVersion ?? 0) >= 10 ? { districtCompletions } : {}),
     ...((match.setup.gameplayVersion ?? 0) >= 11 ? { governmentAdoptions } : {}),
     ...((match.setup.gameplayVersion ?? 0) >= 12 ? { eraAges } : {}),
+    ...((match.setup.gameplayVersion ?? 0) >= 13 ? { promotions } : {}),
   };
 }
 
@@ -717,7 +724,7 @@ export function parseLeaderBalanceArgs(args: string[]): { config: LeaderBalanceC
     const key = args[index];
     if (!['--seeds', '--seed-start', '--expansion', '--eras', '--gameplay', '--round-limit', '--out'].includes(key)
       || !args[index + 1] || args[index + 1].startsWith('--') || Object.hasOwn(flags, key)) {
-      throw new Error(`Usage: node tools/leader-balance.ts --seeds <1..100> [--seed-start <1..>] [--expansion <true|false>] [--eras <none|simple|full>] [--gameplay <0..12>] --round-limit <100|200|300> [--out <file.json>]`);
+      throw new Error(`Usage: node tools/leader-balance.ts --seeds <1..100> [--seed-start <1..>] [--expansion <true|false>] [--eras <none|simple|full>] [--gameplay <0..13>] --round-limit <100|200|300> [--out <file.json>]`);
     }
     flags[key] = args[index + 1];
   }

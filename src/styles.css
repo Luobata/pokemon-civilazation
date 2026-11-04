@@ -789,3 +789,15 @@ b.age-golden { color: #F2C14E !important; } b.age-dark { color: #B9A6E8 !importa
 .era-honor-breakdown, .era-honor-table, .era-honor-history { display: grid; gap: 2px; margin: 4px 0 0; padding: 0; list-style: none; color: var(--ink-secondary); font-size: 11px; }
 .era-honor-breakdown b, .era-honor-table b { margin-left: 6px; color: #F4DFA6; }
 .era-honor details summary { cursor: pointer; color: var(--ink-secondary); font-size: 11px; }
+
+/* v13 promotions */
+.promotion-box { display: grid; gap: 6px; padding: 0 14px 13px; }
+.promotion-box .section-label { margin: 0; color: #F2C14E; font-size: 11px; }
+.promotion-box .unit-note { padding: 0; }
+.promotion-box .vital-bar.merit > span { background: #F2C14E; }
+.promotion-traits { display: flex; flex-wrap: wrap; gap: 4px; }
+.promotion-trait { padding: 2px 8px; border: 1px solid #F2C14E88; border-radius: 999px; color: #F6E3A6; font-size: 11px; background: #3A321A; }
+.promotion-ready { color: #F6E3A6; font-weight: 600; }
+.promotion-choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 6px; }
+.promotion-choices button { display: grid; gap: 2px; text-align: left; padding: 6px 8px; border-color: #F2C14E88; }
+.promotion-choices button small { color: #C9C1A4; font-size: 10.5px; line-height: 1.3; }

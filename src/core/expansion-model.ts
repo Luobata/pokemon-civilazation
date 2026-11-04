@@ -13,6 +13,7 @@ import type { ContestAction, ContestEvent, ContestState, ContestView } from './c
 import type { FaithAction, FaithEvent, FaithState, FaithView } from './faith-legends.ts';
 import type { TechId } from '../content/economy.ts';
 import type { EraHonorEvent, EraHonorState, EraHonorView } from './era-honors.ts';
+import type { PromotionAction, PromotionEvent, PromotionState, PromotionView } from './promotions.ts';
 
 /** Opt-in rules pack. Absence preserves the legacy m5-v1 game and replay. */
 export type ExpansionState = {
@@ -42,7 +43,9 @@ export type ExpansionState = {
   districts?: DistrictState;
   /** gameplayVersion >= 12 only (era games). */
   eraHonors?: EraHonorState;
+  /** gameplayVersion >= 13 only. */
+  promotions?: PromotionState;
 };
-export type ExpansionView = { version: 1; world: WorldView; civilization: CivilizationView; leaders: LeaderSystemsView; improvements?: ImprovementView; discoveries?: TechId[]; policies?: PolicyView; essences?: EssenceView; eraAbilities?: EraAbilityView; bonds?: Record<number, { bond: number; pressure: BondBreakdown }>; rareBerries?: RareBerryView; contests?: ContestView; faith?: FaithView; districts?: DistrictView; eraHonors?: EraHonorView };
-export type ExpansionAction = WorldAction | CivilizationAction | LeaderAction | ImprovementAction | PolicyAction | EssenceAction | EraAbilityAction | BondAction | RareBerryAction | ContestAction | FaithAction;
-export type ExpansionEvent = WorldEvent | CivilizationEvent | LeaderEvent | ImprovementEvent | DiscoveryEvent | PolicyEvent | EssenceEvent | EraAbilityEvent | BondEvent | RareBerryEvent | ContestEvent | FaithEvent | EraHonorEvent;
+export type ExpansionView = { version: 1; world: WorldView; civilization: CivilizationView; leaders: LeaderSystemsView; improvements?: ImprovementView; discoveries?: TechId[]; policies?: PolicyView; essences?: EssenceView; eraAbilities?: EraAbilityView; bonds?: Record<number, { bond: number; pressure: BondBreakdown }>; rareBerries?: RareBerryView; contests?: ContestView; faith?: FaithView; districts?: DistrictView; eraHonors?: EraHonorView; promotions?: PromotionView };
+export type ExpansionAction = WorldAction | CivilizationAction | LeaderAction | ImprovementAction | PolicyAction | EssenceAction | EraAbilityAction | BondAction | RareBerryAction | ContestAction | FaithAction | PromotionAction;
+export type ExpansionEvent = WorldEvent | CivilizationEvent | LeaderEvent | ImprovementEvent | DiscoveryEvent | PolicyEvent | EssenceEvent | EraAbilityEvent | BondEvent | RareBerryEvent | ContestEvent | FaithEvent | EraHonorEvent | PromotionEvent;

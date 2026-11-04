@@ -19,6 +19,7 @@ import { zealotMultiplier } from './faith-legends.ts';
 import { combatContext, consumeZMove, eraAttackMultiplier, eraDefenseMultiplier, teraTypes } from './era-abilities.ts';
 import { captureProbability, dualEffectiveness, effectiveness } from './combat-math.ts';
 import { randomBelow } from './rng.ts';
+import { promotionCityMultiplier, promotionStrikeMultiplier, scalePermille } from './promotions.ts';
 import { registerSpecies } from './unit.ts';
 import { visibleTiles } from './vision.ts';
 
@@ -82,10 +83,11 @@ function unitStrike(state: GameState, attacker: MapUnit, defender: MapUnit, coun
     state.map.tiles[hexToIndex(defender.position, state.map)!], hasTech(state, attacker.ownerId, 'typeResearch'), roll, counter, content,
     leaderAttackMultiplier(state, attacker.ownerId, leaderEffects(attacker.ownerId === null ? undefined : state.players[attacker.ownerId].leaderId).activeAttackMultiplier), Boolean(state.expansion),
     counter ? 0 : flankBonus(state.setup, attacker, defender, Object.values(state.units).filter(isMapUnit)),
-    mistyWaterMultiplier(state, attacker.ownerId, attacker, content)
+    scalePermille(mistyWaterMultiplier(state, attacker.ownerId, attacker, content)
       * homeDefenseMultiplier(usesEssences(state), defender, state.map.tiles[hexToIndex(defender.position, state.map)!], content) / 1000
       * eraAttackMultiplier(era, attacker, content, false, counter) / 1000 * eraDefenseMultiplier(era, defender) / 1000
       * (counter ? 1000 : zealotMultiplier(state, attacker.ownerId, attacker.position)) / 1000,
+      promotionStrikeMultiplier(state, attacker.id, defender.id, counter)),
     teraTypes(era, defender.id));
   if (!counter) consumeZMove(state, attacker.id);
   attacker.enraged = false;
@@ -120,8 +122,8 @@ export function resolveAttack(state: GameState, unitId: number, target: CombatTa
     const city = state.cities[target.id];
     hit = cityDamage(attacker, state.map.tiles[hexToIndex(attacker.position, state.map)!],
       state.map.tiles[hexToIndex(city.position, state.map)!], hasTech(state, attacker.ownerId, 'siegeCraft'), 85 + randomBelow(state.rng, 16), content,
-      Math.floor(leaderAttackMultiplier(state, attacker.ownerId, leaderEffects(attacker.ownerId === null ? undefined : state.players[attacker.ownerId].leaderId).activeAttackMultiplier)
-        * eraAttackMultiplier(combatContext(state), attacker, content, true, false) / 1000),
+      Math.floor(scalePermille(leaderAttackMultiplier(state, attacker.ownerId, leaderEffects(attacker.ownerId === null ? undefined : state.players[attacker.ownerId].leaderId).activeAttackMultiplier)
+        * eraAttackMultiplier(combatContext(state), attacker, content, true, false) / 1000, promotionCityMultiplier(state, attacker.id))),
       cityAssaultMultiplier(attacker.ownerId === null ? undefined : state.players[attacker.ownerId], state.setup.eraProgression, state.setup.gameplayVersion, attacker, content,
         hexDistance(attacker.position, city.position), hasTech(state, attacker.ownerId, 'siegeCraft')));
     attacker.enraged = false;

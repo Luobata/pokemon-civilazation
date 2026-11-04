@@ -1,3 +1,5 @@
+import { promotionMarkup } from './promotion-panel.ts';
+import { promotionMovement } from '../core/promotions.ts';
 import { ERA_ABILITIES, ERA_ABILITY_RULES } from '../content/era-abilities.ts';
 import { canMega, primaryEssence } from '../core/era-abilities.ts';
 import { TYPE_ESSENCE } from '../content/essences.ts';
@@ -113,11 +115,12 @@ export function renderUnitPanel(view: PlayerView, selected: number | null, mode:
     ${!eraButtons.length && !teraOptions.length && !status.tera ? `<p class="unit-note">${era.unlocked.length ? '本单位暂无可用时代能力。' : '进入金银时代后解锁昼夜，宝石时代解锁天气；完整世代模式还有 Mega、Z 招式、极巨化与太晶化。'}</p>` : ''}</section>` : '';
   root.innerHTML = `<div class="unit-card"><div class="unit-head"><div class="unit-portrait"><img src="${pokemonSpritePath(unit.speciesId)}" alt="${definition.name}" width="64" height="64"></div><div><strong>${definition.name}</strong><small>宝可梦 · 文明 ${view.playerId + 1}${unit.enraged ? ' · 激怒' : ''}</small></div><span class="unit-ap ${unit.actionLeft ? '' : 'spent'}">行动点 ${unit.actionLeft}</span></div>
     <div class="unit-vitals"><span>HP <strong>${unit.hp}/${species.maxHp}</strong><span class="vital-bar" aria-hidden="true"><span style="width:${Math.max(0, Math.min(100, unit.hp * 100 / species.maxHp))}%"></span></span></span><span>EXP <strong>${unit.xp}${evolution ? `/${evolution.xp}` : ''}</strong>${evolution ? `<span class="vital-bar xp" aria-hidden="true"><span style="width:${Math.max(0, Math.min(100, unit.xp * 100 / evolution.xp))}%"></span></span>` : ''}</span></div>
-    <div class="unit-details"><div class="unit-detail"><small>攻</small><strong>${species.attack}</strong></div><div class="unit-detail"><small>防</small><strong>${species.defense}</strong></div><div class="unit-detail"><small>程</small><strong>${species.range}</strong></div><div class="unit-detail"><small>移</small><strong>${species.move + doctrineEffects(player, view.eraProgression, unit, CONTENT).movementBonus}</strong></div><div class="unit-detail"><small>视</small><strong>${species.vision}</strong></div><div class="unit-detail"><small>P</small><strong>${species.power}</strong></div></div>
+    <div class="unit-details"><div class="unit-detail"><small>攻</small><strong>${species.attack}</strong></div><div class="unit-detail"><small>防</small><strong>${species.defense}</strong></div><div class="unit-detail"><small>程</small><strong>${species.range}</strong></div><div class="unit-detail"><small>移</small><strong>${species.move + doctrineEffects(player, view.eraProgression, unit, CONTENT).movementBonus + promotionMovement(view, unit.id)}</strong></div><div class="unit-detail"><small>视</small><strong>${species.vision}</strong></div><div class="unit-detail"><small>P</small><strong>${species.power}</strong></div></div>
     ${view.gameplayVersion ? `<p class="unit-note" id="assault-role">兵种：${ROLE_CITY_ASSAULT[species.role].label} · ${ROLE_CITY_ASSAULT[species.role].note}${doctrineEffects(player, view.eraProgression, unit, CONTENT).cityDamageBonus ? `；领袖战术再 +${doctrineEffects(player, view.eraProgression, unit, CONTENT).cityDamageBonus / 10}%` : ''}</p>` : ''}
     <div class="unit-actions"><button id="move-unit" class="${mode === 'move' ? 'selected' : ''}" ${busy || !unit.actionLeft ? 'disabled' : ''}>${mode === 'move' ? '取消移动' : '移动'}</button><button id="attack-unit" class="${mode === 'attack' ? 'selected' : ''}" ${busy || !unit.actionLeft ? 'disabled' : ''}>攻击</button><button id="capture-unit" class="${mode === 'capture' ? 'selected' : ''}" ${busy || !unit.actionLeft || !canCapture ? 'disabled' : ''}>捕捉</button><button id="evolve-unit" ${busy || !unit.actionLeft || !canEvolve ? 'disabled' : ''}>${evolution ? `进化→${CONTENT.species[evolution.speciesId].name}` : '不可进化'}</button></div>
     ${view.expansion?.essences ? `<p class="unit-note" id="essence-note">属性精华：${identityEssences(unit, CONTENT).map(id => ESSENCES[id].name).join('、')} · 在${identityEssences(unit, CONTENT).map(id => BIOME_LABEL[ESSENCES[id].biome]).join('、')}防守时受伤 −10%</p>` : ''}
     ${usesTactics(view) ? `<p class="unit-note" id="zoc-note">${exertsZoc(unit, CONTENT) ? '控制区：相邻敌军移动到此即停下。' : ''}${ignoresZoc(unit, CONTENT) ? '可无视敌方控制区。' : '进入敌方近战/快速单位相邻格会停下。'}夹击：每只相邻目标的友军 +10% 伤害（最多 +30%）。</p>` : ''}
+    ${promotionMarkup(view, unit.id, busy)}
     ${eraMarkup}
     ${improvementMarkup}
     ${!canCapture ? '<p class="unit-note">捕捉需要研究「驯化」，并在城市采购精灵球。</p>' : ''}
@@ -127,6 +130,7 @@ export function renderUnitPanel(view: PlayerView, selected: number | null, mode:
   root.querySelector('#attack-unit')!.addEventListener('click', () => callbacks.mode(mode === 'attack' ? null : 'attack'));
   root.querySelector('#capture-unit')!.addEventListener('click', () => callbacks.mode(mode === 'capture' ? null : 'capture'));
   root.querySelector('#evolve-unit')!.addEventListener('click', callbacks.evolve);
+  for (const button of root.querySelectorAll<HTMLButtonElement>('[data-promote]')) button.addEventListener('click', () => callbacks.issue?.({ type: 'PromoteUnit', unitId: unit.id, trait: button.dataset.promote as never }));
   for (const button of root.querySelectorAll<HTMLButtonElement>('[data-era-action]')) button.addEventListener('click', () => callbacks.issue?.(JSON.parse(button.dataset.eraAction!)));
   root.querySelector('#terastallize')?.addEventListener('click', () => callbacks.issue?.({ type: 'Terastallize', unitId: unit.id, typeId: root.querySelector<HTMLSelectElement>('#tera-type')!.value as TypeId }));
   for (const button of root.querySelectorAll<HTMLButtonElement>('[data-improve]')) button.addEventListener('click', () => {

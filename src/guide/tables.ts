@@ -29,6 +29,7 @@ import { LEADER_KITS } from '../core/leader-systems.ts';
 import { ROLE_CITY_ASSAULT, ERA_TECH_RECRUITS } from '../core/role-tactics.ts';
 import { pokemonSpritePath } from '../browser/sprites.ts';
 import { ERA_AGES, ERA_HONOR_RULES, ERA_MILESTONES, ERA_MILESTONE_IDS } from '../content/era-honors.ts';
+import { PROMOTION_RULES, PROMOTION_TRAITS, PROMOTION_TRAIT_IDS } from '../content/promotions.ts';
 import { techUnlocks } from '../browser/tech-info.ts';
 
 const content = EXPANSION_CONTENT;
@@ -196,6 +197,14 @@ export function policyTable(): string {
 }
 export const policySwapGold = POLICY_SWAP_GOLD;
 export const governmentSwapGold = GOVERNMENT_SWAP_GOLD;
+export const promotionThresholds = PROMOTION_RULES.thresholds.join(' / ');
+export function promotionMeritTable(): string {
+  const m = PROMOTION_RULES.merit;
+  return table(['战斗行为', '战功'], [['主动攻击并造成伤害', `+${m.attack}`], ['反击并造成伤害', `+${m.counter}`], ['击倒一个单位', `+${m.knockdown}`], ['攻下一座城市', `+${m.cityCaptured}`]], [1]);
+}
+export function promotionTraitTable(): string {
+  return table(['特性', '效果'], PROMOTION_TRAIT_IDS.map(id => [PROMOTION_TRAITS[id].name, PROMOTION_TRAITS[id].summary]));
+}
 export function eraMilestoneTable(): string {
   return table(['里程碑', '世代分'], ERA_MILESTONE_IDS.map(id => [ERA_MILESTONES[id].name, `+${ERA_MILESTONES[id].points}`]), [1]);
 }

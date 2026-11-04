@@ -682,6 +682,11 @@ export function inspectSystem(systemId: string, state: GameState): AuditSystemIn
   }
   if (system.id === 's29-multiplayer') return { metrics: [metric('当前局模式', state.setup.multiplayer ? '多席位' : '单人本地'), metric('席位数', Object.keys(state.players).length)],
     data: { controllerByPlayer: state.setup.players, client: '/multiplayer.html', server: 'npm run server', authority: 'HTTP server authenticates each seat and returns only its projected view.', tokens: 'Never exposed by this local audit inspector.' } };
+  if (system.id === 's-promotions') {
+    const ledger = state.expansion?.promotions, records = Object.values(ledger?.units ?? {});
+    return { metrics: [metric('当前规则', ledger ? '玩法 v13' : '本局未启用（需 v13）'), metric('有战功的单位', records.length),
+      metric('已选特性', records.reduce((sum, record) => sum + record.traits.length, 0))], data: { promotions: ledger ?? null } };
+  }
   if (system.id === 's-era-honors') {
     const honors = state.expansion?.eraHonors;
     return { metrics: [metric('当前规则', honors ? '时代玩法 v12' : '本局未启用（需 v12）'),

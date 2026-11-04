@@ -96,11 +96,12 @@ export function eraState(player: EraPlayer, mode?: EraProgression): EraState | n
  * 10: adds districts (specialised city tiles with adjacency) on top of v1–v9.
  * 11: adds League governments (one at a time: extra policy slots and a standing bonus); new games default here.
  * 12: adds era score and golden / dark ages.
+ * 13: adds battle merit and trait promotions.
  */
-export type GameplayVersion = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
-export const LATEST_GAMEPLAY_VERSION: GameplayVersion = 12;
+export type GameplayVersion = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13;
+export const LATEST_GAMEPLAY_VERSION: GameplayVersion = 13;
 export function isGameplayVersion(value: unknown): value is GameplayVersion {
-  return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 12;
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 13;
 }
 export function gameplayAtLeast(source: { gameplayVersion?: GameplayVersion }, version: GameplayVersion): boolean {
   return (source.gameplayVersion ?? 0) >= version;
