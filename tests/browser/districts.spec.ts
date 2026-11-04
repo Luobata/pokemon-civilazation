@@ -117,7 +117,11 @@ test('foreign construction is selectable, blocks ordering, and disappears after 
   await expect.poll(async () => (await texts()).includes('施')).toBe(true);
   await clickHex(page, await tilePosition(page, visible.tileIndex));
   await expect(page.locator('#action-notice')).toHaveText('文明 2 · 施工中');
+  // The click inspects the tile (as in Civilization it leaves the city); reselect the city to order a district.
+  await expect(page.locator('#tile-info [data-entity="construction"]')).toContainText('施工中');
   await page.screenshot({ path: `${reports}/p3-v10-ui2-construction-1280.png`, fullPage: true });
+  await page.locator('#city-select').selectOption(String(visible.state.players[0].headquartersCityId));
+  await page.locator('#fit').click();
 
   await selectGarden(page, visible.tileIndex);
   await expect(page.locator('#district-preview .district-reason')).toBeVisible();

@@ -37,6 +37,8 @@ export type MapRenderInput = {
   actionMode?: ActionMode;
   actionTargets?: readonly number[];
   pendingTargetIndex?: number | null;
+  /** Tile opened in the inspector (click on terrain, a foreign unit or city, a resource...). */
+  inspectedTile?: number | null;
   districtPlacement?: { sites: readonly DistrictSite[]; selectedTileIndex: number | null };
   debugOverlay?: DebugOverlay;
   layers?: MapLayers;
@@ -51,7 +53,9 @@ export type SceneDistrict = { index: number; kind: DistrictId; ownerId: number |
 export type SceneCity = { id: number; index: number; ownerId: number | null; selected: boolean; buildings: BuildingId[];
   name: string; population?: number; capital: boolean; hp?: { current: number; max: number } };
 /** `key` is stable across frames ("unit:12") so animation can target it. */
-export type SceneUnit = { key: string; unit: UnitMarkIdentity; index: number; world: Point; actionLeft: number; enraged: boolean; status?: string };
+export type SceneUnit = { key: string; unit: UnitMarkIdentity; index: number; world: Point; actionLeft: number; enraged: boolean; status?: string;
+  /** At war with the viewer: drawn with a red ring so enemies read at a glance. */
+  hostile: boolean };
 export type SceneYield = { index: number; yields: Yield; workable: boolean; inFocus: boolean };
 export type SceneWeather = { color: string; mark: string; tiles: number[]; center: number | null };
 
@@ -76,6 +80,7 @@ export type MapScene = {
   placement: { index: number; legal: boolean; selected: boolean }[];
   fog: number[];
   selectedUnit: number | null;
+  inspected: number | null;
   cursor: number | null;
   debug: { overlay: DebugOverlay; labels: { index: number; text: string; offset: boolean }[]; vision: { index: number; visible: boolean }[] };
   layers: MapLayers;
@@ -193,10 +198,13 @@ export function buildScene(input: MapRenderInput): MapScene {
   }
 
   // Only the authorized PlayerView supplies entities; hidden live units never reach the scene.
+  const atWar = new Set(view.diplomacy.filter(pair => pair.status === 'war' && (pair.a === view.playerId || pair.b === view.playerId))
+    .map(pair => pair.a === view.playerId ? pair.b : pair.a));
   const units: SceneUnit[] = view.units.map(unit => {
     const index = indexOf(unit.position)!, status = era?.units[unit.id];
     const label = !status ? undefined : status.mega ? 'M' : (status.dynamaxUntilRound ?? 0) >= view.round ? '极' : status.tera ? '晶' : status.zPrimed ? 'Z' : undefined;
-    return { key: `unit:${unit.id}`, unit, index, world: world[index], actionLeft: unit.actionLeft, enraged: unit.enraged ?? false, ...(label ? { status: label } : {}) };
+    return { key: `unit:${unit.id}`, unit, index, world: world[index], actionLeft: unit.actionLeft, enraged: unit.enraged ?? false,
+      hostile: unit.ownerId !== null && atWar.has(unit.ownerId), ...(label ? { status: label } : {}) };
   });
 
   const mode = input.actionMode ?? null;
@@ -225,7 +233,9 @@ export function buildScene(input: MapRenderInput): MapScene {
     reachable: (input.reachable ?? []).filter(index => visible.has(index)), targets, placement,
     fog: tiles.filter(tile => tile.biome && !tile.visible).map(tile => tile.index),
     selectedUnit: selectedUnit ? indexOf(selectedUnit.position) : null,
-    cursor: input.cursorIndex ?? null, debug, layers,
+    inspected: input.inspectedTile ?? null,
+    // The keyboard cursor duplicates the inspected tile after a click; draw only one of them.
+    cursor: input.cursorIndex !== undefined && input.cursorIndex !== input.inspectedTile ? input.cursorIndex : null, debug, layers,
   };
 }
 

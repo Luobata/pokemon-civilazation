@@ -33,6 +33,7 @@
         <section class="map-card" aria-label="主地图">
           <div class="map-toolbar"><strong>青绿原野</strong><span id="map-size-label" class="map-meta">小地图 · 24 × 16</span><div class="map-actions"><button id="fit">F 地图居中</button><label title="在地块上显示食物、生产、金币、科研（Y）"><input id="show-yields" type="checkbox" checked />地块产出</label><label><input id="animate" type="checkbox" checked />移动动画</label><button id="skip" disabled>跳过动画</button></div></div>
           <figure class="map-frame">
+              <div id="map-tooltip" role="tooltip" hidden></div>
               <canvas id="map" tabindex="0" aria-label="六角格地图。点击或用方向键选择，Enter 确认，Escape 取消，加减缩放，F 居中"></canvas>
               <figcaption><span>数字 1–4 = 文明　爪 = 野生　斜线 = 记忆地形</span><span>点城市管理 · 点单位行动 · 同格再次点击切换</span></figcaption>
             </figure>
@@ -43,7 +44,8 @@
           <section id="unit-panel" aria-label="单位面板"></section>
           <section id="economy" aria-label="城市与经济"></section>
           <section id="neutral-city" class="subpanel" aria-label="中立营地"></section>
-          <section id="selection-empty" class="subpanel"><p class="neutral-note">点选地图上的城市或单位，这里会展开它的操作。</p></section>
+          <section id="tile-info" class="subpanel" aria-label="地块信息" hidden></section>
+          <section id="selection-empty" class="subpanel"><p class="neutral-note">点选地图上的城市或单位，这里会展开它的操作；点任意地块、敌方单位或资源，可以查看它是什么。</p></section>
         </aside>
         <div class="hud-notices">
           <p id="selection" aria-live="polite">点选己方单位；拖动地图平移，滚轮缩放。</p>

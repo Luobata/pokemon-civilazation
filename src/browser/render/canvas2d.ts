@@ -363,6 +363,12 @@ function drawUnits(d: Draw, frame: AnimationFrame, camera: Camera) {
   const { context, centers, radius, scene } = d;
   const posed = new Set(frame.poses.map(pose => pose.unit.id));
   for (const item of scene.units) if (!posed.has(item.unit.id)) {
+    if (item.hostile && d.onscreen(centers[item.index])) {
+      const p = centers[item.index], size = Math.max(26, Math.min(54, radius * 1.75));
+      context.beginPath(); context.ellipse(p.x, p.y + size * .2, size * .5, size * .42, 0, 0, Math.PI * 2);
+      context.strokeStyle = '#10191B'; context.lineWidth = 5; context.stroke();
+      context.strokeStyle = '#E5554A'; context.lineWidth = 2.5; context.stroke();
+    }
     unitMark(d, item.unit, centers[item.index], item.actionLeft, item.enraged);
     const p = centers[item.index];
     if (item.status && d.onscreen(p)) {
@@ -484,6 +490,13 @@ function drawSelection(d: Draw, frame: AnimationFrame) {
     context.beginPath(); context.arc(p.x, p.y, radius * .76, 0, Math.PI * 2);
     context.strokeStyle = '#F0B73F'; context.lineWidth = 2.5; context.stroke();
   }
+  if (scene.inspected !== null && d.onscreen(centers[scene.inspected])) {
+    // Inspected tile: bright double outline with a soft fill, visible on every terrain.
+    const p = centers[scene.inspected];
+    polygon(d, p); context.fillStyle = '#FFFDF71F'; context.fill();
+    context.strokeStyle = '#10191B'; context.lineWidth = 5; context.stroke();
+    context.strokeStyle = '#FFF3C4'; context.lineWidth = 2.5; context.stroke();
+  }
   if (scene.cursor !== null && d.onscreen(centers[scene.cursor])) {
     const p = centers[scene.cursor];
     polygon(d, p);
@@ -511,7 +524,13 @@ function drawEffects(d: Draw, frame: AnimationFrame, indexOf: (hex: Hex) => numb
     if (index === null) continue;
     const p = centers[index];
     if (!d.onscreen(p)) continue;
-    if (effect.kind === 'battle') {
+    if (effect.kind === 'tap') {
+      const grow = .35 + effect.progress * .75;
+      context.save(); context.globalAlpha = 1 - effect.progress;
+      context.beginPath(); context.arc(p.x, p.y, radius * grow, 0, Math.PI * 2);
+      context.strokeStyle = effect.tone === 'error' ? '#E07A6D' : '#FFF3C4'; context.lineWidth = 3; context.stroke();
+      context.restore();
+    } else if (effect.kind === 'battle') {
       if (effect.progress < .5) {
         polygon(d, p);
         context.fillStyle = `rgb(255 253 247 / ${45 - effect.progress * 60}%)`;

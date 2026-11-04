@@ -8,7 +8,9 @@ import type { UnitMarkIdentity } from './scene.ts';
 
 export type MapEffect = { kind: 'battle'; position: Hex; damage: number; counterDamage: number; progress: number }
   | { kind: 'capture'; position: Hex; success: boolean; progress: number }
-  | { kind: 'evolve'; position: Hex; progress: number };
+  | { kind: 'evolve'; position: Hex; progress: number }
+  /** Click feedback: a ring expanding from the tapped tile; `error` for a rejected click. */
+  | { kind: 'tap'; position: Hex; progress: number; tone: 'ok' | 'error' };
 /** A unit drawn at a world position instead of its tile; the scene unit with the same id is hidden. */
 export type UnitPose = { unit: UnitMarkIdentity; position: Point };
 /** What the renderer applies on top of the scene for one frame. */
@@ -23,6 +25,8 @@ export type Track = {
   key: string;
   /** Milliseconds; Infinity for ambient loops, which never block "busy". */
   duration: number;
+  /** false: plays alongside input (click feedback) and never makes the timeline busy. Default true. */
+  blocking?: boolean;
   /** Writes this track's contribution for `elapsed` ms into `frame`. */
   sample(elapsed: number, context: TrackContext, frame: AnimationFrame): void;
   /** Called once when the track ends (not called when it is skipped). */
@@ -43,8 +47,8 @@ export class Timeline {
     this.running.push({ track, started: now });
   }
 
-  /** True while any finite track is playing. Ambient loops don't count. */
-  get busy(): boolean { return this.running.some(item => Number.isFinite(item.track.duration)); }
+  /** True while any finite, blocking track is playing. Ambient loops and click feedback don't count. */
+  get busy(): boolean { return this.running.some(item => Number.isFinite(item.track.duration) && item.track.blocking !== false); }
   /** True while anything (including ambient loops) needs further frames. */
   get animating(): boolean { return this.running.length > 0; }
 
@@ -100,6 +104,13 @@ export function captureTrack(key: string, targetUnitId: number, success: boolean
       const position = context.unitPosition(targetUnitId);
       if (position) frame.effects.push({ kind: 'capture', position, success, progress: Math.min(1, elapsed / BURST_MS) });
     } };
+}
+
+export const TAP_MS = 260;
+/** Non-blocking click ripple; one at a time (same key), so rapid clicks restart it. */
+export function tapTrack(position: Hex, tone: 'ok' | 'error' = 'ok'): Track {
+  return { key: 'tap', duration: TAP_MS, blocking: false,
+    sample(elapsed, _context, frame) { frame.effects.push({ kind: 'tap', position, tone, progress: Math.min(1, elapsed / TAP_MS) }); } };
 }
 
 export function evolveTrack(key: string, unitId: number, onFinish?: () => void): Track {
