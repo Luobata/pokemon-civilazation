@@ -1,42 +1,109 @@
-import { CHARTER_IDS, CHARTERS, LEADER_POLICY_AFFINITY, POLICIES } from '../content/policies.ts';
-import type { PolicyId, SlotKind } from '../content/policies.ts';
+import { CHARTER_IDS, CHARTERS, LEADER_POLICY_AFFINITY, POLICIES, POLICY_IDS } from '../content/policies.ts';
+import type { CharterId, PolicyId, SlotKind } from '../content/policies.ts';
 import { charterAvailable, fitsSlots } from '../core/policies.ts';
 import type { Command, PlayerView } from '../core/model.ts';
 
 const SLOT_LABEL: Record<SlotKind, string> = { military: '军事', economic: '经济', wild: '通配' };
+
+/** Tree depth of each charter: roots at 0, otherwise one more than its deepest requirement. */
+export const CHARTER_DEPTH: Record<CharterId, number> = (() => {
+  const depth = {} as Record<CharterId, number>;
+  const of = (id: CharterId): number => depth[id] ??= CHARTERS[id].requires.length ? 1 + Math.max(...CHARTERS[id].requires.map(of)) : 0;
+  for (const id of CHARTER_IDS) of(id);
+  return depth;
+})();
+const unlockedBy = Object.fromEntries(POLICY_IDS.map(id => [id, CHARTER_IDS.find(charter => CHARTERS[charter].unlocks.includes(id))])) as Record<PolicyId, CharterId | undefined>;
+
 let draft: PolicyId[] | null = null, draftKey = '';
-/** Renders the charter tree and the policy-card editor. The draft is local until the player confirms it. */
+let observer: ResizeObserver | null = null;
+
+/** Draws requirement lines between charter cards; called whenever the tree is laid out. */
+function drawLinks(root: HTMLElement) {
+  const tree = root.querySelector<HTMLElement>('.charter-tree'), svg = root.querySelector<SVGSVGElement>('.charter-links');
+  if (!tree || !svg) return;
+  const box = tree.getBoundingClientRect();
+  if (!box.width) return;
+  svg.setAttribute('viewBox', `0 0 ${box.width} ${box.height}`);
+  svg.setAttribute('width', String(box.width)); svg.setAttribute('height', String(box.height));
+  svg.innerHTML = CHARTER_IDS.flatMap(id => CHARTERS[id].requires.map(requirement => {
+    const from = tree.querySelector<HTMLElement>(`[data-charter-card="${requirement}"]`)!.getBoundingClientRect();
+    const to = tree.querySelector<HTMLElement>(`[data-charter-card="${id}"]`)!.getBoundingClientRect();
+    const done = tree.querySelector(`[data-charter-card="${requirement}"]`)!.classList.contains('done');
+    const [x1, y1, x2, y2] = [from.right - box.left, from.top + from.height / 2 - box.top, to.left - box.left, to.top + to.height / 2 - box.top];
+    const path = `M${x1} ${y1} C${(x1 + x2) / 2} ${y1} ${(x1 + x2) / 2} ${y2} ${x2} ${y2}`;
+    return `<path d="${path}" class="${done ? 'done' : ''}"/>`;
+  })).join('');
+}
+
+/**
+ * League charters as a tree (Civilization civics): each card shows cost and progress, the slots it
+ * opens and the policy cards it unlocks. Below, the slot board and the card picker; the draft is
+ * local until the player presses 应用方针.
+ */
 export function renderPolicyPanel(view: PlayerView, issue: (action: Command['action']) => void, disabled: boolean): void {
   const root = document.querySelector<HTMLElement>('#policy-panel')!;
   const ledger = view.expansion?.policies;
   if (!ledger) { root.innerHTML = ''; return; }
   const key = JSON.stringify([ledger.slotted, ledger.adopted]);
   if (key !== draftKey) { draft = [...ledger.slotted]; draftKey = key; }
-  const opened = root.querySelector<HTMLDetailsElement>('#policy-cards')?.open ?? false;
   const current = draft ?? [...ledger.slotted];
   const affinity = new Set(view.economy.player.leaderId ? LEADER_POLICY_AFFINITY[view.economy.player.leaderId] : []);
   const changed = [...current].sort().join() !== [...ledger.slotted].sort().join();
   const valid = fitsSlots(ledger.adopted, current);
   const charter = ledger.charterId;
-  const slotText = (Object.keys(SLOT_LABEL) as SlotKind[]).filter(kind => ledger.slots[kind]).map(kind => `${SLOT_LABEL[kind]} ${ledger.slots[kind]}`).join(' · ') || '尚无方针槽';
-  const charters = CHARTER_IDS.map(id => {
-    const done = ledger.adopted.includes(id), open = charterAvailable(ledger.adopted, id), active = charter === id;
-    const progress = ledger.progressByCharter[id];
-    return `<li class="charter ${done ? 'done' : active ? 'active' : open ? 'open' : 'locked'}"><div><strong>${CHARTERS[id].name}</strong><small>${done ? '已确立' : `${progress}/${CHARTERS[id].cost}`}${!done && !open ? ` · 需要 ${CHARTERS[id].requires.filter(req => !ledger.adopted.includes(req)).map(req => CHARTERS[req].name).join('、')}` : ''}</small><p>${CHARTERS[id].description}</p></div>${!done && open ? `<button type="button" data-charter="${id}" ${disabled || active ? 'disabled' : ''}>${active ? '推进中' : '设为目标'}</button>` : ''}</li>`;
-  }).join('');
-  const cards = ledger.unlockedPolicies.map(id => {
-    const on = current.includes(id), definition = POLICIES[id];
+  const perRound = Math.max(1, ledger.perRound);
+
+  const depthCount = Math.max(...Object.values(CHARTER_DEPTH)) + 1;
+  const rowInDepth = new Map<CharterId, number>();
+  for (let depth = 0; depth < depthCount; depth++) CHARTER_IDS.filter(id => CHARTER_DEPTH[id] === depth).forEach((id, row) => rowInDepth.set(id, row));
+  const card = (id: CharterId) => {
+    const definition = CHARTERS[id], done = ledger.adopted.includes(id), open = charterAvailable(ledger.adopted, id), active = charter === id;
+    const progress = ledger.progressByCharter[id], state = done ? 'done' : active ? 'active' : open ? 'available' : 'locked';
+    const remaining = Math.max(0, definition.cost - progress);
+    const label = done ? '已确立' : active ? `制定中 · 约 ${Math.ceil(remaining / perRound)} 轮` : open ? `可制定 · 约 ${Math.ceil(remaining / perRound)} 轮` : `需要 ${definition.requires.filter(req => !ledger.adopted.includes(req)).map(req => CHARTERS[req].name).join('、')}`;
+    const slots = (Object.entries(definition.grantsSlots) as [SlotKind, number][]).map(([kind, count]) => `<span class="slot-chip ${kind}">${SLOT_LABEL[kind]}槽 +${count}</span>`).join('');
+    const unlocks = definition.unlocks.map(policy => `<li class="${affinity.has(policy) ? 'affinity' : ''}">${POLICIES[policy].name}${affinity.has(policy) ? ' ★' : ''}</li>`).join('');
+    return `<article class="charter-card ${state}" data-charter-card="${id}" style="grid-column:${CHARTER_DEPTH[id] + 1};grid-row:${rowInDepth.get(id)! + 1}">
+      <header><strong>${definition.name}</strong><span class="charter-cost">${definition.cost}</span></header>
+      <p class="charter-state">${label}</p>
+      <div class="charter-progress" aria-hidden="true"><span style="width:${done ? 100 : Math.min(100, Math.round(progress * 100 / definition.cost))}%"></span></div>
+      <div class="charter-slots">${slots}</div>
+      ${unlocks ? `<ul class="charter-unlocks">${unlocks}</ul>` : '<p class="charter-state">不解锁新卡，只开槽位</p>'}
+      ${!done && open ? `<button type="button" data-charter="${id}" ${disabled || active ? 'disabled' : ''}>${active ? '推进中' : '设为目标'}</button>` : ''}
+    </article>`;
+  };
+
+  const slotKinds = (Object.keys(SLOT_LABEL) as SlotKind[]).filter(kind => ledger.slots[kind] > 0);
+  // Fill slots the way the rules count them: own-kind slots first, overflow into wild slots.
+  const placed: Record<SlotKind, PolicyId[]> = { military: [], economic: [], wild: [] };
+  for (const id of current) {
+    const kind = POLICIES[id].slot;
+    (placed[kind].length < ledger.slots[kind] ? placed[kind] : placed.wild).push(id);
+  }
+  const board = slotKinds.length ? `<div class="slot-board">${slotKinds.map(kind => `<div class="slot-row"><span class="slot-chip ${kind}">${SLOT_LABEL[kind]}</span>${
+    Array.from({ length: ledger.slots[kind] }, (_, index) => { const id = placed[kind][index];
+      return `<span class="slot ${id ? `filled ${POLICIES[id].slot}` : 'empty'}">${id ? POLICIES[id].name : '空槽'}</span>`; }).join('')}</div>`).join('')}</div>`
+    : '<p class="unit-note">还没有方针槽：确立「道馆守则」开放第一批槽位。</p>';
+  const policyCard = (id: PolicyId) => {
+    const definition = POLICIES[id], unlocked = ledger.unlockedPolicies.includes(id), on = current.includes(id);
+    if (!unlocked) return `<div class="policy-card locked ${definition.slot}"><span><strong>${definition.name}</strong><small>${SLOT_LABEL[definition.slot]} · 由「${CHARTERS[unlockedBy[id]!].name}」解锁${affinity.has(id) ? ' · 领袖偏好 +50%' : ''}</small>${definition.description}</span></div>`;
     const wouldFit = on || fitsSlots(ledger.adopted, [...current, id]);
     return `<label class="policy-card ${on ? 'on' : ''} ${definition.slot}"><input type="checkbox" data-policy="${id}" ${on ? 'checked' : ''} ${disabled || (!on && !wouldFit) ? 'disabled' : ''}><span><strong>${definition.name}</strong><small>${SLOT_LABEL[definition.slot]}${affinity.has(id) ? ' · 领袖偏好 +50%' : ''}</small>${definition.description}</span></label>`;
-  }).join('');
+  };
+  const cardGroups = (['military', 'economic'] as const).map(kind => `<section class="policy-group"><p class="section-label">${SLOT_LABEL[kind]}方针</p><div class="policy-grid">${POLICY_IDS.filter(id => POLICIES[id].slot === kind)
+    .sort((a, b) => Number(ledger.unlockedPolicies.includes(b)) - Number(ledger.unlockedPolicies.includes(a))).map(policyCard).join('')}</div></section>`).join('');
+
   const idle = charter === null && CHARTER_IDS.some(id => charterAvailable(ledger.adopted, id));
   const emptySlots = ledger.slots.military + ledger.slots.economic + ledger.slots.wild - ledger.slotted.length;
   root.innerHTML = `<div class="subpanel-head"><strong>联盟规章与训练方针${idle || (emptySlots > 0 && ledger.unlockedPolicies.length > ledger.slotted.length) ? ' <em class="needs-choice">待选择</em>' : ''}</strong><span>每轮 +${ledger.perRound} 规章点</span></div>
   <div class="policy-body">
     <p class="policy-status">${charter ? `正在制定「${CHARTERS[charter].name}」 ${ledger.progressByCharter[charter]}/${CHARTERS[charter].cost}` : ledger.adopted.length === CHARTER_IDS.length ? '全部规章已确立' : `请选择下一项规章（已暂存 ${ledger.points} 点）`}</p>
-    <ul class="charter-list">${charters}</ul>
-    <details id="policy-cards" ${opened || changed ? 'open' : ''}><summary>方针卡 · ${slotText} · 已用 ${ledger.slotted.length}</summary>
-      ${ledger.unlockedPolicies.length ? `<div class="policy-grid">${cards}</div>` : '<p class="unit-note">确立「道馆守则」后解锁第一批方针卡。</p>'}
+    <p class="policy-explain">规章点每轮来自：1 + 每座城市 1 + 每 3 人口 1 + 每 2 个改良 1 + 满意度 ≥50 时 2。确立规章会开放方针槽，并解锁新的方针卡；★ 是你的领袖偏好的卡，效果 +50%。</p>
+    <p class="tree-scroll-hint">← 左右滑动查看完整规章树 →</p>
+    <div class="charter-tree-wrap"><div class="charter-tree" style="grid-template-columns:repeat(${depthCount}, minmax(170px, 1fr))"><svg class="charter-links" aria-hidden="true"></svg>${CHARTER_IDS.map(card).join('')}</div></div>
+    <details id="policy-cards" open><summary>方针卡 · 已用 ${current.length}/${ledger.slots.military + ledger.slots.economic + ledger.slots.wild}${changed ? ' · 未应用' : ''}</summary>
+      ${board}
+      ${cardGroups}
       <div class="policy-actions"><span>${ledger.swapCost ? `更换需 ${ledger.swapCost} 金币（确立新规章或进入新时代后免费一次）` : '本次更换免费'}</span>
       <button type="button" id="apply-policies" class="primary" ${disabled || !changed || !valid || view.economy.player.gold < ledger.swapCost ? 'disabled' : ''}>应用方针</button></div>
     </details>
@@ -48,4 +115,10 @@ export function renderPolicyPanel(view: PlayerView, issue: (action: Command['act
     renderPolicyPanel(view, issue, disabled);
   });
   root.querySelector('#apply-policies')?.addEventListener('click', () => { if (draft) issue({ type: 'SetPolicies', policyIds: [...draft].sort() }); });
+  // Lines need real layout; the screen may still be hidden, so redraw whenever the tree resizes.
+  observer?.disconnect();
+  const tree = root.querySelector<HTMLElement>('.charter-tree')!;
+  observer = new ResizeObserver(() => drawLinks(root));
+  observer.observe(tree);
+  drawLinks(root);
 }

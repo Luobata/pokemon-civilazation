@@ -68,3 +68,18 @@ for (const width of [1440, 1100, 900, 390]) test(`top bar stats and launcher nev
   });
   expect(layout).toEqual({ clipped: 0, overflowX: 0, overlap: false });
 });
+
+test('charters are a tree: requirement lines, locked reasons, and the first charter can be targeted', async ({ page }) => {
+  await page.goto('/?seed=12345');
+  await openScreen(page, 'policy');
+  await expect(page.locator('[data-charter-card]')).toHaveCount(6);
+  // One line per requirement in content/policies.ts (7 in total).
+  await expect(page.locator('.charter-links path')).toHaveCount(7);
+  await expect(page.locator('[data-charter-card="eliteFour"]')).toHaveClass(/locked/);
+  await expect(page.locator('[data-charter-card="eliteFour"] .charter-state').first()).toContainText('需要');
+  await expect(page.locator('.slot-board')).toHaveCount(0);
+  await expect(page.locator('.policy-card.locked').first()).toContainText('解锁');
+  await page.locator('[data-charter="gymCode"]').click();
+  await expect(page.locator('[data-charter-card="gymCode"]')).toHaveClass(/active/);
+  await expect(page.locator('.policy-status')).toContainText('正在制定「道馆守则」');
+});

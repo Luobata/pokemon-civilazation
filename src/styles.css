@@ -710,3 +710,48 @@ button.danger { border-color: var(--danger); background: #9E4B43; color: var(--o
 .tile-preview-row.blocked span { color: var(--ink-muted); }
 .tile-preview-label { flex: none; min-width: 56px; padding: 2px 8px; border: 1px dashed var(--border-strong); border-radius: 6px; color: var(--ink-muted) !important; text-align: center; }
 .context-drawer { grid-auto-rows: max-content; }
+
+/* ===== Charter tree and policy slots ===== */
+#policy-panel { border: 0; background: transparent; box-shadow: none; }
+#policy-panel .policy-body { padding: 0; gap: 12px; }
+.policy-status { font-size: 13px !important; }
+.policy-explain { margin: 0; color: var(--ink-muted); font-size: 11px; line-height: 1.55; }
+.charter-tree-wrap { overflow-x: auto; padding-bottom: 4px; }
+.charter-tree { position: relative; display: grid; gap: 14px 40px; align-items: start; min-width: 760px; }
+.charter-links { position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: visible; }
+.charter-links path { fill: none; stroke: #4C5E58; stroke-width: 2; }
+.charter-links path.done { stroke: #6FB58F; }
+.charter-card { position: relative; z-index: 1; display: grid; gap: 6px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); }
+.charter-card header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.charter-card header strong { color: #F3E7C9; font-size: 14px; }
+.charter-cost { padding: 0 6px; border-radius: 999px; background: #3A2F18; color: #F4DFA6; font-size: 11px; font-variant-numeric: tabular-nums; }
+.charter-state { margin: 0; color: var(--ink-muted); font-size: 11px; }
+.charter-progress { height: 5px; overflow: hidden; border-radius: 3px; background: #0D1D21; }
+.charter-progress span { display: block; height: 100%; background: linear-gradient(90deg, #B9822F, #F2C14E); }
+.charter-slots { display: flex; flex-wrap: wrap; gap: 4px; }
+.slot-chip { padding: 0 7px; border-radius: 999px; font-size: 10px; line-height: 18px; background: var(--surface-muted); color: var(--ink); }
+.slot-chip.military { background: #4A2B26; color: #F6B9A8; } .slot-chip.economic { background: #1F3E2C; color: #A9E0B6; } .slot-chip.wild { background: #3A2E4A; color: #D9C7F0; }
+.charter-unlocks { display: grid; gap: 1px; margin: 0; padding: 0; list-style: none; color: var(--ink-secondary); font-size: 11px; }
+.charter-unlocks li::before { content: "解锁 "; color: var(--ink-muted); }
+.charter-unlocks li.affinity { color: #F4DFA6; }
+.charter-card button { justify-self: start; min-height: 30px; padding: 4px 12px; font-size: 12px; }
+.charter-card.done { border-color: #4F6A45; background: #16291F; }
+.charter-card.done .charter-progress span { background: linear-gradient(90deg, #4E8A6A, #8CD3A2); }
+.charter-card.done .charter-state { color: #8CD3A2; }
+.charter-card.active { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold), 0 6px 18px rgb(0 0 0 / 30%); }
+.charter-card.active .charter-state { color: #F4DFA6; }
+.charter-card.available { border-color: var(--border-strong); }
+.charter-card.locked { opacity: .55; }
+#policy-cards { display: grid; gap: 10px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); }
+#policy-cards > summary { font-size: 13px !important; }
+.slot-board { display: grid; gap: 6px; }
+.slot-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.slot { min-width: 96px; padding: 5px 9px; border: 1px dashed var(--border-strong); border-radius: 6px; color: var(--ink-muted); font-size: 11px; text-align: center; }
+.slot.filled { border-style: solid; color: var(--ink); }
+.slot.filled.military { border-color: #B9654F; background: #2E1D1A; } .slot.filled.economic { border-color: #4E8A6A; background: #16291F; }
+.policy-group { display: grid; gap: 6px; }
+.policy-group .section-label { margin: 0; }
+#policy-panel .policy-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); margin-top: 0; }
+.policy-card.locked { cursor: default; opacity: .5; }
+.tree-scroll-hint { display: none; margin: 0; color: var(--ink-muted); font-size: 11px; text-align: center; }
+@media (max-width: 860px) { .tree-scroll-hint { display: block; } }
