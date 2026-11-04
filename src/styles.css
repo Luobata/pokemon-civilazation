@@ -772,3 +772,20 @@ button.danger { border-color: var(--danger); background: #9E4B43; color: var(--o
 .government-card.active { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold); background: var(--gold-soft); }
 .government-card.locked { opacity: .55; }
 .charter-government { margin: 0; color: #D9C7F0; font-size: 11px; }
+.era-honor { display: grid; gap: 6px; padding: 10px 12px; border: 1px solid var(--border); border-left-width: 4px; border-radius: 8px; background: #12232A; }
+.era-honor.age-golden { border-left-color: #F2C14E; background: linear-gradient(90deg, #3A2F16, #12232A 60%); }
+.era-honor.age-dark { border-left-color: #8C7CB8; background: linear-gradient(90deg, #241D33, #12232A 60%); }
+.era-honor-head { display: grid; gap: 2px; }
+.era-honor-head strong { color: #F3E7C9; font-size: 14px; }
+.era-honor-head span, .era-honor p { margin: 0; color: var(--ink-secondary); font-size: 11px; line-height: 1.5; }
+.era-honor b { color: var(--ink); }
+.era-honor-bar { position: relative; height: 8px; border-radius: 4px; background: #0D1D21; overflow: visible; }
+.era-honor-bar .fill { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, #4A9FD4, #F2C14E); }
+.era-honor-bar .line { position: absolute; top: -3px; width: 2px; height: 14px; }
+.era-honor-bar .line.dark { background: #B9A6E8; } .era-honor-bar .line.golden { background: #F2C14E; }
+.era-honor-legend { display: flex; justify-content: space-between; }
+.era-honor-legend .dark { color: #B9A6E8; } .era-honor-legend .golden { color: #F2C14E; }
+b.age-golden { color: #F2C14E !important; } b.age-dark { color: #B9A6E8 !important; }
+.era-honor-breakdown, .era-honor-table, .era-honor-history { display: grid; gap: 2px; margin: 4px 0 0; padding: 0; list-style: none; color: var(--ink-secondary); font-size: 11px; }
+.era-honor-breakdown b, .era-honor-table b { margin-left: 6px; color: #F4DFA6; }
+.era-honor details summary { cursor: pointer; color: var(--ink-secondary); font-size: 11px; }

@@ -12,6 +12,7 @@ import type { RareBerryAction, RareBerryEvent, RareBerryState, RareBerryView } f
 import type { ContestAction, ContestEvent, ContestState, ContestView } from './contests.ts';
 import type { FaithAction, FaithEvent, FaithState, FaithView } from './faith-legends.ts';
 import type { TechId } from '../content/economy.ts';
+import type { EraHonorEvent, EraHonorState, EraHonorView } from './era-honors.ts';
 
 /** Opt-in rules pack. Absence preserves the legacy m5-v1 game and replay. */
 export type ExpansionState = {
@@ -39,7 +40,9 @@ export type ExpansionState = {
   faith?: FaithState;
   /** gameplayVersion >= 10 only. */
   districts?: DistrictState;
+  /** gameplayVersion >= 12 only (era games). */
+  eraHonors?: EraHonorState;
 };
-export type ExpansionView = { version: 1; world: WorldView; civilization: CivilizationView; leaders: LeaderSystemsView; improvements?: ImprovementView; discoveries?: TechId[]; policies?: PolicyView; essences?: EssenceView; eraAbilities?: EraAbilityView; bonds?: Record<number, { bond: number; pressure: BondBreakdown }>; rareBerries?: RareBerryView; contests?: ContestView; faith?: FaithView; districts?: DistrictView };
+export type ExpansionView = { version: 1; world: WorldView; civilization: CivilizationView; leaders: LeaderSystemsView; improvements?: ImprovementView; discoveries?: TechId[]; policies?: PolicyView; essences?: EssenceView; eraAbilities?: EraAbilityView; bonds?: Record<number, { bond: number; pressure: BondBreakdown }>; rareBerries?: RareBerryView; contests?: ContestView; faith?: FaithView; districts?: DistrictView; eraHonors?: EraHonorView };
 export type ExpansionAction = WorldAction | CivilizationAction | LeaderAction | ImprovementAction | PolicyAction | EssenceAction | EraAbilityAction | BondAction | RareBerryAction | ContestAction | FaithAction;
-export type ExpansionEvent = WorldEvent | CivilizationEvent | LeaderEvent | ImprovementEvent | DiscoveryEvent | PolicyEvent | EssenceEvent | EraAbilityEvent | BondEvent | RareBerryEvent | ContestEvent | FaithEvent;
+export type ExpansionEvent = WorldEvent | CivilizationEvent | LeaderEvent | ImprovementEvent | DiscoveryEvent | PolicyEvent | EssenceEvent | EraAbilityEvent | BondEvent | RareBerryEvent | ContestEvent | FaithEvent | EraHonorEvent;

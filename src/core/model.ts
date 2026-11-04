@@ -83,7 +83,7 @@ export type KnowledgeState = {
   lastKnownCities: Record<number, { ownerId: number | null; position: Hex; lastSeenRound: number; headquartersOf?: number | null }>;
 };
 export type GameState = {
-  schemaVersion: 4 | 5 | 6; rulesVersion: 'm5-v1' | 'districts-v10' | 'governments-v11'; contentVersion: string;
+  schemaVersion: 4 | 5 | 6 | 7; rulesVersion: 'm5-v1' | 'districts-v10' | 'governments-v11' | 'eras-v12'; contentVersion: string;
   expansion?: ExpansionState;
   setup: GameSetup; rng: RngState; nextEntityId: number; commandSeq: number;
   round: number; activePlayerId: number; turnOrder: number[];

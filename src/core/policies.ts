@@ -3,6 +3,8 @@ import type { CharterId, GovernmentId, PolicyEffects, PolicyId, SlotKind } from 
 import { eraState, gameplayAtLeast } from '../content/eras.ts';
 import type { LeaderId } from '../content/leaders.ts';
 import type { EventPayload, GameState, PlayerState } from './model.ts';
+import { ageEffects, ageLeaguePoints, eraAgeOf } from './era-honors.ts';
+import type { EraAge } from '../content/era-honors.ts';
 
 /** Gameplay v3 only. Per player: charter progress, adopted charters and slotted policies. */
 export type PolicyPlayerState = {
@@ -68,31 +70,32 @@ export function fitsSlots(adopted: readonly CharterId[], policyIds: readonly Pol
   const military = policyIds.filter(id => POLICIES[id].slot === 'military').length, economic = policyIds.length - military;
   return Math.max(0, military - slots.military) + Math.max(0, economic - slots.economic) <= slots.wild;
 }
-export function policyEffects(player: Pick<PlayerState, 'leaderId'>, slotted: readonly PolicyId[] | undefined, government: GovernmentId | null = null): Required<PolicyEffects> {
+export function policyEffects(player: Pick<PlayerState, 'leaderId'>, slotted: readonly PolicyId[] | undefined, government: GovernmentId | null = null, extra: PolicyEffects = {}): Required<PolicyEffects> {
   const total = { ...ZERO };
   const add = (effects: PolicyEffects, affinity: boolean) => {
     for (const [key, value] of Object.entries(effects) as [keyof PolicyEffects, number][]) total[key] += affinity ? value + Math.max(1, Math.floor(value / 2)) : value;
   };
   for (const id of slotted ?? []) add(POLICIES[id].effects, player.leaderId !== undefined && LEADER_POLICY_AFFINITY[player.leaderId as LeaderId].includes(id));
   if (government) add(GOVERNMENTS[government].effects, player.leaderId !== undefined && LEADER_GOVERNMENT_AFFINITY[player.leaderId as LeaderId] === government);
+  add(extra, false);
   return total;
 }
 /** Effects for a player in the authoritative state; zero when the pack is off. */
 export function playerPolicyEffects(state: Pick<GameState, 'setup' | 'expansion' | 'players'>, playerId: number | null): Required<PolicyEffects> {
   if (playerId === null || !usesPolicies(state as GameState)) return { ...ZERO };
   const ledger = state.expansion!.policies?.[playerId];
-  return policyEffects(state.players[playerId], ledger?.slotted, ledger?.government ?? null);
+  return policyEffects(state.players[playerId], ledger?.slotted, ledger?.government ?? null, ageEffects(eraAgeOf(state, playerId)));
 }
 export function leaguePointsPerRound(state: GameState, playerId: number): number {
   const cities = Object.values(state.cities).filter(city => city.ownerId === playerId);
   const population = cities.reduce((sum, city) => sum + city.population, 0);
   const improvements = Object.values(state.expansion?.improvements?.tiles ?? {}).filter(tile => tile.builtBy === playerId).length;
   const satisfaction = state.expansion?.world.players[playerId]?.satisfaction ?? 0;
-  return 1 + cities.length + Math.floor(population / 3) + Math.floor(improvements / 2) + (satisfaction >= 50 ? 2 : 0);
+  return 1 + cities.length + Math.floor(population / 3) + Math.floor(improvements / 2) + (satisfaction >= 50 ? 2 : 0) + ageLeaguePoints(eraAgeOf(state, playerId));
 }
 /** Same effects computed from a player's own observation (UI previews and AI). */
-export function viewPolicyEffects(view: { economy: { player: Pick<PlayerState, 'leaderId'> }; expansion?: { policies?: { slotted: PolicyId[]; government?: GovernmentId | null } } }): Required<PolicyEffects> {
-  return view.expansion?.policies ? policyEffects(view.economy.player, view.expansion.policies.slotted, view.expansion.policies.government ?? null) : { ...ZERO };
+export function viewPolicyEffects(view: { economy: { player: Pick<PlayerState, 'leaderId'> }; expansion?: { policies?: { slotted: PolicyId[]; government?: GovernmentId | null }; eraHonors?: { age: EraAge } } }): Required<PolicyEffects> {
+  return view.expansion?.policies ? policyEffects(view.economy.player, view.expansion.policies.slotted, view.expansion.policies.government ?? null, ageEffects(view.expansion.eraHonors?.age)) : { ...ZERO };
 }
 export function ballPrice(base: number, discount: number): number { return Math.max(1, base - discount); }
 export function swapCost(ledger: PolicyPlayerState): number { return ledger.freeSwap ? 0 : POLICY_SWAP_GOLD; }

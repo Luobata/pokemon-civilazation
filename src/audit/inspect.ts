@@ -682,6 +682,12 @@ export function inspectSystem(systemId: string, state: GameState): AuditSystemIn
   }
   if (system.id === 's29-multiplayer') return { metrics: [metric('当前局模式', state.setup.multiplayer ? '多席位' : '单人本地'), metric('席位数', Object.keys(state.players).length)],
     data: { controllerByPlayer: state.setup.players, client: '/multiplayer.html', server: 'npm run server', authority: 'HTTP server authenticates each seat and returns only its projected view.', tokens: 'Never exposed by this local audit inspector.' } };
+  if (system.id === 's-era-honors') {
+    const honors = state.expansion?.eraHonors;
+    return { metrics: [metric('当前规则', honors ? '时代玩法 v12' : '本局未启用（需 v12）'),
+      metric('黄金世代文明', Object.values(honors?.players ?? {}).filter(record => record.age === 'golden').length),
+      metric('黑暗世代文明', Object.values(honors?.players ?? {}).filter(record => record.age === 'dark').length)], data: { eraHonors: honors ?? null } };
+  }
   if (system.id === 's-governments') {
     const policies = state.expansion?.policies, enabled = Object.values(policies ?? {}).some(ledger => ledger.government !== undefined);
     const rows = Object.entries(policies ?? {}).map(([playerId, ledger]) => ({ playerId: Number(playerId), government: ledger.government ?? null,

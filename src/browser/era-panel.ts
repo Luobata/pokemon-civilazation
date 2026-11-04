@@ -2,11 +2,13 @@ import { ERA_ABILITIES, ERA_ABILITY_IDS } from '../content/era-abilities.ts';
 import type { DoctrineDefinition } from '../core/leader-doctrines.ts';
 import { LEADER_DOCTRINES, activeDoctrine } from '../core/leader-doctrines.ts';
 import type { DoctrinePhase } from '../content/eras.ts';
-import { eraState } from '../content/eras.ts';
+import { ERA_DEFINITIONS, eraState } from '../content/eras.ts';
 import { EXPANSION_CONTENT } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
 import { LEADERS } from '../content/leaders.ts';
 import type { PlayerView } from '../core/model.ts';
+import { ERA_AGES, ERA_MILESTONES, ERA_MILESTONE_IDS } from '../content/era-honors.ts';
+import { ageFor } from '../core/era-honors.ts';
 import '../leader-doctrines.css';
 
 const ROLE_LABELS: Record<DoctrineDefinition['favoredRoles'][number], string> = {
@@ -73,6 +75,29 @@ function windowMarkup(definition: DoctrineDefinition, active: boolean, content: 
   return `<li class="era-window${active ? ' active' : ''}"><div class="era-window-head"><strong>${PHASE_LABELS[definition.phase]}</strong>${active ? '<span class="era-active-pill">当前</span>' : ''}</div><p>${definition.description}</p>${cityEffects.length || unitEffects.length ? `<dl>${cityEffects.length ? `<dt>每座城市</dt><dd>${cityEffects.join('、')}</dd>` : ''}${unitEffects.length ? `<dt>${targetLabel(definition)}</dt><dd>${unitEffects.join('、')}</dd>` : ''}${examplesText ? `<small>示例：${examplesText}</small>` : ''}</dl>` : ''}</li>`;
 }
 
+/** v12: this era's score against the golden/dark lines, the projected next age, and history. */
+function eraHonorMarkup(view: PlayerView, eraNames: (index: number) => string): string {
+  const honor = view.expansion?.eraHonors;
+  if (!honor) return '';
+  const rounds = Math.max(0, view.round - honor.eraStartRound);
+  const rate = rounds ? honor.score / rounds : 0, golden = honor.goldenRatePermille / 1000, dark = honor.darkRatePermille / 1000;
+  const projected = ageFor(honor.score, rounds), scale = golden * 1.5;
+  const pct = (value: number) => Math.min(100, Math.round(value * 100 / scale));
+  const breakdown = ERA_MILESTONE_IDS.filter(id => honor.byMilestone[id]).map(id => `<li>${ERA_MILESTONES[id].name} ×${honor.byMilestone[id]} <b>+${ERA_MILESTONES[id].points * honor.byMilestone[id]!}</b></li>`).join('');
+  return `<section class="era-honor age-${honor.age}" aria-label="世代荣誉">
+    <div class="era-honor-head"><strong>${ERA_AGES[honor.age].name}</strong><span>${ERA_AGES[honor.age].description}</span></div>
+    <p class="era-honor-score">本世代得分 <b>${honor.score}</b> · 已 ${rounds} 轮 · 平均每轮 <b>${rate.toFixed(2)}</b></p>
+    <div class="era-honor-bar" role="img" aria-label="平均每轮 ${rate.toFixed(2)}，黄金线 ${golden}，黑暗线 ${dark}">
+      <span class="fill" style="width:${pct(rate)}%"></span><i class="line dark" style="left:${pct(dark)}%"></i><i class="line golden" style="left:${pct(golden)}%"></i>
+    </div>
+    <p class="era-honor-legend"><span class="dark">黑暗线 ${dark}</span><span class="golden">黄金线 ${golden}</span></p>
+    <p class="era-honor-projection">${rounds < honor.minimumRounds ? `本世代还不到 ${honor.minimumRounds} 轮：现在进入下个世代会是普通世代。` : `按现在的速度，进入下个世代时将是 <b class="age-${projected}">${ERA_AGES[projected].name}</b>。`}</p>
+    ${breakdown ? `<ul class="era-honor-breakdown">${breakdown}</ul>` : '<p class="unit-note">本世代还没有得分。建城、进化、捕捉、确立规章、建设施区、清巢穴都能得分。</p>'}
+    <details><summary>怎么得分</summary><ul class="era-honor-table">${ERA_MILESTONE_IDS.map(id => `<li>${ERA_MILESTONES[id].name}<b>+${ERA_MILESTONES[id].points}</b></li>`).join('')}</ul></details>
+    ${honor.history.length ? `<details><summary>以往世代</summary><ul class="era-honor-history">${honor.history.map(item => `<li>${eraNames(item.eraIndex)} · ${ERA_AGES[item.age].name} · ${item.score} 分 / ${item.rounds} 轮</li>`).join('')}</ul></details>` : ''}
+  </section>`;
+}
+
 export function renderEraPanel(view: PlayerView): string {
   const { player } = view.economy;
   const state = eraState(player, view.eraProgression);
@@ -89,6 +114,7 @@ export function renderEraPanel(view: PlayerView): string {
 <div class="era-body">
   <div class="era-progress" role="img" aria-label="时代进度 ${state.eraProgressPercent}%"><span style="width:${state.eraProgressPercent}%"></span></div>
   <p class="era-next">${nextLabel}</p>
+  ${eraHonorMarkup(view, index => ERA_DEFINITIONS[state.mode][index]?.name ?? `第 ${index + 1} 世代`)}
   <dl class="era-summary"><dt>已完成科技</dt><dd>${state.completedTechs} 项</dd><dt>整体进程</dt><dd>${state.overallProgressPercent}%</dd></dl>
   ${view.expansion?.eraAbilities ? `<section class="era-abilities"><strong>时代能力 · ${view.expansion.eraAbilities.night ? '夜晚' : '白天'}</strong><ul>${ERA_ABILITY_IDS.filter(id => state.mode === 'full-v1' || ERA_ABILITIES[id].generation <= 3).map(id => `<li class="${view.expansion!.eraAbilities!.unlocked.includes(id) ? 'done' : ''}">${view.expansion!.eraAbilities!.unlocked.includes(id) ? '✓' : '○'} ${ERA_ABILITIES[id].era} · ${ERA_ABILITIES[id].name}<small>${ERA_ABILITIES[id].description}</small></li>`).join('')}</ul></section>` : ''}
   <section class="era-doctrine"><strong>${leader ? `${leader.name} · ${PHASE_LABELS[state.phase]}战术` : '无领袖战术'}</strong>${definition ? `<p>${definition.description}</p>` : '<p>此局未选择领袖，时代只推进，不提供额外战术加成。</p>'}</section>

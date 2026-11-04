@@ -17,6 +17,16 @@ const system = (definition: AuditSystem): AuditSystem => definition;
 
 export const AUDIT_SYSTEMS: readonly AuditSystem[] = [
   system({
+    id: 's-era-honors', name: '世代荣誉（黄金/黑暗世代）', status: 'implemented',
+    summary: 'gameplay v12：按上一世代平均每轮世代分决定新世代为黄金、普通或黑暗世代；读取 v≤11 存档时不启用。',
+    rules: ['世代分只来自既有事件（图鉴、建城、进化、捕捉、规章、设施区、巢穴、圣所、信仰、华丽馆、图鉴发现、攻城），每个命令结算一次。',
+      '进入新世代时用上一世代 平均分×1000/轮数 与黄金线、黑暗线比较；不足 4 轮为普通世代。',
+      '黄金：每城金币 +1、满意度 +3/轮、规章点 +2/轮；黑暗：满意度 −2/轮、训练 −20%、恢复 +3。'],
+    checks: ['v11 固定 48 局改动前后逐文件一致；v12 48 局两次运行逐字节一致；黄金/黑暗比例按模拟校准。', '得分等于里程碑之和、历史与 ageFor 一致、效果计入方针总量与规章点，有单元测试。'],
+    sources: ['src/content/era-honors.ts', 'src/core/era-honors.ts', 'src/browser/era-panel.ts', 'tests/core/era-honors.test.ts', 'docs/design/era-honors-v12.md'],
+    actionTypes: ['EndTurn', 'SetResearch'],
+  }),
+  system({
     id: 's-governments', name: '联盟体制（政体）', status: 'implemented',
     summary: 'gameplay v11（新局默认）：同一时间一个体制，提供额外方针槽和常驻加成；读取 v≤10 存档时不启用。',
     rules: ['六个体制分两层，由道馆守则、宝可梦联盟、培育家协会、商会公约解锁。',

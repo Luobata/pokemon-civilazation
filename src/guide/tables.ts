@@ -28,6 +28,7 @@ import { LEADER_DOCTRINES } from '../core/leader-doctrines.ts';
 import { LEADER_KITS } from '../core/leader-systems.ts';
 import { ROLE_CITY_ASSAULT, ERA_TECH_RECRUITS } from '../core/role-tactics.ts';
 import { pokemonSpritePath } from '../browser/sprites.ts';
+import { ERA_AGES, ERA_HONOR_RULES, ERA_MILESTONES, ERA_MILESTONE_IDS } from '../content/era-honors.ts';
 import { techUnlocks } from '../browser/tech-info.ts';
 
 const content = EXPANSION_CONTENT;
@@ -195,6 +196,13 @@ export function policyTable(): string {
 }
 export const policySwapGold = POLICY_SWAP_GOLD;
 export const governmentSwapGold = GOVERNMENT_SWAP_GOLD;
+export function eraMilestoneTable(): string {
+  return table(['里程碑', '世代分'], ERA_MILESTONE_IDS.map(id => [ERA_MILESTONES[id].name, `+${ERA_MILESTONES[id].points}`]), [1]);
+}
+export function eraAgeTable(): string {
+  return table(['世代', '条件（上一世代平均每轮得分）', '效果'], (['golden', 'normal', 'dark'] as const).map(age => [ERA_AGES[age].name,
+    age === 'golden' ? `≥ ${ERA_HONOR_RULES.goldenRatePermille / 1000}` : age === 'dark' ? `< ${ERA_HONOR_RULES.darkRatePermille / 1000}` : '介于两者之间，或上一世代不足 4 轮', ERA_AGES[age].description]));
+}
 export function governmentTable(): string {
   const slots = (grants: Partial<Record<string, number>>) => Object.entries(grants).map(([kind, n]) => `${({ military: '军事', economic: '经济', wild: '通配' })[kind]}槽 +${n}`).join('，');
   return table(['体制', '层', '解锁规章', '额外槽位', '常驻加成', '偏好领袖'], GOVERNMENT_IDS.map(id => [GOVERNMENTS[id].name, String(GOVERNMENTS[id].tier),
