@@ -1,5 +1,6 @@
 // Civilization-style notifications: a short toast stack for the viewer's own milestones (research, production,
 // growth, wonders, war). Pure description from the PlayerView; main.ts decides what a click does.
+import { ROLE_POKEMON } from '../content/roles.ts';
 import { ESCORT_BONUSES } from '../content/city-network.ts';
 import type { PlayerView, VisibleEvent } from '../core/model.ts';
 import { contentForView } from '../content/units.ts';
@@ -37,8 +38,9 @@ export function toastFor(payload: VisibleEvent['payload'], view: PlayerView): To
         { kind: 'city', cityId: payload.cityId }, idle(payload.cityId) ? '选择生产' : '查看城市');
     case 'UnitTrained': {
       if (payload.playerId !== me) return null;
-      const unit = payload.unit, name = unit.kind === 'pokemon' ? content.species[unit.speciesId].name : '开拓队';
-      return toast('production', '★', `城市 ${payload.cityId} 训练完成：${name}`, unit.kind === 'logistics' ? '开拓队已出发，选中它去建立新城市。' : '新单位已在城市旁出场。',
+      const unit = payload.unit, name = unit.kind === 'pokemon' ? content.species[unit.speciesId].name : `${ROLE_POKEMON[unit.role].unitName}（${ROLE_POKEMON[unit.role].species}）`;
+      const hint = unit.kind === 'pokemon' ? '新单位已在城市旁出场。' : { settler: '选中它，去建立新城市。', builder: '选中它，到己方地块上修建改良。', trader: '选中它，走到另一座己方城市旁开通商路。' }[unit.role];
+      return toast('production', '★', `城市 ${payload.cityId} 训练完成：${name}`, hint,
         { kind: 'unit', unitId: unit.id }, '选中');
     }
     case 'ProductionWaiting':

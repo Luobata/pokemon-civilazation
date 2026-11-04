@@ -1,3 +1,5 @@
+import { BUILDER_RULES, ROLE_IDS, ROLE_POKEMON } from '../content/roles.ts';
+import type { RoleId } from '../content/roles.ts';
 import { CITY_NETWORK_RULES, COMPLEMENTS, DISTRICT_COMBOS, ESCORT_BONUSES } from '../content/city-network.ts';
 import { LEGEND_CLUE_TEXT, LEGEND_WONDERS, LEGEND_WONDER_IDS, legendCost } from '../content/legend-wonders.ts';
 import { legendEffectText, legendSprite } from '../browser/legend-panel.ts';
@@ -222,6 +224,14 @@ export function legendWonderTable(): string {
   }), [2, 4]);
 }
 export const networkRules = CITY_NETWORK_RULES;
+export const builderCharges = BUILDER_RULES.charges;
+export function roleUnitTable(): string {
+  const unit = (role: RoleId) => content.units[role];
+  const since: Record<RoleId, string> = { settler: '一直都有', builder: 'v18 新增', trader: 'v17 新增（需要友好商店）' };
+  return table(['职能', '宝可梦', '职责', '训练', '移动', '维护', '版本', '为什么是它'], ROLE_IDS.map(role => [ROLE_POKEMON[role].unitName,
+    `<img class="sprite" loading="lazy" src="${ROLE_POKEMON[role].sprite}" alt=""> ${ROLE_POKEMON[role].species}`, ROLE_POKEMON[role].job + (role === 'builder' ? `，每个 ${BUILDER_RULES.charges} 处` : ''),
+    `${unit(role).trainCost} 生产`, String(unit(role).move), `${unit(role).upkeep} 金`, since[role], ROLE_POKEMON[role].why]), [3, 4, 5]);
+}
 export function districtComboTable(): string {
   return table(['设施区', '相邻', '加成'], DISTRICT_COMBOS.map(combo => [DISTRICTS[combo.district].name, DISTRICTS[combo.with].name,
     `${combo.label.replace(/（.*$/, '')}：${({ research: '科研', food: '食物', production: '生产', gold: '金币', trainedXp: '出场经验' })[combo.effect]} +${combo.amount}`]));

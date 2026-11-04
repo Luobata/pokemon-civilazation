@@ -1,3 +1,4 @@
+import { ROLE_POKEMON } from '../content/roles.ts';
 import { LEGEND_WONDERS } from '../content/legend-wonders.ts';
 import { legendEffectText } from './legend-panel.ts';
 import { stoneEvolutionsFor } from '../content/roster.ts';
@@ -105,7 +106,8 @@ export function describeTile(view: PlayerView, index: number): TileInfo {
     const tone: Tone = unit.ownerId === null ? 'wild' : relationTone(view, unit.ownerId);
     if (unit.kind === 'logistics') {
       entities.push({ kind: 'unit', tone, unitId: unit.id, title: definition.name, subtitle: unit.ownerId === null ? '野生' : unit.ownerId === view.playerId ? '你的单位' : `${civName(view, unit.ownerId)} · ${RELATION_TEXT[tone]}`,
-        lines: ['开拓队：前往合适地点建立新城市，不能战斗。'], hint: unit.ownerId === view.playerId ? '选中后点“建立城市”，或移动到别处。' : tone === 'enemy' ? '交战中：没有战斗力，可以攻击。' : undefined });
+        lines: [`${ROLE_POKEMON[unit.role].unitName}（${ROLE_POKEMON[unit.role].species}）：${ROLE_POKEMON[unit.role].job}，不能战斗。${unit.role === 'builder' && unit.charges !== undefined && unit.ownerId === view.playerId ? `还能建 ${unit.charges} 处。` : ''}`],
+        hint: unit.ownerId === view.playerId ? { settler: '选中后点“建立城市”，或移动到别处。', builder: '选中后站到己方地块上，点改良按钮。', trader: '选中后走到另一座己方城市旁，开通商路。' }[unit.role] : tone === 'enemy' ? '交战中：没有战斗力，可以攻击。' : undefined });
       continue;
     }
     const species = content.species[unit.speciesId];

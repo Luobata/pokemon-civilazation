@@ -1,3 +1,5 @@
+import { isGameplayVersion } from '../content/eras.ts';
+import type { GameplayVersion } from '../content/eras.ts';
 import { audio, audioSettingsMarkup, bindAudioSettings } from './audio/index.ts';
 import type { SoundId } from './audio/index.ts';
 import { usesMovementPoints } from '../core/movement.ts';
@@ -454,6 +456,11 @@ function confirmDistrictPlacement() {
     { item: { kind: 'district', defId: placement.kind, tileIndex: placement.tileIndex! } },
   ] }, `设施区已加入城市 ${city.id} 队列；格子已预订。`);
 }
+/** `?gameplay=N` starts a new game on an older rules pack (for testing and comparing); defaults to the latest. */
+function requestedGameplayVersion(): GameplayVersion {
+  const value = Number(new URLSearchParams(location.search).get('gameplay'));
+  return isGameplayVersion(value) && value >= 1 ? value : LATEST_GAMEPLAY_VERSION;
+}
 // ---------- v15 legendary wonders ----------
 const legendArrivals: LegendWonderId[] = [];
 /** Queues the full-screen story card (used when an own wonder completes; exported for tests). */
@@ -594,7 +601,7 @@ function newGame() {
     const sizeOption = document.querySelector<HTMLSelectElement>('#map-size')!.value as keyof typeof mapSizes;
     const size = mapSizes[sizeOption] ?? mapSizes['24x16'];
     const eraProgression = document.querySelector<HTMLSelectElement>('#era-progression')!.value as EraProgression;
-    driver = new GameSession({ expansionVersion: 1, eraProgression, gameplayVersion: LATEST_GAMEPLAY_VERSION, seed: Number(new URLSearchParams(location.search).get('seed') ?? '12345'), ...size,
+    driver = new GameSession({ expansionVersion: 1, eraProgression, gameplayVersion: requestedGameplayVersion(), seed: Number(new URLSearchParams(location.search).get('seed') ?? '12345'), ...size,
       roundLimit: Number(document.querySelector<HTMLSelectElement>('#round-limit')!.value) as GameSetup['roundLimit'], players });
     session = driver.asPlayerSession();
     timeline.clear(); presenting.clear(); presentationIndex = 0; selected = null; selectedCity = session.getView().economy.player.headquartersCityId; neutralCity = null; inspectedTile = null; keyboardIndex = null; activityLog.length = 0; knownUnitLabels.clear();

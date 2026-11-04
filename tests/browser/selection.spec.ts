@@ -69,13 +69,15 @@ test('city production trains a new settler with a replayable command history', a
   await page.locator('#animate').uncheck();
   const before = await state(page);
   await page.locator('[data-production-kind="logistics"]').click();
-  await expect(page.locator('#production-item option')).toHaveCount(1);
+  // v18: the logistics tab offers 开拓队 and 工匠; pick the settler.
+  await expect(page.locator('#production-item option')).toHaveText([/^开拓队/, /^工匠/]);
+  await page.locator('#production-item').selectOption({ index: 0 });
   await page.locator('#add-production').click();
   await expect(page.locator('#production-queue')).toContainText('开拓队');
   let trained: GameState['units'][number] | undefined;
   for (let turn = 0; turn < 20 && !trained; turn++) {
     await page.locator('#end-turn').click();
-    trained = Object.values((await state(page)).units).find(unit => unit.ownerId === 0 && unit.kind === 'logistics' && !before.units[unit.id]);
+    trained = Object.values((await state(page)).units).find(unit => unit.ownerId === 0 && unit.kind === 'logistics' && unit.role === 'settler' && !before.units[unit.id]);
   }
   expect(trained).toBeDefined();
   await page.locator('#unit-select').selectOption(String(trained!.id));

@@ -1,3 +1,4 @@
+import { BUILDER_RULES } from '../content/roles.ts';
 import { completeLegendWonder } from './legends.ts';
 import { cityDistrictEffects } from './districts.ts';
 import { productionAfterHall } from './contests.ts';
@@ -32,6 +33,7 @@ function deploy(state: GameState, city: CityState, pending: PendingDeployment, c
     + doctrineEffects(state.players[city.ownerId], state.setup.eraProgression, identity, content).trainedXpBonus
     + (identity.kind === 'pokemon' ? playerPolicyEffects(state, city.ownerId).trainedXp + gymTrainedXp(state, city.id, identity, content) + cityDistrictEffects(state, city.id).trainedXp : 0);
   state.units[id] = createMapUnit(identity, id, city.ownerId, position, content, xp);
+  if (identity.kind === 'logistics' && identity.role === 'builder') state.units[id].charges = BUILDER_RULES.charges;
   registerSpecies(state.players[city.ownerId], state.units[id]);
   events.push({ type: 'UnitTrained', playerId: city.ownerId, cityId: city.id, orderId: pending.sourceOrderId,
     unit: JSON.parse(JSON.stringify(state.units[id])) });

@@ -12,9 +12,11 @@ async function selectStarter(page: import('@playwright/test').Page) {
   await select.selectOption({ index: labels.findIndex(label => label.includes('妙蛙种子')) });
 }
 
-test('new games use gameplay v2: tile improvements, discoveries and field tactics are playable', async ({ page }) => {
-  await page.goto('/');
-  expect((await state(page)).setup).toMatchObject({ eraProgression: 'simple-v1', gameplayVersion: LATEST_GAMEPLAY_VERSION });
+test('v2–v17 rules: Pokémon build tile improvements, discoveries and field tactics are playable', async ({ page }) => {
+  // From v18 only 工匠 build (see roles.spec.ts); this pins the older rules pack through ?gameplay=17.
+  await page.goto('/?gameplay=17');
+  expect(LATEST_GAMEPLAY_VERSION).toBeGreaterThanOrEqual(18);
+  expect((await state(page)).setup).toMatchObject({ eraProgression: 'simple-v1', gameplayVersion: 17 });
   await selectStarter(page);
   await expect(page.locator('#zoc-note')).toContainText('夹击');
   const farm = page.locator('[data-improve$=":berryFarm"]').first();

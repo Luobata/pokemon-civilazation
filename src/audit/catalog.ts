@@ -17,6 +17,16 @@ const system = (definition: AuditSystem): AuditSystem => definition;
 
 export const AUDIT_SYSTEMS: readonly AuditSystem[] = [
   system({
+    id: 's-role-pokemon', name: '职能宝可梦（开拓队、工匠、商队）', status: 'implemented',
+    summary: '职能单位固定由不在战斗阵容里的宝可梦担任：开拓队＝肯泰罗、工匠＝搬运小匠、商队＝变隐龙（所有版本的显示）。gameplay v18：只有工匠能修地块改良，一次行动完成一处，每个 3 次。',
+    rules: ['显示：地图与面板用职能宝可梦贴图和金色职能标；不改变旧版规则与存档。',
+      'v18：工匠 20 生产、维护 1、移动 3；ImproveTile 只接受工匠，一次完成，消耗 1 次，用完移除；战斗宝可梦不再施工。',
+      'v18：AI 在待改良地块多于工匠剩余次数时训练工匠；非宝可梦单位不再向敌方首都行军。'],
+    checks: ['v17 固定 48 局改动前后逐文件一致；v18 两次运行逐字节一致。', '职能物种不在战斗阵容、工匠施工与次数、训练与旧版拒绝，有单元测试。'],
+    sources: ['src/content/roles.ts', 'src/core/improvements.ts', 'src/ai/improvement-plan.ts', 'tests/core/roles.test.ts', 'docs/design/role-pokemon-v18.md'],
+    actionTypes: ['ImproveTile', 'SetProductionQueue'],
+  }),
+  system({
     id: 's-city-network', name: '城市规划与城市网络', status: 'implemented',
     summary: 'gameplay v17：设施区相邻加成、区域辐射、属性城市联盟、商队与国内商路、开拓队随行宝可梦；读取 v≤16 存档时不启用。',
     rules: ['设施区每相邻一个设施区主产出 +1（封顶），特定组合额外加成；只在 v17 计算。',

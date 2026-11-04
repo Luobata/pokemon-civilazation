@@ -33,13 +33,15 @@ export type GameSetup = GridSize & {
 };
 type UnitBase = UnitIdentity & { id: number; ownerId: number | null; actionLeft: 0 | 1; xp: number; hp: number; enraged: boolean; wildHome: Hex | null;
   /** Gameplay v16 only: movement points spent this round (absent = none). */
-  movesSpent?: number };
+  movesSpent?: number;
+  /** Gameplay v18 builders only: improvements left. */
+  charges?: number };
 export type MapUnit = UnitBase & { location: 'map'; position: Hex };
 export type RecoveringUnit = UnitBase & { location: 'recovering'; cityId: number; roundsLeft: number; position: null };
 export type UnitState = MapUnit | RecoveringUnit;
 export function isMapUnit(unit: UnitState): unit is MapUnit { return unit.location === 'map'; }
 export type ProductionItem = { kind: 'building'; defId: BuildingId }
-  | { kind: 'pokemon'; defId: SpeciesId } | { kind: 'logistics'; defId: 'settler' | 'trader'; escortId?: SpeciesId } | { kind: 'district'; defId: DistrictId; tileIndex: number }
+  | { kind: 'pokemon'; defId: SpeciesId } | { kind: 'logistics'; defId: 'settler' | 'trader' | 'builder'; escortId?: SpeciesId } | { kind: 'district'; defId: DistrictId; tileIndex: number }
   /** Gameplay v15: a legendary wonder. */
   | { kind: 'legend'; defId: LegendWonderId };
 export type ProductionOrder = { id: number; progress: number; item: ProductionItem };
@@ -88,7 +90,7 @@ export type KnowledgeState = {
   lastKnownCities: Record<number, { ownerId: number | null; position: Hex; lastSeenRound: number; headquartersOf?: number | null }>;
 };
 export type GameState = {
-  schemaVersion: 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12; rulesVersion: 'm5-v1' | 'districts-v10' | 'governments-v11' | 'eras-v12' | 'promotions-v13' | 'roster-v14' | 'legends-v15' | 'movement-v16' | 'cities-v17'; contentVersion: string;
+  schemaVersion: 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13; rulesVersion: 'm5-v1' | 'districts-v10' | 'governments-v11' | 'eras-v12' | 'promotions-v13' | 'roster-v14' | 'legends-v15' | 'movement-v16' | 'cities-v17' | 'roles-v18'; contentVersion: string;
   expansion?: ExpansionState;
   setup: GameSetup; rng: RngState; nextEntityId: number; commandSeq: number;
   round: number; activePlayerId: number; turnOrder: number[];

@@ -1,3 +1,4 @@
+import { usesBuilders } from '../core/improvements.ts';
 import { IMPROVEMENT_IDS, IMPROVEMENTS } from '../content/improvements.ts';
 import type { ImprovementId } from '../content/improvements.ts';
 import type { Content } from '../content/units.ts';
@@ -12,11 +13,21 @@ const value = (kind: ImprovementId, view: PlayerView) => {
 };
 /** Units that may work tiles this turn: a small peacetime crew, crew-type specialists first. */
 export function designatedWorkers(view: PlayerView, content: Content, busy: boolean): Set<number> {
-  if (!view.expansion?.improvements || busy) return new Set();
+  if (!view.expansion?.improvements) return new Set();
+  // v18: 工匠 units are the only workers and always work, even in wartime.
+  if (usesBuilders(view)) return new Set(view.units.filter(unit => unit.ownerId === view.playerId && unit.kind === 'logistics' && unit.role === 'builder').map(unit => unit.id));
+  if (busy) return new Set();
   const own = view.units.filter(unit => unit.ownerId === view.playerId && unit.kind === 'pokemon');
   const limit = Math.min(view.economy.cities.length, Math.max(1, Math.floor(own.length / 3)));
   const skill = (unit: MapUnit) => Math.max(...IMPROVEMENT_IDS.map(kind => crewPoints(unit, content, kind)));
   return new Set([...own].sort((a, b) => skill(b) - skill(a) || a.id - b.id).slice(0, limit).map(unit => unit.id));
+}
+/** v18: train a 工匠 when unimproved worked tiles outnumber what living and queued builders can still build. */
+export function wantsBuilder(view: PlayerView): boolean {
+  if (!view.expansion?.improvements || !usesBuilders(view)) return false;
+  const builders = view.units.filter(unit => unit.ownerId === view.playerId && unit.kind === 'logistics' && unit.role === 'builder');
+  const queued = view.economy.cities.reduce((sum, city) => sum + [...city.queue, ...city.pendingDeployments].filter(order => order.item.kind === 'logistics' && order.item.defId === 'builder').length, 0);
+  return queued === 0 && builders.length < Math.max(1, Math.ceil(view.economy.cities.length / 3)) && targets(view).length > builders.reduce((sum, unit) => sum + (unit.charges ?? 0), 0);
 }
 /** Worked, unimproved own tiles and the improvement that fits each. */
 function targets(view: PlayerView): { tileIndex: number; kind: ImprovementId }[] {

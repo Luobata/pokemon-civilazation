@@ -101,11 +101,12 @@ export function eraState(player: EraPlayer, mode?: EraProgression): EraState | n
  * 15: adds legendary wonders with story chapters (era games).
  * 16: Civilization-style movement points (move, then still attack) and a starting settler beside the capital.
  * 17: city network: settler escorts, district adjacency, regional effects, type-city alliances, domestic trade routes.
+ * 18: role Pokémon: 工匠 (builder) units build tile improvements with charges; combat Pokémon no longer build.
  */
-export type GameplayVersion = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17;
-export const LATEST_GAMEPLAY_VERSION: GameplayVersion = 17;
+export type GameplayVersion = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18;
+export const LATEST_GAMEPLAY_VERSION: GameplayVersion = 18;
 export function isGameplayVersion(value: unknown): value is GameplayVersion {
-  return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 17;
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 18;
 }
 export function gameplayAtLeast(source: { gameplayVersion?: GameplayVersion }, version: GameplayVersion): boolean {
   return (source.gameplayVersion ?? 0) >= version;

@@ -89,6 +89,8 @@ export type LeaderGameResult = {
   finalSpecies?: Record<string, number>;
   /** v17+: trade routes at the end, escort bonuses granted, district adjacency count. */
   cityNetwork?: { routes: number; escorts: number };
+  /** v18+: improvements completed during the game. */
+  improvementsBuilt?: number;
   /** v15+: clues found and wonders built (legend id -> builder seat, in completion order). */
   legends?: { clues: number; wonders: { legendId: string; playerId: number; round: number }[] };
   id: string;
@@ -357,6 +359,7 @@ export function simulateLeaderCase(match: LeaderBalanceCase, onState?: (state: G
     ...((match.setup.gameplayVersion ?? 0) >= 13 ? { promotions } : {}),
     ...(state.expansion?.legends ? { legends: { clues: Object.values(state.expansion.legends.clues).reduce((sum, list) => sum + list.length, 0),
       wonders: Object.entries(state.expansion.legends.wonders).map(([legendId, record]) => ({ legendId, playerId: record!.builderId, round: record!.round })).sort((a, b) => a.round - b.round || (a.legendId < b.legendId ? -1 : 1)) } } : {}),
+    ...((match.setup.gameplayVersion ?? 0) >= 18 ? { improvementsBuilt: Object.keys(state.expansion?.improvements?.tiles ?? {}).length } : {}),
     ...(state.expansion?.cityNetwork ? { cityNetwork: { routes: state.expansion.cityNetwork.routes.length, escorts } } : {}),
     ...((match.setup.gameplayVersion ?? 0) >= 14 ? { finalSpecies: Object.fromEntries(Object.entries(Object.values(state.units)
       .reduce<Record<string, number>>((counts, unit) => { if (unit.ownerId !== null && unit.kind === 'pokemon') counts[unit.speciesId] = (counts[unit.speciesId] ?? 0) + 1; return counts; }, {}))
@@ -739,7 +742,7 @@ export function parseLeaderBalanceArgs(args: string[]): { config: LeaderBalanceC
     const key = args[index];
     if (!['--seeds', '--seed-start', '--expansion', '--eras', '--gameplay', '--round-limit', '--out'].includes(key)
       || !args[index + 1] || args[index + 1].startsWith('--') || Object.hasOwn(flags, key)) {
-      throw new Error(`Usage: node tools/leader-balance.ts --seeds <1..100> [--seed-start <1..>] [--expansion <true|false>] [--eras <none|simple|full>] [--gameplay <0..17>] --round-limit <100|200|300> [--out <file.json>]`);
+      throw new Error(`Usage: node tools/leader-balance.ts --seeds <1..100> [--seed-start <1..>] [--expansion <true|false>] [--eras <none|simple|full>] [--gameplay <0..18>] --round-limit <100|200|300> [--out <file.json>]`);
     }
     flags[key] = args[index + 1];
   }

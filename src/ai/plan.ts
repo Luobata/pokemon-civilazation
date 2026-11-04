@@ -1,3 +1,4 @@
+import { usesBuilders } from '../core/improvements.ts';
 import { pickEscort, traderPlan, wantsTrader } from './network-plan.ts';
 import { legendTraceTargets, planLegendWonder } from './legend-plan.ts';
 import { LEGEND_WONDERS } from '../content/legend-wonders.ts';
@@ -26,7 +27,7 @@ import { AI_STRATEGIES } from './strategies.ts';
 import { campaignPlan, eraCivilizationPolicy, hasEraProgression } from './war-plan.ts';
 import { leaderResearchBonus, roleCaptureBonus, roleTrainingBonus } from './role-plan.ts';
 import { trainableSpeciesIds } from '../core/role-tactics.ts';
-import { designatedWorkers, improvementSuggestions } from './improvement-plan.ts';
+import { designatedWorkers, improvementSuggestions, wantsBuilder } from './improvement-plan.ts';
 import { usesTactics } from '../core/tactics.ts';
 import { planPolicyAction } from './policy-plan.ts';
 import { planEssenceAction, siteEssenceBonus } from './essence-plan.ts';
@@ -189,6 +190,8 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
     const district = districtCandidates(view, city.id, content)[0];
     if (district) queue({ kind: 'district', defId: district.kind, tileIndex: district.tileIndex }, 'economy', district.score, district.tileIndex);
     if (canProduceSettler(view, ai)) { const escortId = pickEscort(view, content); queue({ kind: 'logistics', defId: 'settler', ...(escortId ? { escortId } : {}) }, 'found', 50); }
+    // The first 工匠 early (improvements compound); later ones only after the army is fed.
+    if (wantsBuilder(view) && !threatened.has(city.id)) queue({ kind: 'logistics', defId: 'builder' }, 'economy', units.some(unit => unit.kind === 'logistics' && unit.role === 'builder') ? 70 : 400);
     if (wantsTrader(view, city.id)) { const escortId = pickEscort(view, content); queue({ kind: 'logistics', defId: 'trader', ...(escortId ? { escortId } : {}) }, 'economy', 140); }
     for (const [i, id] of (Object.keys(content.buildings) as BuildingId[]).entries()) {
       const building = content.buildings[id];
@@ -219,7 +222,7 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
   for (const unit of units.filter(unit => unit.actionLeft)) {
     const trader = traderPlan(view, unit);
     if (trader.action) add(trader.action, 'economy', 900, unit.id);
-    if (unit.kind === 'logistics' && unit.role === 'trader') { /* traders only trade and walk */ } else if (unit.kind === 'logistics') {
+    if (unit.kind === 'logistics' && unit.role !== 'settler') { /* traders and builders: handled by their own plans */ } else if (unit.kind === 'logistics') {
       if (citySite(unit.position)) add({ type: 'FoundCity', unitId: unit.id }, 'found', 1000, unit.id);
     } else {
       const evolution = content.roster ? rosterEvolution(view, unit, content) : content.species[unit.speciesId].evolution;
@@ -258,7 +261,7 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
         const ring = view.map.tiles.filter((_, tile) => hexDistance(indexToHex(tile, view.map), to) <= 2);
         const ringTiles = new Set(view.map.tiles.flatMap((_, tile) => hexDistance(indexToHex(tile, view.map), to) <= 2 ? [tile] : []));
         if (after < before) add(action, 'found', 100 - after + (citySite(to) ? siteEssenceBonus(view, content, ring) + siteRareBerryBonus(view, ringTiles) : 0), unit.id, index);
-      } else if (targetHq && hexDistance(to, targetHq.position) < hexDistance(unit.position, targetHq.position)) {
+      } else if ((unit.kind === 'pokemon' || !usesBuilders(view)) && targetHq && hexDistance(to, targetHq.position) < hexDistance(unit.position, targetHq.position)) {
         add(action, 'military', 100 - hexDistance(to, targetHq.position), unit.id, index);
       }
       const trace = traceTargets.get(unit.id);

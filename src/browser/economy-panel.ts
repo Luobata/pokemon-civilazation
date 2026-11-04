@@ -1,3 +1,5 @@
+import { usesBuilders } from '../core/improvements.ts';
+import { BUILDER_RULES, ROLE_POKEMON } from '../content/roles.ts';
 import type { Content, SpeciesId } from '../content/units.ts';
 import { CITY_NETWORK_RULES, ESCORT_BONUSES, escortBonusKind } from '../content/city-network.ts';
 import { buildableLegends, legendEffectText, legendProductionMarkup, legendSprite, legendTitle } from './legend-panel.ts';
@@ -65,9 +67,11 @@ function escortSelectMarkup(view: PlayerView, content: Content): string {
   const ids = [...view.economy.player.registeredSpeciesIds].filter(id => content.species[id]).sort();
   return `<label class="escort-select">随行宝可梦<select id="escort-species">${ids.map(id => `<option value="${id}">${content.species[id].name} · ${ESCORT_BONUSES[escortBonusKind(content.species[id].typeId)].label}</option>`).join('')}</select></label>`;
 }
-function withEscort(item: LegacyProductionItem, root: HTMLElement): LegacyProductionItem {
+function withEscort(item: LegacyProductionItem, root: HTMLElement, view: PlayerView): LegacyProductionItem {
   const escort = root.querySelector<HTMLSelectElement>('#escort-species')?.value;
-  return item.kind === 'logistics' && escort ? { ...item, escortId: escort as SpeciesId } : item;
+  // v18: only settlers take an escort (traders are always 变隐龙, builders 搬运小匠).
+  const takes = item.kind === 'logistics' && (item.defId === 'settler' || (item.defId === 'trader' && !usesBuilders(view)));
+  return takes && escort ? { ...item, escortId: escort as SpeciesId } : item;
 }
 export function renderEconomyPanel(view: PlayerView, selectedCity: number | null,
   issue: (action: Command['action']) => void, disabled = false,
@@ -97,6 +101,7 @@ export function renderEconomyPanel(view: PlayerView, selectedCity: number | null
     ...trainableSpeciesIds(player, view.gameplayVersion, contentForView(view), view.eraProgression).map(defId => ({ kind: 'pokemon' as const, defId })),
     { kind: 'logistics', defId: 'settler' },
     ...(view.expansion?.cityNetwork && city.buildingIds.includes(CITY_NETWORK_RULES.trader.building) ? [{ kind: 'logistics' as const, defId: 'trader' as const }] : []),
+    ...(usesBuilders(view) ? [{ kind: 'logistics' as const, defId: 'builder' as const }] : []),
     ...buildableLegends(view, city).map(defId => ({ kind: 'legend' as const, defId })),
   ];
   const options = allOptions.filter(item => item.kind === productionKind);
@@ -137,7 +142,7 @@ export function renderEconomyPanel(view: PlayerView, selectedCity: number | null
       }).join('')}</tbody></table></div></section>
       <section class="production-section" ${citySection !== 'production' ? 'hidden' : ''}><p class="section-label">${selectedBuilding ? CONTENT.buildings[selectedBuilding].name : '城市生产'} · ${city.yields.production} 生产 / 轮${view.expansion?.contests?.own.building[city.id] !== undefined ? `（其中 ${Math.max(1, Math.floor(city.yields.production / 2))} 投入华丽大赛馆）` : ''}</p>
       <div class="production-tabs" role="group" aria-label="生产类别">${(Object.keys(productionLabels) as ProductionItem['kind'][]).filter(kind => (kind !== 'district' || view.expansion?.districts) && (kind !== 'legend' || view.expansion?.legends)).map(kind => `<button data-production-kind="${kind}" aria-pressed="${kind === productionKind}" ${disabled ? 'disabled' : ''}>${productionLabels[kind]}</button>`).join('')}</div>
-      <p class="production-help">${productionKind === 'legend' ? '传说奇观全世界只有一座：先建成的文明得到它，别人在建的同名奇观作废并按一半退还金币。奇观跟着城市走。' : productionKind === 'district' ? '选择设施区类型，再在地图上选格预览；确认后才会加入队列。' : productionKind === 'logistics' ? (view.expansion?.cityNetwork ? `开拓队建新城；随行宝可梦的属性决定新城的开局特长。商队需要本城有友好商店，走到另一座己方城市旁边即可开通商路（目的城 食物 +2、生产 +1，出发城 金币 +3）。${city.buildingIds.includes(CITY_NETWORK_RULES.trader.building) ? '' : '本城还没有友好商店，不能训练商队。'}` : '训练完成后，开拓队出现在城市周围。选中它，前往新的土地建城。') : productionKind === 'pokemon' ? '训练已经登记的宝可梦。完成后在城市周围出场。' : '建筑留在这座城市内，建成后自动提供产出或训练效果。'}</p>
+      <p class="production-help">${productionKind === 'legend' ? '传说奇观全世界只有一座：先建成的文明得到它，别人在建的同名奇观作废并按一半退还金币。奇观跟着城市走。' : productionKind === 'district' ? '选择设施区类型，再在地图上选格预览；确认后才会加入队列。' : productionKind === 'logistics' ? (view.expansion?.cityNetwork ? `${usesBuilders(view) ? `工匠（${ROLE_POKEMON.builder.species}）修建地块改良，每个能建 ${BUILDER_RULES.charges} 处。` : ''}开拓队（${ROLE_POKEMON.settler.species}）建新城；随行宝可梦的属性决定新城的开局特长（只对开拓队有效）。商队需要本城有友好商店，走到另一座己方城市旁边即可开通商路（目的城 食物 +2、生产 +1，出发城 金币 +3）。${city.buildingIds.includes(CITY_NETWORK_RULES.trader.building) ? '' : '本城还没有友好商店，不能训练商队。'}` : '训练完成后，开拓队出现在城市周围。选中它，前往新的土地建城。') : productionKind === 'pokemon' ? '训练已经登记的宝可梦。完成后在城市周围出场。' : '建筑留在这座城市内，建成后自动提供产出或训练效果。'}</p>
       ${productionKind === 'district' ? districtTypeCards(view, city.id, disabled) : `<div class="production-adder"><select id="production-item" aria-label="生产项目">${options.map((item, i) => `<option value="${i}">${itemName(item)} (${productionCost(item, CONTENT, policy.trainingDiscountPercent, leaderEffects(player.leaderId).settlerDiscountPercent)})</option>`).join('')}</select>
       ${productionKind === 'logistics' && view.expansion?.cityNetwork ? escortSelectMarkup(view, CONTENT) : ''}
       <button id="add-production" ${disabled || city.queue.length >= 5 || !options.length ? 'disabled' : ''}>加入队列</button></div>`}
@@ -206,7 +211,7 @@ export function renderEconomyPanel(view: PlayerView, selectedCity: number | null
   const setQueue = (orders: ProductionOrder[]) => issue({ type: 'SetProductionQueue', cityId: city.id,
     orders: orders.map(order => ({ orderId: order.id, item: order.item })) });
   root.querySelector('#add-production')?.addEventListener('click', () => issue({ type: 'SetProductionQueue', cityId: city.id,
-    orders: [...city.queue.map(order => ({ orderId: order.id, item: order.item })), { item: withEscort(options[Number(root.querySelector<HTMLSelectElement>('#production-item')!.value)], root) }] }));
+    orders: [...city.queue.map(order => ({ orderId: order.id, item: order.item })), { item: withEscort(options[Number(root.querySelector<HTMLSelectElement>('#production-item')!.value)], root, view) }] }));
   for (const button of root.querySelectorAll<HTMLButtonElement>('[data-up], [data-down], [data-remove]')) button.addEventListener('click', () => {
     const orders = [...city.queue];
     if (button.dataset.remove !== undefined) orders.splice(Number(button.dataset.remove), 1);

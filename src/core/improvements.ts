@@ -25,6 +25,9 @@ export type ImprovementView = { tiles: (TileImprovement & { tileIndex: number; p
 export function usesImprovements(state: GameState): boolean {
   return state.expansion !== undefined && gameplayAtLeast(state.setup, 2);
 }
+/** Gameplay v18: only 工匠 (builder) units build improvements, finishing one per action. */
+export const usesBuilders = (source: { setup?: { gameplayVersion?: number }; gameplayVersion?: number }) =>
+  ((source.setup?.gameplayVersion ?? source.gameplayVersion) ?? 0) >= 18;
 export function initializeImprovements(state: GameState): void {
   if (usesImprovements(state)) state.expansion!.improvements = { tiles: {}, projects: {} };
 }
@@ -32,6 +35,7 @@ export function isImprovementAction(action: { type: unknown }): action is Improv
   return action.type === 'ImproveTile';
 }
 export function crewPoints(identity: UnitIdentity, content: Content, kind: ImprovementId): number {
+  if (identity.kind === 'logistics' && identity.role === 'builder') return IMPROVEMENT_WORK.required;
   if (identity.kind !== 'pokemon') return 0;
   const species = content.species[identity.speciesId];
   const types = [species.typeId, ...(species.secondaryTypeId ? [species.secondaryTypeId] : [])];
@@ -70,7 +74,8 @@ export function validateImprovementAction(state: GameState, actorId: number, act
   const improvements = state.expansion?.improvements;
   if (!usesImprovements(state) || !improvements) return 'improvements-unavailable';
   const unit = state.units[action.unitId];
-  if (!unit || unit.ownerId !== actorId || !isMapUnit(unit) || unit.kind !== 'pokemon') return 'unit-unavailable';
+  const worker = usesBuilders(state) ? unit?.kind === 'logistics' && unit.role === 'builder' : unit?.kind === 'pokemon';
+  if (!unit || unit.ownerId !== actorId || !isMapUnit(unit) || !worker) return 'unit-unavailable';
   if (!unit.actionLeft) return 'no-action';
   if (!Number.isSafeInteger(action.tileIndex) || action.tileIndex < 0 || action.tileIndex >= state.map.tiles.length) return 'unknown-tile';
   if (!visibleTiles(state, actorId).has(action.tileIndex)) return 'unknown-tile';
@@ -90,6 +95,11 @@ export function applyImprovementAction(state: GameState, actorId: number, action
     delete improvements.projects[action.tileIndex];
     improvements.tiles[action.tileIndex] = { kind: action.kind, builtBy: actorId, builtAtRound: state.round };
   } else improvements.projects[action.tileIndex] = { kind: action.kind, playerId: actorId, progress };
+  // v18 builders spend a charge per improvement and are used up after the last one.
+  if (unit.kind === 'logistics' && unit.role === 'builder') {
+    unit.charges = (unit.charges ?? 1) - 1;
+    if (unit.charges <= 0) delete state.units[unit.id];
+  }
   return [{ type: 'TileWorked', playerId: actorId, unitId: unit.id, tileIndex: action.tileIndex, position: indexToHex(action.tileIndex, state.map),
     kind: action.kind, progress, required: IMPROVEMENT_WORK.required, completed }];
 }
@@ -111,7 +121,8 @@ export function observeImprovements(state: GameState, playerId: number, visible:
 export function improvementOptions(view: PlayerView, unitId: number, content: Content): { tileIndex: number; kind: ImprovementId; points: number; progress: number }[] {
   const unit = view.units.find(item => item.id === unitId && item.ownerId === view.playerId);
   const improvements = view.expansion?.improvements;
-  if (!unit || unit.kind !== 'pokemon' || !unit.actionLeft || !improvements) return [];
+  const worker = usesBuilders(view) ? unit?.kind === 'logistics' && unit.role === 'builder' : unit?.kind === 'pokemon';
+  if (!unit || !worker || !unit.actionLeft || !improvements) return [];
   const improved = new Set([...improvements.tiles.map(tile => tile.tileIndex),
     ...(view.expansion?.districts?.tiles.map(tile => tile.tileIndex) ?? []), ...(view.expansion?.districts?.projects.map(tile => tile.tileIndex) ?? []),
     ...(view.expansion?.districts?.constructionSites?.filter(site => site.category === 'district').map(site => site.tileIndex) ?? [])]), visible = new Set(view.visibleTileIds);

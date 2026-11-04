@@ -16,7 +16,7 @@ export const STARTER_IDS = ['bulbasaur', 'charmander', 'squirtle'] as const;
 export type StarterId = (typeof STARTER_IDS)[number];
 export type UnitIdentity = { kind: 'pokemon'; speciesId: SpeciesId; uniqueLeader?: LeaderId }
   /** v17: `escortId` = the escort / carrier Pokémon; traders remember the city that trained them. */
-  | { kind: 'logistics'; role: 'settler' | 'trader'; escortId?: SpeciesId; homeCityId?: number };
+  | { kind: 'logistics'; role: 'settler' | 'trader' | 'builder'; escortId?: SpeciesId; homeCityId?: number };
 export type UnitDefinition = { name: string; move: number; vision: number; terrain: readonly BiomeId[]; trainCost: number; upkeep: number };
 export type Content = {
   version: string;
@@ -105,7 +105,8 @@ validateSpecies(rosterSpecies);
 export const ROSTER_CONTENT: Content = {
   ...EXPANSION_CONTENT, version: 'roster-v14', species: rosterSpecies,
   units: { ...rosterSpecies, settler: CONTENT.units.settler,
-    trader: { name: '商队', move: 4, vision: 2, terrain: land, trainCost: 35, upkeep: 1 } },
+    trader: { name: '商队', move: 4, vision: 2, terrain: land, trainCost: 35, upkeep: 1 },
+    builder: { name: '工匠', move: 3, vision: 2, terrain: land, trainCost: 20, upkeep: 1 } },
   roster: {
     spawnWeights: SPAWN_WEIGHTS_V14 as RosterTables['spawnWeights'], wanderers: WANDERERS_V14 as SpeciesId[],
     techRecruits: TECH_RECRUITS_V14 as RosterTables['techRecruits'], generationRecruits: GENERATION_RECRUITS_V14 as RosterTables['generationRecruits'],
