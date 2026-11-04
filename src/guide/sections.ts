@@ -130,6 +130,17 @@ export const SECTIONS: readonly GuideSection[] = [
     ${T.charterTable()}
     ${T.policyTable()}` },
 
+  { id: 'governments', group: '文明发展', title: '联盟体制', badge: 'v11 新增', html: `
+    <p>体制相当于《文明》的政体。同一时间只能采用一个，它提供<strong>额外方针槽</strong>和一项<strong>常驻加成</strong>（与方针卡效果叠加）。体制由规章解锁：确立「道馆守则」后可以从三个第一层体制中选一个，之后三条第二层规章各解锁一个更强的体制。</p>
+    <ul>
+      <li>第一次采用免费。每当确立的规章解锁了新体制，可以再免费更换一次；其他时候更换花 ${T.governmentSwapGold} 金。</li>
+      <li>更换后槽位会变：放不下的方针卡会被取下（按名称倒序），并获得一次免费的方针更换，方便重新布置。</li>
+      <li>每位领袖偏好一个体制，采用时常驻加成的每项数值 +50%（向下取整，至少 +1）。</li>
+      <li>在「规章」页面顶部选择体制。</li>
+    </ul>
+    ${T.governmentTable()}
+    ${tip('开局按打法选：要打仗选道馆联盟（多一个军事槽、训练更快），要攀科技选研究会，要扩张和长人口选牧场共同体。之后沿着想要的第二层体制去确立规章。')}` },
+
   { id: 'improvements', group: '文明发展', title: '地块改良', html: `
     <p>任何宝可梦都可以在己方领地内施工。每次施工得 1 点，对应属性的“熟练工”得 2 点，满 ${T.improvementWork.required} 点完成。小刚和方针卡「工匠联盟」每次再 +1。渔场建在近岸海洋，宝可梦站在相邻陆地施工即可。</p>
     ${T.improvementTable()}` },

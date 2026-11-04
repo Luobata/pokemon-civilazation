@@ -5,7 +5,7 @@ import { ESSENCE_IDS, ESSENCES } from '../content/essences.ts';
 import { TYPE_NAMES } from '../content/type-names.ts';
 import type { TechId } from '../content/economy.ts';
 import { canResearch } from '../core/economy-commands.ts';
-import { CHARTERS, POLICIES } from '../content/policies.ts';
+import { CHARTERS, POLICIES, GOVERNMENTS } from '../content/policies.ts';
 import { IMPROVEMENTS } from '../content/improvements.ts';
 import { DISCOVERIES } from '../content/discoveries.ts';
 import { renderEraPanel } from './era-panel.ts';
@@ -179,6 +179,7 @@ function activityText(payload: VisibleEvent['payload']) {
     case 'CityDefected': return `城市 ${payload.cityId} 羁绊耗尽，脱离文明 ${payload.playerId + 1} 成为中立营地`;
     case 'GymBuilt': return `城市 ${payload.cityId} 建成${ESSENCES[payload.essence].name}道馆`;
     case 'CharterAdopted': return `文明 ${payload.playerId + 1} 确立规章「${CHARTERS[payload.charterId].name}」`;
+    case 'GovernmentChanged': return `采用体制「${GOVERNMENTS[payload.governmentId].name}」${payload.goldCost ? `（${payload.goldCost} 金）` : ''}${payload.droppedPolicies.length ? `，取下方针：${payload.droppedPolicies.map(id => POLICIES[id].name).join('、')}` : ''}`;
     case 'PoliciesChanged': return `方针更新：${payload.policyIds.map(id => POLICIES[id].name).join('、') || '无'}${payload.goldCost ? `（${payload.goldCost} 金）` : ''}`;
     case 'DiscoveryMade': return `★ 图鉴发现「${DISCOVERIES[payload.techId].name}」：${EXPANSION_CONTENT.techs[payload.techId].name} +${payload.bonus}`;
     default: return '';

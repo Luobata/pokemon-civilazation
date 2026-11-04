@@ -17,6 +17,16 @@ const system = (definition: AuditSystem): AuditSystem => definition;
 
 export const AUDIT_SYSTEMS: readonly AuditSystem[] = [
   system({
+    id: 's-governments', name: '联盟体制（政体）', status: 'implemented',
+    summary: 'gameplay v11（新局默认）：同一时间一个体制，提供额外方针槽和常驻加成；读取 v≤10 存档时不启用。',
+    rules: ['六个体制分两层，由道馆守则、宝可梦联盟、培育家协会、商会公约解锁。',
+      '首次采用免费；确立解锁新体制的规章时再获一次免费更换；其余更换 60 金。更换后放不下的方针卡按 ID 倒序取下，并给一次免费方针更换。',
+      '体制加成与方针卡共用效果键；领袖偏好体制的每项数值 +50%（向下取整，至少 +1）。'],
+    checks: ['v10 固定 48 局改动前后逐文件一致；v11 48 局两次运行逐字节一致。', '解锁、免费窗口、扣费、取下方针、领袖偏好与存读档回放有单元测试。'],
+    sources: ['src/content/policies.ts', 'src/core/policies.ts', 'src/ai/policy-plan.ts', 'tests/core/governments.test.ts', 'docs/design/governments-v11.md'],
+    actionTypes: ['SetGovernment', 'SetPolicies', 'SetCharter'],
+  }),
+  system({
     id: 's-districts', name: '设施区与相邻加成', status: 'implemented',
     summary: 'gameplay v10（新局默认）：五种设施区通过城市生产占格；读取 v≤9 存档时不启用。',
     rules: ['每城已完成与排队合计最多两个、同类一个；入队预订格子并释放己方劳动力。',

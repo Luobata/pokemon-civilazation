@@ -1,4 +1,6 @@
 import { DISTRICT_IDS } from '../src/content/districts.ts';
+import { GOVERNMENT_IDS } from '../src/content/policies.ts';
+import type { GovernmentId } from '../src/content/policies.ts';
 import type { DistrictId } from '../src/content/districts.ts';
 import type { GameEvent } from '../src/core/model.ts';
 import { isGameplayVersion } from '../src/content/eras.ts';
@@ -74,6 +76,8 @@ export type RejectionSummary = {
 };
 export type LeaderGameResult = {
   districtCompletions?: Record<DistrictId, number>;
+  /** v11+: GovernmentChanged events per government (adoptions, including switches). */
+  governmentAdoptions?: Record<GovernmentId, number>;
   id: string;
   seed: number;
   personality: AiPersonality;
@@ -266,8 +270,12 @@ export function simulateLeaderCase(match: LeaderBalanceCase, onState?: (state: G
   const telemetry = createTelemetry(state, content), memory: RejectedCitySite[] = [], rejections = emptyRejections();
   const startingBySeat = startingPositions(state, content);
   const districtCompletions = Object.fromEntries(DISTRICT_IDS.map(kind => [kind, 0])) as Record<DistrictId, number>;
+  const governmentAdoptions = Object.fromEntries(GOVERNMENT_IDS.map(id => [id, 0])) as Record<GovernmentId, number>;
   const countDistricts = (events: readonly GameEvent[]) => {
-    for (const event of events) if (event.payload.type === 'DistrictCompleted') districtCompletions[event.payload.kind]++;
+    for (const event of events) {
+      if (event.payload.type === 'DistrictCompleted') districtCompletions[event.payload.kind]++;
+      if (event.payload.type === 'GovernmentChanged') governmentAdoptions[event.payload.governmentId]++;
+    }
   };
   let exception: string | null = null;
   try {
@@ -323,7 +331,8 @@ export function simulateLeaderCase(match: LeaderBalanceCase, onState?: (state: G
       };
     }),
     eraProgression: eraCliValue(match.setup.eraProgression),
-    ...(match.setup.gameplayVersion === 10 ? { districtCompletions } : {}),
+    ...((match.setup.gameplayVersion ?? 0) >= 10 ? { districtCompletions } : {}),
+    ...((match.setup.gameplayVersion ?? 0) >= 11 ? { governmentAdoptions } : {}),
   };
 }
 
@@ -702,7 +711,7 @@ export function parseLeaderBalanceArgs(args: string[]): { config: LeaderBalanceC
     const key = args[index];
     if (!['--seeds', '--seed-start', '--expansion', '--eras', '--gameplay', '--round-limit', '--out'].includes(key)
       || !args[index + 1] || args[index + 1].startsWith('--') || Object.hasOwn(flags, key)) {
-      throw new Error(`Usage: node tools/leader-balance.ts --seeds <1..100> [--seed-start <1..>] [--expansion <true|false>] [--eras <none|simple|full>] [--gameplay <0..10>] --round-limit <100|200|300> [--out <file.json>]`);
+      throw new Error(`Usage: node tools/leader-balance.ts --seeds <1..100> [--seed-start <1..>] [--expansion <true|false>] [--eras <none|simple|full>] [--gameplay <0..11>] --round-limit <100|200|300> [--out <file.json>]`);
     }
     flags[key] = args[index + 1];
   }

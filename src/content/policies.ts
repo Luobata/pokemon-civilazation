@@ -60,3 +60,32 @@ export const LEADER_POLICY_AFFINITY: Record<LeaderId, readonly PolicyId[]> = {
 };
 /** Policies can be changed for free when a charter completes or the era changes; otherwise each change costs gold. */
 export const POLICY_SWAP_GOLD = 30;
+
+/**
+ * Gameplay v11: League governments (Civilization governments). One at a time; each adds policy slots
+ * and a standing bonus expressed with the same effect keys as policy cards. Unlocked by charters.
+ */
+export type GovernmentId = 'gymLeague' | 'researchSociety' | 'ranchCommons' | 'championCouncil' | 'breederRepublic' | 'merchantAssembly';
+export type GovernmentDefinition = { name: string; tier: 1 | 2; requires: CharterId; grantsSlots: Partial<Record<SlotKind, number>>; effects: PolicyEffects; description: string };
+export const GOVERNMENTS: Record<GovernmentId, GovernmentDefinition> = {
+  gymLeague: { name: '道馆联盟', tier: 1, requires: 'gymCode', grantsSlots: { military: 1 }, effects: { trainedXp: 10, trainingDiscountPercent: 10 },
+    description: '新训练宝可梦经验 +10，训练所需生产 −10%。' },
+  researchSociety: { name: '研究会', tier: 1, requires: 'gymCode', grantsSlots: { economic: 1 }, effects: { cityResearch: 1 },
+    description: '每座城市科研 +1。' },
+  ranchCommons: { name: '牧场共同体', tier: 1, requires: 'gymCode', grantsSlots: { economic: 1 }, effects: { cityFood: 1 },
+    description: '每座城市食物 +1。' },
+  championCouncil: { name: '冠军议会', tier: 2, requires: 'pokemonLeague', grantsSlots: { military: 1, wild: 1 }, effects: { trainedXp: 20, healing: 3, upkeepReduction: 1 },
+    description: '新训练宝可梦经验 +20，所有宝可梦每轮恢复 +3，维护费每城 −1。' },
+  breederRepublic: { name: '培育者共和', tier: 2, requires: 'breederAssociation', grantsSlots: { economic: 1, wild: 1 }, effects: { cityFood: 1, cityProduction: 1 },
+    description: '每座城市食物 +1、生产 +1。' },
+  merchantAssembly: { name: '商人议会', tier: 2, requires: 'tradeGuild', grantsSlots: { economic: 1, wild: 1 }, effects: { cityGold: 2, ballDiscount: 5 },
+    description: '每座城市金币 +2，精灵球与超级球价格 −5 金。' },
+};
+export const GOVERNMENT_IDS = Object.keys(GOVERNMENTS) as GovernmentId[];
+/** Leader preference: the government's numeric effects get +50% (floored, minimum +1), like affinity cards. */
+export const LEADER_GOVERNMENT_AFFINITY: Record<LeaderId, GovernmentId> = {
+  oak: 'researchSociety', lance: 'championCouncil', jenny: 'gymLeague', joy: 'ranchCommons', brock: 'breederRepublic',
+  misty: 'gymLeague', steven: 'championCouncil', jasmine: 'merchantAssembly', giovanni: 'merchantAssembly',
+};
+/** Changing government outside a free window costs gold; a new government unlocking grants one free change. */
+export const GOVERNMENT_SWAP_GOLD = 60;

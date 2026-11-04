@@ -1,5 +1,5 @@
-import { CHARTER_IDS, CHARTERS, LEADER_POLICY_AFFINITY, POLICIES, POLICY_IDS } from '../content/policies.ts';
-import type { CharterId, PolicyId, SlotKind } from '../content/policies.ts';
+import { CHARTER_IDS, CHARTERS, GOVERNMENT_IDS, GOVERNMENTS, LEADER_GOVERNMENT_AFFINITY, LEADER_POLICY_AFFINITY, POLICIES, POLICY_IDS } from '../content/policies.ts';
+import type { CharterId, GovernmentId, PolicyId, SlotKind } from '../content/policies.ts';
 import { charterAvailable, fitsSlots } from '../core/policies.ts';
 import type { Command, PlayerView } from '../core/model.ts';
 
@@ -49,7 +49,8 @@ export function renderPolicyPanel(view: PlayerView, issue: (action: Command['act
   const current = draft ?? [...ledger.slotted];
   const affinity = new Set(view.economy.player.leaderId ? LEADER_POLICY_AFFINITY[view.economy.player.leaderId] : []);
   const changed = [...current].sort().join() !== [...ledger.slotted].sort().join();
-  const valid = fitsSlots(ledger.adopted, current);
+  const government = ledger.government ?? null;
+  const valid = fitsSlots(ledger.adopted, current, government);
   const charter = ledger.charterId;
   const perRound = Math.max(1, ledger.perRound);
 
@@ -69,6 +70,7 @@ export function renderPolicyPanel(view: PlayerView, issue: (action: Command['act
       <div class="charter-progress" aria-hidden="true"><span style="width:${done ? 100 : Math.min(100, Math.round(progress * 100 / definition.cost))}%"></span></div>
       <div class="charter-slots">${slots}</div>
       ${unlocks ? `<ul class="charter-unlocks">${unlocks}</ul>` : '<p class="charter-state">不解锁新卡，只开槽位</p>'}
+      ${ledger.government !== undefined && GOVERNMENT_IDS.some(gov => GOVERNMENTS[gov].requires === id) ? `<p class="charter-government">解锁体制：${GOVERNMENT_IDS.filter(gov => GOVERNMENTS[gov].requires === id).map(gov => GOVERNMENTS[gov].name).join('、')}</p>` : ''}
       ${!done && open ? `<button type="button" data-charter="${id}" ${disabled || active ? 'disabled' : ''}>${active ? '推进中' : '设为目标'}</button>` : ''}
     </article>`;
   };
@@ -87,18 +89,40 @@ export function renderPolicyPanel(view: PlayerView, issue: (action: Command['act
   const policyCard = (id: PolicyId) => {
     const definition = POLICIES[id], unlocked = ledger.unlockedPolicies.includes(id), on = current.includes(id);
     if (!unlocked) return `<div class="policy-card locked ${definition.slot}"><span><strong>${definition.name}</strong><small>${SLOT_LABEL[definition.slot]} · 由「${CHARTERS[unlockedBy[id]!].name}」解锁${affinity.has(id) ? ' · 领袖偏好 +50%' : ''}</small>${definition.description}</span></div>`;
-    const wouldFit = on || fitsSlots(ledger.adopted, [...current, id]);
+    const wouldFit = on || fitsSlots(ledger.adopted, [...current, id], government);
     return `<label class="policy-card ${on ? 'on' : ''} ${definition.slot}"><input type="checkbox" data-policy="${id}" ${on ? 'checked' : ''} ${disabled || (!on && !wouldFit) ? 'disabled' : ''}><span><strong>${definition.name}</strong><small>${SLOT_LABEL[definition.slot]}${affinity.has(id) ? ' · 领袖偏好 +50%' : ''}</small>${definition.description}</span></label>`;
   };
   const cardGroups = (['military', 'economic'] as const).map(kind => `<section class="policy-group"><p class="section-label">${SLOT_LABEL[kind]}方针</p><div class="policy-grid">${POLICY_IDS.filter(id => POLICIES[id].slot === kind)
     .sort((a, b) => Number(ledger.unlockedPolicies.includes(b)) - Number(ledger.unlockedPolicies.includes(a))).map(policyCard).join('')}</div></section>`).join('');
 
-  const idle = charter === null && CHARTER_IDS.some(id => charterAvailable(ledger.adopted, id));
+  // v11 governments: the current one, then every government with its unlock state and price.
+  const leaderGovernment = view.economy.player.leaderId ? LEADER_GOVERNMENT_AFFINITY[view.economy.player.leaderId] : null;
+  const governmentCard = (id: GovernmentId) => {
+    const definition = GOVERNMENTS[id], available = ledger.availableGovernments?.includes(id) ?? false, active = government === id;
+    const price = ledger.governmentSwapCost ?? 0;
+    const slots = (Object.entries(definition.grantsSlots) as [SlotKind, number][]).map(([kind, count]) => `<span class="slot-chip ${kind}">${SLOT_LABEL[kind]}槽 +${count}</span>`).join('');
+    const action = active ? '<span class="government-current">当前体制</span>'
+      : available ? `<button type="button" data-government="${id}" ${disabled || view.economy.player.gold < price ? 'disabled' : ''}>${price ? `更换 · ${price} 金` : government ? '免费更换' : '采用'}</button>`
+      : `<span class="government-locked">需要「${CHARTERS[definition.requires].name}」</span>`;
+    return `<article class="government-card ${active ? 'active' : available ? 'available' : 'locked'}" data-government-card="${id}">
+      <header><strong>${definition.name}</strong><span class="government-tier">第 ${definition.tier} 层</span></header>
+      <div class="charter-slots">${slots}</div>
+      <p>${definition.description}${leaderGovernment === id ? '<em class="government-affinity">★ 领袖偏好：效果 +50%</em>' : ''}</p>
+      ${action}
+    </article>`;
+  };
+  const governments = ledger.government === undefined ? '' : `<section class="government-section" aria-label="联盟体制">
+      <div class="government-head"><p class="section-label">联盟体制</p><span>${government ? `当前：${GOVERNMENTS[government].name}` : (ledger.availableGovernments?.length ? '尚未采用体制，第一次采用免费' : '确立「道馆守则」后可以采用第一个体制')}${government && ledger.governmentSwapCost === 0 ? ' · 下次更换免费' : ''}</span></div>
+      <p class="policy-explain">体制同一时间只能有一个：提供额外方针槽和常驻加成。确立规章解锁新体制时，可以免费更换一次；其他时候更换花 ${ledger.governmentSwapCost || 60} 金。更换后方针卡放不下的会被取下。</p>
+      <div class="government-grid">${GOVERNMENT_IDS.map(governmentCard).join('')}</div>
+    </section>`;
+  const idle = (charter === null && CHARTER_IDS.some(id => charterAvailable(ledger.adopted, id))) || (government === null && (ledger.availableGovernments?.length ?? 0) > 0);
   const emptySlots = ledger.slots.military + ledger.slots.economic + ledger.slots.wild - ledger.slotted.length;
   root.innerHTML = `<div class="subpanel-head"><strong>联盟规章与训练方针${idle || (emptySlots > 0 && ledger.unlockedPolicies.length > ledger.slotted.length) ? ' <em class="needs-choice">待选择</em>' : ''}</strong><span>每轮 +${ledger.perRound} 规章点</span></div>
   <div class="policy-body">
     <p class="policy-status">${charter ? `正在制定「${CHARTERS[charter].name}」 ${ledger.progressByCharter[charter]}/${CHARTERS[charter].cost}` : ledger.adopted.length === CHARTER_IDS.length ? '全部规章已确立' : `请选择下一项规章（已暂存 ${ledger.points} 点）`}</p>
     <p class="policy-explain">规章点每轮来自：1 + 每座城市 1 + 每 3 人口 1 + 每 2 个改良 1 + 满意度 ≥50 时 2。确立规章会开放方针槽，并解锁新的方针卡；★ 是你的领袖偏好的卡，效果 +50%。</p>
+    ${governments}
     <p class="tree-scroll-hint">← 左右滑动查看完整规章树 →</p>
     <div class="charter-tree-wrap"><div class="charter-tree" style="grid-template-columns:repeat(${depthCount}, minmax(170px, 1fr))"><svg class="charter-links" aria-hidden="true"></svg>${CHARTER_IDS.map(card).join('')}</div></div>
     <details id="policy-cards" open><summary>方针卡 · 已用 ${current.length}/${ledger.slots.military + ledger.slots.economic + ledger.slots.wild}${changed ? ' · 未应用' : ''}</summary>
@@ -109,6 +133,7 @@ export function renderPolicyPanel(view: PlayerView, issue: (action: Command['act
     </details>
   </div>`;
   for (const button of root.querySelectorAll<HTMLButtonElement>('[data-charter]')) button.addEventListener('click', () => issue({ type: 'SetCharter', charterId: button.dataset.charter as never }));
+  for (const button of root.querySelectorAll<HTMLButtonElement>('[data-government]')) button.addEventListener('click', () => issue({ type: 'SetGovernment', governmentId: button.dataset.government as GovernmentId }));
   for (const box of root.querySelectorAll<HTMLInputElement>('[data-policy]')) box.addEventListener('change', () => {
     const id = box.dataset.policy as PolicyId;
     draft = box.checked ? [...current, id] : current.filter(item => item !== id);

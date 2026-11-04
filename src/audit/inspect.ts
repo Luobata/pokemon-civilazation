@@ -1,5 +1,6 @@
 import { gameVersions } from '../core/versions.ts';
 import { cityDistrictEffects, districtProjects } from '../core/districts.ts';
+import { slotCounts } from '../core/policies.ts';
 import { FLANK_MAX, FLANK_PER_UNIT, usesTactics } from '../core/tactics.ts';
 import { RULE_QUERIES } from '../ai/query.ts';
 import { knownCombatCount, planNext } from '../ai/plan.ts';
@@ -681,6 +682,13 @@ export function inspectSystem(systemId: string, state: GameState): AuditSystemIn
   }
   if (system.id === 's29-multiplayer') return { metrics: [metric('当前局模式', state.setup.multiplayer ? '多席位' : '单人本地'), metric('席位数', Object.keys(state.players).length)],
     data: { controllerByPlayer: state.setup.players, client: '/multiplayer.html', server: 'npm run server', authority: 'HTTP server authenticates each seat and returns only its projected view.', tokens: 'Never exposed by this local audit inspector.' } };
+  if (system.id === 's-governments') {
+    const policies = state.expansion?.policies, enabled = Object.values(policies ?? {}).some(ledger => ledger.government !== undefined);
+    const rows = Object.entries(policies ?? {}).map(([playerId, ledger]) => ({ playerId: Number(playerId), government: ledger.government ?? null,
+      freeChange: ledger.governmentFreeSwap ?? null, slots: slotCounts(ledger.adopted, ledger.government ?? null), slotted: ledger.slotted }));
+    return { metrics: [metric('当前规则', enabled ? '时代玩法 v11' : '本局未启用（需 v11）'),
+      metric('已采用体制的文明', rows.filter(row => row.government).length)], data: { governments: enabled ? rows : null } };
+  }
   if (system.id === 's-districts') {
     const districts = state.expansion?.districts, projects = districts ? districtProjects(Object.values(state.cities)) : [];
     return { metrics: [metric('当前规则', districts ? '时代玩法 v10' : '本局未启用（需显式 v10）'),

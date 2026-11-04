@@ -13,7 +13,7 @@ import { LEGENDS, LEGEND_IDS, TENETS, TENET_IDS, FAITH_RULES } from '../content/
 import { IMPROVEMENTS, IMPROVEMENT_IDS, IMPROVEMENT_WORK } from '../content/improvements.ts';
 import { LEADERS, LEADER_IDS } from '../content/leaders.ts';
 import type { LeaderId } from '../content/leaders.ts';
-import { CHARTERS, CHARTER_IDS, LEADER_POLICY_AFFINITY, POLICIES, POLICY_IDS, POLICY_SWAP_GOLD } from '../content/policies.ts';
+import { CHARTERS, CHARTER_IDS, GOVERNMENTS, GOVERNMENT_IDS, GOVERNMENT_SWAP_GOLD, LEADER_GOVERNMENT_AFFINITY, LEADER_POLICY_AFFINITY, POLICIES, POLICY_IDS, POLICY_SWAP_GOLD } from '../content/policies.ts';
 import { RARE_BERRIES, RARE_BERRY_IDS, RARE_BERRY_RULES } from '../content/rare-berries.ts';
 import { BIOME_WEIGHTS } from '../content/rules.ts';
 import type { BiomeId } from '../content/rules.ts';
@@ -175,6 +175,7 @@ export function leaderCards(tips: Record<LeaderId, string>): string {
         <dt>专属建筑</dt><dd><strong>${escape(kit.building)}</strong>：90 金，每城 1 座，${LEADER_BUILDING_YIELD[id]}</dd>
         <dt>时代方针</dt><dd>${doctrines}</dd>
         <dt>方针亲和</dt><dd>${escape(affinity)}（装备时数值效果 +50%）</dd>
+        <dt>偏好体制</dt><dd>${escape(GOVERNMENTS[LEADER_GOVERNMENT_AFFINITY[id]].name)}（采用时常驻加成 +50%，v11）</dd>
       </dl>
       <p class="leader-tip">${escape(tips[id])}</p>
     </article>`;
@@ -193,6 +194,13 @@ export function policyTable(): string {
     POLICIES[id].description, LEADER_IDS.filter(l => LEADER_POLICY_AFFINITY[l].includes(id)).map(l => LEADERS[l].name).join('、')]));
 }
 export const policySwapGold = POLICY_SWAP_GOLD;
+export const governmentSwapGold = GOVERNMENT_SWAP_GOLD;
+export function governmentTable(): string {
+  const slots = (grants: Partial<Record<string, number>>) => Object.entries(grants).map(([kind, n]) => `${({ military: '军事', economic: '经济', wild: '通配' })[kind]}槽 +${n}`).join('，');
+  return table(['体制', '层', '解锁规章', '额外槽位', '常驻加成', '偏好领袖'], GOVERNMENT_IDS.map(id => [GOVERNMENTS[id].name, String(GOVERNMENTS[id].tier),
+    CHARTERS[GOVERNMENTS[id].requires].name, slots(GOVERNMENTS[id].grantsSlots), GOVERNMENTS[id].description,
+    LEADER_IDS.filter(l => LEADER_GOVERNMENT_AFFINITY[l] === id).map(l => LEADERS[l].name).join('、') || '—']), [1]);
+}
 
 // ---------- Improvements & districts ----------
 export function improvementTable(): string {

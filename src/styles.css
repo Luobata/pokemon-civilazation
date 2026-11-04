@@ -755,3 +755,20 @@ button.danger { border-color: var(--danger); background: #9E4B43; color: var(--o
 .policy-card.locked { cursor: default; opacity: .5; }
 .tree-scroll-hint { display: none; margin: 0; color: var(--ink-muted); font-size: 11px; text-align: center; }
 @media (max-width: 860px) { .tree-scroll-hint { display: block; } }
+.government-section { display: grid; gap: 8px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); }
+.government-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; }
+.government-head .section-label { margin: 0; color: var(--gold); font-size: 13px; }
+.government-head span { color: var(--ink-secondary); font-size: 12px; }
+.government-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; }
+.government-card { display: grid; gap: 5px; align-content: start; padding: 9px 11px; border: 1px solid var(--border); border-radius: 8px; background: #12232A; }
+.government-card header { display: flex; justify-content: space-between; gap: 6px; }
+.government-card header strong { color: #F3E7C9; font-size: 13px; }
+.government-tier { color: var(--ink-muted); font-size: 10px; }
+.government-card p { margin: 0; color: var(--ink-secondary); font-size: 11px; line-height: 1.5; }
+.government-affinity { display: block; color: #F4DFA6; font-style: normal; }
+.government-card button { justify-self: start; min-height: 28px; padding: 3px 12px; font-size: 12px; }
+.government-current { color: #8CD3A2; font-size: 11px; font-weight: 650; }
+.government-locked { color: var(--ink-muted); font-size: 11px; }
+.government-card.active { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold); background: var(--gold-soft); }
+.government-card.locked { opacity: .55; }
+.charter-government { margin: 0; color: #D9C7F0; font-size: 11px; }

@@ -2,7 +2,7 @@ import type { ExpansionAction } from './expansion-model.ts';
 import { EXPANSION_CONTENT } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
 import { IMPROVEMENT_IDS } from '../content/improvements.ts';
-import { CHARTER_IDS, POLICY_IDS } from '../content/policies.ts';
+import { CHARTER_IDS, GOVERNMENT_IDS, POLICY_IDS } from '../content/policies.ts';
 import { ESSENCE_IDS, TYPE_ESSENCE } from '../content/essences.ts';
 import { WEATHER_IDS } from '../content/era-abilities.ts';
 import { RARE_BERRY_IDS } from '../content/rare-berries.ts';
@@ -28,6 +28,7 @@ export function expansionActionFields(content: Content = EXPANSION_CONTENT): Rec
   ImproveTile: { unitId: 'id', tileIndex: 'id', kind: IMPROVEMENT_IDS },
   SetCharter: { charterId: CHARTER_IDS },
   SetPolicies: { policyIds: 'policyIds' },
+  SetGovernment: { governmentId: GOVERNMENT_IDS },
   BuildGym: { cityId: 'id', essence: ESSENCE_IDS },
   SummonWeather: { cityId: 'id', weather: WEATHER_IDS },
   MegaEvolve: { unitId: 'id' }, PrimeZMove: { unitId: 'id' }, Dynamax: { unitId: 'id' },
