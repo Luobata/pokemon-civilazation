@@ -62,7 +62,7 @@ test('complete Node game with three AI replays identically in Chromium', async (
 
 test('full browser game survives midgame save/load and reaches the same visible ending', async ({ page }, testInfo) => {
   test.setTimeout(60_000);
-  await page.goto('/?seed=10');
+  await page.goto('/?seed=10&size=24x16');
   await page.locator('#animate').uncheck();
   await openScreen(page, 'menu');
   await page.locator('#ai-count').selectOption('1');

@@ -47,7 +47,7 @@ for (const seed of [12345, 0]) {
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
     page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
-    await page.goto(`/?seed=${seed}`);
+    await page.goto(`/?seed=${seed}&size=24x16`);
     await expect(page.getByRole('status')).toContainText(`种子 ${seed}`);
     await page.locator('#map-legend summary').click();
     await expect(page.getByRole('list', { name: '群系图例' }).locator('li')).toHaveCount(7);

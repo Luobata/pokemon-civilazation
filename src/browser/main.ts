@@ -597,9 +597,11 @@ function newGame() {
       .sort((a, b) => a.key - b.key || a.id.localeCompare(b.id)).map(item => item.id);
     const players: GameSetup['players'] = [{ id: 0, controller: 'human', starterId: starter.value as StarterId, leaderId: humanLeaderId },
       ...Array.from({ length: aiCount }, (_, index) => ({ id: index + 1, controller: 'ai' as const, personality, leaderId: aiLeaderIds[index] }))];
-    const mapSizes = { '24x16': { width: 24, height: 16 }, '30x20': { width: 30, height: 20 }, '40x26': { width: 40, height: 26 } } as const;
+    const mapSizes = { '24x16': { width: 24, height: 16 }, '30x20': { width: 30, height: 20 }, '40x26': { width: 40, height: 26 }, '56x36': { width: 56, height: 36 } } as const;
     const sizeOption = document.querySelector<HTMLSelectElement>('#map-size')!.value as keyof typeof mapSizes;
-    const size = mapSizes[sizeOption] ?? mapSizes['24x16'];
+    // `?size=24x16` pins a map size (tests and quick comparisons); the menu default is the large map.
+    const pinned = new URLSearchParams(location.search).get('size') as keyof typeof mapSizes | null;
+    const size = (pinned && mapSizes[pinned]) || mapSizes[sizeOption] || mapSizes['40x26'];
     const eraProgression = document.querySelector<HTMLSelectElement>('#era-progression')!.value as EraProgression;
     driver = new GameSession({ expansionVersion: 1, eraProgression, gameplayVersion: requestedGameplayVersion(), seed: Number(new URLSearchParams(location.search).get('seed') ?? '12345'), ...size,
       roundLimit: Number(document.querySelector<HTMLSelectElement>('#round-limit')!.value) as GameSetup['roundLimit'], players });
