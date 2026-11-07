@@ -253,7 +253,7 @@ function startingPositions(state: GameState, content: Content = CONTENT): Starti
       hqBiome: state.map.tiles[tileIndex],
       nearestRivalDistance: Math.min(...Object.values(state.players)
         .filter(other => other.id !== player.id)
-        .map(other => hexDistance(city.position, state.cities[other.headquartersCityId].position))),
+        .map(other => hexDistance(city.position, state.cities[other.headquartersCityId].position, state.map))),
       baseFood: base.food,
       baseProduction: base.production,
       baseGold: base.gold,

@@ -22,7 +22,7 @@ export function districtFixture(kind: DistrictId = 'gardenDistrict', gameplayVer
   state.expansion!.rareBerries!.deposits = {};
   const position = { q: 7, r: 6 }, tile = hexToIndex(position, state.map)!;
   state.map.tiles[tile] = DISTRICTS[kind].biomes[0];
-  const adjacent = neighbors(position).map(hex => hexToIndex(hex, state.map)!).sort((a, b) => a - b);
+  const adjacent = neighbors(position, state.map).map(hex => hexToIndex(hex, state.map)!).sort((a, b) => a - b);
   state.knowledge = { 0: emptyKnowledge(), 1: emptyKnowledge() }; refreshKnowledge(state);
   return { state, city, tile, adjacent };
 }

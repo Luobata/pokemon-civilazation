@@ -65,7 +65,7 @@ test('v18: cities train 工匠 with charges; before v18 the order is rejected an
   for (let i = 0; i < 2; i++) { const ended = act(next, { type: 'EndTurn' }); if (!ended.ok) throw new Error(ended.reason); next = ended.state; }
   const builder = Object.values(next.units).find(unit => unit.ownerId === 0 && unit.kind === 'logistics' && unit.role === 'builder')!;
   expect(builder.charges).toBe(BUILDER_RULES.charges);
-  expect(hexDistance(builder.position!, city.position)).toBe(1);
+  expect(hexDistance(builder.position!, city.position, state.map)).toBe(1);
   const old = createGame(duel(17));
   expect(act(old, { type: 'SetProductionQueue', cityId: hq(old).id, orders: [{ item: { kind: 'logistics', defId: 'builder' } }] }).ok).toBe(false);
 });

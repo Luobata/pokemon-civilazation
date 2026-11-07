@@ -62,7 +62,7 @@ export function diagnoseB4(directory: string) {
             if (view.civilizations.find(civ => civ.id === enemy)?.eliminated) continue;
             if (own * 1000 >= knownCombatCount(view, enemy) * ai.conservativeDeclareStrength
               && cities.some(city => city.ownerId === enemy && view.units.some(unit => unit.ownerId === view.playerId
-                && hexDistance(unit.position, city.position) <= ai.conservativeBorderDistance))) {
+                && hexDistance(unit.position, city.position, state.map) <= ai.conservativeBorderDistance))) {
               row.eligibleDeclarationPairs++;
               if (ai.conservativeMayDeclareWar) row.enabledDeclarationPairs++;
             }

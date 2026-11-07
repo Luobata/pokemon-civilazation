@@ -43,14 +43,14 @@ export function renderExpansionPanel(view: PlayerView, selectedUnitId: number | 
   html += card('s22-pokedex', '图鉴与探索胜利', `<p>完整记录 ${records.filter(record => record.observed && (record.battled || record.captured)).length}/${world.victory?.targetDocumentedSpecies ?? 18}。观察 ${records.filter(record => record.observed).length} · 对战 ${records.filter(record => record.battled).length} · 捕捉 ${records.filter(record => record.captured).length}。已观察且战斗或捕捉的物种计入完整记录。</p><p>${records.filter(record => record.observed).map(record => escape(CONTENT.species[record.speciesId].name)).join('、') || '尚未观察'}</p>`);
   html += card('s18-nests', '暴走巢穴', '<p>靠近巢穴后派宝可梦清剿，消耗行动点；巢穴会周期性派出敌对野生单位。</p>'
     + world.nests.map(nest => `<p>巢穴 #${nest.id} · (${nest.position.q},${nest.position.r}) · HP ${nest.hp}/${nest.maxHp} · 下次刷新 ${nest.nextSpawnRound}</p>`
-      + (unit ? button(`以 #${unit.id} 清剿`, { type: 'ClearNest', unitId: unit.id, nestId: nest.id }, Boolean(unit.actionLeft) && hexDistance(unit.position, nest.position) <= (unit.kind === 'pokemon' ? CONTENT.species[unit.speciesId].range : 1)) : '')).join(''));
+      + (unit ? button(`以 #${unit.id} 清剿`, { type: 'ClearNest', unitId: unit.id, nestId: nest.id }, Boolean(unit.actionLeft) && hexDistance(unit.position, nest.position, view.map) <= (unit.kind === 'pokemon' ? CONTENT.species[unit.speciesId].range : 1)) : '')).join(''));
   html += card('s19-overlords', '霸主与羁绊', '<p>附近城市可用 10 食物或 20 金币供奉，每轮一次。羁绊 15/40/75 解锁视野与本地产出。</p>'
     + world.overlords.map(site => `<p>${escape(CONTENT.species[site.speciesId].name)} #${site.id} · 羁绊 ${site.bond}</p>`
-      + (city ? button('供奉食物', { type: 'OfferToOverlord', overlordId: site.id, cityId: city.id, currency: 'food' }, site.lastOfferRound !== view.round && city.food >= 10 && hexDistance(city.position, site.position) <= WORLD_DEFINITIONS.overlords.reach)
-        + button('供奉金币', { type: 'OfferToOverlord', overlordId: site.id, cityId: city.id, currency: 'gold' }, site.lastOfferRound !== view.round && player.gold >= 20 && hexDistance(city.position, site.position) <= WORLD_DEFINITIONS.overlords.reach) : '')).join(''));
+      + (city ? button('供奉食物', { type: 'OfferToOverlord', overlordId: site.id, cityId: city.id, currency: 'food' }, site.lastOfferRound !== view.round && city.food >= 10 && hexDistance(city.position, site.position, view.map) <= WORLD_DEFINITIONS.overlords.reach)
+        + button('供奉金币', { type: 'OfferToOverlord', overlordId: site.id, cityId: city.id, currency: 'gold' }, site.lastOfferRound !== view.round && player.gold >= 20 && hexDistance(city.position, site.position, view.map) <= WORLD_DEFINITIONS.overlords.reach) : '')).join(''));
   html += card('s20-berries', '树果、进化石与满意度', `<p>满意度 ${world.player?.satisfaction ?? 0}/100。移动到资源地块后采集；树果提供食物与满意度，石头存入库存。</p>`
     + world.resources.map(site => `<p>${escape(resourceName(site.definitionId))} · (${site.position.q},${site.position.r}) · 剩余 ${site.remaining}</p>`
-      + (unit ? button('采集', { type: 'HarvestResource', unitId: unit.id, tileIndex: site.tileIndex }, Boolean(unit.actionLeft) && site.remaining > 0 && hexDistance(unit.position, site.position) === 0) : '')).join('')
+      + (unit ? button('采集', { type: 'HarvestResource', unitId: unit.id, tileIndex: site.tileIndex }, Boolean(unit.actionLeft) && site.remaining > 0 && hexDistance(unit.position, site.position, view.map) === 0) : '')).join('')
     + `<p>进化石：${Object.entries(world.player?.stoneInventory ?? {}).map(([id, count]) => `${escape(resourceName(id))} ${count}`).join(' · ') || '无'}</p>`
     + (unit?.kind === 'pokemon' ? stoneEvolutionsFor(CONTENT).filter(path => path.fromSpeciesId === unit.speciesId).map(path => button(`进化成${CONTENT.species[path.intoSpeciesId].name} · ${resourceName(path.stoneId)}`, { type: 'UseEvolutionStone', unitId: unit.id, intoSpeciesId: path.intoSpeciesId, stoneId: path.stoneId }, Boolean(unit.actionLeft) && (world.player?.stoneInventory[path.stoneId] ?? 0) > 0 && unit.xp >= path.requiredXp)).join('') : ''));
   const rare = exp.rareBerries;
@@ -109,8 +109,8 @@ export function renderExpansionPanel(view: PlayerView, selectedUnitId: number | 
     }).join('') + `<p>名人堂：${escape(faith.hallOfFame.join('、') || '暂无')}</p>`);
   html += card('s24-sanctuaries', '圣所挑战与起源胜利', '<p>派单位抵达圣所，支付 80 金币建立。部署最多三只宝可梦在两格内挑战守卫，队伍消耗行动并承受战损；集齐四块石板获得起源胜利。</p>'
     + civ.sanctuaries.map(site => {
-      const onSite = own.find(unit => hexDistance(unit.position, site.position) === 0);
-      const team = own.filter(unit => unit.actionLeft && hexDistance(unit.position, site.position) <= 2).sort((a, b) => Number(b.id === onSite?.id) - Number(a.id === onSite?.id) || a.id - b.id).slice(0, 3);
+      const onSite = own.find(unit => hexDistance(unit.position, site.position, view.map) === 0);
+      const team = own.filter(unit => unit.actionLeft && hexDistance(unit.position, site.position, view.map) <= 2).sort((a, b) => Number(b.id === onSite?.id) - Number(a.id === onSite?.id) || a.id - b.id).slice(0, 3);
       return `<p>${escape(site.name)} · (${site.position.q},${site.position.r}) · ${site.ownerId === null ? '未控制' : `文明 ${site.ownerId + 1}`} · ${site.guardianDefeated ? '石板已获得' : escape(site.guardianName)}</p>`
         + (site.ownerId === null && onSite ? button('建立圣所 · 80 金', { type: 'EstablishSanctuary', siteId: site.id, unitId: onSite.id }, player.gold >= 80 && Boolean(onSite.actionLeft)) : '')
         + (site.ownerId === player.id && !site.guardianDefeated ? button('挑战守卫', { type: 'ChallengeGuardian', siteId: site.id, unitIds: team.map(unit => unit.id) }, Boolean(onSite?.actionLeft) && team.length > 0) : '');

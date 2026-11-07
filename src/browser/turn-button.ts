@@ -45,9 +45,9 @@ export function turnReminders(view: PlayerView, content: typeof EXPANSION_CONTEN
   const shaky = Object.values(view.expansion?.bonds ?? {}).filter(info => info.bond < 30 && info.pressure.total < 0).length;
   if (shaky) items.push({ label: `${shaky} 城羁绊告急`, target: 'city' });
   const exposed = view.units.filter(unit => unit.ownerId === view.playerId && unit.kind === 'logistics'
-    && !view.economy.cities.some(city => hexDistance(city.position, unit.position) === 0)
-    && view.units.some(other => other.kind === 'pokemon' && other.ownerId !== view.playerId && (other.ownerId === null || view.diplomacy.some(pair => pair.status === 'war' && (pair.a === other.ownerId || pair.b === other.ownerId) && (pair.a === view.playerId || pair.b === view.playerId))) && hexDistance(other.position, unit.position) <= 2)
-    && !view.units.some(guard => guard.ownerId === view.playerId && guard.kind === 'pokemon' && hexDistance(guard.position, unit.position) <= 1));
+    && !view.economy.cities.some(city => hexDistance(city.position, unit.position, view.map) === 0)
+    && view.units.some(other => other.kind === 'pokemon' && other.ownerId !== view.playerId && (other.ownerId === null || view.diplomacy.some(pair => pair.status === 'war' && (pair.a === other.ownerId || pair.b === other.ownerId) && (pair.a === view.playerId || pair.b === view.playerId))) && hexDistance(other.position, unit.position, view.map) <= 2)
+    && !view.units.some(guard => guard.ownerId === view.playerId && guard.kind === 'pokemon' && hexDistance(guard.position, unit.position, view.map) <= 1));
   if (exposed.length) items.push({ label: `开拓队有危险`, target: `danger:${exposed[0]!.id}` });
   const idleCities = idleCityIds(view).length;
   if (idleCities) items.push({ label: `${idleCities} 城空闲`, target: 'city' });

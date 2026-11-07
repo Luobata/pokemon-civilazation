@@ -5,7 +5,7 @@ import { DISTRICTS } from '../../content/districts.ts';
 import { speciesDisplay } from '../../content/species.ts';
 import { hexToIndex } from '../../core/hex.ts';
 import type { Hex } from '../../core/hex.ts';
-import { HEX_RADIUS, toScreen } from '../camera.ts';
+import { HEX_RADIUS, copyShifts, mapSpan, toScreen } from '../camera.ts';
 import type { Camera, Point } from '../camera.ts';
 import { buildingSprite, drawPokemonSprite, drawSpritePath } from '../sprites.ts';
 import { ROLE_POKEMON } from '../../content/roles.ts';
@@ -38,6 +38,8 @@ export type RenderStats = { base: LayerStat; fog: LayerStat | 'none' };
 type Draw = {
   context: CanvasRenderingContext2D; width: number; height: number; radius: number;
   centers: Point[]; onscreen(p: Point): boolean; scene: MapScene;
+  /** v22 wrapping maps: screen-x offset of the map copy being drawn, and the width of one copy (0 on flat maps). */
+  shift: number; span: number;
 };
 
 function polygon(d: Draw, p: Point) {
@@ -231,7 +233,9 @@ function drawTradeRoutes(d: Draw) {
   const { context, centers, radius, scene } = d;
   context.save(); context.setLineDash([radius * .35, radius * .25]); context.lineCap = 'round';
   for (const route of scene.tradeRoutes) {
-    const a = centers[route.from], b = centers[route.to];
+    const a = centers[route.from], far = centers[route.to];
+    // Across the seam the route runs to the destination's nearest copy, not back across the whole map.
+    const b = far && d.span ? { x: far.x + Math.round((a.x - far.x) / d.span) * d.span, y: far.y } : far;
     if (!a || !b || (!d.onscreen(a) && !d.onscreen(b))) continue;
     for (const pass of [{ color: '#10191BCC', width: Math.max(4, radius * .16) }, { color: '#F2C14E', width: Math.max(2, radius * .08) }]) {
       context.beginPath(); context.moveTo(a.x, a.y); context.lineTo(b.x, b.y); context.strokeStyle = pass.color; context.lineWidth = pass.width; context.stroke();
@@ -418,7 +422,7 @@ function drawUnits(d: Draw, frame: AnimationFrame, camera: Camera) {
     }
     if ((item.rank || item.promotable) && d.onscreen(p)) rankMark(d, p, item.rank ?? 0, item.promotable ?? false);
   }
-  for (const pose of frame.poses) unitMark(d, pose.unit, toScreen(pose.position, camera));
+  for (const pose of frame.poses) { const p = toScreen(pose.position, camera); unitMark(d, pose.unit, { x: p.x + d.shift, y: p.y }); }
 }
 
 /** Civilization-style banner: faction mark, population (own cities), name, capital star, HP when damaged. */
@@ -653,8 +657,15 @@ export function createCanvas2DRenderer(canvas: HTMLCanvasElement, options: Rende
       const radius = HEX_RADIUS * camera.zoom;
       const centers = scene.tiles.map(tile => toScreen(tile.world, camera));
       const onscreen = (p: Point) => p.x >= -radius && p.x <= width + radius && p.y >= -radius && p.y <= height + radius;
-      const draw = (target: CanvasRenderingContext2D): Draw => ({ context: target, width, height, radius, centers, onscreen, scene });
-      const d = draw(context);
+      // v22 wrap: every layer is drawn once per visible copy of the map (layer by layer, so a unit or banner near
+      // the seam still sits above the neighbouring copy's terrain). Flat maps have the single copy at shift 0.
+      const span = scene.wrap ? mapSpan(scene) * camera.zoom : 0;
+      const copies = copyShifts(scene, camera, width, radius * 4).map(shift => ({
+        shift, centers: shift === 0 ? centers : centers.map(p => ({ x: p.x + shift, y: p.y })) }));
+      const draws = (target: CanvasRenderingContext2D): Draw[] => copies.map(copy => ({
+        context: target, width, height, radius, centers: copy.centers, onscreen, scene, shift: copy.shift, span }));
+      const every = (paint: (draw: Draw) => void) => (target: CanvasRenderingContext2D) => { for (const item of draws(target)) paint(item); };
+      const all = draws(context);
       const indexOf = (hex: Hex) => hexToIndex(hex, scene);
       const view = `${generation}|${deviceWidth}x${deviceHeight}@${dpr}|${camera.x},${camera.y},${camera.zoom}`;
 
@@ -662,10 +673,11 @@ export function createCanvas2DRenderer(canvas: HTMLCanvasElement, options: Rende
       const settled = view === lastView;
       lastView = view;
       const layer = (cache: LayerCache | null, key: string, paint: (draw: Draw) => void): { cache: LayerCache | null; stat: LayerStat } => {
-        if (!caching) { paint(d); return { cache, stat: 'off' }; }
+        const painter = every(paint);
+        if (!caching) { painter(context); return { cache, stat: 'off' }; }
         if (cache?.key === key) { blit(context, cache.canvas, dpr); return { cache, stat: 'hit' }; }
-        if (!settled) { paint(d); return { cache, stat: 'direct' }; }
-        const built = cachedLayer(cache, key, deviceWidth, deviceHeight, dpr, target => paint(draw(target)));
+        if (!settled) { painter(context); return { cache, stat: 'direct' }; }
+        const built = cachedLayer(cache, key, deviceWidth, deviceHeight, dpr, painter);
         blit(context, built.cache.canvas, dpr);
         return { cache: built.cache, stat: 'miss' };
       };
@@ -673,22 +685,22 @@ export function createCanvas2DRenderer(canvas: HTMLCanvasElement, options: Rende
       const baseLayer = layer(base, baseKey, drawBase);
       base = baseLayer.cache;
 
-      drawFeatures(d);
-      drawTradeRoutes(d);
-      drawCities(d);
-      drawYields(d);
-      drawWeather(d);
-      drawUnits(d, frame, camera);
-      drawBanners(d);
-      drawInteraction(d);
+      for (const item of all) drawFeatures(item);
+      for (const item of all) drawTradeRoutes(item);
+      for (const item of all) drawCities(item);
+      for (const item of all) drawYields(item);
+      for (const item of all) drawWeather(item);
+      for (const item of all) drawUnits(item, frame, camera);
+      for (const item of all) drawBanners(item);
+      for (const item of all) drawInteraction(item);
       let fogStat: RenderStats['fog'] = 'none';
       if (scene.fog.length) {
         const fogLayer = layer(fog, `${view}|${scene.fog.join(',')}`, drawFog);
         fog = fogLayer.cache; fogStat = fogLayer.stat;
       }
-      drawSelection(d, frame);
-      if (scene.debug.overlay !== 'none') drawDebug(d);
-      drawEffects(d, frame, indexOf);
+      for (const item of all) drawSelection(item, frame);
+      if (scene.debug.overlay !== 'none') for (const item of all) drawDebug(item);
+      for (const item of all) drawEffects(item, frame, indexOf);
       return { base: baseLayer.stat, fog: fogStat };
     },
   };

@@ -39,14 +39,14 @@ export function bondPressure(state: GameState, city: CityState): BondBreakdown {
   if (player.headquartersCityId === city.id) return { total: BOND_RULES.max, parts: [{ label: '联盟总部', value: BOND_RULES.max }] };
   parts.push({ label: '基础', value: BOND_RULES.base });
   const hq = state.cities[player.headquartersCityId];
-  const distance = hq && hq.ownerId === owner ? hexDistance(hq.position, city.position) : 99;
+  const distance = hq && hq.ownerId === owner ? hexDistance(hq.position, city.position, state.map) : 99;
   if (distance > BOND_RULES.safeDistance) parts.push({ label: `距总部 ${distance === 99 ? '失联' : distance} 格`, value: -BOND_RULES.perDistance * Math.min(6, distance - BOND_RULES.safeDistance) });
   if (city.capturedAtRound !== null && state.round - city.capturedAtRound < BOND_RULES.capturedRounds) parts.push({ label: '新占领', value: -BOND_RULES.capturedPenalty });
   const satisfaction = state.expansion?.world.players[owner]?.satisfaction ?? 50;
   if (satisfaction < BOND_RULES.unhappyBelow) parts.push({ label: '满意度低', value: -BOND_RULES.unhappy });
   if (city.buildingIds.includes('trainingGround')) parts.push({ label: '宝可梦中心', value: BOND_RULES.trainingGround });
   if (state.expansion?.essences?.gyms[city.id]) parts.push({ label: '属性道馆', value: BOND_RULES.gym });
-  if (Object.values(state.units).some(unit => isMapUnit(unit) && unit.ownerId === owner && unit.kind === 'pokemon' && hexDistance(unit.position, city.position) <= 1)) {
+  if (Object.values(state.units).some(unit => isMapUnit(unit) && unit.ownerId === owner && unit.kind === 'pokemon' && hexDistance(unit.position, city.position, state.map) <= 1)) {
     parts.push({ label: '驻军', value: BOND_RULES.garrison });
   }
   const garden = cityDistrictEffects(state, city.id).bondPressure;
@@ -55,7 +55,7 @@ export function bondPressure(state: GameState, city: CityState): BondBreakdown {
   if (legend) parts.push({ label: '烈空坐信仰', value: legend });
   const luxury = rareBerryBond(state, owner);
   if (luxury) parts.push({ label: '稀有树果', value: luxury });
-  const foreign = Object.values(state.cities).filter(other => other.ownerId !== null && other.ownerId !== owner && hexDistance(other.position, city.position) <= BOND_RULES.foreignRange).length;
+  const foreign = Object.values(state.cities).filter(other => other.ownerId !== null && other.ownerId !== owner && hexDistance(other.position, city.position, state.map) <= BOND_RULES.foreignRange).length;
   if (foreign) parts.push({ label: `邻近外国城市 ${foreign}`, value: -BOND_RULES.foreignPull * foreign });
   return { total: parts.reduce((sum, part) => sum + part.value, 0), parts };
 }
@@ -104,7 +104,7 @@ export function isBondAction(action: { type: unknown }): action is BondAction { 
 export function validateBondAction(state: GameState, actorId: number, action: BondAction): string | null {
   const city = state.cities[action.cityId];
   if (!usesBonds(state) || !city || city.ownerId !== null) return 'reclaim-unavailable';
-  const near = Object.values(state.cities).some(own => own.ownerId === actorId && hexDistance(own.position, city.position) <= Math.max(BOND_RECLAIM.range, workRadius(own)));
+  const near = Object.values(state.cities).some(own => own.ownerId === actorId && hexDistance(own.position, city.position, state.map) <= Math.max(BOND_RECLAIM.range, workRadius(own)));
   return near && state.players[actorId].gold >= BOND_RECLAIM.gold ? null : 'reclaim-unavailable';
 }
 export function applyBondAction(state: GameState, actorId: number, action: BondAction): EventPayload[] {

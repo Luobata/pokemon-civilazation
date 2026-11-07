@@ -68,6 +68,8 @@ export type SceneWeather = { color: string; mark: string; tiles: number[]; cente
 
 export type MapScene = {
   width: number; height: number;
+  /** v22: the map wraps east-west; the renderer draws side-by-side copies. */
+  wrap?: true;
   tiles: SceneTile[];
   coastEdges: SceneEdge[];
   territoryEdges: SceneEdge[];
@@ -121,7 +123,7 @@ export function buildScene(input: MapRenderInput): MapScene {
   const coastEdges: SceneEdge[] = [];
   for (const [index, biome] of view.map.tiles.entries()) {
     if (biome !== 'ocean') continue;
-    for (const [direction, neighbor] of neighbors(indexToHex(index, view.map)).map(indexOf).entries()) {
+    for (const [direction, neighbor] of neighbors(indexToHex(index, view.map), view.map).map(indexOf).entries()) {
       const other = neighbor === null ? null : view.map.tiles[neighbor];
       if (other && other !== 'ocean') coastEdges.push({ index, direction });
     }
@@ -129,7 +131,7 @@ export function buildScene(input: MapRenderInput): MapScene {
   const territoryEdges: SceneEdge[] = [];
   for (const [index, owners] of view.territoryOwnerIds.entries()) {
     if (!owners?.length) continue;
-    const adjacent = neighbors(indexToHex(index, view.map)).map(indexOf);
+    const adjacent = neighbors(indexToHex(index, view.map), view.map).map(indexOf);
     for (const ownerId of owners) for (let direction = 0; direction < 6; direction++) {
       const neighbor = adjacent[direction];
       if (neighbor !== null && view.territoryOwnerIds[neighbor]?.includes(ownerId)) continue;
@@ -198,7 +200,7 @@ export function buildScene(input: MapRenderInput): MapScene {
   if (layers.yields || focusCity) {
     const readYield = tileYieldReader(view);
     for (let index = 0; index < view.map.tiles.length; index++) {
-      const inFocus = focusCity !== undefined && hexDistance(indexToHex(index, view.map), focusCity.position) <= workRadius(focusCity);
+      const inFocus = focusCity !== undefined && hexDistance(indexToHex(index, view.map), focusCity.position, view.map) <= workRadius(focusCity);
       if (!layers.yields && !inFocus) continue;
       const info = readYield(index);
       if (info) yields.push({ index, yields: info.yields, workable: info.workable, inFocus });
@@ -211,7 +213,7 @@ export function buildScene(input: MapRenderInput): MapScene {
     if (field.untilRound < view.round) continue;
     const definition = WEATHERS[field.weather], center = indexOf(field.center);
     weather.push({ color: definition.color, mark: definition.mark,
-      tiles: view.visibleTileIds.filter(index => hexDistance(indexToHex(index, view.map), field.center) <= ERA_ABILITY_RULES.weatherRadius),
+      tiles: view.visibleTileIds.filter(index => hexDistance(indexToHex(index, view.map), field.center, view.map) <= ERA_ABILITY_RULES.weatherRadius),
       center: center !== null && visible.has(center) ? center : null });
   }
 
@@ -236,13 +238,13 @@ export function buildScene(input: MapRenderInput): MapScene {
   const selectedUnit = view.units.find(unit => unit.id === input.selected);
   // Region outlines (Civilization-style): one contour around everything the unit can reach, one around what it can hit.
   const contour = (region: ReadonlySet<number>): SceneEdge[] => [...region].sort((a, b) => a - b).flatMap(index =>
-    neighbors(indexToHex(index, view.map)).map(indexOf).flatMap((neighbor, direction) => neighbor !== null && region.has(neighbor) ? [] : [{ index, direction }]));
+    neighbors(indexToHex(index, view.map), view.map).map(indexOf).flatMap((neighbor, direction) => neighbor !== null && region.has(neighbor) ? [] : [{ index, direction }]));
   const reachable = (input.reachable ?? []).filter(index => visible.has(index));
   const ownTile = selectedUnit ? indexOf(selectedUnit.position) : null;
   const moveEdges = reachable.length && ownTile !== null ? contour(new Set([...reachable, ownTile])) : [];
   const range = selectedUnit?.kind === 'pokemon' && selectedUnit.actionLeft ? contentForView(view).species[selectedUnit.speciesId].range : 0;
   const attackArea = range && selectedUnit ? view.map.tiles.flatMap((biome, index) => biome && index !== ownTile
-    && hexDistance(indexToHex(index, view.map), selectedUnit.position) <= range ? [index] : []) : [];
+    && hexDistance(indexToHex(index, view.map), selectedUnit.position, view.map) <= range ? [index] : []) : [];
   const attackEdges = attackArea.length ? contour(new Set([...attackArea, ownTile!])) : [];
 
   const overlay = input.debugOverlay ?? 'none';
@@ -259,7 +261,7 @@ export function buildScene(input: MapRenderInput): MapScene {
   }
 
   return {
-    width: view.map.width, height: view.map.height, tiles, coastEdges, territoryEdges, improvements, faith, badges, districts, constructionSites,
+    width: view.map.width, height: view.map.height, ...(view.map.wrap ? { wrap: true as const } : {}), tiles, coastEdges, territoryEdges, improvements, faith, badges, districts, constructionSites,
     cities, yields, workedTiles: focusCity ? [...focusCity.workedTileIds] : [],
     tradeRoutes: (expansion?.cityNetwork?.routes ?? []).flatMap(route => {
       const from = view.cities.find(city => city.id === route.fromCityId), to = view.cities.find(city => city.id === route.toCityId);

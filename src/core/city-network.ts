@@ -27,8 +27,8 @@ export function initializeCityNetwork(state: GameState): void {
 export function isCityNetworkAction(action: { type: unknown }): action is CityNetworkAction { return action.type === 'EstablishTradeRoute'; }
 
 type NetworkHost = Pick<GameState, 'cities' | 'expansion' | 'map'>;
-const ownCitiesNear = (state: Pick<GameState, 'cities'>, city: Pick<CityState, 'id' | 'ownerId' | 'position'>) => Object.values(state.cities)
-  .filter(other => other.id !== city.id && other.ownerId === city.ownerId && hexDistance(other.position, city.position) <= CITY_NETWORK_RULES.regionRadius)
+const ownCitiesNear = (state: Pick<GameState, 'cities' | 'map'>, city: Pick<CityState, 'id' | 'ownerId' | 'position'>) => Object.values(state.cities)
+  .filter(other => other.id !== city.id && other.ownerId === city.ownerId && hexDistance(other.position, city.position, state.map) <= CITY_NETWORK_RULES.regionRadius)
   .sort((a, b) => a.id - b.id);
 
 /** Every network bonus a city receives (regional districts, type alliances, complements, trade routes), labelled for the UI. */
@@ -67,10 +67,10 @@ export function cityNetworkYield(state: NetworkHost, city: Pick<CityState, 'id' 
   return total;
 }
 /** 宝可梦中心 network: extra healing for own Pokémon within range of any own city that has one. */
-export function networkHealing(state: Pick<GameState, 'cities' | 'expansion'>, unit: MapUnit): number {
+export function networkHealing(state: Pick<GameState, 'cities' | 'expansion' | 'map'>, unit: MapUnit): number {
   if (!state.expansion?.cityNetwork || unit.ownerId === null || unit.kind !== 'pokemon') return 0;
   return Object.values(state.cities).some(city => city.ownerId === unit.ownerId && city.buildingIds.includes('trainingGround')
-    && hexDistance(city.position, unit.position) <= CITY_NETWORK_RULES.regionRadius) ? CITY_NETWORK_RULES.centreHealing : 0;
+    && hexDistance(city.position, unit.position, state.map) <= CITY_NETWORK_RULES.regionRadius) ? CITY_NETWORK_RULES.centreHealing : 0;
 }
 
 // ---------- settler escort ----------
@@ -96,8 +96,8 @@ export function validateCityNetworkAction(state: GameState, actorId: number, act
   if (!unit || unit.ownerId !== actorId || !isMapUnit(unit) || unit.kind !== 'logistics' || unit.role !== 'trader' || !unit.actionLeft) return 'unit-unavailable';
   const home = unit.homeCityId === undefined ? undefined : state.cities[unit.homeCityId];
   if (!home || home.ownerId !== actorId || !to || to.ownerId !== actorId || to.id === home.id) return 'route-city-unavailable';
-  if (hexDistance(unit.position, to.position) > 1) return 'route-not-arrived';
-  if (hexDistance(home.position, to.position) > CITY_NETWORK_RULES.trader.maxRouteDistance) return 'route-too-long';
+  if (hexDistance(unit.position, to.position, state.map) > 1) return 'route-not-arrived';
+  if (hexDistance(home.position, to.position, state.map) > CITY_NETWORK_RULES.trader.maxRouteDistance) return 'route-too-long';
   if (routeBetween(network.routes, actorId, home.id, to.id)) return 'route-exists';
   if (network.routes.filter(route => route.ownerId === actorId).length >= maxRoutes(state, actorId)) return 'route-limit';
   return null;
@@ -136,6 +136,6 @@ export function tradeDestinations(view: PlayerView, unitId: number): { cityId: n
   return view.economy.cities.filter(city => city.id !== unit.homeCityId).sort((a, b) => a.id - b.id).map(city => ({ cityId: city.id,
     reason: !home ? '出发城市已失去' : !unit.actionLeft ? '本轮已行动' : routeBetween(network.routes, view.playerId, home.id, city.id) ? '两城之间已有商路'
       : network.routes.length >= view.economy.cities.length ? `商路已达上限（${view.economy.cities.length} 条 = 城市数）`
-      : hexDistance(home.position, city.position) > CITY_NETWORK_RULES.trader.maxRouteDistance ? `距离超过 ${CITY_NETWORK_RULES.trader.maxRouteDistance} 格`
-      : hexDistance(unit.position, city.position) > 1 ? '先把商队移动到这座城市旁边' : null }));
+      : hexDistance(home.position, city.position, view.map) > CITY_NETWORK_RULES.trader.maxRouteDistance ? `距离超过 ${CITY_NETWORK_RULES.trader.maxRouteDistance} 格`
+      : hexDistance(unit.position, city.position, view.map) > 1 ? '先把商队移动到这座城市旁边' : null }));
 }

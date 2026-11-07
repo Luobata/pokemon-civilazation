@@ -1,7 +1,8 @@
 // Presentation timeline: turns authoritative events into timed visual tracks.
 // The game state is already final when a track starts; tracks only override how things look
 // for a while (a unit drawn mid-path, a damage number). Pure: no DOM, testable in Node.
-import type { Hex } from '../../core/hex.ts';
+import { nearestCopy } from '../../core/hex.ts';
+import type { Hex, MapShape } from '../../core/hex.ts';
 import { hexToWorld } from '../camera.ts';
 import type { Point } from '../camera.ts';
 import type { UnitMarkIdentity } from './scene.ts';
@@ -80,13 +81,16 @@ export const MOVE_STEP_MS = 180;
 export const BURST_MS = 600;
 export const EVOLVE_MS = 450;
 
-export function moveTrack(unit: UnitMarkIdentity, path: readonly Hex[], onFinish?: () => void): Track {
+/** `map`: on a v22 wrapping map each step is taken to the next tile's nearest copy, so a walk across the seam slides one hex, not across the map. */
+export function moveTrack(unit: UnitMarkIdentity, path: readonly Hex[], onFinish?: () => void, map: MapShape = { width: 0 }): Track {
+  const steps: Hex[] = [];
+  for (const hex of path) steps.push(steps.length ? nearestCopy(steps[steps.length - 1], hex, map) : hex);
   return {
     key: `move:${unit.id}`, duration: Math.max(1, path.length - 1) * MOVE_STEP_MS, onFinish,
     sample(elapsed, _context, frame) {
-      const progress = Math.min(path.length - 1, elapsed / MOVE_STEP_MS);
+      const progress = Math.min(steps.length - 1, elapsed / MOVE_STEP_MS);
       const index = Math.floor(progress), fraction = progress - index;
-      const a = hexToWorld(path[index]), b = hexToWorld(path[Math.min(index + 1, path.length - 1)]);
+      const a = hexToWorld(steps[index]), b = hexToWorld(steps[Math.min(index + 1, steps.length - 1)]);
       frame.poses.push({ unit, position: { x: a.x + (b.x - a.x) * fraction, y: a.y + (b.y - a.y) * fraction } });
     },
   };

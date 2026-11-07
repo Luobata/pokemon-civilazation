@@ -91,8 +91,8 @@ export function foreignConstructionFixture(hidden = false) {
   const scoutId = scout.id;
   const moveToward = (target: { q: number; r: number }) => {
     const view = observe(state, 0, EXPANSION_CONTENT), paths = reachablePaths(view, scoutId);
-    const destination = Object.values(paths).sort((a, b) => hexDistance(a.at(-1)!, target) - hexDistance(b.at(-1)!, target)
-      || b.length - a.length || hexDistance(a.at(-1)!, target) - hexDistance(b.at(-1)!, target))[0]?.at(-1);
+    const destination = Object.values(paths).sort((a, b) => hexDistance(a.at(-1)!, target, state.map) - hexDistance(b.at(-1)!, target, state.map)
+      || b.length - a.length || hexDistance(a.at(-1)!, target, state.map) - hexDistance(b.at(-1)!, target, state.map))[0]?.at(-1);
     if (destination) issue({ type: 'Move', unitId: scoutId, to: destination });
   };
   let tileIndex = -1;

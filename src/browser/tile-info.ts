@@ -206,7 +206,7 @@ export function describeTile(view: PlayerView, index: number): TileInfo {
 
   // Nearest own city tells the player whether this tile can join their territory.
   if (!workedBy && territory.tone === 'neutral') {
-    const near = view.economy.cities.map(item => hexDistance(item.position, hex)).sort((a, b) => a - b)[0];
+    const near = view.economy.cities.map(item => hexDistance(item.position, hex, view.map)).sort((a, b) => a - b)[0];
     if (near !== undefined && near <= 3) territory.text += `（离你的城市 ${near} 格，城市长大后可纳入）`;
   }
   return { index, terrain, visible, yields: yieldInfo?.yields ?? null, workable: yieldInfo?.workable ?? false, territory, workedBy, entities };

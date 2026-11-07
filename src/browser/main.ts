@@ -63,7 +63,7 @@ import { describeTile, tileSummary } from './tile-info.ts';
 import { renderTilePanel } from './tile-panel.ts';
 import { ERA_AGES } from '../content/era-honors.ts';
 import { previewSummary, targetPreviews } from './target-preview.ts';
-import { HEX_RADIUS, fitCamera, hexToWorld, toScreen, toWorld, worldToHex, zoomAt } from './camera.ts';
+import { HEX_RADIUS, fitCamera, hexToWorld, tileToScreen, toWorld, worldToHex, zoomAt } from './camera.ts';
 import { combatCard, renderCombatCard } from './combat-preview.ts';
 import type { Camera, Point } from './camera.ts';
 
@@ -141,7 +141,7 @@ function presentationTrack(payload: VisibleEvent['payload']): Track | null {
   const key = `${payload.type}:${trackSerial++}`;
   const finish = () => { notice = summary(payload) || notice; presenting.delete(track!.key); };
   let track: Track | null = null;
-  if (payload.type === 'Moved') track = moveTrack(payload.unit, payload.path, finish);
+  if (payload.type === 'Moved') track = moveTrack(payload.unit, payload.path, finish, session.getView().map);
   else if (payload.type === 'BattleResolved') track = battleTrack(key, payload.positions[1], payload.damage, payload.counterDamage, finish);
   else if (payload.type === 'Captured') track = captureTrack(key, payload.targetUnitId, payload.success, finish);
   else if (payload.type === 'Evolved') track = evolveTrack(key, payload.unitId, finish);
@@ -442,7 +442,7 @@ function advanceToNextUnit(action: Command['action']) {
   if (current?.actionLeft) return;
   const origin = current?.position;
   const next = view.units.filter(unit => unit.ownerId === view.playerId && unit.actionLeft && unit.id !== selected)
-    .sort((a, b) => (origin ? hexDistance(origin, a.position) - hexDistance(origin, b.position) : 0) || a.id - b.id)[0];
+    .sort((a, b) => (origin ? hexDistance(origin, a.position, view.map) - hexDistance(origin, b.position, view.map) : 0) || a.id - b.id)[0];
   if (!next) return;
   selectUnit(next.id);
   notice = `下一个待命单位：${next.kind === 'pokemon' ? contentForView(view).species[next.speciesId].name : '开拓队'}（还有 ${view.units.filter(unit => unit.ownerId === view.playerId && unit.actionLeft).length} 个单位待命）`;
@@ -450,7 +450,7 @@ function advanceToNextUnit(action: Command['action']) {
 /** P0-4: the floating combat preview beside the chosen attack target (follows the camera; hidden otherwise). */
 function updateCombatCard(view: PlayerView) {
   const card = actionMode === 'attack' && pendingTarget && selected !== null ? combatCard(view, selected, pendingTarget) : null;
-  const anchor = card && pendingTarget ? toScreen(hexToWorld(indexToHex(pendingTarget.index, view.map)), camera) : null;
+  const anchor = card && pendingTarget ? tileToScreen(indexToHex(pendingTarget.index, view.map), camera, view.map, canvas.clientWidth) : null;
   renderCombatCard(card, anchor, HEX_RADIUS * camera.zoom, busy() || view.outcome !== null || hasPendingPeace(view), {
     confirm: confirmAction,
     cancel: cancelTarget,
@@ -790,7 +790,8 @@ canvas.addEventListener('contextmenu', event => {
   if (busy() || selected === null) return;
   const view = session.getView(), hex = worldToHex(toWorld(localPoint(event), camera));
   const index = hexToIndex(hex, view.map);
-  if (index !== null && reachablePaths(view, selected)[index]) issue({ type: 'Move', unitId: selected, to: hex });
+  // The pointer may be over a copy across the v22 seam: commands always carry the canonical tile.
+  if (index !== null && reachablePaths(view, selected)[index]) issue({ type: 'Move', unitId: selected, to: indexToHex(index, view.map) });
 });
 canvas.addEventListener('keydown', event => {
   if (busy()) return;

@@ -58,8 +58,8 @@ export function initializeLegends(state: GameState): void {
     ...civilization.sanctuaries.map(site => hexToIndex(site.position, state.map)!),
   ]);
   const starts = Object.values(state.cities).map(city => city.position);
-  const coastal = (index: number) => neighbors(indexToHex(index, state.map)).some(hex => { const i = hexToIndex(hex, state.map); return i !== null && state.map.tiles[i] === 'ocean'; });
-  const inner = (index: number) => { const hex = indexToHex(index, state.map); return neighbors(hex).every(next => hexToIndex(next, state.map) !== null); };
+  const coastal = (index: number) => neighbors(indexToHex(index, state.map), state.map).some(hex => { const i = hexToIndex(hex, state.map); return i !== null && state.map.tiles[i] === 'ocean'; });
+  const inner = (index: number) => { const hex = indexToHex(index, state.map); return neighbors(hex, state.map).every(next => hexToIndex(next, state.map) !== null); };
   for (const id of LEGEND_WONDER_IDS) {
     const legend = LEGEND_WONDERS[id], clue = legend.clue;
     if (clue.kind !== 'trace' || legend.generation > modeMaxGeneration(state)) continue;
@@ -67,7 +67,7 @@ export function initializeLegends(state: GameState): void {
     const ok = (index: number, cityDistance: number, biomes: readonly BiomeId[] | null) => {
       const biome = state.map.tiles[index], hex = indexToHex(index, state.map);
       return biome !== 'ocean' && inner(index) && !taken.has(index) && (biomes === null || biomes.includes(biome)) && (!clue.coastal || coastal(index))
-        && starts.every(start => hexDistance(start, hex) >= cityDistance) && placed.every(other => hexDistance(indexToHex(other, state.map), hex) >= LEGEND_RULES.siteSpacing);
+        && starts.every(start => hexDistance(start, hex, state.map) >= cityDistance) && placed.every(other => hexDistance(indexToHex(other, state.map), hex, state.map) >= LEGEND_RULES.siteSpacing);
     };
     const order = state.map.tiles.map((_, index) => index).sort((a, b) => stableSeed(state.setup.seed, id, a, 'legend-site') - stableSeed(state.setup.seed, id, b, 'legend-site') || a - b);
     const attempts: [number, readonly BiomeId[] | null][] = [...clue.biomes.map(biome => [LEGEND_RULES.siteCityDistance, [biome]] as [number, BiomeId[]]),
@@ -91,7 +91,7 @@ export function legendSiteBiome(ledger: Pick<LegendState, 'siteBiomes'> | { site
   return legend.site ?? null;
 }
 const cityHasBiome = (state: { map: { width: number; height: number; tiles: readonly (BiomeId | null)[] } }, city: Pick<CityState, 'position' | 'population'>, biome: BiomeId) =>
-  state.map.tiles.some((tile, index) => tile === biome && hexDistance(city.position, indexToHex(index, state.map)) <= workRadius(city as CityState));
+  state.map.tiles.some((tile, index) => tile === biome && hexDistance(city.position, indexToHex(index, state.map), state.map) <= workRadius(city as CityState));
 
 /** Why this city cannot start the wonder (null = it can). */
 export function legendWonderBlocker(state: GameState, city: CityState, id: LegendWonderId): string | null {

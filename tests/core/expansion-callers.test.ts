@@ -60,13 +60,13 @@ describe('version-aware default content callers', () => {
     const unit = insertPokemon(state, 'magnemite', 0);
     const view = observe(state, 0);
     const defaultDistances = Object.values(reachablePaths(view, unit.id))
-      .map(path => hexDistance(unit.position, path.at(-1)!));
+      .map(path => hexDistance(unit.position, path.at(-1)!, state.map));
     const oneMoveContent: Content = {
       ...EXPANSION_CONTENT,
       units: { ...EXPANSION_CONTENT.units, magnemite: { ...EXPANSION_CONTENT.units.magnemite!, move: 1 } },
     };
     const customDistances = Object.values(reachablePaths(view, unit.id, oneMoveContent))
-      .map(path => hexDistance(unit.position, path.at(-1)!));
+      .map(path => hexDistance(unit.position, path.at(-1)!, state.map));
 
     expect(Math.max(...defaultDistances)).toBeGreaterThanOrEqual(2);
     expect(Math.max(...customDistances)).toBeLessThanOrEqual(1);

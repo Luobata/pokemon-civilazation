@@ -51,7 +51,7 @@ test('recovery has no occupancy, vision or actions, but pays maintenance', () =>
 
 test('D17 ID order, terrain-filtered deployment, blocked retry restores25% only once, then territory heals', () => {
   const state = combatFixture(), city = state.cities[1];
-  const adjacent = neighbors(city.position).sort((a, b) => hexToIndex(a, state.map)! - hexToIndex(b, state.map)!);
+  const adjacent = neighbors(city.position, state.map).sort((a, b) => hexToIndex(a, state.map)! - hexToIndex(b, state.map)!);
   for (const position of adjacent) state.map.tiles[hexToIndex(position, state.map)!] = 'ocean';
   state.map.tiles[hexToIndex(adjacent[2], state.map)!] = 'volcano'; // fire's sole legal empty tile
   for (const id of [9, 7]) state.units[id] = { ...pokemon(state, id, 'charmander'), location: 'recovering', position: null, cityId: city.id, roundsLeft: 1, hp: 1, actionLeft: 0 };
@@ -64,7 +64,7 @@ test('D17 ID order, terrain-filtered deployment, blocked retry restores25% only 
 
 test('stage2 deployment occupies recovery destination first; medicine heals10 only own territory', () => {
   const state = combatFixture(), city = state.cities[1];
-  const adjacent = neighbors(city.position).sort((a, b) => hexToIndex(a, state.map)! - hexToIndex(b, state.map)!);
+  const adjacent = neighbors(city.position, state.map).sort((a, b) => hexToIndex(a, state.map)! - hexToIndex(b, state.map)!);
   for (const [i, position] of adjacent.slice(1).entries()) state.units[20 + i] = createMapUnit({ kind: 'logistics', role: 'settler' }, 20 + i, 0, position);
   state.units[7] = { ...pokemon(state, 7), location: 'recovering', position: null, cityId: 1, roundsLeft: 1, hp: 1 };
   city.pendingDeployments = [{ enteredAtRound: 0, sourceOrderId: 70, item: { kind: 'pokemon', defId: 'charmander' } }];

@@ -39,7 +39,7 @@ describe('versioned expansion integration', () => {
     state.activePlayerId = 1;
     const attacker = Object.values(state.units).find(unit => unit.ownerId === 1 && unit.kind === 'pokemon' && isMapUnit(unit))!;
     if (!isMapUnit(attacker)) throw new Error('Expected deployed attacker');
-    attacker.position = neighbors(state.cities[cityId].position)[0]; attacker.actionLeft = 1;
+    attacker.position = neighbors(state.cities[cityId].position, state.map)[0]; attacker.actionLeft = 1;
     state.cities[cityId].hp = 1;
     state = apply(state, { type: 'DeclareWar', targetPlayerId: 0 });
     state = apply(state, { type: 'Attack', unitId: attacker.id, target: { kind: 'city', id: cityId } });

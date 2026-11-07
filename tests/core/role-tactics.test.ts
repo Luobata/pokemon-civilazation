@@ -57,8 +57,8 @@ function warFixture(mode: EraProgression | undefined, attackerSpecies: SpeciesId
   const state = createGame(setup(mode, 'jenny'));
   state.players[0].research.unlockedIds = techs(7);
   const cityId = state.players[1].headquartersCityId, city = state.cities[cityId];
-  const index = state.map.tiles.findIndex((biome, i) => biome !== 'ocean' && hexDistance(indexToHex(i, state.map), city.position) === 1
-    && !Object.values(state.units).some(unit => unit.position && hexDistance(unit.position, indexToHex(i, state.map)) === 0));
+  const index = state.map.tiles.findIndex((biome, i) => biome !== 'ocean' && hexDistance(indexToHex(i, state.map), city.position, state.map) === 1
+    && !Object.values(state.units).some(unit => unit.position && hexDistance(unit.position, indexToHex(i, state.map), state.map) === 0));
   const unit = createMapUnit(pokemon(attackerSpecies), 9000, 0, indexToHex(index, state.map), EXPANSION_CONTENT, 0, 1);
   state.units[unit.id] = unit;
   const pair = state.diplomacy.find(item => item.a === 0 && item.b === 1)!;

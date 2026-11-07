@@ -19,7 +19,7 @@ export function initialUnitPosition(state: GameState, city: Hex, unit: UnitIdent
   const occupied = new Set(Object.values(state.units).filter(isMapUnit).map(other => hexToIndex(other.position, state.map)));
   const cities = new Set(Object.values(state.cities).map(other => hexToIndex(other.position, state.map)));
   const candidates = state.map.tiles.flatMap((biome, i) => !occupied.has(i) && !cities.has(i) && canEnter(unit, biome, content) ? [i] : []);
-  candidates.sort((a, b) => hexDistance(city, indexToHex(a, state.map)) - hexDistance(city, indexToHex(b, state.map)) || a - b);
+  candidates.sort((a, b) => hexDistance(city, indexToHex(a, state.map), state.map) - hexDistance(city, indexToHex(b, state.map), state.map) || a - b);
   if (!candidates.length) throw new Error('No enterable empty tile exists on this map.');
   return indexToHex(candidates[0], state.map);
 }
@@ -56,8 +56,8 @@ export function reachablePaths(view: PlayerView, unitId: number,
   while (pending.size) {
     const current = [...pending].sort((a, b) => costs.get(a)! - costs.get(b)! || a - b)[0];
     pending.delete(current);
-    if (current !== origin && zoc.length && inZoc(indexToHex(current, view.map), zoc)) continue;
-    for (const hex of neighbors(indexToHex(current, view.map))) {
+    if (current !== origin && zoc.length && inZoc(indexToHex(current, view.map), zoc, view.map)) continue;
+    for (const hex of neighbors(indexToHex(current, view.map), view.map)) {
       const index = hexToIndex(hex, view.map);
       if (index === null || blocked.has(index)) continue;
       const biome = view.map.tiles[index];

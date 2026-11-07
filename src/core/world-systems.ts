@@ -173,7 +173,7 @@ function specialPlacementCandidates(state: GameState, minimumCityDistance: numbe
   return state.map.tiles.flatMap((_, index) => {
     const position = indexToHex(index, state.map);
     return edgeDistance(position, state.map) >= 1 && !occupied.has(index)
-      && cities.every(city => hexDistance(position, city.position) >= minimumCityDistance) ? [index] : [];
+      && cities.every(city => hexDistance(position, city.position, state.map) >= minimumCityDistance) ? [index] : [];
   });
 }
 
@@ -304,7 +304,7 @@ function effectiveVisibleTiles(state: GameState, playerId: number, content: Cont
   const visible = new Set(visibleTiles(state, playerId, content));
   for (const source of worldVisionSources(state, playerId)) {
     for (let index = 0; index < state.map.tiles.length; index++) {
-      if (hexDistance(source.position, indexToHex(index, state.map)) <= source.radius) visible.add(index);
+      if (hexDistance(source.position, indexToHex(index, state.map), state.map) <= source.radius) visible.add(index);
     }
   }
   return visible;
@@ -327,7 +327,7 @@ export function validateWorldAction(state: GameState, actorId: number, action: W
     const nest = world.nests[action.nestId];
     if (!unit || unit.kind !== 'pokemon' || !unit.actionLeft) return 'unit-unavailable';
     if (!nest || !visibleSite(state, actorId, nest.tileIndex, content)) return 'world-target-unavailable';
-    if (hexDistance(unit.position, nest.position) > content.species[unit.speciesId].range) return 'world-target-unreachable';
+    if (hexDistance(unit.position, nest.position, state.map) > content.species[unit.speciesId].range) return 'world-target-unreachable';
     return null;
   }
   if (action.type === 'OfferToOverlord') {
@@ -335,7 +335,7 @@ export function validateWorldAction(state: GameState, actorId: number, action: W
     const city = state.cities[action.cityId];
     if (!overlord || !city || city.ownerId !== actorId || !visibleSite(state, actorId, overlord.tileIndex, content)) return 'world-target-unavailable';
     const definitions = WORLD();
-    if (hexDistance(city.position, overlord.position) > definitions.overlords.reach) return 'world-target-unreachable';
+    if (hexDistance(city.position, overlord.position, state.map) > definitions.overlords.reach) return 'world-target-unreachable';
     if (overlord.lastOfferRoundByPlayer[actorId] === state.round) return 'world-already-offered';
     if (action.currency === 'food' && city.food < definitions.overlords.foodCost) return 'world-payment-unavailable';
     if (action.currency === 'gold' && state.players[actorId].gold < definitions.overlords.goldCost) return 'world-payment-unavailable';
@@ -349,8 +349,8 @@ export function validateWorldAction(state: GameState, actorId: number, action: W
     if (hexToIndex(unit.position, state.map) !== action.tileIndex) return 'world-target-unreachable';
     if (resource.kind === 'berry') {
       const city = Object.values(state.cities).filter(candidate => candidate.ownerId === actorId)
-        .sort((a, b) => hexDistance(resource.position, a.position) - hexDistance(resource.position, b.position) || a.id - b.id)[0];
-      if (!city || hexDistance(city.position, resource.position) > 3) return 'world-city-unavailable';
+        .sort((a, b) => hexDistance(resource.position, a.position, state.map) - hexDistance(resource.position, b.position, state.map) || a.id - b.id)[0];
+      if (!city || hexDistance(city.position, resource.position, state.map) > 3) return 'world-city-unavailable';
     }
     return null;
   }
@@ -416,7 +416,7 @@ export function applyWorldAction(state: GameState, actorId: number, action: Worl
       playerState.berryInventory[definition.id]++;
       playerState.satisfaction = Math.min(definitions.satisfaction.maximum, playerState.satisfaction + definition.satisfaction);
       const city = Object.values(state.cities).filter(candidate => candidate.ownerId === actorId)
-        .sort((a, b) => hexDistance(resource.position, a.position) - hexDistance(resource.position, b.position) || a.id - b.id)[0];
+        .sort((a, b) => hexDistance(resource.position, a.position, state.map) - hexDistance(resource.position, b.position, state.map) || a.id - b.id)[0];
       city.food += definition.food;
       resource.regrowsAtRound = state.round + definition.regrowthRounds;
       return [{
@@ -462,13 +462,13 @@ function cleanupRampagers(world: WorldState, state: GameState): void {
 
 function freeSpawnTile(state: GameState, nest: NestSite, identity: { kind: 'pokemon'; speciesId: SpeciesId }, content: Content): Hex | null {
   const occupied = occupiedIndexes(state);
-  const candidates = [nest.position, ...neighbors(nest.position).flatMap(position => [position, ...neighbors(position)])]
+  const candidates = [nest.position, ...neighbors(nest.position, state.map).flatMap(position => [position, ...neighbors(position, state.map)])]
     .filter((position, index, all) => all.findIndex(other => other.q === position.q && other.r === position.r) === index)
     .filter(position => {
       const tileIndex = hexToIndex(position, state.map);
       return tileIndex !== null && !occupied.has(tileIndex) && canEnter(identity, state.map.tiles[tileIndex], content);
     })
-    .sort((a, b) => hexDistance(nest.position, a) - hexDistance(nest.position, b)
+    .sort((a, b) => hexDistance(nest.position, a, state.map) - hexDistance(nest.position, b, state.map)
       || (hexToIndex(a, state.map)! - hexToIndex(b, state.map)!));
   return candidates[0] ?? null;
 }
@@ -482,7 +482,7 @@ function rampageTargets(state: GameState, attacker: MapUnit): Array<{ id: number
       id: city.id, position: city.position, kind: 'city' as const, priority: 1,
     })),
   ]
-    .sort((a, b) => hexDistance(attacker.position, a.position) - hexDistance(attacker.position, b.position)
+    .sort((a, b) => hexDistance(attacker.position, a.position, state.map) - hexDistance(attacker.position, b.position, state.map)
       || a.priority - b.priority || a.id - b.id);
 }
 
@@ -515,7 +515,7 @@ export function resolveWorldRound(state: GameState, content: Content = WORLD_CON
     const target = rampageTargets(state, attacker)[0];
     if (!target) continue;
     const range = content.species[attacker.speciesId].range;
-    const distance = hexDistance(attacker.position, target.position);
+    const distance = hexDistance(attacker.position, target.position, state.map);
     if (distance <= range) {
       if (target.kind === 'unit') {
         events.push(...resolveAttack(state, attacker.id, { kind: 'unit', id: target.id }, content, true));
@@ -534,13 +534,13 @@ export function resolveWorldRound(state: GameState, content: Content = WORLD_CON
       continue;
     }
     const occupied = occupiedIndexes(state);
-    const steps = neighbors(attacker.position)
+    const steps = neighbors(attacker.position, state.map)
       .filter(position => {
         const tileIndex = hexToIndex(position, state.map);
         return tileIndex !== null && !occupied.has(tileIndex) && canEnter(attacker, state.map.tiles[tileIndex], content)
-          && hexDistance(position, target.position) < distance;
+          && hexDistance(position, target.position, state.map) < distance;
       })
-      .sort((a, b) => hexDistance(a, target.position) - hexDistance(b, target.position)
+      .sort((a, b) => hexDistance(a, target.position, state.map) - hexDistance(b, target.position, state.map)
         || hexToIndex(a, state.map)! - hexToIndex(b, state.map)!);
     if (steps.length) {
       const from = { ...attacker.position };
@@ -665,7 +665,7 @@ export function worldCityYield(state: GameState, city: { ownerId: number | null;
   }
   let tier = 0;
   for (const overlord of Object.values(world.overlords)) {
-    if (hexDistance(city.position, overlord.position) > definitions.overlords.reach) continue;
+    if (hexDistance(city.position, overlord.position, state.map) > definitions.overlords.reach) continue;
     tier = Math.max(tier, overlordTier(overlord.bondByPlayer[city.ownerId] ?? 0, definitions));
   }
   const bonus = tier === 3 ? definitions.overlords.tier3Yield : tier === 2 ? definitions.overlords.tier2Yield : null;
@@ -718,7 +718,7 @@ export function planWorldAction(view: PlayerView, content: WorldSystemContent = 
   const ownUnits = view.units.filter(unit => unit.ownerId === view.playerId && unit.kind === 'pokemon' && unit.actionLeft === 1);
   for (const nest of world.nests) {
     const unit = ownUnits.filter(candidate => candidate.kind === 'pokemon')
-      .find(candidate => hexDistance(candidate.position, nest.position) <= content.base.species[candidate.speciesId].range);
+      .find(candidate => hexDistance(candidate.position, nest.position, view.map) <= content.base.species[candidate.speciesId].range);
     if (unit?.kind === 'pokemon') return { type: 'ClearNest', unitId: unit.id, nestId: nest.id };
   }
   for (const resource of world.resources) {
@@ -726,13 +726,13 @@ export function planWorldAction(view: PlayerView, content: WorldSystemContent = 
     const unit = ownUnits.find(candidate => view.visibleTileIds.includes(resource.tileIndex)
       && hexToIndex(candidate.position, view.map) === resource.tileIndex);
     const berryHasNearbyCity = resource.kind !== 'berry' || view.economy.cities.some(city =>
-      city.ownerId === view.playerId && hexDistance(city.position, resource.position) <= 3);
+      city.ownerId === view.playerId && hexDistance(city.position, resource.position, view.map) <= 3);
     if (unit && berryHasNearbyCity) return { type: 'HarvestResource', unitId: unit.id, tileIndex: resource.tileIndex };
   }
   for (const overlord of world.overlords) {
     if (overlord.lastOfferRound === view.round || overlord.bond >= content.world.overlords.tier3Bond) continue;
     const goldAvailable = view.economy.player.gold - content.world.overlords.goldCost >= 100;
-    const city = view.economy.cities.find(candidate => hexDistance(candidate.position, overlord.position) <= content.world.overlords.reach
+    const city = view.economy.cities.find(candidate => hexDistance(candidate.position, overlord.position, view.map) <= content.world.overlords.reach
       && (candidate.food >= content.world.overlords.foodCost || goldAvailable));
     if (city) {
       const currency = city.food >= content.world.overlords.foodCost ? 'food' : 'gold';

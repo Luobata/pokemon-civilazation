@@ -139,6 +139,18 @@ export const AUDIT_SYSTEMS: readonly AuditSystem[] = [
     actionTypes: ['SetProductionQueue', 'AssignWork', 'ImproveTile'],
   }),
   system({
+    id: 's-map-wrap', name: '东西环绕地图', status: 'implemented',
+    summary: 'gameplay v22：新局地图东西相连（MapState.wrap），南北两端是极地；所有规则按环绕几何计算。读取 v≤21 存档时仍是平面地图。',
+    rules: ['位置永远存规范坐标（列 0..宽−1）；hexToIndex 在环绕地图上把越界列折回，neighbors 返回规范坐标。',
+      'hexDistance 取三种东西平移（q ± 宽，同一 r）中的最短距离；寻路、视野、射程、控制区、夹击、领土、城市间距、摆放与 AI 评分都调用它，最短路线可以穿过接缝。',
+      'v22 生成：最外一行变雪原（海洋保留），次外一行大多变雪原；出生点、巢穴、资源只避开南北两端。',
+      '浏览器：镜头可无限横向平移，按需画出相邻的地图副本；指针坐标折回规范格，命令只带规范坐标。'],
+    checks: ['v21 固定 48 局改动前后逐文件一致（49/49）；v22 固定 48 局全部完成、0 异常。',
+      '接缝两侧的距离/相邻/索引、跨接缝移动与花费、视野与射程、预览与结算一致、生成无东西海墙，有单元测试；浏览器测试拖过东缘看到西侧各列、点击接缝另一侧选中正确地块。'],
+    sources: ['src/core/hex.ts', 'src/core/map.ts', 'src/browser/camera.ts', 'src/browser/render/canvas2d.ts', 'tests/core/map-wrap.test.ts', 'tests/browser/map-wrap.spec.ts', 'docs/design/world-v22.md'],
+    actionTypes: ['Move', 'Attack'],
+  }),
+  system({
     id: 's1-map',
     name: '六角格地图与群系',
     status: 'implemented',

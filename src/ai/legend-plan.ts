@@ -27,8 +27,8 @@ export function legendTraceTargets(view: PlayerView, content: Content): Map<numb
   for (const site of legends.sites) {
     if (legends.clues.includes(site.legendId) || legends.wonders.some(wonder => wonder.legendId === site.legendId)) continue;
     const position = indexToHex(site.tileIndex, view.map);
-    const unit = units.filter(candidate => !targets.has(candidate.id) && hexDistance(candidate.position, position) <= 12)
-      .sort((a, b) => hexDistance(a.position, position) - hexDistance(b.position, position) || a.id - b.id)[0];
+    const unit = units.filter(candidate => !targets.has(candidate.id) && hexDistance(candidate.position, position, view.map) <= 12)
+      .sort((a, b) => hexDistance(a.position, position, view.map) - hexDistance(b.position, position, view.map) || a.id - b.id)[0];
     if (unit) targets.set(unit.id, position);
   }
   return targets;
@@ -40,8 +40,8 @@ export function itemBallTargets(view: PlayerView): Map<number, Hex> {
   const units = view.units.filter(unit => unit.ownerId === view.playerId && unit.kind === 'pokemon' && unit.actionLeft);
   for (const ball of balls) {
     const position = indexToHex(ball.tileIndex, view.map);
-    const unit = units.filter(candidate => !targets.has(candidate.id) && hexDistance(candidate.position, position) <= 8)
-      .sort((a, b) => hexDistance(a.position, position) - hexDistance(b.position, position) || a.id - b.id)[0];
+    const unit = units.filter(candidate => !targets.has(candidate.id) && hexDistance(candidate.position, position, view.map) <= 8)
+      .sort((a, b) => hexDistance(a.position, position, view.map) - hexDistance(b.position, position, view.map) || a.id - b.id)[0];
     if (unit) targets.set(unit.id, position);
   }
   return targets;

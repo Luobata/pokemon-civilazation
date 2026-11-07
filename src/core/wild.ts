@@ -40,7 +40,7 @@ export function spawnWild(state: GameState, initial = false, content: Content = 
     const definition = content.species[speciesId], identity = { kind: 'pokemon' as const, speciesId };
     const occupied = new Set([...Object.values(state.units).filter(isMapUnit), ...Object.values(state.cities)].map(entity => hexToIndex(entity.position, state.map)));
     const candidates = tiles.filter(i => state.map.tiles[i] === biome && definition.spawnBiomes.includes(biome)
-      && canEnter(identity, biome, content) && !occupied.has(i) && starts.every(start => hexDistance(start, indexToHex(i, state.map)) >= 3));
+      && canEnter(identity, biome, content) && !occupied.has(i) && starts.every(start => hexDistance(start, indexToHex(i, state.map), state.map) >= 3));
     // Empty candidates retain decision/biome/species draws, but no position draw.
     if (!candidates.length) continue;
     const position = indexToHex(candidates[randomBelow(state.rng, candidates.length)], state.map), id = state.nextEntityId++;
@@ -56,17 +56,17 @@ export function actWild(state: GameState, content: Content = contentFor(state.se
     if (!unit || !isMapUnit(unit) || unit.kind !== 'pokemon' || state.expansion?.world.rampagingUnitIds.includes(id)) continue;
     if (wanderersFor(content).includes(unit.speciesId)) {
       const occupied = new Set(Object.values(state.units).filter(isMapUnit).map(other => hexToIndex(other.position, state.map)));
-      const candidates = neighbors(unit.position).filter(position => {
+      const candidates = neighbors(unit.position, state.map).filter(position => {
         const index = hexToIndex(position, state.map);
         return index !== null && !occupied.has(index) && canEnter(unit, state.map.tiles[index], content)
-          && !Object.values(state.cities).some(city => hexDistance(position, city.position) <= workRadius(city));
+          && !Object.values(state.cities).some(city => hexDistance(position, city.position, state.map) <= workRadius(city));
       }).sort((a, b) => hexToIndex(a, state.map)! - hexToIndex(b, state.map)!);
       if (!candidates.length) continue;
       const position = candidates[randomBelow(state.rng, candidates.length)], from = { ...unit.position };
       unit.position = position;
       events.push({ type: 'Moved', unitId: id, path: [from, { ...position }] });
     } else {
-      const target = Object.values(state.units).filter(isMapUnit).filter(other => other.ownerId !== null && hexDistance(unit.position, other.position) === 1)
+      const target = Object.values(state.units).filter(isMapUnit).filter(other => other.ownerId !== null && hexDistance(unit.position, other.position, state.map) === 1)
         .sort((a, b) => a.id - b.id)[0];
       if (target) events.push(...resolveAttack(state, id, { kind: 'unit', id: target.id }, content, true));
     }

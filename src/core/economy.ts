@@ -23,7 +23,7 @@ function deploy(state: GameState, city: CityState, pending: PendingDeployment, c
     : { kind: 'logistics', role: pending.item.defId, ...(pending.item.escortId ? { escortId: pending.item.escortId } : {}), ...(pending.item.defId === 'trader' ? { homeCityId: city.id } : {}) };
   const occupied = new Set([...Object.values(state.units).filter(isMapUnit), ...Object.values(state.cities)]
     .map(entity => hexToIndex(entity.position, state.map)));
-  const position = neighbors(city.position).filter(hex => {
+  const position = neighbors(city.position, state.map).filter(hex => {
     const index = hexToIndex(hex, state.map);
     return index !== null && !occupied.has(index) && canEnter(identity, state.map.tiles[index], content);
   }).sort((a, b) => hexToIndex(a, state.map)! - hexToIndex(b, state.map)!)[0];

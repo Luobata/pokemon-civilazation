@@ -64,7 +64,7 @@ export function workCandidates(state: GameState, city: CityState, content: Conte
   for (const index of districtOccupiedTiles(state)) occupied.add(index);
   const weather = state.players[city.ownerId].research.unlockedIds.includes('meteorology');
   return state.map.tiles.flatMap((biome, index) => !occupied.has(index)
-    && hexDistance(city.position, indexToHex(index, state.map)) <= workRadius(city)
+    && hexDistance(city.position, indexToHex(index, state.map), state.map) <= workRadius(city)
     && (weather || (biome !== 'snow' && biome !== 'volcano')) ? [index] : [])
     .sort((a, b) => compareWorkTiles(state, city, a, b, content));
 }

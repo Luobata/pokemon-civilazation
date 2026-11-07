@@ -57,8 +57,8 @@ test('authoritative steps emit discoveries from real milestones', () => {
   const state = createGame(setup(2));
   const snow = state.map.tiles.findIndex(biome => biome === 'snow' || biome === 'volcano');
   expect(snow).toBeGreaterThanOrEqual(0);
-  const from = state.map.tiles.findIndex((biome, i) => biome !== 'ocean' && biome !== 'snow' && biome !== 'volcano' && hexDistance(indexToHex(i, state.map), indexToHex(snow, state.map)) === 1
-    && !Object.values(state.units).some(unit => unit.position && hexDistance(unit.position, indexToHex(i, state.map)) === 0));
+  const from = state.map.tiles.findIndex((biome, i) => biome !== 'ocean' && biome !== 'snow' && biome !== 'volcano' && hexDistance(indexToHex(i, state.map), indexToHex(snow, state.map), state.map) === 1
+    && !Object.values(state.units).some(unit => unit.position && hexDistance(unit.position, indexToHex(i, state.map), state.map) === 0));
   const unit = createMapUnit({ kind: 'pokemon', speciesId: 'swinub' }, 9000, 0, indexToHex(from, state.map), EXPANSION_CONTENT, 0, 1);
   state.units[unit.id] = unit; refreshKnowledge(state);
   state.knowledge[0].exploredTileIds = state.map.tiles.map((_, i) => i);

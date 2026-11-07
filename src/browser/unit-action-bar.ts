@@ -44,7 +44,7 @@ export function evolutionState(view: PlayerView, unit: Pokemon, content: Content
 /** Why the settler cannot found a city here (null when the known site rules hold). */
 export function foundingReason(view: PlayerView, unit: MapUnit): string | null {
   const nearest = [...view.cities, ...Object.values(view.knowledge.lastKnownCities)]
-    .reduce((distance, city) => Math.min(distance, hexDistance(unit.position, city.position)), Infinity);
+    .reduce((distance, city) => Math.min(distance, hexDistance(unit.position, city.position, view.map)), Infinity);
   const biome = view.map.tiles[hexToIndex(unit.position, view.map)!];
   return !unit.actionLeft ? '本回合已行动。结束回合后，开拓队恢复行动点。'
     : biome === 'ocean' ? '海洋上无法建城，请选择陆地。'

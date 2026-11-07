@@ -26,12 +26,12 @@ export function initializeRareBerries(state: GameState): void {
   for (const berry of RARE_BERRY_IDS) {
     const biome = RARE_BERRIES[berry].biome;
     const candidates = state.map.tiles.flatMap((tile, index) => tile === biome && !taken.has(index) && edgeDistance(indexToHex(index, state.map), state.map) >= 1
-      && !Object.values(state.cities).some(city => hexDistance(city.position, indexToHex(index, state.map)) === 0) ? [index] : [])
+      && !Object.values(state.cities).some(city => hexDistance(city.position, indexToHex(index, state.map), state.map) === 0) ? [index] : [])
       .sort((a, b) => hash(state.setup.seed, a * 7 + RARE_BERRY_IDS.indexOf(berry)) - hash(state.setup.seed, b * 7 + RARE_BERRY_IDS.indexOf(berry)) || a - b);
     const chosen: number[] = [];
     for (const index of candidates) {
       if (chosen.length >= RARE_BERRY_RULES.depositsPerType) break;
-      if (chosen.some(other => hexDistance(indexToHex(other, state.map), indexToHex(index, state.map)) < 5)) continue;
+      if (chosen.some(other => hexDistance(indexToHex(other, state.map), indexToHex(index, state.map), state.map) < 5)) continue;
       chosen.push(index); taken.add(index);
     }
     for (const index of chosen) deposits[index] = berry;

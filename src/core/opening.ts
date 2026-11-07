@@ -35,9 +35,9 @@ export function initializeOpening(state: GameState): void {
   for (const index of order) {
     if (Object.keys(itemBalls).length >= count) break;
     const hex = indexToHex(index, state.map);
-    if (taken.has(index) || neighbors(hex).some(next => hexToIndex(next, state.map) === null)) continue;
-    if (starts.some(start => hexDistance(start, hex) < OPENING_RULES.ballCityDistance)) continue;
-    if (Object.keys(itemBalls).some(other => hexDistance(indexToHex(Number(other), state.map), hex) < OPENING_RULES.ballSpacing)) continue;
+    if (taken.has(index) || neighbors(hex, state.map).some(next => hexToIndex(next, state.map) === null)) continue;
+    if (starts.some(start => hexDistance(start, hex, state.map) < OPENING_RULES.ballCityDistance)) continue;
+    if (Object.keys(itemBalls).some(other => hexDistance(indexToHex(Number(other), state.map), hex, state.map) < OPENING_RULES.ballSpacing)) continue;
     itemBalls[index] = ITEM_BALL_KINDS[stableSeed(state.setup.seed, index, 'item-ball-kind') % ITEM_BALL_KINDS.length];
   }
   state.expansion!.opening = { objectives: Object.fromEntries(state.turnOrder.map(id => [id, []])), itemBalls, seen: Object.fromEntries(state.turnOrder.map(id => [id, []])) };
@@ -84,7 +84,7 @@ export function recordOpening(state: GameState, events: readonly EventPayload[])
     else if (kind === 'balls') player.ballInventory.pokeBall += amount;
     else if (kind === 'food') {
       const city = Object.values(state.cities).filter(item => item.ownerId === unit.ownerId)
-        .sort((a, b) => hexDistance(a.position, unit.position) - hexDistance(b.position, unit.position) || a.id - b.id)[0];
+        .sort((a, b) => hexDistance(a.position, unit.position, state.map) - hexDistance(b.position, unit.position, state.map) || a.id - b.id)[0];
       if (city) city.food += amount;
     } else if (unit.kind === 'pokemon') unit.xp += amount;
     else player.gold += 15;

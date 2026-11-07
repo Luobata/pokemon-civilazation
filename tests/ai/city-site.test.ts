@@ -13,7 +13,7 @@ test('undiscovered city three tiles away: old candidate guessed valid, new plann
   state.units[10] = createMapUnit({ kind: 'logistics', role: 'settler' }, 10, 0, { q: 6, r: 2 }, undefined, 0, 1);
   state.cities[2].position = { q: 9, r: 2 }; refreshKnowledge(state);
   const view = observe(state, 0), position = { q: 6, r: 2 };
-  expect(knownCities(view).every(city => hexDistance(city.position, position) >= 4)).toBe(true); // previous implementation
+  expect(knownCities(view).every(city => hexDistance(city.position, position, state.map) >= 4)).toBe(true); // previous implementation
   expect(isCitySite(view, position)).toBe(false); expect(planNext(view).action.type).not.toBe('FoundCity');
   // Moving the city can now visibly change territory (D39); hidden HP still must not affect the view.
   const unchanged = structuredClone(view); state.cities[2].hp = 99;

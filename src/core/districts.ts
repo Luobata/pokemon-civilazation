@@ -74,7 +74,7 @@ const MAIN_EFFECT: Record<DistrictId, 'research' | 'trainedXp' | 'gold' | 'produ
   researchDistrict: 'research', gymDistrict: 'trainedXp', harborDistrict: 'gold', powerPlantDistrict: 'production', gardenDistrict: 'food' };
 export function districtEffects(input: Pick<DistrictInput, 'map' | 'cities' | 'improvements'> & Partial<Pick<DistrictInput, 'visible' | 'gameplayVersion' | 'completed'>>, kind: DistrictId, tileIndex: number): DistrictBreakdown {
   const definition = DISTRICTS[kind], base = { ...definition.base }, total = { ...base };
-  const adjacent = neighbors(indexToHex(tileIndex, input.map)).flatMap(hex => { const index = hexToIndex(hex, input.map); return index === null ? [] : [index]; }).sort((a, b) => a - b);
+  const adjacent = neighbors(indexToHex(tileIndex, input.map), input.map).flatMap(hex => { const index = hexToIndex(hex, input.map); return index === null ? [] : [index]; }).sort((a, b) => a - b);
   const unknownAdjacentTileIds = adjacent.filter(index => input.map.tiles[index] === null || (input.visible !== undefined && !input.visible.has(index)));
   const adjacency = definition.adjacency.map(rule => {
     const tileIndices = adjacent.filter(index => (input.map.tiles[index] !== null && rule.biomes?.includes(input.map.tiles[index]!))
@@ -107,11 +107,11 @@ export function districtBlocker(input: DistrictInput, cityId: number, kind: Dist
   const definition = DISTRICTS[kind];
   if (!input.techs.includes(definition.requiredTech)) return 'district-tech-locked';
   if (!Number.isSafeInteger(tileIndex) || tileIndex < 0 || tileIndex >= input.map.tiles.length || input.map.tiles[tileIndex] === null || !input.visible.has(tileIndex)) return 'unknown-tile';
-  const position = indexToHex(tileIndex, input.map), distance = hexDistance(position, city.position);
+  const position = indexToHex(tileIndex, input.map), distance = hexDistance(position, city.position, input.map);
   if (input.cities.some(city => hexToIndex(city.position, input.map) === tileIndex)) return 'city-center';
   if (distance < 1 || distance > workRadius(city as CityState)) return 'outside-city-territory';
   if (!definition.biomes.includes(input.map.tiles[tileIndex]!)) return 'wrong-biome';
-  if (definition.coastal && !neighbors(position).some(hex => { const index = hexToIndex(hex, input.map); return index !== null && input.knownLandTiles.has(index); })) return 'harbor-needs-coast';
+  if (definition.coastal && !neighbors(position, input.map).some(hex => { const index = hexToIndex(hex, input.map); return index !== null && input.knownLandTiles.has(index); })) return 'harbor-needs-coast';
   if (input.completed.some(item => item.tileIndex === tileIndex) || input.projects.some(item => item.tileIndex === tileIndex)
     || input.constructionSites.some(item => item.tileIndex === tileIndex && item.category === 'district')) return 'district-tile-occupied';
   if (input.improvements.some(item => item.tileIndex === tileIndex) || input.improvementProjects.some(item => item.tileIndex === tileIndex)

@@ -16,11 +16,11 @@ export function knownCities(view: PlayerView) {
 export function isCitySite(view: PlayerView, position: Hex): boolean {
   const index = hexToIndex(position, view.map);
   if (index === null || view.map.tiles[index] === null || view.map.tiles[index] === 'ocean'
-    || knownCities(view).some(city => hexDistance(city.position, position) < 4)) return false;
+    || knownCities(view).some(city => hexDistance(city.position, position, view.map) < 4)) return false;
   // An unobserved tile inside the exclusion radius may contain an undiscovered city.
   // Explore it first; never query authoritative hidden city positions.
   for (let q = position.q - 3; q <= position.q + 3; q++) for (let r = position.r - 3; r <= position.r + 3; r++) {
-    if (hexDistance(position, { q, r }) > 3) continue;
+    if (hexDistance(position, { q, r }, view.map) > 3) continue;
     const nearby = hexToIndex({ q, r }, view.map);
     if (nearby !== null && view.map.tiles[nearby] === null) return false;
   }

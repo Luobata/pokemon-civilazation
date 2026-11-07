@@ -24,7 +24,7 @@ export function resolveRecovery(state: GameState, content: Content = contentFor(
     if (unit.roundsLeft > 0) continue;
     const city = state.cities[unit.cityId];
     const occupied = new Set([...Object.values(state.units).filter(isMapUnit), ...Object.values(state.cities)].map(entity => hexToIndex(entity.position, state.map)));
-    const position = neighbors(city.position).filter(position => {
+    const position = neighbors(city.position, state.map).filter(position => {
       const index = hexToIndex(position, state.map);
       return index !== null && !occupied.has(index) && canEnter(unit, state.map.tiles[index], content);
     }).sort((a, b) => hexToIndex(a, state.map)! - hexToIndex(b, state.map)!)[0];
@@ -36,7 +36,7 @@ export function resolveRecovery(state: GameState, content: Content = contentFor(
     if (unit.ownerId === null) continue;
     const player = state.players[unit.ownerId];
     const inTerritory = Object.values(state.cities).some(city => city.ownerId === unit.ownerId
-      && hexDistance(city.position, unit.position) <= workRadius(city));
+      && hexDistance(city.position, unit.position, state.map) <= workRadius(city));
     const doctrine = doctrineEffects(player, state.setup.eraProgression, unit, content);
     const heal = inTerritory
       ? (player.research.unlockedIds.includes('medicine') ? 10 : 5)

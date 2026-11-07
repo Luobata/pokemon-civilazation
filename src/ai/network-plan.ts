@@ -35,6 +35,6 @@ export function traderPlan(view: PlayerView, unit: MapUnit): { action: Command['
   if (ready) return { action: { type: 'EstablishTradeRoute', unitId: unit.id, toCityId: ready.cityId }, destination: null };
   const walkable = options.filter(option => option.reason === '先把商队移动到这座城市旁边')
     .map(option => view.economy.cities.find(city => city.id === option.cityId)!)
-    .sort((a, b) => hexDistance(unit.position, a.position) - hexDistance(unit.position, b.position) || a.id - b.id)[0];
+    .sort((a, b) => hexDistance(unit.position, a.position, view.map) - hexDistance(unit.position, b.position, view.map) || a.id - b.id)[0];
   return { action: null, destination: walkable?.position ?? null };
 }

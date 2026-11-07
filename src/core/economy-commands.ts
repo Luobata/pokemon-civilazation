@@ -28,7 +28,7 @@ export function validateEconomyAction(state: GameState, actor: number, action: E
     if (!unit || unit.ownerId !== actor || unit.kind !== 'logistics' || unit.role !== 'settler' || !isMapUnit(unit)) return 'unit-unavailable';
     if (!unit.actionLeft) return 'no-action';
     if (state.map.tiles[hexToIndex(unit.position, state.map)!] === 'ocean'
-      || Object.values(state.cities).some(city => hexDistance(city.position, unit.position) < 4)) return 'invalid-city-site';
+      || Object.values(state.cities).some(city => hexDistance(city.position, unit.position, state.map) < 4)) return 'invalid-city-site';
     return null;
   }
   if (action.type === 'SetResearch') return canResearch(player, action.techId, content) ? null : 'research-unavailable';

@@ -70,7 +70,7 @@ export function step(state: GameState, command: Command, content: Content = cont
       // The zone of control is judged from the new position, so an enemy revealed on arrival still stops the unit.
       const view = observe(next, command.actorId, content);
       const spent = (moving.movesSpent ?? 0) + path.slice(1).reduce((sum, position) => sum + stepCost(moving, state.map.tiles[hexToIndex(position, state.map)!], content), 0);
-      const stopped = usesTactics(view) && inZoc(moving.position, zocTiles(moving, view.units, view.diplomacy, content));
+      const stopped = usesTactics(view) && inZoc(moving.position, zocTiles(moving, view.units, view.diplomacy, content), view.map);
       moving.movesSpent = spent;
       if (stopped || spent >= movementBudget(view, moving, content)) moving.actionLeft = 0;
     } else next.units[action.unitId].actionLeft = 0;

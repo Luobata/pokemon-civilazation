@@ -29,7 +29,7 @@ export function selectStarts(terrain: MapTerrain, playerCount: number, rng: RngS
     if (needed === 0) return [];
     for (let i = 0; i <= remaining.length - needed; i++) {
       const candidate = remaining[i];
-      const compatible = remaining.slice(i + 1).filter(other => hexDistance(candidate.hex, other.hex) >= distance);
+      const compatible = remaining.slice(i + 1).filter(other => hexDistance(candidate.hex, other.hex, terrain) >= distance);
       if (compatible.length < needed - 1) continue;
       const tail = search(compatible, needed - 1, distance);
       if (tail) return [candidate, ...tail];
@@ -59,7 +59,7 @@ function volcanoCluster(size: GridSize, rng: RngState): Set<number> {
     const index = choices[randomBelow(rng, choices.length)];
     frontier.delete(index);
     cluster.add(index);
-    for (const hex of neighbors(indexToHex(index, size))) {
+    for (const hex of neighbors(indexToHex(index, size), size)) {
       const next = hexToIndex(hex, size);
       if (next !== null && edgeDistance(hex, size) === 0 && !cluster.has(next)) frontier.add(next);
     }
@@ -76,14 +76,27 @@ function drawBiome(rng: RngState): BiomeId {
   throw new Error('Biome weights must sum to 100.');
 }
 
+/**
+ * Wrapping maps (v22) have poles instead of east/west walls: the outermost north and south rows become snow
+ * (ocean stays ocean), the next row in leans to snow (one draw per tile, index order). Volcanoes stay.
+ */
+function applyPoles(tiles: BiomeId[], size: GridSize, rng: RngState): void {
+  for (let index = 0; index < tiles.length; index++) {
+    const ring = edgeDistance(indexToHex(index, size), size);
+    if (ring > 1 || tiles[index] === 'ocean' || tiles[index] === 'volcano') continue;
+    if (ring === 0 || randomBelow(rng, 100) < MAP_GENERATION.polarSnowPercent) tiles[index] = 'snow';
+  }
+}
+
 export function generateMap({ seed, width = DEFAULT_MAP.width, height = DEFAULT_MAP.height,
-  playerCount = DEFAULT_MAP.playerCount }: Partial<MapSetup> & { seed: number }): MapState {
+  playerCount = DEFAULT_MAP.playerCount, wrap }: Partial<MapSetup> & { seed: number }): MapState {
   if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width < 1 || height < 1
     || !Number.isSafeInteger(width * height) || !Number.isInteger(playerCount) || playerCount < 2 || playerCount > 4) {
     throw new RangeError('Map dimensions must be positive integers; player count must be 2..4.');
   }
   const rng = createRng(seed);
-  const size = { width, height };
+  // v22 (world-v22 §A): columns wrap east-west, so only the north and south rows are map edges.
+  const size: GridSize = wrap ? { width, height, wrap: true } : { width, height };
   const volcanoes = volcanoCluster(size, rng);
   const land = shuffled(Array.from({ length: width * height }, (_, i) => i)
     .filter(i => !volcanoes.has(i)), rng);
@@ -97,13 +110,14 @@ export function generateMap({ seed, width = DEFAULT_MAP.width, height = DEFAULT_
     if (volcanoes.has(i)) return 'volcano';
     const hex = indexToHex(i, size);
     let nearest = centers[0];
-    let distance = hexDistance(hex, nearest.hex);
+    let distance = hexDistance(hex, nearest.hex, size);
     for (const center of centers.slice(1)) {
-      const next = hexDistance(hex, center.hex);
+      const next = hexDistance(hex, center.hex, size);
       if (next < distance) { nearest = center; distance = next; }
     }
     return nearest.biome;
   });
+  if (wrap) applyPoles(tiles, size, rng);
   const terrain = { ...size, tiles };
   return { generationVersion: 1, seed, ...terrain, ...selectStarts(terrain, playerCount, rng), rng };
 }

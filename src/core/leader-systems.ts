@@ -98,7 +98,7 @@ export function evolutionGold(player: { leaderId?: LeaderId }, gold: number): nu
 export function mistyWaterMultiplier(state: Pick<GameState, 'map' | 'expansion' | 'round' | 'players'>, ownerId: number | null, unit: { kind: string; speciesId?: SpeciesId; position: Hex }, content: Content): number {
   if (ownerId === null || state.players[ownerId].leaderId !== 'misty' || unit.kind !== 'pokemon') return 1000;
   const index = hexToIndex(unit.position, state.map);
-  const nearOcean = index !== null && (state.map.tiles[index] === 'ocean' || neighbors(unit.position).some(hex => { const i = hexToIndex(hex, state.map); return i !== null && state.map.tiles[i] === 'ocean'; }));
+  const nearOcean = index !== null && (state.map.tiles[index] === 'ocean' || neighbors(unit.position, state.map).some(hex => { const i = hexToIndex(hex, state.map); return i !== null && state.map.tiles[i] === 'ocean'; }));
   const species = content.species[unit.speciesId!];
   const active = (state.expansion?.leaders.players[ownerId]?.activeUntilRound ?? 0) >= state.round
     && (species.role === 'naval' || species.typeId === 'water' || species.secondaryTypeId === 'water');

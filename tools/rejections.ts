@@ -14,7 +14,7 @@ export function classifyRejection(state: GameState, command: Command, reason: st
   const index = hexToIndex(unit.position, state.map);
   if (index === null || state.map.tiles[index] === 'ocean') return 'defect';
   const view = observe(state, command.actorId, content);
-  if (knownCities(view).some(city => hexDistance(city.position, unit.position) < 4)) return 'defect';
-  const blockers = Object.values(state.cities).filter(city => hexDistance(city.position, unit.position) < 4);
+  if (knownCities(view).some(city => hexDistance(city.position, unit.position, state.map) < 4)) return 'defect';
+  const blockers = Object.values(state.cities).filter(city => hexDistance(city.position, unit.position, state.map) < 4);
   return blockers.length > 0 && blockers.every(city => !view.visibleTileIds.includes(hexToIndex(city.position, state.map)!)) ? 'fog' : 'defect';
 }

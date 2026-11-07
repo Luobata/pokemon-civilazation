@@ -8,7 +8,7 @@ export function planBondAction(view: PlayerView): Command['action'] | null {
   const visible = new Set(view.visibleTileIds);
   const target = view.cities.filter(city => city.ownerId === null
     && visible.has(hexToIndex(city.position, view.map) ?? -1)
-    && view.economy.cities.some(own => hexDistance(own.position, city.position) <= BOND_RECLAIM.range))
+    && view.economy.cities.some(own => hexDistance(own.position, city.position, view.map) <= BOND_RECLAIM.range))
     .sort((a, b) => a.id - b.id)[0];
   return target ? { type: 'ReclaimCity', cityId: target.id } : null;
 }
