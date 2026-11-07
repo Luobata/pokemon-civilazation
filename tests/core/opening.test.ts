@@ -4,7 +4,7 @@ import { ITEM_BALLS, OBJECTIVES, OPENING_RULES, victoryTargets } from '../../src
 import type { GameplayVersion } from '../../src/content/eras.ts';
 import { createGame } from '../../src/core/game.ts';
 import { createMapUnit } from '../../src/core/unit.ts';
-import { observe, refreshKnowledge } from '../../src/core/vision.ts';
+import { observe, refreshKnowledge, visibleTiles } from '../../src/core/vision.ts';
 import { previewAttack } from '../../src/core/preview.ts';
 import { resolveAttack } from '../../src/core/combat.ts';
 import { recordDiscoveries } from '../../src/core/discoveries.ts';
@@ -132,4 +132,34 @@ test('a captured former capital gets no capital walls in the preview either (its
   resolveAttack(state, 9000, { kind: 'city', id: city.id });
   expect(hp - city.hp).toBeGreaterThanOrEqual(preview.damage.min);
   expect(hp - city.hp).toBeLessThanOrEqual(preview.damage.max);
+});
+
+test('fog memory: a ball a rival picks up out of your sight stays on your map until you see the tile again', () => {
+  const state = createGame(duel(21));
+  // A ball player 0 cannot see from the start.
+  const index = Object.keys(state.expansion!.opening!.itemBalls).map(Number).find(tile => !visibleTiles(state, 0).has(tile))!;
+  expect(index).toBeDefined();
+  const hex = indexToHex(index, state.map), next = { q: hex.q, r: hex.r + 1 };
+  const shown = () => observe(state, 0).expansion!.opening!.itemBalls.some(item => item.tileIndex === index);
+  expect(shown()).toBe(false);
+  // A scout of player 0 passes next to it, then leaves.
+  state.units[9000] = createMapUnit({ kind: 'pokemon', speciesId: 'pidgey' }, 9000, 0, next, OPENING_CONTENT);
+  refreshKnowledge(state);
+  expect(shown()).toBe(true);
+  delete state.units[9000];
+  refreshKnowledge(state);
+  expect(visibleTiles(state, 0).has(index)).toBe(false);
+  expect(shown()).toBe(true);
+  // The view never says what is inside.
+  expect(observe(state, 0).expansion!.opening!.itemBalls.every(item => Object.keys(item).join() === 'tileIndex')).toBe(true);
+  // Player 1 picks it up out of player 0's sight: player 0 still remembers a ball there.
+  state.units[9001] = createMapUnit({ kind: 'pokemon', speciesId: 'rattata' }, 9001, 1, hex, OPENING_CONTENT);
+  expect(recordOpening(state, []).some(event => event.type === 'ItemBallClaimed' && event.tileIndex === index)).toBe(true);
+  refreshKnowledge(state);
+  expect(shown()).toBe(true);
+  expect(observe(state, 1).expansion!.opening!.itemBalls.some(item => item.tileIndex === index)).toBe(false);
+  // Player 0 looks again: the ball is gone.
+  state.units[9002] = createMapUnit({ kind: 'pokemon', speciesId: 'pidgey' }, 9002, 0, next, OPENING_CONTENT);
+  refreshKnowledge(state);
+  expect(shown()).toBe(false);
 });

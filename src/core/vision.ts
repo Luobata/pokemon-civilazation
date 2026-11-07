@@ -1,4 +1,4 @@
-import { observeOpening } from './opening.ts';
+import { observeOpening, rememberOpening } from './opening.ts';
 import { observeCityNetwork } from './city-network.ts';
 import { observeLegends } from './legends.ts';
 import { observeEraHonors } from './era-honors.ts';
@@ -74,6 +74,7 @@ export function refreshKnowledge(state: GameState, content: Content = contentFor
     const visible = visibleTiles(state, playerId, content);
     const knowledge = state.knowledge[playerId];
     rememberDistricts(state, playerId, visible);
+    rememberOpening(state, playerId, visible);
     knowledge.exploredTileIds = [...new Set([...knowledge.exploredTileIds, ...visible])].sort((a, b) => a - b);
     for (const tile of visible) knowledge.rememberedTiles[tile] = { biomeId: state.map.tiles[tile], territoryOwnerIds: [...territory[tile]] };
     for (const [id, known] of Object.entries(knowledge.lastKnownUnits)) {

@@ -686,7 +686,7 @@ export function inspectSystem(systemId: string, state: GameState): AuditSystemIn
     const opening = state.expansion?.opening;
     if (!opening) return { metrics: [metric('当前规则', '未启用（需 v21）')], data: {} };
     return { metrics: [metric('当前规则', '开局节奏 v21'), metric('地图上的道具球', Object.keys(opening.itemBalls).length),
-      ...Object.entries(opening.objectives).map(([id, done]) => metric(`玩家 ${id} 开局目标`, `${done.length}/8`))], data: { itemBalls: opening.itemBalls } };
+      ...Object.entries(opening.objectives).map(([id, done]) => metric(`玩家 ${id} 开局目标`, `${done.length}/8`))], data: { itemBalls: opening.itemBalls, seenByPlayer: opening.seen } };
   }
   if (system.id === 's-combat-strength') {
     return { metrics: [metric('当前规则', (state.setup.gameplayVersion ?? 0) >= 20 ? '战斗力 v20' : '乘法公式（v≤19）')], data: {} };

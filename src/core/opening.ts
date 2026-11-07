@@ -8,8 +8,10 @@ import { hexDistance, hexToIndex, indexToHex, neighbors } from './hex.ts';
 import { isMapUnit } from './model.ts';
 import type { EventPayload, GameState } from './model.ts';
 
-export type OpeningState = { objectives: Record<number, ObjectiveId[]>; itemBalls: Record<number, ItemBallKind> };
-export type OpeningView = { objectives: ObjectiveId[]; itemBalls: { tileIndex: number; kind: ItemBallKind }[] };
+/** `seen`: per player, the item-ball tiles they last saw holding a ball (fog memory, like lastKnownCities). */
+export type OpeningState = { objectives: Record<number, ObjectiveId[]>; itemBalls: Record<number, ItemBallKind>; seen: Record<number, number[]> };
+/** What a ball holds stays hidden until it is picked up. */
+export type OpeningView = { objectives: ObjectiveId[]; itemBalls: { tileIndex: number }[] };
 export type OpeningEvent =
   | { type: 'ObjectiveCompleted'; playerId: number; objectiveId: ObjectiveId }
   | { type: 'ItemBallClaimed'; playerId: number; tileIndex: number; kind: ItemBallKind; unitId: number };
@@ -38,7 +40,7 @@ export function initializeOpening(state: GameState): void {
     if (Object.keys(itemBalls).some(other => hexDistance(indexToHex(Number(other), state.map), hex) < OPENING_RULES.ballSpacing)) continue;
     itemBalls[index] = ITEM_BALL_KINDS[stableSeed(state.setup.seed, index, 'item-ball-kind') % ITEM_BALL_KINDS.length];
   }
-  state.expansion!.opening = { objectives: Object.fromEntries(state.turnOrder.map(id => [id, []])), itemBalls };
+  state.expansion!.opening = { objectives: Object.fromEntries(state.turnOrder.map(id => [id, []])), itemBalls, seen: Object.fromEntries(state.turnOrder.map(id => [id, []])) };
 }
 
 function reached(state: GameState, playerId: number, id: ObjectiveId, events: readonly EventPayload[]): boolean {
@@ -100,11 +102,18 @@ export function resolveOpeningRound(state: GameState): EventPayload[] {
 /** City walls: defense strength grows with the round (public knowledge). */
 export const wallBonus = (round: number, capital = false) => Math.min(OPENING_RULES.wallMax, Math.floor(round / OPENING_RULES.wallRounds) * OPENING_RULES.wallStep) + (capital ? OPENING_RULES.capitalDefense : 0);
 
+/** Called by refreshKnowledge: tiles in sight overwrite the memory (a ball there, or none any more). */
+export function rememberOpening(state: GameState, playerId: number, visible: ReadonlySet<number>): void {
+  const ledger = state.expansion?.opening;
+  if (!ledger) return;
+  const seen = new Set(ledger.seen[playerId] ?? []);
+  for (const tile of visible) { if (ledger.itemBalls[tile]) seen.add(tile); else seen.delete(tile); }
+  ledger.seen[playerId] = [...seen].sort((a, b) => a - b);
+}
+/** Tiles in sight show the truth; fogged tiles show what the player last saw there, so a rival's pickup out of sight stays hidden. */
 export function observeOpening(state: GameState, playerId: number, visible: ReadonlySet<number>): OpeningView | undefined {
   const ledger = state.expansion?.opening;
   if (!ledger) return undefined;
-  const explored = new Set(state.knowledge[playerId]?.exploredTileIds ?? []);
-  return { objectives: [...(ledger.objectives[playerId] ?? [])],
-    itemBalls: Object.entries(ledger.itemBalls).map(([index, kind]) => ({ tileIndex: Number(index), kind }))
-      .filter(item => visible.has(item.tileIndex) || explored.has(item.tileIndex)).sort((a, b) => a.tileIndex - b.tileIndex) };
+  const tiles = new Set([...Object.keys(ledger.itemBalls).map(Number).filter(tile => visible.has(tile)), ...(ledger.seen[playerId] ?? []).filter(tile => !visible.has(tile))]);
+  return { objectives: [...(ledger.objectives[playerId] ?? [])], itemBalls: [...tiles].sort((a, b) => a - b).map(tileIndex => ({ tileIndex })) };
 }

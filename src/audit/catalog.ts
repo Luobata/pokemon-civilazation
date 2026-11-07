@@ -21,7 +21,7 @@ export const AUDIT_SYSTEMS: readonly AuditSystem[] = [
     summary: 'gameplay v21：8 个开局目标发奖励；道具球（探索奖励）按稳定种子摆放；城市中心产科研、首都生产 +2；一阶/二阶科技降价、开拓队 24；城市 HP 100、每轮恢复、城墙随轮数成长；胜利门槛随轮上限变化；驯化发现改为“初次交手”。读取 v≤20 存档时不启用。',
     rules: ['开局目标与道具球只读取本条命令产生的事件与单位位置，摆放不消耗 state.rng。',
       '城墙是防守方的一条战斗力加成，预览与结算共用同一份计算。',
-      '玩家视图只包含看见过的道具球。'],
+      '玩家视图：视野内显示真实情况，迷雾里显示最后一次看到的道具球（每个玩家各记一份）；不显示道具球种类。'],
     checks: ['v20 固定 48 局改动前后逐文件一致；v21 两次运行逐字节一致。', '目标与奖励、道具球拾取、城墙预览一致、门槛随轮上限，有单元测试。'],
     sources: ['src/content/opening.ts', 'src/core/opening.ts', 'tests/core/opening.test.ts', 'docs/design/opening-v21.md'],
     actionTypes: ['Move', 'Attack', 'SetProductionQueue'],
