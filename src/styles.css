@@ -938,3 +938,51 @@ img[src*="/sprites/gen6/"], img[src*="/sprites/gen7/"], img[src*="/sprites/gen8/
   .unit-action-name { display: none; }
   .unit-action { min-width: 46px; min-height: 46px; padding: 4px 5px 3px; }
 }
+
+/* P0-4 CombatPreviewCard: floating attack preview beside the target (src/browser/combat-preview.ts). */
+.combat-card { position: absolute; top: 0; left: 0; z-index: 4; width: min(430px, calc(100% - 16px)); overflow: auto; padding: 8px 10px 10px; border: 2px solid #6A5B3C; border-radius: 4px; background: rgb(18 30 32 / 97%); box-shadow: 4px 4px 0 rgb(4 12 15 / 70%); color: var(--ink); font-size: 12px; line-height: 1.35; }
+.combat-card[hidden] { display: none; }
+.combat-card header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.combat-card header .eyebrow { margin: 0; }
+.combat-card .cp-close { min-height: 0; width: 26px; height: 26px; padding: 0; border-radius: 3px; font-size: 16px; line-height: 1; }
+.cp-reason { margin: 0; color: var(--danger); }
+.cp-columns { display: grid; grid-template-columns: minmax(0, 1fr) 76px minmax(0, 1fr); gap: 6px; align-items: stretch; }
+.cp-side { padding: 6px 7px; border: 1px solid var(--border); border-radius: 3px; background: #1A2E31; }
+.cp-attack { border-color: #4F7E6C; }
+.cp-defense { border-color: #7E4F4A; }
+.cp-who { display: flex; gap: 6px; align-items: center; margin-bottom: 4px; }
+.cp-who p { margin: 0; min-width: 0; }
+.cp-who strong { display: block; overflow: hidden; color: #F1D79B; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.cp-who small { color: var(--ink-muted); font-size: 11px; }
+.cp-sprite { flex: 0 0 44px; width: 44px; height: 44px; display: grid; place-items: center; border: 1px solid #607764; border-radius: 3px; background: #29483F; }
+.cp-sprite img { width: 40px; height: 40px; image-rendering: pixelated; }
+.cp-base, .cp-total { display: flex; justify-content: space-between; margin: 0; }
+.cp-base b, .cp-total b { color: #FFF8E5; font-size: 14px; }
+.cp-total { margin-top: 2px; padding-top: 2px; border-top: 1px solid #2E4743; font-weight: 700; }
+.cp-factors { margin: 2px 0; padding: 0; list-style: none; color: #A9B9B3; }
+.cp-factors li { display: flex; justify-content: space-between; gap: 4px; }
+.cp-factors b.pos { color: #9BE2B8; }
+.cp-factors b.neg { color: #F09A8D; }
+.cp-centre { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-align: center; }
+.cp-gap { color: #F2C14E; font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; text-shadow: 2px 2px 0 #0B181C; }
+.cp-gap.pos { color: #9BE2B8; }
+.cp-gap.neg { color: #F09A8D; }
+.cp-centre small { color: var(--ink-muted); font-size: 10px; }
+.cp-result { display: grid; gap: 5px; margin-top: 8px; padding: 6px 7px; border: 1px solid #6A5B3C; border-radius: 3px; background: #28291F; }
+.cp-result p { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin: 0; }
+.cp-damage b { color: #F1D79B; font-size: 18px; font-variant-numeric: tabular-nums; }
+.cp-hp p span:not(.cp-tag) { color: var(--ink-secondary); }
+.cp-hp p b { margin-left: auto; font-variant-numeric: tabular-nums; }
+.cp-hp em { color: #F1D79B; font-style: normal; }
+.cp-tag { padding: 0 5px; border: 1px solid #8C5A50; border-radius: 2px; background: var(--danger-soft); color: #F6C5BC; font-size: 11px; }
+.cp-tag.ko { border-color: #9A8243; background: var(--gold-soft); color: #F6E3A6; }
+.cp-counter { color: var(--ink-muted); }
+.cp-bar { display: flex; height: 10px; margin-top: 2px; border: 1px solid #0B181C; background: #11201F; box-shadow: inset 0 0 0 1px rgb(255 255 255 / 4%); }
+.cp-bar i { display: block; height: 100%; }
+.cp-bar .keep { background: var(--success); }
+.cp-bar .band { background: repeating-linear-gradient(90deg, #E6B85C 0 3px, #8C6E30 3px 6px); }
+.cp-bar .lost { background: #9E4B43; }
+.combat-card footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
+.combat-card footer small { color: var(--ink-muted); font-size: 11px; }
+.combat-card footer button { min-width: 110px; }
+@media (max-width: 480px) { .cp-columns { grid-template-columns: minmax(0, 1fr) 54px minmax(0, 1fr); } .cp-gap { font-size: 24px; } .cp-sprite { display: none; } }

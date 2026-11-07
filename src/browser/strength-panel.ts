@@ -1,7 +1,7 @@
 // v20 attack preview: the Civilization-style strength comparison (each side's strength, every flat bonus, the gap).
 import type { StrengthBreakdown } from '../core/strength.ts';
 
-const signed = (value: number) => `${value > 0 ? '+' : value < 0 ? '−' : '±'}${Math.abs(value)}`;
+export const signed = (value: number) => `${value > 0 ? '+' : value < 0 ? '−' : '±'}${Math.abs(value)}`;
 export function strengthTotals(breakdown: StrengthBreakdown) {
   const sum = (side: 'attack' | 'defense') => breakdown.factors.filter(factor => factor.side === side).reduce((total, factor) => total + factor.value, 0);
   return { attack: breakdown.attack + sum('attack'), defense: breakdown.defense + sum('defense') };
