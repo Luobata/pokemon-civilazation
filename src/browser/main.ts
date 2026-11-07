@@ -62,7 +62,8 @@ import { describeTile, tileSummary } from './tile-info.ts';
 import { renderTilePanel } from './tile-panel.ts';
 import { ERA_AGES } from '../content/era-honors.ts';
 import { previewSummary, targetPreviews } from './target-preview.ts';
-import { fitCamera, hexToWorld, toWorld, worldToHex, zoomAt } from './camera.ts';
+import { HEX_RADIUS, fitCamera, hexToWorld, toScreen, toWorld, worldToHex, zoomAt } from './camera.ts';
+import { combatCard, renderCombatCard } from './combat-preview.ts';
 import type { Camera, Point } from './camera.ts';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#map')!;
@@ -304,7 +305,7 @@ function controls() {
     : selectedCity !== null ? `已选城市 ${selectedCity} · 在城市面板建造、训练或采购`
     : inspectedTile !== null ? `查看：${tileSummary(describeTile(view, inspectedTile))}`
     : '点选城市管理生产，点选单位执行行动，点任意地块查看详情；拖动地图平移，滚轮缩放。';
-  actionNotice.textContent = notice || (pendingPeace ? '请先回应停战提议。' : districtPlacement ? '设施区选址：点击格子预览，再确认入队。Esc 取消。' : actionMode === 'attack' ? (targets.length ? `攻击模式：${targets.length} 个可攻击目标（红色虚线），选中后确认攻击。Esc 取消。` : '攻击模式：射程内没有可攻击的目标（和平中的文明不能攻击）。Esc 取消。')
+  actionNotice.textContent = notice || (pendingPeace ? '请先回应停战提议。' : districtPlacement ? '设施区选址：点击格子预览，再确认入队。Esc 取消。' : actionMode === 'attack' ? (targets.length ? `攻击模式：${targets.length} 个可攻击目标（红色虚线）。点目标看战斗预览，再点一次即攻击。Esc 取消。` : '攻击模式：射程内没有可攻击的目标（和平中的文明不能攻击）。Esc 取消。')
     : actionMode === 'move' ? '移动模式：点击高亮格移动，包括己方城市。Esc 取消。'
     : actionMode === 'capture' ? (targets.length ? '捕捉模式：选择相邻的野生宝可梦，再确认捕捉。' : '捕捉模式：没有可捕捉目标；检查相邻目标、当前球种的库存与科技。Esc 取消。') : ended ? '对局已结束，可开始新局。' : '');
   actionNotice.classList.toggle('is-error', notice.includes('拒绝') || notice.includes('失败'));
@@ -440,6 +441,19 @@ function advanceToNextUnit(action: Command['action']) {
   selectUnit(next.id);
   notice = `下一个待命单位：${next.kind === 'pokemon' ? contentForView(view).species[next.speciesId].name : '开拓队'}（还有 ${view.units.filter(unit => unit.ownerId === view.playerId && unit.actionLeft).length} 个单位待命）`;
 }
+/** P0-4: the floating combat preview beside the chosen attack target (follows the camera; hidden otherwise). */
+function updateCombatCard(view: PlayerView) {
+  const card = actionMode === 'attack' && pendingTarget && selected !== null ? combatCard(view, selected, pendingTarget) : null;
+  const anchor = card && pendingTarget ? toScreen(hexToWorld(indexToHex(pendingTarget.index, view.map)), camera) : null;
+  renderCombatCard(card, anchor, HEX_RADIUS * camera.zoom, busy() || view.outcome !== null || hasPendingPeace(view), {
+    confirm: confirmAction,
+    cancel: cancelTarget,
+  });
+}
+/** Drops the chosen target (closing the combat card) but stays in the current action mode. */
+function cancelTarget() {
+  pendingTarget = null; notice = ''; canvas.focus(); controls(); requestFrame();
+}
 function confirmAction() {
   if (selected === null || !pendingTarget) return;
   if (actionMode === 'attack') issue({ type: 'Attack', unitId: selected, target: { kind: pendingTarget.kind, id: pendingTarget.id } });
@@ -542,6 +556,7 @@ function frame(now: number) {
     districtPlacement: districtPlacement ? { sites: districtSites(view, districtPlacement.cityId, districtPlacement.kind), selectedTileIndex: districtPlacement.tileIndex } : undefined,
     layers: { yields: showYields.checked },
   });
+  updateCombatCard(view);
   frameDurations.push(performance.now() - drawStarted);
   if (frameDurations.length > 240) frameDurations.shift();
   if (import.meta.env.DEV) {
@@ -657,6 +672,10 @@ function activateIndex(index: number | null, confirmSelection = false) {
   }
   if (actionMode && selected !== null) {
     const target = actionTargets(view, selected, actionMode, selectedBall).find(candidate => hexToIndex(candidate.position, view.map) === index);
+    // Civilization-style: clicking the chosen attack target a second time confirms the attack.
+    if (target && actionMode === 'attack' && pendingTarget?.index === index && pendingTarget.kind === target.kind && pendingTarget.id === target.id) {
+      tapFeedback(index); confirmAction(); requestFrame(); return;
+    }
     if (target) { pendingTarget = { kind: target.kind, id: target.id, index }; tapFeedback(index); }
     else { pendingTarget = null; tapFeedback(index, 'error'); notice = '该目标不适用；请选择高亮目标。'; }
     controls(); requestFrame(); return;
@@ -772,7 +791,7 @@ canvas.addEventListener('keydown', event => {
     if (districtPlacement) districtPlacement.tileIndex = keyboardIndex;
     controls(); requestFrame();
   } else if (event.key === 'Enter') { event.preventDefault(); activateIndex(fallback, true); }
-  else if (event.key === 'Escape') { event.preventDefault(); clearSelection(); }
+  else if (event.key === 'Escape') { event.preventDefault(); if (actionMode === 'attack' && pendingTarget) cancelTarget(); else clearSelection(); }
   else if (event.key === '+' || event.key === '=' || event.key === '-') {
     event.preventDefault();
     zoomAt(camera, { x: canvas.clientWidth / 2, y: canvas.clientHeight / 2 }, event.key === '-' ? .9 : 1.1);
