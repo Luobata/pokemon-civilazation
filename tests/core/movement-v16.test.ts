@@ -55,7 +55,7 @@ test('v16: move next to an enemy and attack in the same turn; entering a zone of
   const into = act(state, { type: 'Move', unitId: 9000, to: { q: 9, r: 6 } });
   expect(into.ok).toBe(true);
   if (!into.ok) return;
-  expect(hexDistance(into.state.units[9000].position as { q: number; r: number }, { q: 10, r: 6 })).toBe(1);
+  expect(hexDistance(into.state.units[9000].position as { q: number; r: number }, { q: 10, r: 6 }, state.map)).toBe(1);
   expect(into.state.units[9000].actionLeft).toBe(0);
   // Without the zone of control (rival is a scout-role caterpie, which exerts none), the unit moves adjacent and attacks.
   const open = field(16);
@@ -91,7 +91,7 @@ test('v16: the starting settler stands beside the capital, not on it', () => {
     const state = createGame(duel(version));
     for (const player of Object.values(state.players)) {
       const city = state.cities[player.headquartersCityId], settler = Object.values(state.units).find(unit => unit.ownerId === player.id && unit.kind === 'logistics')!;
-      const distance = hexDistance(city.position, settler.position as { q: number; r: number });
+      const distance = hexDistance(city.position, settler.position as { q: number; r: number }, state.map);
       expect(distance).toBe(version === 16 ? 1 : 0);
     }
   }

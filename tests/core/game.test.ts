@@ -57,10 +57,10 @@ describe('D28 creation and placement', () => {
   });
   test('B3 searches beyond an impassable first ring, using distance then tile index', () => {
     const state = fixture(); const city = at(2);
-    for (const hex of neighbors(city)) state.map.tiles[hexToIndex(hex, state.map)!] = 'ocean';
+    for (const hex of neighbors(city, state.map)) state.map.tiles[hexToIndex(hex, state.map)!] = 'ocean';
     const chosen = initialUnitPosition(state, city, state.units[1]);
-    expect(hexDistance(city, chosen)).toBe(2);
-    const expected = state.map.tiles.map((_, i) => i).filter(i => hexDistance(city, indexToHex(i, state.map)) === 2)[0];
+    expect(hexDistance(city, chosen, state.map)).toBe(2);
+    const expected = state.map.tiles.map((_, i) => i).filter(i => hexDistance(city, indexToHex(i, state.map), state.map) === 2)[0];
     expect(hexToIndex(chosen, state.map)).toBe(expected);
   });
 });

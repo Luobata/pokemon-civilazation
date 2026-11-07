@@ -46,7 +46,7 @@ export function regionGeneration(state: GameState, tiles: readonly number[]): nu
   let best: { distance: number; ownerId: number } | null = null;
   for (const city of Object.values(state.cities).sort((a, b) => a.id - b.id)) {
     if (city.ownerId === null || state.players[city.ownerId]?.eliminated) continue;
-    const distance = hexDistance(centre, city.position);
+    const distance = hexDistance(centre, city.position, state.map);
     if (!best || distance < best.distance || (distance === best.distance && city.ownerId < best.ownerId)) best = { distance, ownerId: city.ownerId };
   }
   return best ? playerGeneration(state.players[best.ownerId], state.setup.eraProgression) : 1;

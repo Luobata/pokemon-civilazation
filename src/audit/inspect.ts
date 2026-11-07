@@ -97,6 +97,23 @@ function inspectMap(state: GameState): AuditSystemInspection {
   };
 }
 
+function inspectMapWrap(state: GameState): AuditSystemInspection {
+  const { width, height, tiles } = state.map, wrap = state.map.wrap === true;
+  const column = (col: number) => Array.from({ length: height }, (_, row) => tiles[row * width + col]);
+  const ocean = (list: readonly string[]) => list.filter(biome => biome === 'ocean').length;
+  const poles = [...tiles.slice(0, width), ...tiles.slice((height - 1) * width)];
+  return {
+    metrics: [
+      metric('当前规则', wrap ? '东西环绕 v22' : '平面地图（v≤21）'),
+      metric('地图尺寸', `${width} × ${height}`),
+      metric('最西 / 最东列海洋格', `${ocean(column(0))} / ${ocean(column(width - 1))}（共 ${height}）`),
+      metric('南北两端雪原/海洋', `${poles.filter(biome => biome === 'snow' || biome === 'ocean').length} / ${poles.length}`),
+    ],
+    data: { wrap, width, height, westColumn: column(0), eastColumn: column(width - 1),
+      note: wrap ? '最东一列与最西一列相邻；距离取三种东西平移中的最短值。' : '本局是平面地图，东西两侧是地图边缘。' },
+  };
+}
+
 function inspectVision(state: GameState): AuditSystemInspection {
   const rows = Object.values(state.players).map(player => {
     const visible = visibleTiles(state, player.id);
@@ -626,6 +643,7 @@ function inspectPlanned(system: AuditSystem, state: GameState): AuditSystemInspe
 
 const IMPLEMENTED_INSPECTORS: Record<string, (state: GameState) => AuditSystemInspection> = {
   's1-map': inspectMap,
+  's-map-wrap': inspectMapWrap,
   's2-vision': inspectVision,
   's3-cities': inspectCities,
   's4-population': inspectPopulation,

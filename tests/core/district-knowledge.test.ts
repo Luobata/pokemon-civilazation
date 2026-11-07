@@ -117,7 +117,7 @@ test('D-P3-7: harbor target 155 requires explored adjacent land 156 in both inpu
   const position = { q: 8, r: 6 }, target = hexToIndex(position, state.map)!;
   const hidden = hexToIndex({ q: 9, r: 6 }, state.map)!;
   expect([target, hidden]).toEqual([155, 156]);
-  for (const p of [position, ...neighbors(position)]) state.map.tiles[hexToIndex(p, state.map)!] = 'ocean';
+  for (const p of [position, ...neighbors(position, state.map)]) state.map.tiles[hexToIndex(p, state.map)!] = 'ocean';
   state.map.tiles[hidden] = 'grassland';
   state.knowledge = { 0: emptyKnowledge(), 1: emptyKnowledge() }; refreshKnowledge(state);
   for (const explored of [false, true]) {
@@ -137,7 +137,7 @@ test('remembered immutable terrain still contributes while its dynamic facts are
   const { state, target, hidden } = hiddenNeighborFixture();
   const view = observe(state, 0);
   // Isolate a remembered terrain source; neither revealed nor hidden mutable sources are needed.
-  for (const hex of neighbors(indexToHex(target, state.map))) {
+  for (const hex of neighbors(indexToHex(target, state.map), state.map)) {
     const index = hexToIndex(hex, state.map)!;
     if (index !== hidden) view.map.tiles[index] = null;
   }

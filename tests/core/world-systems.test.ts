@@ -51,14 +51,14 @@ function visibleTilesFor(state: GameState): Set<number> {
   const unit = Object.values(state.units).find((unit): unit is MapUnit => unit.ownerId === 0 && unit.location === 'map');
   const city = state.cities[9001];
   const indexes = state.map.tiles.map((_, index) => index)
-    .filter(index => hexDistance(indexToHex(index, state.map), city.position) <= 2
-      || (unit && hexDistance(indexToHex(index, state.map), unit.position) <= 2));
+    .filter(index => hexDistance(indexToHex(index, state.map), city.position, state.map) <= 2
+      || (unit && hexDistance(indexToHex(index, state.map), unit.position, state.map) <= 2));
   return new Set(indexes);
 }
 
 function placeNear(state: GameState, position: Hex, offset = 1): number {
   const unitId = state.nextEntityId++;
-  const target = neighbors(position).sort((a, b) => hexToIndex(a, state.map)! - hexToIndex(b, state.map)!)[offset - 1];
+  const target = neighbors(position, state.map).sort((a, b) => hexToIndex(a, state.map)! - hexToIndex(b, state.map)!)[offset - 1];
   state.units[unitId] = createMapUnit({ kind: 'pokemon', speciesId: 'bulbasaur' }, unitId, 0, target, WORLD_CONTENT.base, 0, 1);
   refreshKnowledge(state, WORLD_CONTENT.base);
   return unitId;
@@ -97,7 +97,7 @@ describe('nests', () => {
   test('clearing costs actions, deals counter damage, then awards a bounded reward', () => {
     const state = fixture();
     const nest = Object.values(state.expansion!.world.nests).sort((a, b) =>
-      hexDistance(a.position, state.cities[9001].position) - hexDistance(b.position, state.cities[9001].position))[0];
+      hexDistance(a.position, state.cities[9001].position, state.map) - hexDistance(b.position, state.cities[9001].position, state.map))[0];
     const unitId = placeNear(state, nest.position);
     let strikes = 0;
     while (state.expansion!.world.nests[nest.id] && strikes < 10) {
@@ -126,8 +126,8 @@ describe('nests', () => {
     expect(rampager?.ownerId).toBeNull();
     if (!rampager || rampager.location !== 'map') return;
     const city = Object.values(state.cities).sort((a, b) =>
-      hexDistance(rampager.position, a.position) - hexDistance(rampager.position, b.position))[0];
-    state.units[rampagerId].position = neighbors(city.position)[0];
+      hexDistance(rampager.position, a.position, state.map) - hexDistance(rampager.position, b.position, state.map))[0];
+    state.units[rampagerId].position = neighbors(city.position, state.map)[0];
     state.cities[city.id].hp = 2;
     state.round++;
     for (const [unitId, unit] of Object.entries(state.units)) {
@@ -147,7 +147,7 @@ describe('resources and overlords', () => {
     const state = fixture();
     const world = state.expansion!.world;
     const tileIndex = state.map.tiles.findIndex((_, index) =>
-      hexDistance(indexToHex(index, state.map), state.cities[9001].position) === 2);
+      hexDistance(indexToHex(index, state.map), state.cities[9001].position, state.map) === 2);
     const definition = WORLD_DEFINITIONS.berries.oranBerry;
     world.resources = { [tileIndex]: {
       tileIndex, position: indexToHex(tileIndex, state.map), kind: 'berry', definitionId: definition.id,

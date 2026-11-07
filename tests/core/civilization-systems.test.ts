@@ -322,7 +322,7 @@ describe('observation and deterministic planning', () => {
     const nextView = observeCivilization(state, 0, visible);
     const next = planCivilizationAction(nextView);
     expect(next).not.toEqual({ type: 'MakeOffering', cityId: city.id, resource: 'gold' });
-    expect(hexDistance(city.position, state.cities[state.players[1]!.headquartersCityId]!.position)).toBeGreaterThan(1);
+    expect(hexDistance(city.position, state.cities[state.players[1]!.headquartersCityId]!.position, state.map)).toBeGreaterThan(1);
   });
 
   test('planner establishes a sanctuary when an eligible unit is already on a visible site', () => {

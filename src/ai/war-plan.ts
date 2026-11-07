@@ -34,7 +34,7 @@ function strategicAllianceBlock(view: PlayerView, alliedEnemies: ReadonlySet<num
     const headquarters = Number(b.headquartersOf === b.ownerId) - Number(a.headquartersOf === a.ownerId);
     if (headquarters !== 0) return headquarters;
     const ownCities = view.economy.cities;
-    const distance = (city: typeof a) => Math.min(...ownCities.map(own => hexDistance(own.position, city.position)));
+    const distance = (city: typeof a) => Math.min(...ownCities.map(own => hexDistance(own.position, city.position, view.map)));
     const byDistance = distance(a) - distance(b);
     if (byDistance !== 0) return byDistance;
     return a.id - b.id;
@@ -71,8 +71,8 @@ export function campaignPlan(view: PlayerView): { target: KnownCity; enemies: nu
   if (!targets.length) return null;
   const ownCities = view.economy.cities;
   const distanceFromTerritory = (city: KnownCity) => ownCities.length
-    ? Math.min(...ownCities.map(own => hexDistance(own.position, city.position)))
-    : Math.min(...view.units.filter(unit => unit.ownerId === view.playerId).map(unit => hexDistance(unit.position, city.position)));
+    ? Math.min(...ownCities.map(own => hexDistance(own.position, city.position, view.map)))
+    : Math.min(...view.units.filter(unit => unit.ownerId === view.playerId).map(unit => hexDistance(unit.position, city.position, view.map)));
   const target = [...targets].sort((a, b) => {
     const headquarters = Number(b.headquartersOf === b.ownerId) - Number(a.headquartersOf === a.ownerId);
     if (headquarters !== 0) return headquarters;

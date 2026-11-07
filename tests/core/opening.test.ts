@@ -36,8 +36,8 @@ test('v21 places item balls with a stable hash: same world and RNG as v20, away 
   expect(balls.length).toBeGreaterThanOrEqual(3);
   for (const index of balls) {
     expect(v21.map.tiles[index]).not.toBe('ocean');
-    for (const city of Object.values(v21.cities)) expect(hexDistance(city.position, indexToHex(index, v21.map))).toBeGreaterThanOrEqual(OPENING_RULES.ballCityDistance);
-    for (const other of balls) if (other !== index) expect(hexDistance(indexToHex(other, v21.map), indexToHex(index, v21.map))).toBeGreaterThanOrEqual(OPENING_RULES.ballSpacing);
+    for (const city of Object.values(v21.cities)) expect(hexDistance(city.position, indexToHex(index, v21.map), v21.map)).toBeGreaterThanOrEqual(OPENING_RULES.ballCityDistance);
+    for (const other of balls) if (other !== index) expect(hexDistance(indexToHex(other, v21.map), indexToHex(index, v21.map), v21.map)).toBeGreaterThanOrEqual(OPENING_RULES.ballSpacing);
   }
   expect(createGame(duel(21)).expansion!.opening).toEqual(v21.expansion!.opening);
   const view = observe(v21, 0).expansion!.opening!;

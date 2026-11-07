@@ -11,7 +11,7 @@ test('v16: the starting settler stands beside the capital and a reminder leads t
   await page.goto('/?seed=12345');
   const game = await state(page), capital = game.cities[game.players[0].headquartersCityId];
   const settler = Object.values(game.units).find(unit => unit.ownerId === 0 && unit.kind === 'logistics')!;
-  expect(hexDistance(capital.position, settler.position!)).toBe(1);
+  expect(hexDistance(capital.position, settler.position!, game.map)).toBe(1);
   const reminder = page.locator(`[data-reminder="unit:${settler.id}"]`);
   await expect(reminder).toHaveText('开拓队：去建新城');
   await reminder.click();

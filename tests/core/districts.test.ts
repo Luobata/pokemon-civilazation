@@ -189,7 +189,7 @@ test('gym XP stacks with center and matching gym at actual deployment; district 
 test('gym pending deployments gain district XP only on the eventual successful deployment', () => {
   const { state, city, tile } = districtFixture('gymDistrict');
   city.pendingDeployments = [{ enteredAtRound: 1, sourceOrderId: 20, item: { kind: 'pokemon', defId: 'bulbasaur' } }];
-  neighbors(city.position).forEach((position, index) => { state.units[100 + index] = createMapUnit({ kind: 'pokemon', speciesId: 'bulbasaur' }, 100 + index, 0, position, EXPANSION_CONTENT); });
+  neighbors(city.position, state.map).forEach((position, index) => { state.units[100 + index] = createMapUnit({ kind: 'pokemon', speciesId: 'bulbasaur' }, 100 + index, 0, position, EXPANSION_CONTENT); });
   resolveEconomy(state); expect(city.pendingDeployments).toHaveLength(1);
   built(state, 'gymDistrict', tile); delete state.units[100];
   const result = resolveEconomy(state).find(event => event.type === 'UnitTrained');

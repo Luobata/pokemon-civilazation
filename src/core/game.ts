@@ -34,11 +34,11 @@ export function createGame(setup: GameSetup, content: Content = contentFor(setup
     || setup.players.some(player => player.controller === 'human' && !STARTER_IDS.includes(player.starterId))) {
     throw new Error('Expected 2–4 distinct players and at most one human with a chosen starter.');
   }
-  const generated = generateMap({ ...setup, playerCount: setup.players.length });
+  const generated = generateMap({ ...setup, playerCount: setup.players.length, ...(content.wrap ? { wrap: true } : {}) });
   const state: GameState = {
     ...gameVersions(setup), contentVersion: content.version,
     setup: JSON.parse(JSON.stringify(setup)) as GameSetup,
-    map: { width: generated.width, height: generated.height, tiles: generated.tiles },
+    map: { width: generated.width, height: generated.height, tiles: generated.tiles, ...(generated.wrap ? { wrap: true as const } : {}) },
     rng: generated.rng, nextEntityId: 1, commandSeq: 0, round: 1,
     activePlayerId: setup.players[0].id, turnOrder: setup.players.map(player => player.id),
     diplomacy: setup.players.flatMap(a => setup.players.filter(b => a.id < b.id).map(b => ({ a: a.id, b: b.id, status: 'peace' as const, changedAtRound: 1, declaredBy: null, cooldownUntilRound: 0, rejectedAtRound: {}, citiesLostSinceWar: {}, proposal: null }))),

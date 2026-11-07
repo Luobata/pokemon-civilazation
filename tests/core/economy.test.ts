@@ -36,7 +36,7 @@ function round(state: GameState) {
 }
 function panelFixture() {
   const state = fixture(), city = state.cities[1];
-  city.workedTileIds = neighbors(city.position).slice(0, 2).map(hex => hexToIndex(hex, state.map)!);
+  city.workedTileIds = neighbors(city.position, state.map).slice(0, 2).map(hex => hexToIndex(hex, state.map)!);
   state.map.tiles[city.workedTileIds[1]] = 'forest';
   city.buildingIds.push('pasture'); city.hp = 120; city.food = 22;
   return state;
@@ -118,7 +118,7 @@ describe('work assignment', () => {
     expect(city.workedTileIds).toEqual([]); expect(city.lockedTileIds).toEqual([]); expect(cityYield(state, city).research).toBe(3);
   });
   test('snow/volcano need meteorology and get +1 research when unlocked', () => {
-    const state = fixture(), city = state.cities[1], ids = neighbors(city.position).slice(0, 2).map(hex => hexToIndex(hex, state.map)!);
+    const state = fixture(), city = state.cities[1], ids = neighbors(city.position, state.map).slice(0, 2).map(hex => hexToIndex(hex, state.map)!);
     state.map.tiles[ids[0]] = 'snow'; state.map.tiles[ids[1]] = 'volcano';
     expect(workCandidates(state, city)).not.toContain(ids[0]); expect(workCandidates(state, city)).not.toContain(ids[1]);
     state.players[0].research.unlockedIds = ['meteorology'];
@@ -153,7 +153,7 @@ describe('production and D16/D17/D28', () => {
   });
   test('old waiting records claim the only gap first; new waiting order waits and overflow only carries', () => {
     const state = fixture(), city = state.cities[1]; state.round = 4;
-    const adjacent = neighbors(city.position).sort((a, b) => hexToIndex(a, state.map)! - hexToIndex(b, state.map)!);
+    const adjacent = neighbors(city.position, state.map).sort((a, b) => hexToIndex(a, state.map)! - hexToIndex(b, state.map)!);
     for (const [i, position] of adjacent.slice(1).entries()) state.units[20 + i] = { kind: 'logistics', role: 'settler', id: 20 + i, ownerId: 0, location: 'map', hp: 30, enraged: false, wildHome: null, position, actionLeft: 1, xp: 0 };
     city.pendingDeployments = [{ enteredAtRound: 3, sourceOrderId: 10, item: pokemon as { kind: 'pokemon'; defId: 'charmander' } },
       { enteredAtRound: 2, sourceOrderId: 20, item: pokemon as { kind: 'pokemon'; defId: 'charmander' } }];
@@ -171,7 +171,7 @@ describe('production and D16/D17/D28', () => {
   });
   test('same-round pending ties use order ID; blocked terrain is filtered before spawn', () => {
     const state = fixture(), city = state.cities[1];
-    for (const position of neighbors(city.position)) state.map.tiles[hexToIndex(position, state.map)!] = 'ocean';
+    for (const position of neighbors(city.position, state.map)) state.map.tiles[hexToIndex(position, state.map)!] = 'ocean';
     city.pendingDeployments = [
       { enteredAtRound: 1, sourceOrderId: 20, item: { kind: 'pokemon', defId: 'squirtle' } },
       { enteredAtRound: 1, sourceOrderId: 10, item: { kind: 'pokemon', defId: 'charmander' } },

@@ -44,7 +44,7 @@ export function visibleTiles(state: GameState, playerId: number, content: Conten
   const visible = new Set<number>();
   for (const { position, radius } of sources) for (let r = position.r - radius; r <= position.r + radius; r++) {
     for (let q = position.q - radius; q <= position.q + radius; q++) {
-      if (hexDistance(position, { q, r }) > radius) continue;
+      if (hexDistance(position, { q, r }, state.map) > radius) continue;
       const index = hexToIndex({ q, r }, state.map);
       if (index !== null) visible.add(index);
     }
@@ -59,7 +59,7 @@ export function territoryOwners(state: GameState): number[][] {
     if (city.ownerId === null) continue;
     const radius = workRadius(city);
     for (let q = city.position.q - radius; q <= city.position.q + radius; q++) for (let r = city.position.r - radius; r <= city.position.r + radius; r++) {
-      if (hexDistance(city.position, { q, r }) > radius) continue;
+      if (hexDistance(city.position, { q, r }, state.map) > radius) continue;
       const index = hexToIndex({ q, r }, state.map);
       if (index !== null && !owners[index].includes(city.ownerId)) owners[index].push(city.ownerId);
     }
@@ -131,7 +131,7 @@ export function observe(state: GameState, playerId: number, content: Content = c
     ...(state.setup.eraProgression ? { eraProgression: state.setup.eraProgression } : {}),
     ...(state.setup.gameplayVersion ? { gameplayVersion: state.setup.gameplayVersion } : {}),
     playerId, seed: state.setup.seed, round: state.round, activePlayerId: state.activePlayerId, commandSeq: state.commandSeq,
-    map: { width: state.map.width, height: state.map.height,
+    map: { width: state.map.width, height: state.map.height, ...(state.map.wrap ? { wrap: true } : {}),
       tiles: state.map.tiles.map((biome, i) => visible.has(i) ? biome : knowledge.rememberedTiles[i]?.biomeId ?? null) },
     territoryOwnerIds: territory.map((ids, i) => visible.has(i) ? [...ids] : knowledge.rememberedTiles[i]?.territoryOwnerIds?.slice() ?? null),
     combat: {

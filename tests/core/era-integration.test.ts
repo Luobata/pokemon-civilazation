@@ -55,7 +55,7 @@ test('Joy late-era field care heals her favored Pokemon outside territory, retai
     const state = createGame(setup(mode, 'joy'));
     state.players[0].research.unlockedIds = Object.keys(TECHS).slice(0, 7) as (keyof typeof TECHS)[];
     const city = state.cities[state.players[0].headquartersCityId];
-    const index = state.map.tiles.findIndex((_, i) => hexDistance(city.position, indexToHex(i, state.map)) > 6);
+    const index = state.map.tiles.findIndex((_, i) => hexDistance(city.position, indexToHex(i, state.map), state.map) > 6);
     expect(index).toBeGreaterThanOrEqual(0);
     const position = indexToHex(index, state.map);
     const favored = createMapUnit({ kind: 'pokemon', speciesId: 'bulbasaur' }, 1000, 0, position, EXPANSION_CONTENT);
@@ -88,7 +88,7 @@ test('Lance mobility is accepted by authoritative movement, using the same proje
   state.knowledge[0].rememberedTiles = Object.fromEntries(state.map.tiles.map((biomeId, i) => [i, { biomeId }]));
   refreshKnowledge(state);
   const view = observe(state, 0), range = reachablePaths(view, unit.id);
-  const destination = Object.keys(range).map(Number).find(i => hexDistance(unit.position, indexToHex(i, state.map)) === 6);
+  const destination = Object.keys(range).map(Number).find(i => hexDistance(unit.position, indexToHex(i, state.map), state.map) === 6);
   expect(destination).toBeDefined();
   const action = { type: 'Move' as const, unitId: unit.id, to: indexToHex(destination!, state.map) };
   const result = step(state, { actorId: 0, expectedSeq: 0, action });

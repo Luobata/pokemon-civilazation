@@ -4,6 +4,7 @@ import type { LegendId, TenetId } from '../content/faith-legends.ts';
 import { gameplayAtLeast } from '../content/eras.ts';
 import type { Content } from '../content/units.ts';
 import { hexDistance } from './hex.ts';
+import type { MapShape } from './hex.ts';
 import { finishGame } from './victory.ts';
 import type { EventPayload, GameState } from './model.ts';
 
@@ -71,7 +72,7 @@ export function validateFaithAction(state: GameState, actorId: number, action: F
   if (!faith.faiths[actorId]) return 'faith-missing';
   const city = state.cities[action.cityId];
   if (!city || city.ownerId === null || faith.cityFaith[city.id] === actorId) return 'spread-unavailable';
-  if (!Object.values(state.cities).some(own => own.ownerId === actorId && hexDistance(own.position, city.position) <= FAITH_RULES.spreadRange)) return 'spread-range';
+  if (!Object.values(state.cities).some(own => own.ownerId === actorId && hexDistance(own.position, city.position, state.map) <= FAITH_RULES.spreadRange)) return 'spread-range';
   return mine.offeringPoints >= spreadCost(state, actorId) ? null : 'faith-offering';
 }
 export const spreadCost = (state: GameState, actorId: number) => FAITH_RULES.spreadCost - (faithTenets(state, actorId).includes('missionaries') ? 5 : 0);
@@ -113,7 +114,7 @@ export function resolveFaithRound(state: GameState, content: Content): EventPayl
   const faithful = Object.values(state.cities).filter(city => city.ownerId !== null && faith.cityFaith[city.id] !== undefined).sort((a, b) => a.id - b.id);
   for (const source of faithful) {
     const founder = faith.cityFaith[source.id];
-    for (const target of Object.values(state.cities).filter(city => city.ownerId !== null && city.id !== source.id && hexDistance(city.position, source.position) <= FAITH_RULES.passiveRange)) {
+    for (const target of Object.values(state.cities).filter(city => city.ownerId !== null && city.id !== source.id && hexDistance(city.position, source.position, state.map) <= FAITH_RULES.passiveRange)) {
       addPressure(state, target.id, founder, FAITH_RULES.passivePressure);
     }
   }
@@ -157,21 +158,21 @@ export function faithHealing(state: GameState, unit: { kind: string; speciesId?:
   const faith = state.expansion?.faith;
   if (!faith || unit.ownerId === null || unit.kind !== 'pokemon') return 0;
   const near = Object.values(state.cities).some(city => city.ownerId === unit.ownerId && faith.cityFaith[city.id] !== undefined
-    && faith.faiths[faith.cityFaith[city.id]].legend === 'hooh' && hexDistance(city.position, unit.position) <= 2);
+    && faith.faiths[faith.cityFaith[city.id]].legend === 'hooh' && hexDistance(city.position, unit.position, state.map) <= 2);
   if (!near) return 0;
   const species = content.species[unit.speciesId!];
   return LEGENDS.hooh.types.includes(species.typeId) || (species.secondaryTypeId !== undefined && LEGENDS.hooh.types.includes(species.secondaryTypeId)) ? 3 : 0;
 }
 /** Zealots tenet: +10% active attack within 3 tiles of an own faithful city. */
-export function zealotMultiplier(state: Pick<GameState, 'expansion' | 'cities'>, ownerId: number | null, position: { q: number; r: number }): number {
+export function zealotMultiplier(state: Pick<GameState, 'expansion' | 'cities' | 'map'>, ownerId: number | null, position: { q: number; r: number }): number {
   const faith = state.expansion?.faith;
   if (!faith || ownerId === null || !faith.faiths[ownerId]?.tenets.includes('zealots')) return 1000;
-  return Object.values(state.cities).some(city => city.ownerId === ownerId && faith.cityFaith[city.id] === ownerId && hexDistance(city.position, position) <= 3) ? 1100 : 1000;
+  return Object.values(state.cities).some(city => city.ownerId === ownerId && faith.cityFaith[city.id] === ownerId && hexDistance(city.position, position, state.map) <= 3) ? 1100 : 1000;
 }
 /** Same as zealotMultiplier, from the player's observation (public city faith + own cities). */
-export function viewZealotMultiplier(view: { playerId: number; economy: { cities: { id: number; position: { q: number; r: number } }[] }; expansion?: { faith?: FaithView } }, position: { q: number; r: number }): number {
+export function viewZealotMultiplier(view: { playerId: number; map: MapShape; economy: { cities: { id: number; position: { q: number; r: number } }[] }; expansion?: { faith?: FaithView } }, position: { q: number; r: number }): number {
   const faith = view.expansion?.faith;
   const mine = faith?.faiths.find(item => item.founderId === view.playerId);
   if (!faith || !mine?.tenets.includes('zealots')) return 1000;
-  return view.economy.cities.some(city => faith.cityFaith[city.id] === view.playerId && hexDistance(city.position, position) <= 3) ? 1100 : 1000;
+  return view.economy.cities.some(city => faith.cityFaith[city.id] === view.playerId && hexDistance(city.position, position, view.map) <= 3) ? 1100 : 1000;
 }

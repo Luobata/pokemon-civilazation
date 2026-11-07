@@ -16,11 +16,11 @@ export function seekUnknownHeadquarters(view: PlayerView, unit: MapUnit, paths: 
     if (index !== null && !visible.has(index) && city.ownerId !== null && city.ownerId !== view.playerId
       && view.civilizations.some(civ => civ.id === city.ownerId && !civ.eliminated)) targets.add(index);
   }
-  const ordered = [...targets].sort((a, b) => hexDistance(unit.position, indexToHex(a, view.map))
-    - hexDistance(unit.position, indexToHex(b, view.map)) || a - b);
+  const ordered = [...targets].sort((a, b) => hexDistance(unit.position, indexToHex(a, view.map), view.map)
+    - hexDistance(unit.position, indexToHex(b, view.map), view.map) || a - b);
   for (const index of ordered) {
-    const target = indexToHex(index, view.map), before = hexDistance(unit.position, target);
-    if (destinations.some(to => hexDistance(to, target) < before)) return target;
+    const target = indexToHex(index, view.map), before = hexDistance(unit.position, target, view.map);
+    if (destinations.some(to => hexDistance(to, target, view.map) < before)) return target;
   }
   return null;
 }

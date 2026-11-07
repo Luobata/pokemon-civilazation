@@ -55,7 +55,7 @@ test('fixed seed creates deterministic legal wild population outside starting ex
     const index = hexToIndex(unit.position, state.map)!, region = Math.floor(index / 24 / 8) * 3 + Math.floor(index % 24 / 8);
     regionCounts.set(region, (regionCounts.get(region) ?? 0) + 1);
     expect(canEnter(unit, state.map.tiles[index])).toBe(true);
-    for (const city of Object.values(state.cities)) expect(hexDistance(city.position, unit.position)).toBeGreaterThanOrEqual(3);
+    for (const city of Object.values(state.cities)) expect(hexDistance(city.position, unit.position, state.map)).toBeGreaterThanOrEqual(3);
   }
   for (const count of regionCounts.values()) expect(count).toBeLessThanOrEqual(2);
 });
@@ -65,11 +65,11 @@ test('wander with no legal neighbor draws nothing; legal choices exclude work ra
   const random = vi.spyOn(rng, 'randomBelow'); actWild(state); expect(random).not.toHaveBeenCalled();
   state.map.tiles.fill('grassland'); state.cities[1] = createCity(1, 0, { q: 0, r: 2 });
   pokemon(state, 11, 'snorlax', null, 3, 3);
-  const legal = neighbors(unit.position).filter(position => hexToIndex(position, state.map) !== null
-    && hexDistance(position, state.cities[1].position) > workRadius(state.cities[1]) && hexDistance(position, state.units[11].position!) !== 0);
+  const legal = neighbors(unit.position, state.map).filter(position => hexToIndex(position, state.map) !== null
+    && hexDistance(position, state.cities[1].position, state.map) > workRadius(state.cities[1]) && hexDistance(position, state.units[11].position!, state.map) !== 0);
   const before = { ...unit.position }; actWild(state);
   expect(random.mock.calls.map(call => call[1])).toEqual([legal.length]);
-  expect(hexDistance(before, unit.position)).toBe(1); expect(legal).toContainEqual(unit.position);
+  expect(hexDistance(before, unit.position, state.map)).toBe(1); expect(legal).toContainEqual(unit.position);
 });
 
 test('guard selects lowest adjacent nonwild ID, fixed counter needs no extra draw; no target no draw', () => {

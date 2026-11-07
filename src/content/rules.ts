@@ -16,4 +16,6 @@ export type BiomeId = (typeof BIOME_WEIGHTS)[number]['id'] | 'volcano';
 export const MAP_GENERATION = {
   tilesPerCenter: 12,
   volcanoPercent: 2, // 暂定2%；GDD硬上限3%，仅边缘连通簇。
+  /** v22 环绕地图：次外圈（第 2 行 / 倒数第 2 行）非海洋地块变雪原的概率（%）；最外圈全部变雪原。 */
+  polarSnowPercent: 60,
 } as const;

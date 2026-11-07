@@ -12,6 +12,21 @@
 - 实现方向：`MapState` 加 `wrap?: true`（只在 v22 新局设置），`hex.ts` 的函数接收地图尺寸并在 `wrap` 时把列取模、距离取三种平移里的最小值；位置始终存规范坐标（列在 0..width−1）。旧版本不传或 `wrap` 为空时，结果与现在完全相同。
 - 浏览器：镜头可以无限横向平移，接缝处无缝绘制（画出相邻的地图副本），点击、悬停、浮层、攻击连线、移动路径跨接缝都正确。
 
+### A. 实现与验收（2026-11-07）
+
+- **表示**：`GridSize` / `MapTerrain` / `PlayerView.map` 增加可选的 `wrap`；只有 `content.wrap`（v22 新局）时 `createGame` 写入 `map.wrap: true`，视图照抄。v≤21 的状态与视图里没有这个键。
+- **几何（`src/core/hex.ts`）**：`hexDistance(a, b, map)` 与 `neighbors(hex, map)` 的地图参数改为必填；无 `wrap` 时结果与原来完全相同。有 `wrap` 时：`canonicalHex` 把列取模到 0..宽−1；`neighbors` 返回规范坐标；`hexDistance` 先规范化两端，再取 q、q−宽、q+宽 三种平移（同一 r）里的最小值；`hexToIndex` 把越界列折回（行不折回）；`edgeDistance` 只看南北两端。另有 `nearestCopy`（只用于绘制/动画方向，不存为位置）。没有任何模块级“当前地图”全局量。
+- **调用点迁移**：约 150 处 `hexDistance`、18 处 `neighbors` 逐一补上 `state.map` / `view.map` / `input.map`（按编译错误逐处处理，不靠默认值）。需要多传一份地图的接口：`inZoc`、`flankBonus`、`EraCombatContext.map`（天气范围）、`zealotMultiplier` / `viewZealotMultiplier`、`improvementBlocker` 输入、`planCivilizationAction`（可选，AI 传 `view.map`）、城市网络几个 `Pick<GameState>`。视野/领土/AI 选址的方形循环靠 `hexToIndex` 折回自动覆盖接缝。
+- **生成（`src/core/map.ts`）**：`generateMap({ wrap })` 用环绕距离划分群系（接缝两侧连续）；火山仍是“边缘连通簇”，环绕后边缘只剩南北两端；`applyPoles`：最外一行非海洋/火山全部变雪原，次外一行 60%（`MAP_GENERATION.polarSnowPercent`）变雪原；出生点、巢穴、资源、稀有树果只避开南北两端，出生点间距按环绕距离。
+- **命令**：位置始终存规范坐标；`Move.to` 若给的是越界副本，权威按折回后的格子寻路（路径来自 `neighbors`，仍是规范坐标）；浏览器右键移动改为发送规范坐标。
+- **浏览器**：`camera.ts` 新增 `mapSpan`、`copyShifts`、`tileToScreen`；`canvas2d` 按图层逐层画出所有与视口相交的地图副本（地形/迷雾缓存同样包含全部副本），商路连向最近的副本；移动动画用 `nearestCopy` 逐步展开路径，跨接缝只滑一格；战斗浮卡锚定在离视口中心最近的副本；指针 → 格子经 `hexToIndex` 折回，点击、悬停、放置、右键都落在规范格。镜头本来没有横向限制；`fitCamera` / 居中不变。
+- **验收**：
+  - v21 固定 48 局（`tools/district-smoke.ts 21`）改动前后逐文件 `cmp`：**49/49 一致**。
+  - v22 固定 48 局（24×16，100 轮）：**48/48 完成、0 异常、0 被拒命令**；结局 华丽大赛 16、信仰 13、征服 8、积分 5、图鉴 4、冠军赛 2，平均结束轮次 73.5（同配置 v21：84.3，积分 16、华丽大赛 10、信仰 8、征服 7、图鉴 7）。小地图环绕后文明间距离变短，接触与信仰传播更早，平衡由合并后统一测量。
+  - 单元测试 `tests/core/map-wrap.test.ts`（13 项）：接缝两侧距离/相邻/索引、`hexDistance` 与环绕邻接图 BFS 完全一致、平面几何不变、跨接缝移动与地形花费、越界副本命令、视野与射程、预览 = 结算、控制区跨接缝、v22 生成（极地、东西无海墙、出生点可在边列）、镜头副本/指针折回/动画。
+  - 浏览器测试 `tests/browser/map-wrap.spec.ts`：`?gameplay=22&seed=12345&size=24x16` 真实鼠标拖过东缘，西侧各列已绘制（画布像素非空）、点击接缝东侧的副本打开 `地块 192`（第 0 列）、悬停有提示、继续平移超过一整张地图宽度；v21 同样操作东缘外不绘制。截图 `test-results/screenshots/map-wrap.png`。
+- **已知限制**：v22 的 AI 没有专门的“绕到另一侧”策略（它们本来就按距离打分，所以会自然走最短路线）；超大地图在最小缩放下会多画几份副本，绘制量随可见副本数线性增加。
+
 ## B. 分支科技树（`content.techTree`）
 
 - 约 30 项科技、6 个时代列。每项科技有 1–2 个**指定前置**（全部完成才能研究），形成 5–6 条可辨认的路线（例如：捕捉、育成与进化、属性、建造与城市、探索与航行/飞行、联盟与外交），路线之间有交叉依赖，玩家需要规划。

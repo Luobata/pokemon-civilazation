@@ -75,7 +75,7 @@ export function diagnoseB5(directory: string) {
             if (view.civilizations.find(civ => civ.id === enemy)?.eliminated) continue;
             if (own * 1000 >= knownCombatCount(view, enemy) * ai.conservativeDeclareStrength
               && cities.some(city => city.ownerId === enemy && view.units.some(unit => unit.ownerId === view.playerId
-                && hexDistance(unit.position, city.position) <= ai.conservativeBorderDistance))) {
+                && hexDistance(unit.position, city.position, state.map) <= ai.conservativeBorderDistance))) {
               row.eligibleDeclarationPairs++;
               if (ai.conservativeMayDeclareWar) row.enabledDeclarationPairs++;
             }
@@ -109,7 +109,7 @@ export function diagnoseB5(directory: string) {
           const unitId = command.action.unitId, unit = view.units.find(unit => unit.id === unitId);
           if (unit?.kind === 'pokemon') {
             const target = seekUnknownHeadquarters(view, unit, RULE_QUERIES.paths(view, unit.id, content));
-            if (target && hexDistance(command.action.to, target) < hexDistance(unit.position, target)) {
+            if (target && hexDistance(command.action.to, target, state.map) < hexDistance(unit.position, target, state.map)) {
               row.searchMoves++; row.firstSearchMove ??= state.round; row.firstSearchSeq ??= state.commandSeq;
             }
           }
@@ -130,7 +130,7 @@ export function diagnoseB5(directory: string) {
             const enemy = pair.a === view.playerId ? pair.b : pair.a;
             return !view.civilizations.find(civ => civ.id === enemy)?.eliminated && enough(enemy, 2000)
               && knownCities(view).some(city => city.ownerId === enemy && view.units.some(unit => unit.ownerId === view.playerId
-                && hexDistance(unit.position, city.position) <= distance));
+                && hexDistance(unit.position, city.position, state.map) <= distance));
           });
           if (eligible) { if (distance === 1) row.declarationDistance1++; else row.declarationDistance5++; }
         }

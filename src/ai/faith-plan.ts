@@ -29,7 +29,7 @@ export function planFaithAction(view: PlayerView): Command['action'] | null {
     // Spread to the closest city not yet following us, preferring own cities, then rivals' capitals.
     const own = view.economy.cities.map(city => city.position);
     const target = view.cities.filter(city => city.ownerId !== null && faith.cityFaith[city.id] !== view.playerId
-      && own.some(position => hexDistance(position, city.position) <= FAITH_RULES.spreadRange))
+      && own.some(position => hexDistance(position, city.position, view.map) <= FAITH_RULES.spreadRange))
       .sort((a, b) => Number(b.ownerId === view.playerId) - Number(a.ownerId === view.playerId)
         || (faith.ownPressure[b.id] ?? 0) - (faith.ownPressure[a.id] ?? 0) || a.id - b.id)[0];
     if (target) return { type: 'SpreadFaith', cityId: target.id };

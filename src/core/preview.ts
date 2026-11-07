@@ -35,7 +35,7 @@ export function previewAttack(view: PlayerView, unitId: number, target: CombatTa
   if (!unit || unit.kind !== 'pokemon' || !unit.actionLeft || view.outcome || view.activePlayerId !== view.playerId || !defender) return { ok: false, reason: 'attack-unavailable' };
   if (defender.ownerId === view.playerId || (defender.ownerId !== null && !view.diplomacy.some(pair => pair.status === 'war'
     && pair.a === Math.min(view.playerId, defender.ownerId!) && pair.b === Math.max(view.playerId, defender.ownerId!)))) return { ok: false, reason: 'at-peace' };
-  const distance = hexDistance(unit.position, defender.position), range = content.species[unit.speciesId].range;
+  const distance = hexDistance(unit.position, defender.position, view.map), range = content.species[unit.speciesId].range;
   const from = view.map.tiles[hexToIndex(unit.position, view.map)!], to = view.map.tiles[hexToIndex(defender.position, view.map)!];
   if (!from || !to || distance < 1 || distance > range || ('kind' in defender && defender.kind === 'logistics' && distance !== 1)) return { ok: false, reason: 'out-of-range' };
   const techs = view.economy.player.research.unlockedIds;
@@ -45,7 +45,7 @@ export function previewAttack(view: PlayerView, unitId: number, target: CombatTa
   if (target.kind === 'unit') {
     const defendingUnit = view.units.find(unit => unit.id === target.id)!;
     hp = defendingUnit.hp;
-    const flank = flankBonus(view, unit, defendingUnit, view.units);
+    const flank = flankBonus(view, unit, defendingUnit, view.units, view.map);
     const mapView = { map: view.map as never, expansion: view.expansion ? { leaders: { players: { [view.playerId]: view.expansion.leaders } } } as never : undefined, round: view.round,
       players: Object.fromEntries(view.civilizations.map(civ => [civ.id, { leaderId: civ.leaderId }])) as never };
     const home = (identity: import("../content/units.ts").UnitIdentity, biome: typeof to) => homeDefenseMultiplier(view.expansion?.essences !== undefined, identity, biome, content);
@@ -99,7 +99,7 @@ export function previewCapture(view: PlayerView, unitId: number, targetUnitId: n
   const unit = view.units.find(unit => unit.id === unitId && unit.ownerId === view.playerId), target = view.units.find(unit => unit.id === targetUnitId);
   const player = view.economy.player;
   if (!unit || unit.kind !== 'pokemon' || !unit.actionLeft || view.outcome || view.activePlayerId !== view.playerId || !target || target.kind !== 'pokemon'
-    || target.ownerId !== null || hexDistance(unit.position, target.position) !== 1 || !Object.hasOwn(content.balls, ballId)
+    || target.ownerId !== null || hexDistance(unit.position, target.position, view.map) !== 1 || !Object.hasOwn(content.balls, ballId)
     || !player.research.unlockedIds.includes('domestication') || !player.research.unlockedIds.includes(content.balls[ballId].requiredTech)
     || player.ballInventory[ballId] < 1) return { ok: false, reason: 'capture-unavailable' };
   const definition = content.species[target.speciesId];

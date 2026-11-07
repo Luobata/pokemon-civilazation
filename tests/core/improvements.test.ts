@@ -25,7 +25,7 @@ function siteFixture(speciesId: SpeciesId = 'geodude') {
   const state = createGame(setup(2));
   const city = state.cities[state.players[0].headquartersCityId];
   const tileIndex = state.map.tiles.findIndex((biome, i) => biome === 'grassland'
-    && hexDistance(indexToHex(i, state.map), city.position) === 1);
+    && hexDistance(indexToHex(i, state.map), city.position, state.map) === 1);
   expect(tileIndex).toBeGreaterThanOrEqual(0);
   for (const unit of Object.values(state.units)) if (unit.ownerId === 0) delete state.units[unit.id];
   const worker = createMapUnit({ kind: 'pokemon', speciesId }, 9000, 0, indexToHex(tileIndex, state.map), EXPANSION_CONTENT, 0, 1);
@@ -43,7 +43,7 @@ test('improvements exist only in gameplay v2 era games', () => {
   expect(observe(createGame(setup(1)), 0).expansion).not.toHaveProperty('improvements');
   const v1 = createGame(setup(1)), hq = v1.cities[v1.players[0].headquartersCityId];
   const unit = Object.values(v1.units).find(item => item.ownerId === 0 && item.kind === 'pokemon')!;
-  expect(step(v1, { actorId: 0, expectedSeq: 0, action: { type: 'ImproveTile', unitId: unit.id, tileIndex: v1.map.tiles.findIndex((_, i) => hexDistance(indexToHex(i, v1.map), hq.position) === 1), kind: 'berryFarm' } }).ok).toBe(false);
+  expect(step(v1, { actorId: 0, expectedSeq: 0, action: { type: 'ImproveTile', unitId: unit.id, tileIndex: v1.map.tiles.findIndex((_, i) => hexDistance(indexToHex(i, v1.map), hq.position, v1.map) === 1), kind: 'berryFarm' } }).ok).toBe(false);
 });
 
 test('the parser accepts ImproveTile and rejects unknown kinds', () => {
@@ -84,13 +84,13 @@ test('a completed farm raises the worked tile yield and the city total', () => {
 
 test('improvements require own territory, a matching biome and not a city center', () => {
   const { state, city, worker } = siteFixture('bulbasaur');
-  const far = state.map.tiles.findIndex((biome, i) => biome === 'grassland' && hexDistance(indexToHex(i, state.map), city.position) > workRadius(city) + 1
-    && Object.values(state.cities).every(other => hexDistance(indexToHex(i, state.map), other.position) > 4));
+  const far = state.map.tiles.findIndex((biome, i) => biome === 'grassland' && hexDistance(indexToHex(i, state.map), city.position, state.map) > workRadius(city) + 1
+    && Object.values(state.cities).every(other => hexDistance(indexToHex(i, state.map), other.position, state.map) > 4));
   worker.position = indexToHex(far, state.map); refreshKnowledge(state);
   expect(improve(state, far).ok).toBe(false);
-  const mountain = state.map.tiles.findIndex((biome, i) => biome === 'mountain' && hexDistance(indexToHex(i, state.map), city.position) <= workRadius(city) && hexDistance(indexToHex(i, state.map), city.position) > 0);
+  const mountain = state.map.tiles.findIndex((biome, i) => biome === 'mountain' && hexDistance(indexToHex(i, state.map), city.position, state.map) <= workRadius(city) && hexDistance(indexToHex(i, state.map), city.position, state.map) > 0);
   if (mountain >= 0) { worker.position = indexToHex(mountain, state.map); refreshKnowledge(state); expect(improve(state, mountain).ok).toBe(false); }
-  const hq = state.map.tiles.findIndex((_, i) => hexDistance(indexToHex(i, state.map), city.position) === 0);
+  const hq = state.map.tiles.findIndex((_, i) => hexDistance(indexToHex(i, state.map), city.position, state.map) === 0);
   worker.position = { ...city.position }; refreshKnowledge(state);
   expect(improve(state, hq).ok).toBe(false);
 });

@@ -19,7 +19,7 @@ export function districtCandidates(view: PlayerView, cityId: number, content: Co
   const input = districtViewInput(view), city = view.economy.cities.find(city => city.id === cityId);
   if (!city) return [];
   const player = view.economy.player, personality = player.personality;
-  const tiles = [...input.visible].filter(index => hexDistance(city.position, indexToHex(index, view.map)) <= workRadius(city)).sort((a, b) => a - b);
+  const tiles = [...input.visible].filter(index => hexDistance(city.position, indexToHex(index, view.map), view.map) <= workRadius(city)).sort((a, b) => a - b);
   return DISTRICT_IDS.flatMap(kind => tiles.flatMap(tileIndex => {
     if (districtBlocker(input, cityId, kind, tileIndex)) return [];
     const effects = districtEffects(input, kind, tileIndex).total;

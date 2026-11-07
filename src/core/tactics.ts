@@ -2,7 +2,7 @@ import { gameplayAtLeast } from '../content/eras.ts';
 import type { GameplayVersion } from '../content/eras.ts';
 import type { Content, UnitIdentity } from '../content/units.ts';
 import { hexDistance } from './hex.ts';
-import type { Hex } from './hex.ts';
+import type { Hex, MapShape } from './hex.ts';
 import type { Diplomacy, MapUnit } from './model.ts';
 
 /** Gameplay v2 field tactics: zones of control and flanking. Legacy and v1 games are unchanged. */
@@ -29,13 +29,13 @@ export function zocTiles(mover: MapUnit, units: readonly MapUnit[], diplomacy: r
   return units.filter(other => other.id !== mover.id && other.ownerId !== null && other.ownerId !== mover.ownerId
     && atWar(diplomacy, mover.ownerId!, other.ownerId) && exertsZoc(other, content)).map(other => other.position);
 }
-export function inZoc(position: Hex, sources: readonly Hex[]): boolean {
-  return sources.some(source => hexDistance(source, position) === 1);
+export function inZoc(position: Hex, sources: readonly Hex[], map: MapShape): boolean {
+  return sources.some(source => hexDistance(source, position, map) === 1);
 }
 /** Permille bonus for a unit attack: other own Pokémon adjacent to the defender. */
-export function flankBonus(source: Source, attacker: MapUnit, defender: MapUnit, units: readonly MapUnit[]): number {
+export function flankBonus(source: Source, attacker: MapUnit, defender: MapUnit, units: readonly MapUnit[], map: MapShape): number {
   if (!usesTactics(source) || attacker.ownerId === null) return 0;
   const helpers = units.filter(unit => unit.id !== attacker.id && unit.ownerId === attacker.ownerId && unit.kind === 'pokemon'
-    && hexDistance(unit.position, defender.position) === 1).length;
+    && hexDistance(unit.position, defender.position, map) === 1).length;
   return Math.min(FLANK_MAX, helpers * FLANK_PER_UNIT);
 }

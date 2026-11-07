@@ -6,7 +6,7 @@ import { gameplayAtLeast } from '../content/eras.ts';
 import type { Content, UnitIdentity } from '../content/units.ts';
 import type { Yield } from '../content/economy.ts';
 import { hexDistance, hexToIndex, indexToHex } from './hex.ts';
-import type { Hex } from './hex.ts';
+import type { Hex, MapShape } from './hex.ts';
 import { workRadius } from './city.ts';
 import { isMapUnit } from './model.ts';
 import type { CityState, EventPayload, GameState, PlayerState, PlayerView } from './model.ts';
@@ -51,11 +51,11 @@ export function tileImprovementYield(state: GameState, tileIndex: number, player
   const improvement = state.expansion?.improvements?.tiles[tileIndex];
   return improvement ? improvementYield(improvement.kind, player) : null;
 }
-function ownTerritory(cities: readonly Pick<CityState, 'ownerId' | 'position' | 'population'>[], playerId: number, position: Hex): boolean {
-  return cities.some(city => city.ownerId === playerId && hexDistance(city.position, position) <= workRadius(city as CityState) && hexDistance(city.position, position) > 0);
+function ownTerritory(cities: readonly Pick<CityState, 'ownerId' | 'position' | 'population'>[], playerId: number, position: Hex, map: MapShape): boolean {
+  return cities.some(city => city.ownerId === playerId && hexDistance(city.position, position, map) <= workRadius(city as CityState) && hexDistance(city.position, position, map) > 0);
 }
 /** Shared by authority, UI and AI. Returns a reason code or null. */
-export function improvementBlocker(input: { tiles: readonly (string | null)[]; width: number; height: number; cities: readonly Pick<CityState, 'ownerId' | 'position' | 'population'>[];
+export function improvementBlocker(input: { tiles: readonly (string | null)[]; width: number; height: number; wrap?: boolean; cities: readonly Pick<CityState, 'ownerId' | 'position' | 'population'>[];
   improved: (tileIndex: number) => boolean; unitPosition: Hex; playerId: number; tileIndex: number; kind: ImprovementId }): string | null {
   const { tileIndex, kind } = input;
   if (!Object.hasOwn(IMPROVEMENTS, kind)) return 'unknown-improvement';
@@ -63,10 +63,10 @@ export function improvementBlocker(input: { tiles: readonly (string | null)[]; w
   if (biome === undefined || biome === null) return 'unknown-tile';
   const position = indexToHex(tileIndex, input);
   if (!IMPROVEMENTS[kind].biomes.includes(biome as never)) return 'wrong-biome';
-  const distance = hexDistance(input.unitPosition, position);
+  const distance = hexDistance(input.unitPosition, position, input);
   if (biome === 'ocean' ? distance > 1 : distance !== 0) return 'not-on-site';
-  if (input.cities.some(city => hexDistance(city.position, position) === 0)) return 'city-center';
-  if (!ownTerritory(input.cities, input.playerId, position)) return 'outside-territory';
+  if (input.cities.some(city => hexDistance(city.position, position, input) === 0)) return 'city-center';
+  if (!ownTerritory(input.cities, input.playerId, position, input)) return 'outside-territory';
   if (input.improved(tileIndex)) return 'already-improved';
   return null;
 }
@@ -80,7 +80,7 @@ export function validateImprovementAction(state: GameState, actorId: number, act
   if (!Number.isSafeInteger(action.tileIndex) || action.tileIndex < 0 || action.tileIndex >= state.map.tiles.length) return 'unknown-tile';
   if (!visibleTiles(state, actorId).has(action.tileIndex)) return 'unknown-tile';
   if (districtOccupiedTiles(state).has(action.tileIndex)) return 'district-tile-occupied';
-  return improvementBlocker({ tiles: state.map.tiles, width: state.map.width, height: state.map.height, cities: Object.values(state.cities),
+  return improvementBlocker({ tiles: state.map.tiles, width: state.map.width, height: state.map.height, wrap: state.map.wrap, cities: Object.values(state.cities),
     improved: index => Object.hasOwn(improvements.tiles, index), unitPosition: unit.position, playerId: actorId, tileIndex: action.tileIndex, kind: action.kind });
 }
 export function applyImprovementAction(state: GameState, actorId: number, action: ImprovementAction, content: Content): EventPayload[] {
@@ -127,8 +127,8 @@ export function improvementOptions(view: PlayerView, unitId: number, content: Co
     ...(view.expansion?.districts?.tiles.map(tile => tile.tileIndex) ?? []), ...(view.expansion?.districts?.projects.map(tile => tile.tileIndex) ?? []),
     ...(view.expansion?.districts?.constructionSites?.filter(site => site.category === 'district').map(site => site.tileIndex) ?? [])]), visible = new Set(view.visibleTileIds);
   const here = hexToIndex(unit.position, view.map)!;
-  const nearby = [here, ...view.map.tiles.flatMap((_, index) => index !== here && hexDistance(indexToHex(index, view.map), unit.position) === 1 ? [index] : [])];
-  return nearby.filter(index => visible.has(index)).flatMap(tileIndex => IMPROVEMENT_IDS.flatMap(kind => improvementBlocker({ tiles: view.map.tiles, width: view.map.width, height: view.map.height,
+  const nearby = [here, ...view.map.tiles.flatMap((_, index) => index !== here && hexDistance(indexToHex(index, view.map), unit.position, view.map) === 1 ? [index] : [])];
+  return nearby.filter(index => visible.has(index)).flatMap(tileIndex => IMPROVEMENT_IDS.flatMap(kind => improvementBlocker({ tiles: view.map.tiles, width: view.map.width, height: view.map.height, wrap: view.map.wrap,
     cities: [...view.economy.cities.map(city => ({ ownerId: city.ownerId, position: city.position, population: city.population })),
       ...view.cities.filter(city => city.ownerId !== view.playerId).map(city => ({ ownerId: city.ownerId, position: city.position, population: 1 }))],
     improved: index => improved.has(index), unitPosition: unit.position, playerId: view.playerId, tileIndex, kind }) === null

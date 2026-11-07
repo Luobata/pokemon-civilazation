@@ -7,7 +7,7 @@ import type { EraProgression } from '../content/eras.ts';
 import type { TypeId } from '../content/species.ts';
 import type { Content, UnitIdentity } from '../content/units.ts';
 import { hexDistance } from './hex.ts';
-import type { Hex } from './hex.ts';
+import type { Hex, MapShape } from './hex.ts';
 import { workRadius } from './city.ts';
 import { isMapUnit } from './model.ts';
 import type { EventPayload, GameState, MapUnit, PlayerView } from './model.ts';
@@ -97,7 +97,7 @@ export function applyEraAbilityAction(state: GameState, actorId: number, action:
     stock[WEATHERS[action.weather].essence] -= ERA_ABILITY_RULES.weatherCost;
     mine.weatherReadyAtRound = state.round + ERA_ABILITY_RULES.weatherCooldown;
     const field: WeatherField = { ownerId: actorId, weather: action.weather, center: { ...city.position }, untilRound: state.round + ERA_ABILITY_RULES.weatherRounds - 1 };
-    ledger.fields = [...ledger.fields.filter(item => hexDistance(item.center, city.position) > 0), field];
+    ledger.fields = [...ledger.fields.filter(item => hexDistance(item.center, city.position, state.map) > 0), field];
     return [{ type: 'WeatherSummoned', playerId: actorId, public: true, weather: field.weather, center: { ...field.center }, untilRound: field.untilRound }];
   }
   const unit = ownUnit(state, actorId, action.unitId)!, essence = primaryEssence(unit, content)!;
@@ -113,14 +113,14 @@ export function applyEraAbilityAction(state: GameState, actorId: number, action:
 }
 
 /** Read-only context shared by authority and previews. */
-export type EraCombatContext = { enabled: boolean; round: number; fields: readonly WeatherField[]; units: Readonly<Record<number, UnitStatus>> };
+export type EraCombatContext = { enabled: boolean; round: number; fields: readonly WeatherField[]; units: Readonly<Record<number, UnitStatus>>; map: MapShape };
 export function combatContext(state: GameState): EraCombatContext {
   const ledger = state.expansion?.eraAbilities;
-  return { enabled: Boolean(ledger), round: state.round, fields: ledger?.fields ?? [], units: ledger?.units ?? {} };
+  return { enabled: Boolean(ledger), round: state.round, fields: ledger?.fields ?? [], units: ledger?.units ?? {}, map: state.map };
 }
 export function viewCombatContext(view: PlayerView): EraCombatContext {
   const era = view.expansion?.eraAbilities;
-  return { enabled: Boolean(era), round: view.round, fields: era?.fields ?? [], units: era?.units ?? {} };
+  return { enabled: Boolean(era), round: view.round, fields: era?.fields ?? [], units: era?.units ?? {}, map: view.map };
 }
 function typesOf(identity: UnitIdentity, content: Content): TypeId[] {
   if (identity.kind !== 'pokemon') return [];
@@ -128,7 +128,7 @@ function typesOf(identity: UnitIdentity, content: Content): TypeId[] {
   return [species.typeId, ...(species.secondaryTypeId ? [species.secondaryTypeId] : [])];
 }
 export function weatherAt(ctx: EraCombatContext, position: Hex): WeatherField | null {
-  return [...ctx.fields].filter(field => field.untilRound >= ctx.round && hexDistance(field.center, position) <= ERA_ABILITY_RULES.weatherRadius)
+  return [...ctx.fields].filter(field => field.untilRound >= ctx.round && hexDistance(field.center, position, ctx.map) <= ERA_ABILITY_RULES.weatherRadius)
     .sort((a, b) => b.untilRound - a.untilRound || a.ownerId - b.ownerId)[0] ?? null;
 }
 /** Defensive type override from Terastallization, or null. */
@@ -181,7 +181,7 @@ export function resolveEraAbilityRound(state: GameState): EventPayload[] {
   for (const unit of Object.values(state.units).filter(isMapUnit)) {
     if (unit.ownerId === null || unit.kind !== 'pokemon') continue;
     if (generationOf(state.players[unit.ownerId], state.setup.eraProgression) < ERA_ABILITIES.dayNight.generation) continue;
-    if (Object.values(state.cities).some(city => city.ownerId === unit.ownerId && hexDistance(city.position, unit.position) <= workRadius(city))) unit.xp += ERA_ABILITY_RULES.friendshipXp;
+    if (Object.values(state.cities).some(city => city.ownerId === unit.ownerId && hexDistance(city.position, unit.position, state.map) <= workRadius(city))) unit.xp += ERA_ABILITY_RULES.friendshipXp;
   }
   return [];
 }

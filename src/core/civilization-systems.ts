@@ -7,7 +7,7 @@ import type { TechId } from '../content/economy.ts';
 import { dualEffectiveness, damage, terrainMultiplier } from './combat-math.ts';
 import { createRng, randomBelow } from './rng.ts';
 import { edgeDistance, hexDistance, hexToIndex, indexToHex, offsetToHex } from './hex.ts';
-import type { Hex } from './hex.ts';
+import type { Hex, MapShape } from './hex.ts';
 import type { CityState, EventPayload, GameState, UnitState } from './model.ts';
 import { finishGame } from './victory.ts';
 
@@ -372,7 +372,7 @@ function selectSanctuarySites(state: CivilizationHost, content: CivilizationCont
     const candidates = state.map.tiles.flatMap((biome, index) => biome === 'ocean' || cityIndexes.has(index) || chosen.includes(index)
       ? [] : [index]).sort((a, b) => {
       const first = indexToHex(a, state.map), second = indexToHex(b, state.map);
-      return hexDistance(first, anchor) - hexDistance(second, anchor)
+      return hexDistance(first, anchor, state.map) - hexDistance(second, anchor, state.map)
         || edgeDistance(second, state.map) - edgeDistance(first, state.map) || a - b;
     });
     const index = candidates[0];
@@ -464,7 +464,7 @@ function validateGuardianChallenge(state: CivilizationHost, actorId: number, act
   const local = ids.every(id => {
     const unit = state.units[id];
     return isPokemon(unit) && unit.ownerId === actorId && unit.location === 'map' && unit.actionLeft === 1
-      && siteIndex !== null && hexDistance(unit.position, site.position) <= 2;
+      && siteIndex !== null && hexDistance(unit.position, site.position, state.map) <= 2;
   });
   if (!local) return 'unit-not-local';
   return ids.some(id => state.units[id]?.location === 'map' && siteIndex !== null
@@ -903,7 +903,7 @@ export function observeCivilization(state: CivilizationHost, playerId: number, v
 }
 
 export function planCivilizationAction(view: CivilizationView, content: CivilizationContent = CIVILIZATION_CONTENT,
-  policy?: CivilizationPlanningPolicy): CivilizationAction | null {
+  policy?: CivilizationPlanningPolicy, map: MapShape = { width: 0 }): CivilizationAction | null {
   const own = view.planning;
   const freeSanctuary = view.sanctuaries.find(site => site.ownerId === null);
   if (freeSanctuary) {
@@ -971,7 +971,7 @@ export function planCivilizationAction(view: CivilizationView, content: Civiliza
   const site = view.sanctuaries.find(candidate => candidate.ownerId === own.playerId && !candidate.guardianDefeated);
   if (site) {
     const eligible = own.units.filter(unit => unit.actionLeft === 1 && unit.position !== null
-        && hexDistance(unit.position, site.position) <= 2).sort((a, b) => b.power - a.power || a.id - b.id);
+        && hexDistance(unit.position, site.position, map) <= 2).sort((a, b) => b.power - a.power || a.id - b.id);
     const atSite = eligible.find(unit => unit.position!.q === site.position.q && unit.position!.r === site.position.r);
     if (atSite) {
       const team = [atSite, ...eligible.filter(unit => unit.id !== atSite.id)]

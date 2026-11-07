@@ -29,7 +29,7 @@ it('enforces volcano and four-player start constraints for seeds 0..199', () => 
     const reached = new Set([volcanoes[0]]);
     const pending = [volcanoes[0]];
     for (let i = 0; i < pending.length; i++) {
-      for (const hex of neighbors(indexToHex(pending[i], map))) {
+      for (const hex of neighbors(indexToHex(pending[i], map), map)) {
         const index = hexToIndex(hex, map);
         if (index !== null && map.tiles[index] === 'volcano' && !reached.has(index)) {
           reached.add(index); pending.push(index);
@@ -42,9 +42,9 @@ it('enforces volcano and four-player start constraints for seeds 0..199', () => 
       expect(['grassland', 'forest']).toContain(map.tiles[start.tileIndex]);
       const hex = indexToHex(start.tileIndex, map);
       // Independent geometric check against every boundary tile.
-      expect(Math.min(...boundary.map(edge => hexDistance(hex, edge)))).toBeGreaterThanOrEqual(2);
+      expect(Math.min(...boundary.map(edge => hexDistance(hex, edge, map)))).toBeGreaterThanOrEqual(2);
       for (const other of map.starts.slice(i + 1)) {
-        expect(hexDistance(hex, indexToHex(other.tileIndex, map))).toBeGreaterThanOrEqual(map.startDistance);
+        expect(hexDistance(hex, indexToHex(other.tileIndex, map), map)).toBeGreaterThanOrEqual(map.startDistance);
       }
     }
   }

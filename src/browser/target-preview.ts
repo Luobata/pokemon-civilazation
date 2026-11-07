@@ -33,7 +33,7 @@ export function targetPreviews(view: PlayerView, unitId: number | null, index: n
       const modifiers = totals ? ` · 战斗力 ${totals.attack} 对 ${totals.defense}` : classModifierLabels(view, unit, defender, content).map(label => ` · ${label}`).join('');
       return { label: '攻击', ok: true, text: `伤害 ${preview.damage.min}–${preview.damage.max}（对方 HP ${hp}）${knockdown} · ${counter}${modifiers}`, action: { type: 'Attack', unitId: unit.id, target: { kind, id } }, short: `攻击 ${preview.damage.min}–${preview.damage.max}` };
     }
-    const distance = hexDistance(unit.position, position);
+    const distance = hexDistance(unit.position, position, view.map);
     const text = generic ?? (preview.reason === 'at-peace' ? '和平中：先在外交页面宣战才能攻击。'
       : preview.reason === 'out-of-range' ? (logistics && distance > 1 ? `开拓队只能贴身攻击（现在距离 ${distance}）。` : `不在射程内：距离 ${distance}，射程 ${range}。先移动靠近。`)
       : '现在不能攻击。');
@@ -43,7 +43,7 @@ export function targetPreviews(view: PlayerView, unitId: number | null, index: n
   for (const target of view.units.filter(item => at(item.position) && item.ownerId !== view.playerId)) {
     const options = [attackOption('unit', target.id, target.position, target.hp, target.kind === 'logistics')];
     if (target.ownerId === null && target.kind === 'pokemon' && unit.kind === 'pokemon') {
-      const player = view.economy.player, distance = hexDistance(unit.position, target.position);
+      const player = view.economy.player, distance = hexDistance(unit.position, target.position, view.map);
       for (const ballId of Object.keys(content.balls) as BallId[]) {
         if (!player.research.unlockedIds.includes(content.balls[ballId].requiredTech) && ballId !== 'pokeBall') continue;
         const preview = previewCapture(view, unit.id, target.id, ballId), label = `用${BALL_NAMES[ballId]}捕捉`;

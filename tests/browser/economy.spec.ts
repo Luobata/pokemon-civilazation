@@ -37,8 +37,8 @@ function foundingRoute(initial: GameState, unitId: number): Hex[] {
   const routes = new Map<number, Hex[]>([[origin, []]]), pending = [origin];
   while (pending.length) {
     const index = pending.shift()!, route = routes.get(index)!, position = indexToHex(index, initial.map);
-    if (Object.values(initial.cities).every(c => hexDistance(c.position, position) >= 4)) return route;
-    for (const next of neighbors(position)) {
+    if (Object.values(initial.cities).every(c => hexDistance(c.position, position, initial.map) >= 4)) return route;
+    for (const next of neighbors(position, initial.map)) {
       const id = hexToIndex(next, initial.map);
       if (id !== null && !routes.has(id) && !occupied.has(id) && canEnter(unit, initial.map.tiles[id])
         && !Object.values(initial.cities).some(c => c.ownerId !== unit.ownerId && hexToIndex(c.position, initial.map) === id)) {
