@@ -8,7 +8,9 @@ import { doctrineEffects } from './leader-doctrines.ts';
 import { consumeCivilizationProduction } from './civilization-systems.ts';
 import { createMapUnit, registerSpecies } from './unit.ts';
 import { isMapUnit } from './model.ts';
-import { unitDefinition, contentFor } from '../content/units.ts';
+import { unitDefinition, contentFor, techOf } from '../content/units.ts';
+import { TREE_RULES } from '../content/tech-tree.ts';
+import { onTechTree, treeGateOpen } from './tech-tree.ts';
 import type { Content, UnitIdentity } from '../content/units.ts';
 import { hexToIndex, neighbors } from './hex.ts';
 import { canEnter } from './movement.ts';
@@ -33,7 +35,8 @@ function deploy(state: GameState, city: CityState, pending: PendingDeployment, c
     + doctrineEffects(state.players[city.ownerId], state.setup.eraProgression, identity, content).trainedXpBonus
     + (identity.kind === 'pokemon' ? playerPolicyEffects(state, city.ownerId).trainedXp + gymTrainedXp(state, city.id, identity, content) + cityDistrictEffects(state, city.id).trainedXp : 0);
   state.units[id] = createMapUnit(identity, id, city.ownerId, position, content, xp);
-  if (identity.kind === 'logistics' && identity.role === 'builder') state.units[id].charges = BUILDER_RULES.charges;
+  if (identity.kind === 'logistics' && identity.role === 'builder') state.units[id].charges = BUILDER_RULES.charges
+    + (onTechTree(state.players[city.ownerId]) && treeGateOpen(state.players[city.ownerId], 'builderCharge') ? TREE_RULES.builderExtraCharges : 0);
   registerSpecies(state.players[city.ownerId], state.units[id]);
   events.push({ type: 'UnitTrained', playerId: city.ownerId, cityId: city.id, orderId: pending.sourceOrderId,
     unit: JSON.parse(JSON.stringify(state.units[id])) });
@@ -119,7 +122,7 @@ export function resolveEconomy(state: GameState, content: Content = contentFor(s
     if (techId === null) research.reserve += science;
     else {
       const progress = research.progressByTech[techId] + research.reserve + science;
-      const cost = content.techs[techId].cost;
+      const cost = techOf(content, techId).cost;
       research.progressByTech[techId] = Math.min(progress, cost); research.reserve = Math.max(0, progress - cost);
       if (progress >= cost) {
         research.unlockedIds.push(techId); research.unlockedIds.sort(); research.techId = null;

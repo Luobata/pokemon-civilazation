@@ -4,6 +4,7 @@ import { CIVILIZATION_CONTENT } from '../content/civilization-systems.ts';
 import type { CivilizationContent, OfferingResource, PhantomCategory } from '../content/civilization-systems.ts';
 import type { SpeciesId, TypeId } from '../content/species.ts';
 import type { TechId } from '../content/economy.ts';
+import { contentFor, techOf } from '../content/units.ts';
 import { dualEffectiveness, damage, terrainMultiplier } from './combat-math.ts';
 import { createRng, randomBelow } from './rng.ts';
 import { edgeDistance, hexDistance, hexToIndex, indexToHex, offsetToHex } from './hex.ts';
@@ -550,7 +551,8 @@ function activateResearchPhantom(state: CivilizationHost, actorId: number, phant
   const player = state.players[actorId];
   const techId = player.research.techId!;
   const progress = player.research.progressByTech[techId] + player.research.reserve + content.phantoms.researchBonus;
-  const cost = content.world.techs[techId].cost;
+  // v22: the tree's own costs (the civilization pack's `world` table only knows the 12 older techs).
+  const cost = techOf(player.research.tree ? contentFor(state.setup) : content.world, techId).cost;
   player.research.progressByTech[techId] = Math.min(progress, cost);
   const events: CivilizationEvent[] = [{ type: 'PhantomActivated', playerId: actorId, phantomId, name: state.expansion!.civilization.players[actorId].phantomNameLedger[phantomId] ?? phantomId, techId, amount: content.phantoms.researchBonus }];
   if (progress >= cost) {

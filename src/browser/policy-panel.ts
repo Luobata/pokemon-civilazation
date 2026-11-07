@@ -2,6 +2,7 @@ import { CHARTER_IDS, CHARTERS, GOVERNMENT_IDS, GOVERNMENTS, LEADER_GOVERNMENT_A
 import type { CharterId, GovernmentId, PolicyId, SlotKind } from '../content/policies.ts';
 import { charterAvailable, fitsSlots } from '../core/policies.ts';
 import type { Command, PlayerView } from '../core/model.ts';
+import { drawTreeLinks } from './tree-links.ts';
 
 const SLOT_LABEL: Record<SlotKind, string> = { military: '军事', economic: '经济', wild: '通配' };
 
@@ -21,18 +22,8 @@ let observer: ResizeObserver | null = null;
 function drawLinks(root: HTMLElement) {
   const tree = root.querySelector<HTMLElement>('.charter-tree'), svg = root.querySelector<SVGSVGElement>('.charter-links');
   if (!tree || !svg) return;
-  const box = tree.getBoundingClientRect();
-  if (!box.width) return;
-  svg.setAttribute('viewBox', `0 0 ${box.width} ${box.height}`);
-  svg.setAttribute('width', String(box.width)); svg.setAttribute('height', String(box.height));
-  svg.innerHTML = CHARTER_IDS.flatMap(id => CHARTERS[id].requires.map(requirement => {
-    const from = tree.querySelector<HTMLElement>(`[data-charter-card="${requirement}"]`)!.getBoundingClientRect();
-    const to = tree.querySelector<HTMLElement>(`[data-charter-card="${id}"]`)!.getBoundingClientRect();
-    const done = tree.querySelector(`[data-charter-card="${requirement}"]`)!.classList.contains('done');
-    const [x1, y1, x2, y2] = [from.right - box.left, from.top + from.height / 2 - box.top, to.left - box.left, to.top + to.height / 2 - box.top];
-    const path = `M${x1} ${y1} C${(x1 + x2) / 2} ${y1} ${(x1 + x2) / 2} ${y2} ${x2} ${y2}`;
-    return `<path d="${path}" class="${done ? 'done' : ''}"/>`;
-  })).join('');
+  drawTreeLinks(tree, svg, 'data-charter-card', CHARTER_IDS.flatMap(id => CHARTERS[id].requires.map(requirement =>
+    ({ from: requirement, to: id, className: tree.querySelector(`[data-charter-card="${requirement}"]`)!.classList.contains('done') ? 'done' : '' }))));
 }
 
 /**

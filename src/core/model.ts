@@ -57,7 +57,8 @@ export type PlayerState = {
   id: number; controller: 'human' | 'ai'; starterId: StarterId; gold: number; headquartersCityId: number; knockdownCount: number;
   personality: AiPersonality; lastSettlerProducedRound: number; eliminated: boolean; frozenScore: Score | null;
   ballInventory: Record<BallId, number>; registeredSpeciesIds: SpeciesId[];
-  research: { techId: TechId | null; progressByTech: Record<TechId, number>; unlockedIds: TechId[]; reserve: number };
+  /** `progressByTech` has one key per technology of the game's content. `tree` (v22 only): research follows the branching tree. */
+  research: { techId: TechId | null; progressByTech: Record<TechId, number>; unlockedIds: TechId[]; reserve: number; tree?: true };
 };
 export type EconomyAction =
   | { type: 'FoundCity'; unitId: number }

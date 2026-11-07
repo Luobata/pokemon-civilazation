@@ -42,7 +42,7 @@ import type { ActionMode, PendingTarget } from './unit-panel.ts';
 import type { AiPersonality, CitySummary, Command, GameSetup } from '../core/model.ts';
 import { GameSession } from '../app/session.ts';
 import type { PlayerSession } from '../app/session.ts';
-import { EXPANSION_CONTENT, unitDefinition, contentForView } from '../content/units.ts';
+import { EXPANSION_CONTENT, unitDefinition, contentForView, techOf } from '../content/units.ts';
 import type { StarterId } from '../content/units.ts';
 import type { BallId } from '../content/economy.ts';
 import { LEADER_IDS } from '../content/leaders.ts';
@@ -206,7 +206,7 @@ function activityText(payload: VisibleEvent['payload']) {
     case 'EraAgeBegan': return payload.playerId === session.getView().playerId ? `进入${ERA_AGES[payload.age].name}（上个世代 ${payload.previousScore} 分 / ${payload.previousRounds} 轮）` : '';
     case 'GovernmentChanged': return `采用体制「${GOVERNMENTS[payload.governmentId].name}」${payload.goldCost ? `（${payload.goldCost} 金）` : ''}${payload.droppedPolicies.length ? `，取下方针：${payload.droppedPolicies.map(id => POLICIES[id].name).join('、')}` : ''}`;
     case 'PoliciesChanged': return `方针更新：${payload.policyIds.map(id => POLICIES[id].name).join('、') || '无'}${payload.goldCost ? `（${payload.goldCost} 金）` : ''}`;
-    case 'DiscoveryMade': return `★ 图鉴发现「${discoveryText(payload.techId, Boolean(contentForView(session.getView()).opening)).name}」：${contentForView(session.getView()).techs[payload.techId].name} +${payload.bonus}`;
+    case 'DiscoveryMade': return `★ 图鉴发现「${discoveryText(payload.techId, Boolean(contentForView(session.getView()).opening)).name}」：${techOf(contentForView(session.getView()), payload.techId).name} +${payload.bonus}`;
     default: return '';
   }
 }

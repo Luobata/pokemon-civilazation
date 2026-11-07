@@ -10,6 +10,8 @@ import type { RosterEvolution, RosterTerrain } from './roster-v14-data.ts';
 export { speciesDisplay } from './species.ts';
 export type { SpeciesId } from './species.ts';
 import { BALLS, BIOME_YIELDS, BUILDINGS, TECHS } from './economy.ts';
+import type { BuildingId, TechDefinition, TechId, TechTable } from './economy.ts';
+import { TREE_BUILDING_TECH, TREE_RECRUITS, TREE_TECHS } from './tech-tree.ts';
 import type { BiomeId } from './rules.ts';
 
 export const STARTER_IDS = ['bulbasaur', 'charmander', 'squirtle'] as const;
@@ -20,7 +22,7 @@ export type UnitIdentity = { kind: 'pokemon'; speciesId: SpeciesId; uniqueLeader
 export type UnitDefinition = { name: string; move: number; vision: number; terrain: readonly BiomeId[]; trainCost: number; upkeep: number };
 export type Content = {
   version: string;
-  biomes: typeof BIOME_YIELDS; buildings: typeof BUILDINGS; techs: { [K in keyof typeof TECHS]: Omit<typeof TECHS[K], 'cost'> & { cost: number } };
+  biomes: typeof BIOME_YIELDS; buildings: typeof BUILDINGS; techs: TechTable;
   balls: { [K in keyof typeof BALLS]: Omit<typeof BALLS[K], 'goldCost'> & { goldCost: number } };
   balance: Balance;
   units: Record<string, UnitDefinition>;
@@ -40,7 +42,7 @@ export type RosterStoneEvolution = { fromSpeciesId: SpeciesId; intoSpeciesId: Sp
 export type RosterTables = {
   spawnWeights: Record<BiomeId, Partial<Record<SpeciesId, number>>>;
   wanderers: readonly SpeciesId[];
-  techRecruits: Partial<Record<keyof typeof TECHS, SpeciesId>>;
+  techRecruits: Partial<Record<TechId, SpeciesId>>;
   /** Generation (2–9) -> species every city may train once the player reaches that generation. */
   generationRecruits: Partial<Record<number, SpeciesId>>;
   leaderUnits: Partial<Record<LeaderId, SpeciesId>>;
@@ -132,8 +134,18 @@ export const OPENING_CONTENT: Content = { ...BATTLE_CONTENT, version: 'opening-v
   balance: { ...BATTLE_CONTENT.balance, city: { ...BATTLE_CONTENT.balance.city, baseHp: 100, capturedHp: 50 } } };
 type ContentSetup = { expansionVersion?: 1; gameplayVersion?: number };
 /** The single place that maps a game setup to its content table; logs and saves record `content.version`. */
-/** v22: starts as v21 content plus the three flags; the tech tree pack replaces `techs`. */
-export const WORLD_CONTENT: Content = { ...OPENING_CONTENT, version: 'world-v22', wrap: true, techTree: true, dedications: true };
+/** v22: v21 content plus the three flags; the tech tree replaces `techs`, rewires building techs and the recruit table. */
+export const WORLD_CONTENT: Content = { ...OPENING_CONTENT, version: 'world-v22', wrap: true, techTree: true, dedications: true,
+  techs: TREE_TECHS as TechTable,
+  buildings: Object.fromEntries(Object.entries(OPENING_CONTENT.buildings).map(([id, building]) =>
+    [id, TREE_BUILDING_TECH[id as BuildingId] ? { ...building, requiredTech: TREE_BUILDING_TECH[id as BuildingId] } : building])) as Content['buildings'],
+  roster: { ...OPENING_CONTENT.roster!, techRecruits: TREE_RECRUITS } };
+/** A technology of this content (throws for ids the content does not define, e.g. a v22 id in an older game). */
+export function techOf(content: Content, id: TechId): TechDefinition {
+  const tech = content.techs[id];
+  if (!tech) throw new Error(`Unknown technology ${id} in ${content.version}`);
+  return tech;
+}
 export function contentFor(setup: ContentSetup): Content {
   return setup.expansionVersion !== 1 ? CONTENT : (setup.gameplayVersion ?? 0) >= 22 ? WORLD_CONTENT : (setup.gameplayVersion ?? 0) >= 21 ? OPENING_CONTENT : (setup.gameplayVersion ?? 0) >= 20 ? BATTLE_CONTENT : (setup.gameplayVersion ?? 0) >= 14 ? ROSTER_CONTENT : EXPANSION_CONTENT;
 }

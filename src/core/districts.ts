@@ -1,5 +1,5 @@
 import { CITY_NETWORK_RULES, DISTRICT_COMBOS } from '../content/city-network.ts';
-import { DISTRICTS, emptyDistrictEffects } from '../content/districts.ts';
+import { DISTRICTS, districtTech, emptyDistrictEffects } from '../content/districts.ts';
 import type { DistrictId, DistrictEffects } from '../content/districts.ts';
 import { gameplayAtLeast } from '../content/eras.ts';
 import type { GameplayVersion } from '../content/eras.ts';
@@ -105,7 +105,7 @@ export function districtBlocker(input: DistrictInput, cityId: number, kind: Dist
   const city = input.cities.find(city => city.id === cityId && city.ownerId === input.playerId);
   if (!city) return 'city-unavailable';
   const definition = DISTRICTS[kind];
-  if (!input.techs.includes(definition.requiredTech)) return 'district-tech-locked';
+  if (!input.techs.includes(gameplayAtLeast(input, 22) ? districtTech(kind, true) : definition.requiredTech)) return 'district-tech-locked';
   if (!Number.isSafeInteger(tileIndex) || tileIndex < 0 || tileIndex >= input.map.tiles.length || input.map.tiles[tileIndex] === null || !input.visible.has(tileIndex)) return 'unknown-tile';
   const position = indexToHex(tileIndex, input.map), distance = hexDistance(position, city.position, input.map);
   if (input.cities.some(city => hexToIndex(city.position, input.map) === tileIndex)) return 'city-center';

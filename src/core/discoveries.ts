@@ -1,8 +1,9 @@
 import { DISCOVERIES, DISCOVERY_PERCENT } from '../content/discoveries.ts';
 import { gameplayAtLeast } from '../content/eras.ts';
 import type { TechId } from '../content/economy.ts';
+import { techOf } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
-import { hexToIndex } from './hex.ts';
+import { hexToIndex, indexToHex, neighbors } from './hex.ts';
 import { isMapUnit } from './model.ts';
 import type { Command, EventPayload, GameState } from './model.ts';
 
@@ -45,8 +46,41 @@ function reached(before: GameState, next: GameState, playerId: number, events: r
   if (Object.values(next.cities).filter(city => city.ownerId === playerId).length >= 3) hits.add('riding');
   if (documented(next, playerId).filter(record => record.observed).length >= 10) hits.add('fieldObservation');
   if (Object.values(next.units).some(unit => unit.ownerId === playerId && isMapUnit(unit) && ['snow', 'volcano'].includes(next.map.tiles[hexToIndex(unit.position, next.map)!]))) hits.add('meteorology');
-  void content;
+  if (content.techTree) for (const id of treeMilestones(before, next, playerId, events, content)) hits.add(id);
   return [...hits].filter(techId => Object.hasOwn(DISCOVERIES, techId)).sort();
+}
+/** v22: milestones of the 18 new tree technologies (older contents never call this, so their ledgers are unchanged). */
+function treeMilestones(before: GameState, next: GameState, playerId: number, events: readonly EventPayload[], content: Content): TechId[] {
+  const hits: TechId[] = [];
+  const player = next.players[playerId];
+  const cities = Object.values(next.cities).filter(city => city.ownerId === playerId);
+  const ownedCity = (id: number) => (next.cities[id] ?? before.cities[id])?.ownerId === playerId;
+  const units = Object.values(next.units).filter(unit => unit.ownerId === playerId && unit.kind === 'pokemon');
+  const species = new Set<string>([...player.registeredSpeciesIds, ...units.map(unit => unit.kind === 'pokemon' ? unit.speciesId : '')].filter(Boolean));
+  const hasType = (type: string) => [...species].some(id => content.species[id]?.typeId === type || content.species[id]?.secondaryTypeId === type);
+  const ocean = (index: number) => neighbors(indexToHex(index, next.map)).some(hex => { const at = hexToIndex(hex, next.map); return at !== null && next.map.tiles[at] === 'ocean'; });
+  for (const event of events) {
+    if (event.type === 'TileWorked' && event.playerId === playerId && event.completed && event.kind === 'fishery') hits.push('seafaring');
+    if (event.type === 'BuildingCompleted' && ownedCity(event.cityId)) hits.push('masonry');
+    if (event.type === 'Captured' && event.playerId === playerId && !event.success) hits.push('lureCraft');
+    if (event.type === 'DistrictCompleted' && ownedCity(event.cityId)) hits.push('laboratory');
+    if ((event.type === 'Evolved' || event.type === 'WorldStoneEvolution') && event.playerId === playerId && content.species[event.type === 'Evolved' ? event.speciesId : event.intoSpeciesId]?.stage === 3) hits.push('eliteTraining');
+  }
+  if (cities.some(city => ocean(hexToIndex(city.position, next.map)!))) hits.push('seafaring');
+  if (player.gold >= 100) hits.push('commerce');
+  if (hasType('electric')) hits.push('electricity');
+  if (cities.some(city => city.population >= 4)) hits.push('contestArts');
+  if (hasType('flying')) hits.push('aviation');
+  if (cities.length >= 4) hits.push('urbanPlanning');
+  if (units.some(unit => unit.kind === 'pokemon' && content.species[unit.speciesId]?.role === 'naval')) hits.push('oceanography');
+  if (units.length >= 8) hits.push('breeding');
+  if ((next.knowledge[playerId]?.exploredTileIds.length ?? 0) * 100 >= next.map.tiles.length * 30) hits.push('cartography');
+  if ((next.expansion?.legends?.clues[playerId]?.length ?? 0) > 0 || next.expansion?.faith?.faiths[playerId]) hits.push('legendLore');
+  if (hasType('steel')) hits.push('steelworks');
+  if (player.registeredSpeciesIds.length >= 15) hits.push('masterBallTheory');
+  if (hasType('dragon')) hits.push('dragonLore');
+  if (player.knockdownCount >= 15) hits.push('championLeague');
+  return hits;
 }
 /** Applies newly reached milestones. Unlocked techs are recorded but grant nothing. */
 export function recordDiscoveries(before: GameState, next: GameState, _command: Command, events: readonly EventPayload[], content: Content): EventPayload[] {
@@ -61,7 +95,7 @@ export function recordDiscoveries(before: GameState, next: GameState, _command: 
       if (known.has(techId)) continue;
       known.add(techId);
       if (player.research.unlockedIds.includes(techId)) continue;
-      const cost = content.techs[techId].cost, bonus = Math.floor(cost * DISCOVERY_PERCENT / 100);
+      const cost = techOf(content, techId).cost, bonus = Math.floor(cost * DISCOVERY_PERCENT / 100);
       // Never completes a technology on its own: completion still happens in round research settlement.
       player.research.progressByTech[techId] = Math.min(cost - 1, player.research.progressByTech[techId] + bonus);
       out.push({ type: 'DiscoveryMade', playerId, techId, bonus, progress: player.research.progressByTech[techId] });

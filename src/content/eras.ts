@@ -20,7 +20,10 @@ export type EraState = {
   overallProgressPercent: number;
 };
 
-export type EraPlayer = { research: { unlockedIds: readonly string[] } };
+import { TREE_ERA_THRESHOLDS } from './tech-tree.ts';
+
+/** `tree` (gameplay v22): the player researches on the 30-tech tree, which uses its own thresholds. */
+export type EraPlayer = { research: { unlockedIds: readonly string[]; tree?: true } };
 
 const SIMPLE_ERAS: readonly EraDefinition[] = [
   { id: 'generation-1', name: '初代（红／绿／蓝／黄）', threshold: 0 },
@@ -45,6 +48,8 @@ export const ERA_DEFINITIONS: Record<EraProgression, readonly EraDefinition[]> =
   'full-v1': FULL_ERAS,
 };
 
+const TREE_ERAS: Record<EraProgression, readonly EraDefinition[]> = { 'simple-v1': eraDefinitions('simple-v1', true), 'full-v1': eraDefinitions('full-v1', true) };
+
 export function isEraProgression(value: unknown): value is EraProgression {
   return value === 'simple-v1' || value === 'full-v1';
 }
@@ -57,9 +62,14 @@ function phaseFor(index: number, eras: readonly EraDefinition[]): DoctrinePhase 
   return 'late';
 }
 
+/** The era track for a player: v22 tree players reach the same eras at higher completed-tech counts. */
+export function eraDefinitions(mode: EraProgression, tree?: boolean): readonly EraDefinition[] {
+  return tree ? ERA_DEFINITIONS[mode].map((era, index) => ({ ...era, threshold: TREE_ERA_THRESHOLDS[mode][index] })) : ERA_DEFINITIONS[mode];
+}
+
 export function eraState(player: EraPlayer, mode?: EraProgression): EraState | null {
   if (mode === undefined) return null;
-  const eras = ERA_DEFINITIONS[mode];
+  const eras = player.research.tree ? TREE_ERAS[mode] : ERA_DEFINITIONS[mode];
   const completedTechs = player.research.unlockedIds.length;
   let index = 0;
   for (let i = 0; i < eras.length; i += 1) {

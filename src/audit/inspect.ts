@@ -706,6 +706,12 @@ export function inspectSystem(systemId: string, state: GameState): AuditSystemIn
     return { metrics: [metric('当前规则', '开局节奏 v21'), metric('地图上的道具球', Object.keys(opening.itemBalls).length),
       ...Object.entries(opening.objectives).map(([id, done]) => metric(`玩家 ${id} 开局目标`, `${done.length}/8`))], data: { itemBalls: opening.itemBalls, seenByPlayer: opening.seen } };
   }
+  if (system.id === 's-tech-tree') {
+    const tree = contentOf(state).techTree === true;
+    return { metrics: [metric('当前规则', tree ? '分支科技树 v22' : '三层科技（v≤21）'), metric('科技定义', Object.keys(contentOf(state).techs).length),
+      ...Object.values(state.players).map(player => metric(`玩家 ${player.id} 已完成`, `${player.research.unlockedIds.length}/${Object.keys(contentOf(state).techs).length}`))],
+      data: { tree, players: Object.values(state.players).map(player => ({ playerId: player.id, tree: player.research.tree === true, unlockedIds: player.research.unlockedIds, techId: player.research.techId })) } };
+  }
   if (system.id === 's-combat-strength') {
     return { metrics: [metric('当前规则', (state.setup.gameplayVersion ?? 0) >= 20 ? '战斗力 v20' : '乘法公式（v≤19）')], data: {} };
   }

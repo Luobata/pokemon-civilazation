@@ -1,10 +1,13 @@
 // Gameplay v19 unit classes: class counters, type affinity, HM / badge training gates and Rare Candy.
 // Every function returns the neutral value (1000 / null / false) before v19, so older games are unchanged.
-import { CLASS_COUNTERS, CLASS_HMS, CLASS_NATIVE_TYPES, CLASS_NAMES, CLASS_RULES } from '../content/unit-classes.ts';
+import { CLASS_COUNTERS, CLASS_NATIVE_TYPES, CLASS_NAMES, CLASS_RULES, classHms } from '../content/unit-classes.ts';
+import { TREE_GATES } from '../content/tech-tree.ts';
+import { treeGateOpen } from './tech-tree.ts';
 import { ESSENCES, TYPE_ESSENCE } from '../content/essences.ts';
 import type { EssenceId } from '../content/essences.ts';
 import type { EraProgression } from '../content/eras.ts';
 import type { Content, SpeciesId, UnitIdentity } from '../content/units.ts';
+import { techOf } from '../content/units.ts';
 import { playerGeneration } from './roster.ts';
 
 type Versioned = { setup?: { gameplayVersion?: number }; gameplayVersion?: number };
@@ -49,16 +52,17 @@ export function classModifierLabels(source: Versioned, attacker: UnitIdentity, d
 /** Badges: essences of the type gyms standing in the player's own cities. */
 export type BadgeSource = { gyms: readonly { cityId: number; essence: EssenceId }[]; ownCityIds: ReadonlySet<number> };
 export const ownBadges = (source: BadgeSource): Set<EssenceId> => new Set(source.gyms.filter(gym => source.ownCityIds.has(gym.cityId)).map(gym => gym.essence));
-export type TrainingBlocker = { kind: 'hm' | 'generation' | 'badge'; text: string };
+export type TrainingBlocker = { kind: 'hm' | 'tech' | 'generation' | 'badge'; text: string };
 /** Why a city may not train this species (null = it may). Older versions: never blocked here. */
-export function classTrainingBlocker(version: Versioned, player: { research: { unlockedIds: readonly string[] } }, mode: EraProgression | undefined,
+export function classTrainingBlocker(version: Versioned, player: { research: { unlockedIds: readonly string[]; tree?: true } }, mode: EraProgression | undefined,
   badges: ReadonlySet<EssenceId>, speciesId: SpeciesId, content: Content): TrainingBlocker | null {
   if (!usesUnitClasses(version)) return null;
   const species = content.species[speciesId];
   if (!species) return null;
-  const hm = CLASS_HMS[species.role];
-  if (hm && !player.research.unlockedIds.includes(hm.techId)) return { kind: 'hm', text: `需要秘传「${hm.hm}」（研究${content.techs[hm.techId].name}）` };
+  const hm = classHms(content)[species.role];
+  if (hm && !player.research.unlockedIds.includes(hm.techId)) return { kind: 'hm', text: `需要秘传「${hm.hm}」（研究${techOf(content, hm.techId).name}）` };
   if (species.stage === 3) {
+    if (!treeGateOpen(player, 'finalStage')) return { kind: 'tech', text: `最终形态要先研究「${techOf(content, TREE_GATES.finalStage).name}」` };
     if (playerGeneration(player, mode) < CLASS_RULES.finalStageGeneration) return { kind: 'generation', text: '最终形态要进入金银时代才能训练' };
     const essence = TYPE_ESSENCE[species.typeId];
     if (!badges.has(essence)) return { kind: 'badge', text: `需要「${ESSENCES[essence].name}」徽章（建一座${ESSENCES[essence].name}属性道馆）` };

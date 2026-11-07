@@ -28,7 +28,7 @@ export type LeaderDoctrine = Record<DoctrinePhase, DoctrineDefinition>;
 
 export type DoctrinePlayer = {
   leaderId?: PlayerState['leaderId'];
-  research: Pick<PlayerState['research'], 'unlockedIds'>;
+  research: Pick<PlayerState['research'], 'unlockedIds' | 'tree'>;
 };
 
 const NO_EFFECTS: Readonly<DoctrineEffects> = {

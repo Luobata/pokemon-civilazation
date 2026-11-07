@@ -8,7 +8,7 @@ import { discoveryText } from '../content/discoveries.ts';
 import { ROLE_POKEMON } from '../content/roles.ts';
 import { ESCORT_BONUSES } from '../content/city-network.ts';
 import type { PlayerView, VisibleEvent } from '../core/model.ts';
-import { contentForView } from '../content/units.ts';
+import { contentForView, techOf } from '../content/units.ts';
 import { DISTRICTS } from '../content/districts.ts';
 import { ERA_AGES } from '../content/era-honors.ts';
 import { PROMOTION_TRAITS } from '../content/promotions.ts';
@@ -42,7 +42,7 @@ export function toastFor(payload: VisibleEvent['payload'], view: PlayerView, mem
     case 'TechCompleted': {
       if (payload.playerId !== me) return null;
       const choose = view.economy.player.research.techId === null;
-      return toast('research', '⚗', `研究完成：${content.techs[payload.techId].name}`, choose ? '选择下一项研究。' : '已自动继续下一项研究。',
+      return toast('research', '⚗', `研究完成：${techOf(content, payload.techId).name}`, choose ? '选择下一项研究。' : '已自动继续下一项研究。',
         { kind: 'screen', screen: 'research' }, choose ? '选择研究' : '查看', choose ? decision({ kind: 'research' }, 'choose-research') : {});
     }
     case 'BuildingCompleted':
@@ -76,7 +76,7 @@ export function toastFor(payload: VisibleEvent['payload'], view: PlayerView, mem
           decision(undefined, `famine:${payload.cityId}`));
     case 'DiscoveryMade':
       if (payload.playerId !== me) return null;
-      return toast('research', '✦', `图鉴发现「${discoveryText(payload.techId, Boolean(content.opening)).name}」`, `${content.techs[payload.techId].name} 研究进度 +${payload.bonus}。`, { kind: 'screen', screen: 'research' }, '查看');
+      return toast('research', '✦', `图鉴发现「${discoveryText(payload.techId, Boolean(content.opening)).name}」`, `${techOf(content, payload.techId).name} 研究进度 +${payload.bonus}。`, { kind: 'screen', screen: 'research' }, '查看');
     case 'EraAgeBegan':
       if (payload.playerId !== me) return null;
       return toast(payload.age === 'dark' ? 'war' : 'wonder', '◷', `进入${ERA_AGES[payload.age].name}`, ERA_AGES[payload.age].description, { kind: 'screen', screen: 'era' }, '查看时代', decision());

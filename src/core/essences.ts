@@ -5,6 +5,7 @@ import type { LeaderId } from '../content/leaders.ts';
 import type { BiomeId } from '../content/rules.ts';
 import type { Content, SpeciesId, UnitIdentity } from '../content/units.ts';
 import { hexToIndex } from './hex.ts';
+import { treeGateOpen } from './tech-tree.ts';
 import type { CityState, EventPayload, GameState, PlayerView } from './model.ts';
 
 /** Gameplay v4 only. Per player stock, and at most one type gym per city. */
@@ -52,6 +53,7 @@ export function validateEssenceAction(state: GameState, actorId: number, action:
   if (!usesEssences(state) || !essences) return 'essences-unavailable';
   if (!city || city.ownerId !== actorId || city.capturedAtRound === state.round) return 'city-unavailable';
   if (!Object.hasOwn(ESSENCES, action.essence) || essences.gyms[city.id] !== undefined) return 'gym-unavailable';
+  if (!treeGateOpen(state.players[actorId], 'gym')) return 'gym-tech-locked';
   return essences.stock[actorId][action.essence] >= ESSENCE_RULES.gymEssenceCost && state.players[actorId].gold >= ESSENCE_RULES.gymGoldCost ? null : 'gym-cost';
 }
 export function applyEssenceAction(state: GameState, actorId: number, action: EssenceAction): EventPayload[] {

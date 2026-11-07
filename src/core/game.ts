@@ -51,7 +51,7 @@ export function createGame(setup: GameSetup, content: Content = contentFor(setup
     state.players[player.id] = { ...playerBase, ...(leaderId === undefined ? {} : { leaderId }), starterId, gold: 50, headquartersCityId: state.nextEntityId, knockdownCount: 0, ballInventory: { pokeBall: 0, greatBall: 0 },
       personality: player.controller === 'ai' ? player.personality ?? (['expansion', 'aggressive', 'conservative'] as const)[i % 3] : 'conservative',
       lastSettlerProducedRound: 1, eliminated: false, frozenScore: null, registeredSpeciesIds: [starterId], research: { techId: null, reserve: 0, unlockedIds: [],
-        progressByTech: Object.fromEntries(Object.keys(content.techs).map(id => [id, 0])) as Record<TechId, number> } };
+        progressByTech: Object.fromEntries(Object.keys(content.techs).map(id => [id, 0])) as Record<TechId, number>, ...(content.techTree ? { tree: true as const } : {}) } };
     state.knowledge[player.id] = emptyKnowledge();
     const position = indexToHex(generated.starts[i].tileIndex, state.map);
     const cityId = state.nextEntityId++;
