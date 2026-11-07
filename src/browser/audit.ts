@@ -98,7 +98,7 @@ function renderFields() {
       fields += Array.isArray(rule) ? select(key, key, rule.map(id => ({ id, label: id })))
         : rule === 'boolean' ? select(key, key, [{ id: 'true', label: '接受' }, { id: 'false', label: '拒绝' }])
         : rule === 'id' ? input(key, key, key === 'cityId' ? cities[0]?.id ?? 0 : key === 'unitId' ? units[0]?.id ?? 0 : 0)
-        : input(key, rule === 'ids' ? `${key}（逗号分隔）` : key, '', false);
+        : input(key, rule === 'ids' || rule === 'dedicationIds' ? `${key}（逗号分隔）` : key, '', false);
     }
   }
   if (['Move', 'FoundCity', 'Attack', 'Capture', 'Evolve'].includes(type)) fields += select('unitId', '己方单位', units);
@@ -131,7 +131,8 @@ function buildAction(): Command['action'] {
     const payload: Record<string, unknown> = { type };
     for (const [key, rule] of Object.entries(EXPANSION_ACTION_FIELDS[type])) {
       if (type === 'ActivatePhantom' && key !== 'phantomId' && !value(key)) continue;
-      payload[key] = rule === 'id' ? number(key) : rule === 'ids' ? ids(key) : rule === 'boolean' ? value(key) === 'true' : value(key);
+      payload[key] = rule === 'id' ? number(key) : rule === 'ids' ? ids(key) : rule === 'boolean' ? value(key) === 'true'
+        : rule === 'dedicationIds' ? value(key).split(/[,，\s]+/).filter(Boolean) : value(key);
     }
     return parseAuditAction(payload);
   }

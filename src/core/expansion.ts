@@ -4,6 +4,7 @@ import { initializeLegends, recordLegends } from './legends.ts';
 import { initializeDistricts } from './districts.ts';
 import { applyPromotionAction, initializePromotions, isPromotionAction, recordPromotions, resolvePromotionRound, validatePromotionAction } from './promotions.ts';
 import { initializeEraHonors, recordEraHonors, resolveEraHonorRound } from './era-honors.ts';
+import { applyDedicationAction, isDedicationAction, validateDedicationAction } from './dedications.ts';
 import { CIVILIZATION_CONTENT } from '../content/civilization-systems.ts';
 import type { Content } from '../content/units.ts';
 import type { Command, EventPayload, GameState } from './model.ts';
@@ -48,6 +49,7 @@ export function validateExpansionAction(state: GameState, actorId: number, actio
   if (!state.expansion || !expansionActionType(action.type)) return false;
   try {
     const clean = parseExpansionAction(action, content);
+    if (isDedicationAction(clean)) return validateDedicationAction(state, actorId, clean) === null;
     if (isCityNetworkAction(clean)) return validateCityNetworkAction(state, actorId, clean) === null;
     if (isPromotionAction(clean)) return validatePromotionAction(state, actorId, clean) === null;
     if (isImprovementAction(clean)) return validateImprovementAction(state, actorId, clean) === null;
@@ -65,6 +67,7 @@ export function validateExpansionAction(state: GameState, actorId: number, actio
   return false;
 }
 export function applyExpansionAction(state: GameState, actorId: number, action: Command['action'], content: Content): EventPayload[] {
+  if (isDedicationAction(action)) return applyDedicationAction(state, actorId, action);
   if (isCityNetworkAction(action)) return applyCityNetworkAction(state, actorId, action);
   if (isPromotionAction(action)) return applyPromotionAction(state, actorId, action);
   if (isImprovementAction(action)) return applyImprovementAction(state, actorId, action, content);

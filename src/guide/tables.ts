@@ -43,6 +43,7 @@ import { LEADER_KITS } from '../core/leader-systems.ts';
 import { ROLE_CITY_ASSAULT, ERA_TECH_RECRUITS } from '../core/role-tactics.ts';
 import { pokemonSpritePath } from '../browser/sprites.ts';
 import { ERA_AGES, ERA_HONOR_RULES, ERA_MILESTONES, ERA_MILESTONE_IDS } from '../content/era-honors.ts';
+import { DEDICATION_IDS, DEDICATION_RULES, DEDICATIONS } from '../content/dedications.ts';
 import { PROMOTION_RULES, PROMOTION_TRAITS, PROMOTION_TRAIT_IDS } from '../content/promotions.ts';
 import { techUnlocks } from '../browser/tech-info.ts';
 
@@ -294,6 +295,11 @@ export function eraAgeTable(): string {
   return table(['世代', '条件（上一世代平均每轮得分）', '效果'], (['golden', 'normal', 'dark'] as const).map(age => [ERA_AGES[age].name,
     age === 'golden' ? `≥ ${ERA_HONOR_RULES.goldenRatePermille / 1000}` : age === 'dark' ? `< ${ERA_HONOR_RULES.darkRatePermille / 1000}` : '介于两者之间，或上一世代不足 4 轮', ERA_AGES[age].description]));
 }
+/** v22: era dedications, generated from src/content/dedications.ts. */
+export function dedicationTable(): string {
+  return table(['献礼', '玩法', '承诺（普通 / 黑暗世代：额外世代分）', '黄金效果（黄金 / 英雄世代）'], DEDICATION_IDS.map(id => [DEDICATIONS[id].name, DEDICATIONS[id].style, DEDICATIONS[id].promiseText, DEDICATIONS[id].goldenText]));
+}
+export const dedicationRules = DEDICATION_RULES;
 export function governmentTable(): string {
   const slots = (grants: Partial<Record<string, number>>) => Object.entries(grants).map(([kind, n]) => `${({ military: '军事', economic: '经济', wild: '通配' })[kind]}槽 +${n}`).join('，');
   return table(['体制', '层', '解锁规章', '额外槽位', '常驻加成', '偏好领袖'], GOVERNMENT_IDS.map(id => [GOVERNMENTS[id].name, String(GOVERNMENTS[id].tier),

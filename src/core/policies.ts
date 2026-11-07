@@ -5,7 +5,8 @@ import type { CharterId, GovernmentId, PolicyEffects, PolicyId, SlotKind } from 
 import { eraState, gameplayAtLeast } from '../content/eras.ts';
 import type { LeaderId } from '../content/leaders.ts';
 import type { EventPayload, GameState, PlayerState } from './model.ts';
-import { ageEffects, ageLeaguePoints, eraAgeOf } from './era-honors.ts';
+import { eraHonorRecord, honorEffects, honorLeaguePoints } from './era-honors.ts';
+import type { DedicationLedger } from './dedications.ts';
 import type { EraAge } from '../content/era-honors.ts';
 
 /** Gameplay v3 only. Per player: charter progress, adopted charters and slotted policies. */
@@ -87,19 +88,19 @@ export function playerPolicyEffects(state: Pick<GameState, 'setup' | 'expansion'
   if (playerId === null || !usesPolicies(state as GameState)) return { ...ZERO };
   const ledger = state.expansion!.policies?.[playerId];
   return policyEffects(state.players[playerId], ledger?.slotted, ledger?.government ?? null,
-    state.expansion?.legends ? mergeEffects(ageEffects(eraAgeOf(state, playerId)), legendEffects(state as GameState, playerId)) : ageEffects(eraAgeOf(state, playerId)));
+    state.expansion?.legends ? mergeEffects(honorEffects(eraHonorRecord(state, playerId)), legendEffects(state as GameState, playerId)) : honorEffects(eraHonorRecord(state, playerId)));
 }
 export function leaguePointsPerRound(state: GameState, playerId: number): number {
   const cities = Object.values(state.cities).filter(city => city.ownerId === playerId);
   const population = cities.reduce((sum, city) => sum + city.population, 0);
   const improvements = Object.values(state.expansion?.improvements?.tiles ?? {}).filter(tile => tile.builtBy === playerId).length;
   const satisfaction = state.expansion?.world.players[playerId]?.satisfaction ?? 0;
-  return 1 + cities.length + Math.floor(population / 3) + Math.floor(improvements / 2) + (satisfaction >= 50 ? 2 : 0) + ageLeaguePoints(eraAgeOf(state, playerId));
+  return 1 + cities.length + Math.floor(population / 3) + Math.floor(improvements / 2) + (satisfaction >= 50 ? 2 : 0) + honorLeaguePoints(eraHonorRecord(state, playerId));
 }
 /** Same effects computed from a player's own observation (UI previews and AI). */
-export function viewPolicyEffects(view: { playerId?: number; economy: { player: Pick<PlayerState, 'leaderId'> }; expansion?: { policies?: { slotted: PolicyId[]; government?: GovernmentId | null }; eraHonors?: { age: EraAge }; legends?: LegendView } }): Required<PolicyEffects> {
+export function viewPolicyEffects(view: { playerId?: number; economy: { player: Pick<PlayerState, 'leaderId'> }; expansion?: { policies?: { slotted: PolicyId[]; government?: GovernmentId | null }; eraHonors?: { age: EraAge; dedication?: DedicationLedger }; legends?: LegendView } }): Required<PolicyEffects> {
   const extra = view.expansion?.legends && view.playerId !== undefined
-    ? mergeEffects(ageEffects(view.expansion.eraHonors?.age), viewLegendEffects({ playerId: view.playerId, expansion: view.expansion })) : ageEffects(view.expansion?.eraHonors?.age);
+    ? mergeEffects(honorEffects(view.expansion.eraHonors), viewLegendEffects({ playerId: view.playerId, expansion: view.expansion })) : honorEffects(view.expansion?.eraHonors);
   return view.expansion?.policies ? policyEffects(view.economy.player, view.expansion.policies.slotted, view.expansion.policies.government ?? null, extra) : { ...ZERO };
 }
 export function ballPrice(base: number, discount: number): number { return Math.max(1, base - discount); }

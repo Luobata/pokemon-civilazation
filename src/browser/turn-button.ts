@@ -1,6 +1,6 @@
 // End-turn state machine (P0-5, Civilization-style): the button names the first thing still waiting for the
 // player ("选择研究 ›", "城市 1 需要生产 ›", "单位需要命令（2）›") and a click goes there; only with nothing
-// pending does it read "第 N 轮 · 下一回合 ›". Shift+click or Ctrl/⌘+Enter ends the turn regardless.
+// pending does it read "第 N 轮 · 下一回合 ›". v22: a pending era dedication comes first ("选择时代献礼 ›", opens the era screen). Shift+click or Ctrl/⌘+Enter ends the turn regardless.
 // Units have no "skip" command, so a unit the button has already led the player to counts as reviewed for the
 // rest of the round (it stays selectable with the ‹ › cycle buttons).
 import type { TechId } from '../content/economy.ts';
@@ -12,7 +12,7 @@ import type { PlayerView } from '../core/model.ts';
 
 export type Reminder = { label: string; target: string };
 export type TurnStep =
-  | { kind: 'research' | 'charter'; label: string; panel: string }
+  | { kind: 'dedication' | 'research' | 'charter'; label: string; panel: string }
   | { kind: 'city'; label: string; cityId: number }
   | { kind: 'unit'; label: string; unitId: number; remaining: number }
   | { kind: 'ready'; label: string };
@@ -39,6 +39,8 @@ export function cycleId(ids: readonly number[], current: number | null, step: 1 
 export function turnReminders(view: PlayerView, content: typeof EXPANSION_CONTENT, reviewed: ReadonlySet<number> = new Set()): Reminder[] {
   const items: Reminder[] = [];
   const player = view.economy.player;
+  const dedication = view.expansion?.eraHonors?.dedication;
+  if (dedication?.pending) items.push({ label: dedication.pending > 1 ? `选择 ${dedication.pending} 张时代献礼` : '选择时代献礼', target: '#era-panel' });
   if (player.research.techId === null && (Object.keys(content.techs) as TechId[]).some(id => canResearch(player, id))) items.push({ label: '选择研究', target: '#research-panel' });
   const policies = view.expansion?.policies;
   if (policies && policies.charterId === null && policies.adopted.length < Object.keys(CHARTERS).length) items.push({ label: '选择规章', target: '#policy-panel' });
@@ -58,8 +60,9 @@ export function turnReminders(view: PlayerView, content: typeof EXPANSION_CONTEN
   return items;
 }
 
-/** What the end-turn button says and where a plain click goes: research, charter, an idle city, a unit waiting for orders, or the next turn. */
+/** What the end-turn button says and where a plain click goes: a dedication (v22), research, charter, an idle city, a unit waiting for orders, or the next turn. */
 export function turnStep(view: PlayerView, reminders: readonly Reminder[], selection: { unitId: number | null; cityId: number | null }, reviewed: ReadonlySet<number>): TurnStep {
+  if (reminders.some(item => item.target === '#era-panel')) return { kind: 'dedication', label: '选择时代献礼 ›', panel: '#era-panel' };
   if (reminders.some(item => item.target === '#research-panel')) return { kind: 'research', label: '选择研究 ›', panel: '#research-panel' };
   if (reminders.some(item => item.target === '#policy-panel')) return { kind: 'charter', label: '选择规章 ›', panel: '#policy-panel' };
   const cities = idleCityIds(view);

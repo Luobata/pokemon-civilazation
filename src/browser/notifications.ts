@@ -11,6 +11,7 @@ import type { PlayerView, VisibleEvent } from '../core/model.ts';
 import { contentForView } from '../content/units.ts';
 import { DISTRICTS } from '../content/districts.ts';
 import { ERA_AGES } from '../content/era-honors.ts';
+import { DEDICATION_RULES } from '../content/dedications.ts';
 import { PROMOTION_TRAITS } from '../content/promotions.ts';
 import { LEGEND_WONDERS } from '../content/legend-wonders.ts';
 
@@ -18,7 +19,7 @@ export type ToastTarget = { kind: 'screen'; screen: 'research' | 'legends' | 'er
 export type ToastTone = 'research' | 'production' | 'growth' | 'wonder' | 'war' | 'info';
 /** When a persistent notification has been handled without clicking it (the player made the choice elsewhere). */
 export type ToastResolve = { kind: 'research' } | { kind: 'city-queued'; cityId: number } | { kind: 'peace-answered'; otherId: number }
-  | { kind: 'unit-recovered'; unitId: number };
+  | { kind: 'unit-recovered'; unitId: number } | { kind: 'dedication' };
 export type Toast = { id: number; tone: ToastTone; icon: string; title: string; detail: string; action?: string; target: ToastTarget;
   persistent: boolean; resolve?: ToastResolve; /** A newer notification with the same key replaces the older one. */ key?: string };
 type ToastOptions = { persistent?: boolean; resolve?: ToastResolve; key?: string };
@@ -79,6 +80,10 @@ export function toastFor(payload: VisibleEvent['payload'], view: PlayerView, mem
       return toast('research', '✦', `图鉴发现「${discoveryText(payload.techId, Boolean(content.opening)).name}」`, `${content.techs[payload.techId].name} 研究进度 +${payload.bonus}。`, { kind: 'screen', screen: 'research' }, '查看');
     case 'EraAgeBegan':
       if (payload.playerId !== me) return null;
+      // v22: the new era asks for dedication cards; the notification stays until they are chosen.
+      if (payload.dedicationPicks) return toast(payload.age === 'dark' ? 'war' : 'wonder', '◷', `进入${payload.heroic ? '英雄世代' : ERA_AGES[payload.age].name}`,
+        `选择 ${payload.dedicationPicks} 张时代献礼。${payload.age === 'golden' ? DEDICATION_RULES.goldenDescription : ERA_AGES[payload.age].description}`, { kind: 'screen', screen: 'era' }, '选择献礼',
+        decision({ kind: 'dedication' }, 'choose-dedication'));
       return toast(payload.age === 'dark' ? 'war' : 'wonder', '◷', `进入${ERA_AGES[payload.age].name}`, ERA_AGES[payload.age].description, { kind: 'screen', screen: 'era' }, '查看时代', decision());
     case 'UnitPromoted':
       if (payload.playerId !== me) return null;
@@ -163,6 +168,7 @@ export function toastResolved(item: Toast, view: PlayerView): boolean {
   if (resolve?.kind === 'research') return view.economy.player.research.techId !== null;
   if (resolve?.kind === 'city-queued') { const city = view.economy.cities.find(candidate => candidate.id === resolve.cityId); return !city || city.queue.length > 0; }
   if (resolve?.kind === 'peace-answered') return !view.diplomacy.some(pair => pair.proposal?.recipientId === view.playerId && pair.proposal.proposerId === resolve.otherId);
+  if (resolve?.kind === 'dedication') return !view.expansion?.eraHonors?.dedication?.pending;
   if (resolve?.kind === 'unit-recovered') return !view.recoveringUnits.some(unit => unit.id === resolve.unitId);
   const target = item.target;
   return target?.kind === 'unit' && !view.units.some(unit => unit.id === target.unitId);

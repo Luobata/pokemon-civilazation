@@ -118,6 +118,18 @@ export const AUDIT_SYSTEMS: readonly AuditSystem[] = [
     actionTypes: ['EndTurn', 'SetResearch'],
   }),
   system({
+    id: 's-dedications', name: '时代献礼', status: 'implemented',
+    summary: 'gameplay v22：进入新世代时按世代类型选献礼卡（普通/黑暗/黄金 1 张，英雄世代 3 张）；承诺在普通/黑暗世代额外得世代分，黄金效果只在黄金/英雄世代生效；读取 v≤21 存档时不启用。',
+    rules: ['EraAgeBegan 时设置待选数；英雄世代＝上一世代黑暗、新世代黄金。ChooseDedication 只在有待选时合法，张数必须等于待选数，不能重复。',
+      '承诺分与里程碑分一起计入本世代得分（决定下一个世代）；只算选卡之后的事，黄金世代里不额外得分。',
+      'v22 黄金世代保留满意度 +3，固定的金币 +1 / 规章点 +2 改由所选卡的黄金效果代替；黑暗世代保留逆境效果。',
+      '人类未选时可以结束回合，选择一直保留到选或下一次换世代；AI 在回合开始先选，不留待选。所选献礼只对自己可见。'],
+    checks: ['v21 固定 48 局改动前后逐文件一致；v22 48 局全部完成、0 异常、0 拒绝；统计献礼与黄金/黑暗/英雄世代分布。',
+      '待选数、英雄世代判定、命令校验、承诺得分、黄金效果、AI 选择与回放一致，有单元测试；浏览器测试走真实对局存档。'],
+    sources: ['src/content/dedications.ts', 'src/core/dedications.ts', 'src/core/era-honors.ts', 'src/ai/dedication-plan.ts', 'src/browser/era-panel.ts', 'tests/core/dedications.test.ts', 'tests/browser/dedications.spec.ts', 'docs/design/world-v22.md'],
+    actionTypes: ['ChooseDedication', 'EndTurn'],
+  }),
+  system({
     id: 's-governments', name: '联盟体制（政体）', status: 'implemented',
     summary: 'gameplay v11（新局默认）：同一时间一个体制，提供额外方针槽和常驻加成；读取 v≤10 存档时不启用。',
     rules: ['六个体制分两层，由道馆守则、宝可梦联盟、培育家协会、商会公约解锁。',
