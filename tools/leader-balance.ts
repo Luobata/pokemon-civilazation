@@ -82,7 +82,9 @@ export type LeaderGameResult = {
   /** v11+: GovernmentChanged events per government (adoptions, including switches). */
   governmentAdoptions?: Record<GovernmentId, number>;
   /** v12+: one entry per era change: the age chosen and the finished era's points per round (permille). */
-  eraAges?: { playerId: number; eraIndex: number; age: string; ratePermille: number; rounds: number }[];
+  eraAges?: { playerId: number; eraIndex: number; age: string; ratePermille: number; rounds: number; heroic?: true }[];
+  /** v22+: DedicationChosen events: cards picked (by id) and the eras still waiting for a choice when the game ended. */
+  dedications?: { picks: Record<string, number>; choices: number; pendingAtEnd: number };
   /** v13+: UnitPromoted events per trait. */
   promotions?: Record<PromotionTrait, number>;
   /** v14+: owned Pokémon at the end of the game, by species (deployed and recovering). */
@@ -287,6 +289,7 @@ export function simulateLeaderCase(match: LeaderBalanceCase, onState?: (state: G
   const districtCompletions = Object.fromEntries(DISTRICT_IDS.map(kind => [kind, 0])) as Record<DistrictId, number>;
   const governmentAdoptions = Object.fromEntries(GOVERNMENT_IDS.map(id => [id, 0])) as Record<GovernmentId, number>;
   const eraAges: NonNullable<LeaderGameResult['eraAges']> = [];
+  const dedications = { picks: {} as Record<string, number>, choices: 0, pendingAtEnd: 0 };
   let escorts = 0;
   const promotions = Object.fromEntries(PROMOTION_TRAIT_IDS.map(id => [id, 0])) as Record<PromotionTrait, number>;
   const countDistricts = (events: readonly GameEvent[]) => {
@@ -296,7 +299,9 @@ export function simulateLeaderCase(match: LeaderBalanceCase, onState?: (state: G
       if (event.payload.type === 'UnitPromoted') promotions[event.payload.trait]++;
       if (event.payload.type === 'EscortBonus') escorts++;
       if (event.payload.type === 'EraAgeBegan') eraAges.push({ playerId: event.payload.playerId, eraIndex: event.payload.eraIndex, age: event.payload.age,
-        ratePermille: event.payload.previousRounds ? Math.floor(event.payload.previousScore * 1000 / event.payload.previousRounds) : 0, rounds: event.payload.previousRounds });
+        ratePermille: event.payload.previousRounds ? Math.floor(event.payload.previousScore * 1000 / event.payload.previousRounds) : 0, rounds: event.payload.previousRounds,
+        ...(event.payload.heroic ? { heroic: true as const } : {}) });
+      if (event.payload.type === 'DedicationChosen') { dedications.choices++; for (const id of event.payload.dedicationIds) dedications.picks[id] = (dedications.picks[id] ?? 0) + 1; }
     }
   };
   let exception: string | null = null;
@@ -357,6 +362,7 @@ export function simulateLeaderCase(match: LeaderBalanceCase, onState?: (state: G
     ...((match.setup.gameplayVersion ?? 0) >= 11 ? { governmentAdoptions } : {}),
     ...((match.setup.gameplayVersion ?? 0) >= 12 ? { eraAges } : {}),
     ...((match.setup.gameplayVersion ?? 0) >= 13 ? { promotions } : {}),
+    ...((match.setup.gameplayVersion ?? 0) >= 22 ? { dedications: { ...dedications, pendingAtEnd: Object.values(state.expansion?.eraHonors?.players ?? {}).filter(record => record.dedication?.pending).length } } : {}),
     ...(state.expansion?.legends ? { legends: { clues: Object.values(state.expansion.legends.clues).reduce((sum, list) => sum + list.length, 0),
       wonders: Object.entries(state.expansion.legends.wonders).map(([legendId, record]) => ({ legendId, playerId: record!.builderId, round: record!.round })).sort((a, b) => a.round - b.round || (a.legendId < b.legendId ? -1 : 1)) } } : {}),
     ...((match.setup.gameplayVersion ?? 0) >= 18 ? { improvementsBuilt: Object.keys(state.expansion?.improvements?.tiles ?? {}).length } : {}),

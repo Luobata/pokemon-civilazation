@@ -757,6 +757,13 @@ export function inspectSystem(systemId: string, state: GameState): AuditSystemIn
       metric('黄金世代文明', Object.values(honors?.players ?? {}).filter(record => record.age === 'golden').length),
       metric('黑暗世代文明', Object.values(honors?.players ?? {}).filter(record => record.age === 'dark').length)], data: { eraHonors: honors ?? null } };
   }
+  if (system.id === 's-dedications') {
+    const records = Object.entries(state.expansion?.eraHonors?.players ?? {}).filter(([, record]) => record.dedication);
+    return { metrics: [metric('当前规则', records.length ? '时代献礼 v22' : '本局未启用（需 v22 时代对局）'),
+      metric('待选献礼的文明', records.filter(([, record]) => record.dedication!.pending).length),
+      metric('英雄世代文明', records.filter(([, record]) => record.dedication!.heroic).length)],
+      data: { dedications: records.length ? Object.fromEntries(records.map(([playerId, record]) => [playerId, { age: record.age, ...record.dedication }])) : null } };
+  }
   if (system.id === 's-governments') {
     const policies = state.expansion?.policies, enabled = Object.values(policies ?? {}).some(ledger => ledger.government !== undefined);
     const rows = Object.entries(policies ?? {}).map(([playerId, ledger]) => ({ playerId: Number(playerId), government: ledger.government ?? null,

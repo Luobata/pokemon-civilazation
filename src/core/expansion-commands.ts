@@ -8,8 +8,9 @@ import { WEATHER_IDS } from '../content/era-abilities.ts';
 import { RARE_BERRY_IDS } from '../content/rare-berries.ts';
 import { LEGEND_IDS, TENET_IDS } from '../content/faith-legends.ts';
 import { PROMOTION_TRAIT_IDS } from '../content/promotions.ts';
+import { DEDICATION_IDS } from '../content/dedications.ts';
 
-type Fields = Record<string, 'id' | 'ids' | 'string' | 'boolean' | 'policyIds' | 'tenets' | readonly string[]>;
+type Fields = Record<string, 'id' | 'ids' | 'string' | 'boolean' | 'policyIds' | 'tenets' | 'dedicationIds' | readonly string[]>;
 export function expansionActionFields(content: Content = ROSTER_CONTENT): Record<ExpansionAction['type'], Fields> {
   return {
   UseLeaderAbility: {}, RecruitLeaderUnit: { cityId: 'id' }, BuildLeaderBuilding: { cityId: 'id' },
@@ -40,6 +41,7 @@ export function expansionActionFields(content: Content = ROSTER_CONTENT): Record
   FoundFaith: { legend: LEGEND_IDS, tenets: 'tenets' }, SpreadFaith: { cityId: 'id' },
   PromoteUnit: { unitId: 'id', trait: PROMOTION_TRAIT_IDS },
   EstablishTradeRoute: { unitId: 'id', toCityId: 'id' },
+  ChooseDedication: { dedicationIds: 'dedicationIds' },
   };
 }
 export const EXPANSION_ACTION_FIELDS: Record<ExpansionAction['type'], Fields> = expansionActionFields();
@@ -61,6 +63,7 @@ export function parseExpansionAction(input: unknown, content: Content = ROSTER_C
       : rule === 'string' ? typeof item === 'string' && item.length > 0 && item.length <= 100
       : rule === 'boolean' ? typeof item === 'boolean'
       : rule === 'tenets' ? Array.isArray(item) && item.length === 2 && item.every(value => typeof value === 'string' && (TENET_IDS as readonly string[]).includes(value)) && new Set(item).size === 2
+      : rule === 'dedicationIds' ? Array.isArray(item) && item.length >= 1 && item.length <= DEDICATION_IDS.length && item.every(value => typeof value === 'string' && (DEDICATION_IDS as readonly string[]).includes(value))
       : rule === 'policyIds' ? Array.isArray(item) && item.length <= 12 && item.every(value => typeof value === 'string' && (POLICY_IDS as readonly string[]).includes(value)) && new Set(item).size === item.length
       : typeof item === 'string' && rule.includes(item);
     if (!valid) throw new Error(`Invalid expansion action field: ${key}`);

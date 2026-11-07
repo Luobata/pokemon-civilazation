@@ -6,25 +6,33 @@ import { eraState, gameplayAtLeast } from '../content/eras.ts';
 import type { PolicyEffects } from '../content/policies.ts';
 import type { SpeciesId } from '../content/species.ts';
 import type { EventPayload, GameState } from './model.ts';
+import { blankDedication, dedicationDeeds, dedicationPicks, goldenDedicationEffects, isHeroic, promisePoints, usesDedications } from './dedications.ts';
+import type { DedicationLedger } from './dedications.ts';
+import type { DedicationId } from '../content/dedications.ts';
 
-export type EraHonorRecord = { eraIndex: number; rounds: number; score: number; age: EraAge };
+/** v22 only: `dedications` chosen in that era and `heroic` (absent before, so older states serialize unchanged). */
+export type EraHonorRecord = { eraIndex: number; rounds: number; score: number; age: EraAge; dedications?: DedicationId[]; heroic?: true };
 export type EraHonorPlayerState = {
   eraIndex: number; eraStartRound: number; score: number; age: EraAge;
   byMilestone: Partial<Record<EraMilestone, number>>;
   /** Finished eras, oldest first. */
   history: EraHonorRecord[];
+  /** Gameplay v22 only: era dedications. */
+  dedication?: DedicationLedger;
 };
 export type EraHonorState = { players: Record<number, EraHonorPlayerState> };
 export type EraHonorView = EraHonorPlayerState & { goldenRatePermille: number; darkRatePermille: number; minimumRounds: number };
-export type EraHonorEvent = { type: 'EraAgeBegan'; playerId: number; eraIndex: number; age: EraAge; previousScore: number; previousRounds: number };
+/** v22 adds `heroic` (when true) and `dedicationPicks` (cards to choose now). */
+export type EraHonorEvent = { type: 'EraAgeBegan'; playerId: number; eraIndex: number; age: EraAge; previousScore: number; previousRounds: number; heroic?: true; dedicationPicks?: number };
 
 export const usesEraHonors = (state: Pick<GameState, 'setup' | 'expansion'>) =>
   state.expansion !== undefined && state.setup.eraProgression !== undefined && gameplayAtLeast(state.setup, 12);
 
 export function initializeEraHonors(state: GameState): void {
   if (!usesEraHonors(state)) return;
+  const dedications = usesDedications(state);
   state.expansion!.eraHonors = { players: Object.fromEntries(state.turnOrder.map(id => [id,
-    { eraIndex: 0, eraStartRound: state.round, score: 0, age: 'normal' as EraAge, byMilestone: {}, history: [] }])) };
+    { eraIndex: 0, eraStartRound: state.round, score: 0, age: 'normal' as EraAge, byMilestone: {}, history: [], ...(dedications ? { dedication: blankDedication() } : {}) }])) };
 }
 
 /** Age chosen from an era's average points per round (integer permille math). */
@@ -72,11 +80,21 @@ function milestones(before: GameState, after: GameState, events: readonly EventP
 export function recordEraHonors(before: GameState, after: GameState, events: readonly EventPayload[]): EventPayload[] {
   const ledger = after.expansion?.eraHonors;
   if (!ledger) return [];
-  for (const [playerId, milestone] of milestones(before, after, events)) {
+  const found = milestones(before, after, events);
+  for (const [playerId, milestone] of found) {
     const record = ledger.players[playerId];
     if (!record) continue;
     record.score += ERA_MILESTONES[milestone].points;
     record.byMilestone[milestone] = (record.byMilestone[milestone] ?? 0) + 1;
+  }
+  // v22: the chosen dedications' promises add to the same era score.
+  if (Object.values(ledger.players).some(record => record.dedication)) for (const [playerId, deed] of dedicationDeeds(before, after, events, found)) {
+    const record = ledger.players[playerId];
+    if (!record?.dedication) continue;
+    for (const [id, points] of promisePoints(record, deed)) {
+      record.score += points;
+      record.dedication.progress[id] = (record.dedication.progress[id] ?? 0) + points;
+    }
   }
   const output: EventPayload[] = [];
   for (const playerId of [...after.turnOrder].sort((a, b) => a - b)) {
@@ -86,6 +104,14 @@ export function recordEraHonors(before: GameState, after: GameState, events: rea
     if (index === record.eraIndex) continue;
     const rounds = after.round - record.eraStartRound;
     const age = ageFor(record.score, rounds);
+    if (record.dedication) {
+      // v22: the finished era remembers its cards; the new one asks for 1 card (3 in a heroic age).
+      const heroic = isHeroic(record.age, age), picks = dedicationPicks(age, heroic);
+      record.history.push({ eraIndex: record.eraIndex, rounds, score: record.score, age: record.age, dedications: [...record.dedication.chosen], ...(record.dedication.heroic ? { heroic: true as const } : {}) });
+      output.push({ type: 'EraAgeBegan', playerId, eraIndex: index, age, previousScore: record.score, previousRounds: rounds, ...(heroic ? { heroic: true as const } : {}), dedicationPicks: picks });
+      Object.assign(record, { eraIndex: index, eraStartRound: after.round, score: 0, age, byMilestone: {}, dedication: { pending: picks, heroic, chosen: [], progress: {} } });
+      continue;
+    }
     record.history.push({ eraIndex: record.eraIndex, rounds, score: record.score, age: record.age });
     output.push({ type: 'EraAgeBegan', playerId, eraIndex: index, age, previousScore: record.score, previousRounds: rounds });
     Object.assign(record, { eraIndex: index, eraStartRound: after.round, score: 0, age, byMilestone: {} });
@@ -100,7 +126,7 @@ export function resolveEraHonorRound(state: GameState): EventPayload[] {
   for (const playerId of [...state.turnOrder].sort((a, b) => a - b)) {
     const record = ledger.players[playerId], world = state.expansion!.world.players[playerId];
     if (!record || !world || state.players[playerId].eliminated) continue;
-    const delta = ERA_AGES[record.age].satisfaction;
+    const delta = ERA_AGES[record.age].satisfaction + goldenDedicationEffects(record).satisfaction;
     if (delta) world.satisfaction = Math.max(0, Math.min(100, world.satisfaction + delta));
   }
   return [];
@@ -111,6 +137,17 @@ export function eraAgeOf(state: Pick<GameState, 'expansion'>, playerId: number):
 }
 export const ageEffects = (age: EraAge | undefined): PolicyEffects => age ? ERA_AGES[age].policy : {};
 export const ageLeaguePoints = (age: EraAge | undefined): number => age ? ERA_AGES[age].leaguePoints : 0;
+type AgeHolder = { age: EraAge; dedication?: DedicationLedger } | undefined;
+/** Effects of an era-honor record (state or view). v22: a golden age's fixed bonus is replaced by the chosen cards' golden effects. */
+export function honorEffects(record: AgeHolder): PolicyEffects {
+  if (!record?.dedication) return ageEffects(record?.age);
+  return record.age === 'golden' ? goldenDedicationEffects(record).policy : ageEffects(record.age);
+}
+export function honorLeaguePoints(record: AgeHolder): number {
+  if (!record?.dedication) return ageLeaguePoints(record?.age);
+  return record.age === 'golden' ? goldenDedicationEffects(record).leaguePoints : ageLeaguePoints(record.age);
+}
+export const eraHonorRecord = (state: Pick<GameState, 'expansion'>, playerId: number) => state.expansion?.eraHonors?.players[playerId];
 
 export function observeEraHonors(state: GameState, playerId: number): EraHonorView | undefined {
   const record = state.expansion?.eraHonors?.players[playerId];

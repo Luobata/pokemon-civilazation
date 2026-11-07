@@ -1,5 +1,5 @@
 import type { SpeciesId } from '../content/species.ts';
-import { renderEraPanel } from './era-panel.ts';
+import { bindEraPanel, renderEraPanel } from './era-panel.ts';
 import { LEADERS, LEADER_IDS, type LeaderId } from '../content/leaders.ts';
 import type { EraProgression } from '../content/eras.ts';
 import { EXPANSION_ACTION_FIELDS } from '../core/expansion-commands.ts';
@@ -209,7 +209,9 @@ function render(): void {
   renderEconomyPanel(currentView, selectedCity, issue, disabled, startDistrictPlacement);
   renderResearchPanel(currentView, issue, disabled);
   renderDiplomacyPanel(currentView, !active || ended, issue);
-  document.querySelector<HTMLElement>('#era-panel')!.innerHTML = renderEraPanel(currentView);
+  const eraPanel = document.querySelector<HTMLElement>('#era-panel')!;
+  eraPanel.innerHTML = renderEraPanel(currentView);
+  bindEraPanel(eraPanel, currentView, issue, disabled);
   renderExpansionPanel(currentView, selectedUnit, selectedCity, issue, disabled);
   const paths = unit && actionMode === 'move' ? reachablePaths(currentView, unit.id) : {};
   const targets = selectedUnit === null ? [] : actionTargets(currentView, selectedUnit, actionMode, selectedBall)

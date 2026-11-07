@@ -38,6 +38,7 @@ import { planBondAction, threatenedCityIds } from './bond-plan.ts';
 import { planRareBerryAction, siteRareBerryBonus } from './rare-berry-plan.ts';
 import { planContestAction } from './contest-plan.ts';
 import { planFaithAction } from './faith-plan.ts';
+import { planDedicationAction } from './dedication-plan.ts';
 import type { Goal } from './strategies.ts';
 type Candidate = { action: Command['action']; goal: Goal; benefit: number; ownId: number; targetId: number };
 export const CANDIDATE_BUDGET = 256; // 32 representatives for each of eight goals, never a time budget.
@@ -99,6 +100,9 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
   const citySite = (position: MapUnit['position']) => !rejectedCitySite(memory, view, position) && query.citySite(view, position);
   const result = (action: Command['action']): Command => ({ actorId, expectedSeq: view.commandSeq, action });
   if (view.outcome || view.activePlayerId !== actorId || player.eliminated) return result({ type: 'EndTurn' });
+  // v22: a pending era dedication is chosen before anything else (never left open at the end of the turn).
+  const dedicationAction = planDedicationAction(view);
+  if (dedicationAction) return result(dedicationAction);
   const promotionAction = planPromotionAction(view, content);
   if (promotionAction) return result(promotionAction);
   const policyAction = planPolicyAction(view);
