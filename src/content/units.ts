@@ -30,6 +30,8 @@ export type Content = {
   combat?: 'strength';
   /** Gameplay v21: opening pace (city-centre research, sturdier cities, objectives, item balls). */
   opening?: true;
+  /** Gameplay v22 (docs/design/world-v22.md): east-west map wrap, branching tech tree, era dedications. */
+  wrap?: true; techTree?: true; dedications?: true;
   /** Gameplay v14 only: species-keyed tables that older contents read from their global constants. */
   roster?: RosterTables;
 };
@@ -130,14 +132,16 @@ export const OPENING_CONTENT: Content = { ...BATTLE_CONTENT, version: 'opening-v
   balance: { ...BATTLE_CONTENT.balance, city: { ...BATTLE_CONTENT.balance.city, baseHp: 100, capturedHp: 50 } } };
 type ContentSetup = { expansionVersion?: 1; gameplayVersion?: number };
 /** The single place that maps a game setup to its content table; logs and saves record `content.version`. */
+/** v22: starts as v21 content plus the three flags; the tech tree pack replaces `techs`. */
+export const WORLD_CONTENT: Content = { ...OPENING_CONTENT, version: 'world-v22', wrap: true, techTree: true, dedications: true };
 export function contentFor(setup: ContentSetup): Content {
-  return setup.expansionVersion !== 1 ? CONTENT : (setup.gameplayVersion ?? 0) >= 21 ? OPENING_CONTENT : (setup.gameplayVersion ?? 0) >= 20 ? BATTLE_CONTENT : (setup.gameplayVersion ?? 0) >= 14 ? ROSTER_CONTENT : EXPANSION_CONTENT;
+  return setup.expansionVersion !== 1 ? CONTENT : (setup.gameplayVersion ?? 0) >= 22 ? WORLD_CONTENT : (setup.gameplayVersion ?? 0) >= 21 ? OPENING_CONTENT : (setup.gameplayVersion ?? 0) >= 20 ? BATTLE_CONTENT : (setup.gameplayVersion ?? 0) >= 14 ? ROSTER_CONTENT : EXPANSION_CONTENT;
 }
 /** Same choice from a player's view (views carry `expansion` and `gameplayVersion` but not the setup). */
 export function contentForView(view: { expansion?: unknown; gameplayVersion?: number }): Content {
   return view.expansion ? contentFor({ expansionVersion: 1, gameplayVersion: view.gameplayVersion }) : CONTENT;
 }
-export const STOCK_CONTENTS: readonly Content[] = [CONTENT, EXPANSION_CONTENT, ROSTER_CONTENT, BATTLE_CONTENT, OPENING_CONTENT];
+export const STOCK_CONTENTS: readonly Content[] = [CONTENT, EXPANSION_CONTENT, ROSTER_CONTENT, BATTLE_CONTENT, OPENING_CONTENT, WORLD_CONTENT];
 export function unitDefinition(unit: UnitIdentity, content: Content = CONTENT): UnitDefinition {
   const base = content.units[unit.kind === 'pokemon' ? unit.speciesId : unit.role];
   return unit.kind === 'pokemon' && unit.uniqueLeader ? { ...base, name: `${base.name}·${unit.uniqueLeader}`, vision: base.vision + 1 } : base;
