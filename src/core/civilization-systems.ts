@@ -1,3 +1,4 @@
+import { victoryTargets } from '../content/opening.ts';
 import { gameplayAtLeast } from '../content/eras.ts';
 import { CIVILIZATION_CONTENT } from '../content/civilization-systems.ts';
 import type { CivilizationContent, OfferingResource, PhantomCategory } from '../content/civilization-systems.ts';
@@ -775,7 +776,7 @@ function resolveChampionship(state: CivilizationHost, content: CivilizationConte
   championship.history.push(season);
   if (champion.playerId !== null) {
     championship.titlesByPlayer[champion.playerId] = (championship.titlesByPlayer[champion.playerId] ?? 0) + 1;
-    if (championship.titlesByPlayer[champion.playerId] >= content.championship.titlesNeededForVictory) {
+    if (championship.titlesByPlayer[champion.playerId] >= ((state.setup?.gameplayVersion ?? 0) >= 21 ? victoryTargets(state.setup).championshipTitles : content.championship.titlesNeededForVictory)) {
       championship.victory = { playerId: champion.playerId, season: season.season, round: state.round };
       civilizationState.victory = { kind: 'championship', playerId: champion.playerId, round: state.round, season: season.season };
     }

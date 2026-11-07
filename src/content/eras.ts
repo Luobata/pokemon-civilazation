@@ -104,11 +104,12 @@ export function eraState(player: EraPlayer, mode?: EraProgression): EraState | n
  * 18: role Pokémon: 工匠 (builder) units build tile improvements with charges; combat Pokémon no longer build.
  * 19: unit classes: class counters, type affinity, HM / gym-badge training gates and Rare Candy.
  * 20: Civilization 6-style combat strength: flat labelled bonuses, damage from the strength gap, 100 HP units.
+ * 21: opening pace: city-centre research, cheaper early techs, opening objectives, item balls, sturdier cities.
  */
-export type GameplayVersion = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20;
-export const LATEST_GAMEPLAY_VERSION: GameplayVersion = 20;
+export type GameplayVersion = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21;
+export const LATEST_GAMEPLAY_VERSION: GameplayVersion = 21;
 export function isGameplayVersion(value: unknown): value is GameplayVersion {
-  return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 20;
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 21;
 }
 export function gameplayAtLeast(source: { gameplayVersion?: GameplayVersion }, version: GameplayVersion): boolean {
   return (source.gameplayVersion ?? 0) >= version;

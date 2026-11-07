@@ -1,3 +1,4 @@
+import { initializeOpening, recordOpening, resolveOpeningRound } from './opening.ts';
 import { applyCityNetworkAction, initializeCityNetwork, isCityNetworkAction, resolveCityNetworkRound, validateCityNetworkAction } from './city-network.ts';
 import { initializeLegends, recordLegends } from './legends.ts';
 import { initializeDistricts } from './districts.ts';
@@ -41,6 +42,7 @@ export function initializeExpansion(state: GameState, content: Content): void {
   initializePromotions(state);
   initializeLegends(state);
   initializeCityNetwork(state);
+  initializeOpening(state);
 }
 export function validateExpansionAction(state: GameState, actorId: number, action: Command['action'], content: Content): boolean {
   if (!state.expansion || !expansionActionType(action.type)) return false;
@@ -89,6 +91,7 @@ export function resolveExpansionRound(state: GameState, content: Content): Event
   if (!state.outcome) events.push(...resolveEraHonorRound(state));
   if (!state.outcome) events.push(...resolvePromotionRound(state));
   if (!state.outcome) events.push(...resolveCityNetworkRound(state));
+  if (!state.outcome) events.push(...resolveOpeningRound(state));
   if (!state.outcome) events.push(...resolveBondRound(state));
   if (!state.outcome) events.push(...resolveContestRound(state, content));
   if (!state.outcome) events.push(...resolveFaithRound(state, content));
@@ -101,5 +104,6 @@ export function recordExpansion(before: GameState, after: GameState, command: Co
   const world = updateWorldRecords(before, after, command, events, content);
   const discoveries = recordDiscoveries(before, after, command, [...events, ...world], content);
   const honors = recordEraHonors(before, after, [...events, ...world, ...discoveries]);
-  return [...world, ...discoveries, ...honors, ...recordLegends(after, [...events, ...world, ...discoveries, ...honors], content)];
+  const legends = recordLegends(after, [...events, ...world, ...discoveries, ...honors], content);
+  return [...world, ...discoveries, ...honors, ...legends, ...recordOpening(after, [...events, ...world, ...discoveries, ...honors, ...legends])];
 }

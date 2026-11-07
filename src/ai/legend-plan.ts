@@ -33,3 +33,16 @@ export function legendTraceTargets(view: PlayerView, content: Content): Map<numb
   }
   return targets;
 }
+
+/** v21: each known item ball gets the nearest own Pokémon within 8 tiles (one per ball). */
+export function itemBallTargets(view: PlayerView): Map<number, Hex> {
+  const balls = view.expansion?.opening?.itemBalls ?? [], targets = new Map<number, Hex>();
+  const units = view.units.filter(unit => unit.ownerId === view.playerId && unit.kind === 'pokemon' && unit.actionLeft);
+  for (const ball of balls) {
+    const position = indexToHex(ball.tileIndex, view.map);
+    const unit = units.filter(candidate => !targets.has(candidate.id) && hexDistance(candidate.position, position) <= 8)
+      .sort((a, b) => hexDistance(a.position, position) - hexDistance(b.position, position) || a.id - b.id)[0];
+    if (unit) targets.set(unit.id, position);
+  }
+  return targets;
+}

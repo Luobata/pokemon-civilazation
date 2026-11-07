@@ -185,7 +185,8 @@ test('attack clicks reject peaceful and out-of-range targets', async ({ page }) 
 });
 
 test('faith progress requires a converted city for every living rival', async ({ page }) => {
-  await page.goto('/?seed=12345');
+  // Pinned to v20: from v21 a 200-round game needs 8 owned cities instead of 6 (see opening.spec / opening.test).
+  await page.goto('/?seed=12345&gameplay=20');
   const result = await page.evaluate(async () => {
     const mainPath = '/src/browser/main.ts', panelPath = '/src/browser/victory-panel.ts';
     const { session } = await import(mainPath), { renderVictoryPanel } = await import(panelPath);

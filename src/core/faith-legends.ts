@@ -1,3 +1,4 @@
+import { victoryTargets } from '../content/opening.ts';
 import { FAITH_RULES, LEGENDS, LEGEND_IDS, TENETS } from '../content/faith-legends.ts';
 import type { LegendId, TenetId } from '../content/faith-legends.ts';
 import { gameplayAtLeast } from '../content/eras.ts';
@@ -130,7 +131,7 @@ export function resolveFaithRound(state: GameState, content: Content): EventPayl
     }
   }
   const owned = Object.values(state.cities).filter(city => city.ownerId !== null);
-  if (owned.length >= FAITH_RULES.winMinimumCities) {
+  if (owned.length >= victoryTargets(state.setup).faithMinimumCities) {
     const winners = Object.keys(faith.faiths).map(Number).filter(founder => !state.players[founder].eliminated
       && owned.filter(city => faith.cityFaith[city.id] === founder).length >= Math.ceil(owned.length * FAITH_RULES.winShare)
       // Every living rival must follow it in at least one of their cities, so a faith cannot win by isolation.

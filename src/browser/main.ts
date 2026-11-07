@@ -1,3 +1,6 @@
+import { OBJECTIVES, OBJECTIVE_IDS } from '../content/opening.ts';
+import type { ObjectiveId } from '../content/opening.ts';
+import { discoveryText } from '../content/discoveries.ts';
 import { isGameplayVersion } from '../content/eras.ts';
 import type { GameplayVersion } from '../content/eras.ts';
 import { audio, audioSettingsMarkup, bindAudioSettings } from './audio/index.ts';
@@ -18,7 +21,6 @@ import type { TechId } from '../content/economy.ts';
 import { canResearch } from '../core/economy-commands.ts';
 import { CHARTERS, POLICIES, GOVERNMENTS } from '../content/policies.ts';
 import { IMPROVEMENTS } from '../content/improvements.ts';
-import { DISCOVERIES } from '../content/discoveries.ts';
 import { renderEraPanel } from './era-panel.ts';
 import { renderPolicyPanel } from './policy-panel.ts';
 import type { EraProgression } from '../content/eras.ts';
@@ -198,7 +200,7 @@ function activityText(payload: VisibleEvent['payload']) {
     case 'EraAgeBegan': return payload.playerId === session.getView().playerId ? `进入${ERA_AGES[payload.age].name}（上个世代 ${payload.previousScore} 分 / ${payload.previousRounds} 轮）` : '';
     case 'GovernmentChanged': return `采用体制「${GOVERNMENTS[payload.governmentId].name}」${payload.goldCost ? `（${payload.goldCost} 金）` : ''}${payload.droppedPolicies.length ? `，取下方针：${payload.droppedPolicies.map(id => POLICIES[id].name).join('、')}` : ''}`;
     case 'PoliciesChanged': return `方针更新：${payload.policyIds.map(id => POLICIES[id].name).join('、') || '无'}${payload.goldCost ? `（${payload.goldCost} 金）` : ''}`;
-    case 'DiscoveryMade': return `★ 图鉴发现「${DISCOVERIES[payload.techId].name}」：${EXPANSION_CONTENT.techs[payload.techId].name} +${payload.bonus}`;
+    case 'DiscoveryMade': return `★ 图鉴发现「${discoveryText(payload.techId, Boolean(contentForView(session.getView()).opening)).name}」：${contentForView(session.getView()).techs[payload.techId].name} +${payload.bonus}`;
     default: return '';
   }
 }
@@ -247,6 +249,7 @@ function soundFor(payload: VisibleEvent['payload'], view: PlayerView): SoundId |
     case 'BuildingCompleted': case 'DistrictCompleted': case 'UnitTrained': return payload.playerId === me ? 'production' : null;
     case 'TechCompleted': case 'DiscoveryMade': return payload.playerId === me ? 'research' : null;
     case 'TradeRouteEstablished': return payload.playerId === me ? 'production' : null;
+    case 'ObjectiveCompleted': case 'ItemBallClaimed': return payload.playerId === me ? 'notify' : null;
     case 'UnitPromoted': return 'promotion';
     case 'LegendWonderCompleted': return 'wonder';
     case 'LegendClueFound': case 'EraAgeBegan': return payload.playerId === me ? 'notify' : null;
@@ -310,6 +313,7 @@ function controls() {
   renderSelectionPanel(view, selected, selectedCity, { unit: selectUnit, city: selectCity, clear: clearSelection }, busy());
   document.querySelector<HTMLElement>('#era-panel')!.innerHTML = renderEraPanel(view);
   renderLegends(view);
+  renderGoals(view);
   renderPolicyPanel(view, issue, busy() || ended || pendingPeace);
   renderLeaderPanel(view);
   renderVictoryPanel(view);
@@ -460,6 +464,16 @@ function confirmDistrictPlacement() {
 function requestedGameplayVersion(): GameplayVersion {
   const value = Number(new URLSearchParams(location.search).get('gameplay'));
   return isGameplayVersion(value) && value >= 1 ? value : LATEST_GAMEPLAY_VERSION;
+}
+// ---------- v21 opening objectives ----------
+function renderGoals(view: PlayerView) {
+  const root = document.querySelector<HTMLElement>('#opening-goals')!, opening = view.expansion?.opening;
+  const left = opening ? OBJECTIVE_IDS.filter(id => !opening.objectives.includes(id)) : [];
+  root.hidden = !opening || !left.length;
+  if (!opening) return;
+  const reward = (id: ObjectiveId) => { const r = OBJECTIVES[id].reward; return [r.gold ? `金 +${r.gold}` : '', r.research ? `研 +${r.research}` : '', r.pokeBalls ? `球 +${r.pokeBalls}` : ''].filter(Boolean).join(' '); };
+  const markup = `<p class="section-label">开局目标 ${opening.objectives.length}/${OBJECTIVE_IDS.length}</p><ul>${left.slice(0, 3).map(id => `<li><b>${OBJECTIVES[id].name}</b><small>${OBJECTIVES[id].hint}</small><span>${reward(id)}</span></li>`).join('')}</ul>`;
+  if (root.innerHTML !== markup) root.innerHTML = markup;
 }
 // ---------- v15 legendary wonders ----------
 const legendArrivals: LegendWonderId[] = [];

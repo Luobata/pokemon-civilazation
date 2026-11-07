@@ -1,12 +1,13 @@
 // Civilization-style notifications: a short toast stack for the viewer's own milestones (research, production,
 // growth, wonders, war). Pure description from the PlayerView; main.ts decides what a click does.
+import { ITEM_BALLS, OBJECTIVES } from '../content/opening.ts';
+import { discoveryText } from '../content/discoveries.ts';
 import { ROLE_POKEMON } from '../content/roles.ts';
 import { ESCORT_BONUSES } from '../content/city-network.ts';
 import type { PlayerView, VisibleEvent } from '../core/model.ts';
 import { contentForView } from '../content/units.ts';
 import { DISTRICTS } from '../content/districts.ts';
 import { ERA_AGES } from '../content/era-honors.ts';
-import { DISCOVERIES } from '../content/discoveries.ts';
 import { PROMOTION_TRAITS } from '../content/promotions.ts';
 import { LEGEND_WONDERS } from '../content/legend-wonders.ts';
 
@@ -56,7 +57,7 @@ export function toastFor(payload: VisibleEvent['payload'], view: PlayerView): To
         : toast('war', '↓', `城市 ${payload.cityId} 饥荒，人口降到 ${payload.populationAfter}`, '食物不足：调整耕作地块或减少维护。', { kind: 'city', cityId: payload.cityId }, '查看城市');
     case 'DiscoveryMade':
       if (payload.playerId !== me) return null;
-      return toast('research', '✦', `图鉴发现「${DISCOVERIES[payload.techId].name}」`, `${content.techs[payload.techId].name} 研究进度 +${payload.bonus}。`, { kind: 'screen', screen: 'research' }, '查看');
+      return toast('research', '✦', `图鉴发现「${discoveryText(payload.techId, Boolean(content.opening)).name}」`, `${content.techs[payload.techId].name} 研究进度 +${payload.bonus}。`, { kind: 'screen', screen: 'research' }, '查看');
     case 'EraAgeBegan':
       if (payload.playerId !== me) return null;
       return toast(payload.age === 'dark' ? 'war' : 'wonder', '◷', `进入${ERA_AGES[payload.age].name}`, ERA_AGES[payload.age].description, { kind: 'screen', screen: 'era' }, '查看时代');
@@ -89,6 +90,14 @@ export function toastFor(payload: VisibleEvent['payload'], view: PlayerView): To
     case 'TradeRouteLost':
       if (payload.playerId !== me) return null;
       return toast('war', '✕', `商路中断：城市 ${payload.fromCityId} ↔ 城市 ${payload.toCityId}`, '其中一座城市已经易主。', null);
+    case 'ObjectiveCompleted': {
+      if (payload.playerId !== me) return null;
+      const objective = OBJECTIVES[payload.objectiveId], reward = objective.reward;
+      return toast('growth', '✔', `目标达成：${objective.name}`, [reward.gold ? `金币 +${reward.gold}` : '', reward.research ? `科研 +${reward.research}` : '', reward.pokeBalls ? `精灵球 +${reward.pokeBalls}` : ''].filter(Boolean).join('，'), null);
+    }
+    case 'ItemBallClaimed':
+      if (payload.playerId !== me) return null;
+      return toast('growth', '◓', `捡到道具球：${ITEM_BALLS[payload.kind].name}`, ITEM_BALLS[payload.kind].text, null);
     case 'CivilizationEliminated':
       return toast('war', '☠', `文明 ${payload.eliminatedPlayerId + 1} 出局`, '', null);
     default: return null;

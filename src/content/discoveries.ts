@@ -16,3 +16,7 @@ export const DISCOVERIES: Record<TechId, { name: string; hint: string }> = {
   leagueRules: { name: '联盟之约', hint: '与其他文明结盟或缔结贸易' },
   meteorology: { name: '雪山火山', hint: '让一只宝可梦抵达雪原或火山' },
 };
+
+/** Gameplay v21 hint overrides (the trigger changed). */
+export const DISCOVERY_HINTS_V21: Partial<Record<TechId, { name: string; hint: string }>> = { domestication: { name: '初次交手', hint: '和一只野生宝可梦交战' } };
+export const discoveryText = (id: TechId, opening: boolean) => (opening ? DISCOVERY_HINTS_V21[id] : undefined) ?? DISCOVERIES[id];

@@ -51,7 +51,7 @@ export type UnitMarkIdentity = UnitIdentity & { id: number; ownerId: number | nu
 export type SceneTile = { index: number; biome: BiomeId | null; world: Point; visible: boolean };
 export type SceneEdge = { index: number; direction: number; ownerId?: number };
 export type SceneBadge = { index: number; ring: string; luxury: boolean; dim: boolean }
-  & ({ kind: 'icon'; icon: string } | { kind: 'sprite'; speciesId: SpeciesId; fallback: string; crown: boolean } | { kind: 'legend'; path: string });
+  & ({ kind: 'icon'; icon: string } | { kind: 'sprite'; speciesId: SpeciesId; fallback: string; crown: boolean; warning?: true } | { kind: 'legend'; path: string } | { kind: 'itemBall' });
 export type SceneDistrict = { index: number; kind: DistrictId; ownerId: number | null; memory: boolean; progress?: number };
 export type SceneCity = { id: number; index: number; ownerId: number | null; selected: boolean; buildings: BuildingId[];
   name: string; population?: number; capital: boolean; hp?: { current: number; max: number };
@@ -157,7 +157,10 @@ export function buildScene(input: MapRenderInput): MapScene {
       badges.push({ kind: 'icon', index: site.tileIndex, icon: site.kind === 'stone' && !site.remaining ? 'depleted' : site.definitionId,
         ring: site.kind === 'berry' ? '#8FD07A' : '#D4DED5', luxury: false, dim: site.remaining === 0 });
     }
-    for (const site of expansion.world.nests) badges.push({ kind: 'sprite', index: site.tileIndex, speciesId: site.speciesId, fallback: '巢', crown: false, ring: '#D3655C', luxury: false, dim: false });
+    // Threat warning (all versions): a nest about to send rampaging Pokémon next round gets a red alarm mark.
+    for (const site of expansion.world.nests) badges.push({ kind: 'sprite', index: site.tileIndex, speciesId: site.speciesId, fallback: '巢', crown: false, ring: '#D3655C', luxury: false, dim: false,
+      ...(site.nextSpawnRound <= view.round + 1 ? { warning: true as const } : {}) });
+    for (const ball of expansion.opening?.itemBalls ?? []) badges.push({ kind: 'itemBall', index: ball.tileIndex, ring: '#E5554A', luxury: false, dim: !visible.has(ball.tileIndex) });
     for (const site of expansion.world.overlords) badges.push({ kind: 'sprite', index: site.tileIndex, speciesId: site.speciesId, fallback: '霸', crown: true, ring: '#E6B85C', luxury: false, dim: false });
     // v15 trace sites: a gold-ringed badge with the legend's sprite, where the viewer sees or remembers the tile.
     for (const site of expansion.legends?.sites ?? []) if (!expansion.legends!.wonders.some(wonder => wonder.legendId === site.legendId))
@@ -184,7 +187,7 @@ export function buildScene(input: MapRenderInput): MapScene {
       buildings: (own?.buildingIds ?? []).filter(id => id !== 'headquarters'),
       name: city.ownerId === null ? `中立 · 城市 ${city.id}` : `城市 ${city.id}`,
       capital: city.headquartersOf !== undefined && city.headquartersOf !== null,
-      ...(own ? { population: own.population, hp: { current: own.hp, max: maxCityHp(own) } } : {}),
+      ...(own ? { population: own.population, hp: { current: own.hp, max: maxCityHp(own, contentForView(view)) } } : {}),
       ...(expansion?.legends?.wonders.some(wonder => wonder.cityId === city.id) ? { wonders: expansion.legends.wonders.filter(wonder => wonder.cityId === city.id).length } : {}) };
   });
 
@@ -276,7 +279,7 @@ export function sceneMarkedTiles(scene: MapScene): { layer: string; index: numbe
   return [
     ...scene.units.map(item => ({ layer: 'unit', index: item.index })),
     ...scene.cities.map(item => ({ layer: 'city', index: item.index })),
-    ...scene.badges.map(item => ({ layer: `badge:${item.kind === 'icon' ? item.icon : item.kind === 'legend' ? item.path : item.speciesId}`, index: item.index })),
+    ...scene.badges.map(item => ({ layer: `badge:${item.kind === 'icon' ? item.icon : item.kind === 'legend' ? item.path : item.kind === 'itemBall' ? 'itemBall' : item.speciesId}`, index: item.index })),
     ...scene.districts.map(item => ({ layer: 'district', index: item.index })),
     ...scene.constructionSites.map(item => ({ layer: 'construction', index: item.index })),
     ...scene.improvements.map(item => ({ layer: 'improvement', index: item.index })),

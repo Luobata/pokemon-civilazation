@@ -17,6 +17,16 @@ const system = (definition: AuditSystem): AuditSystem => definition;
 
 export const AUDIT_SYSTEMS: readonly AuditSystem[] = [
   system({
+    id: 's-opening', name: '开局节奏（开局目标、道具球、城墙）', status: 'implemented',
+    summary: 'gameplay v21：8 个开局目标发奖励；道具球（探索奖励）按稳定种子摆放；城市中心产科研、首都生产 +2；一阶/二阶科技降价、开拓队 24；城市 HP 100、每轮恢复、城墙随轮数成长；胜利门槛随轮上限变化；驯化发现改为“初次交手”。读取 v≤20 存档时不启用。',
+    rules: ['开局目标与道具球只读取本条命令产生的事件与单位位置，摆放不消耗 state.rng。',
+      '城墙是防守方的一条战斗力加成，预览与结算共用同一份计算。',
+      '玩家视图只包含看见过的道具球。'],
+    checks: ['v20 固定 48 局改动前后逐文件一致；v21 两次运行逐字节一致。', '目标与奖励、道具球拾取、城墙预览一致、门槛随轮上限，有单元测试。'],
+    sources: ['src/content/opening.ts', 'src/core/opening.ts', 'tests/core/opening.test.ts', 'docs/design/opening-v21.md'],
+    actionTypes: ['Move', 'Attack', 'SetProductionQueue'],
+  }),
+  system({
     id: 's-combat-strength', name: '战斗力（文明 6 式战斗）', status: 'implemented',
     summary: 'gameplay v20：攻/防换算成战斗力（×0.4 + 15），所有宝可梦 100 HP；每个加成是带名字的战斗力加减，伤害 = 15 × e^(差/25) × 掷骰，反击减半。读取 v≤19 存档时仍用乘法公式。',
     rules: ['属性：每个效果拔群 +10（研究后 +12），效果不好 −10，无效 0 伤害；掩护 +5、居高临下 +5。',

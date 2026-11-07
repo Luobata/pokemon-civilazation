@@ -1,5 +1,6 @@
+import { victoryTargets } from '../content/opening.ts';
 import { CIVILIZATION_CONTENT } from '../content/civilization-systems.ts';
-import { FAITH_RULES, LEGENDS } from '../content/faith-legends.ts';
+import { LEGENDS } from '../content/faith-legends.ts';
 import type { PlayerView } from '../core/model.ts';
 
 type Path = { id: string; name: string; value: number; target: number; detail: string; hint: string; nav?: string; blocked?: boolean };
@@ -22,7 +23,7 @@ export function victoryPaths(view: PlayerView): Path[] {
   const tabletLeader = Math.max(0, ...rivals.map(rival => Object.values(civ.tabletOwners).filter(owner => owner === rival.id).length));
   paths.push({ id: 'origin', name: '起源（石板）', value: ownTablets, target: tablets, detail: `对手最多 ${tabletLeader}`, hint: '建立圣所并击败守卫获得石板。', nav: '#expansion-panel' });
   const titles = civ.championship.titlesByPlayer;
-  paths.push({ id: 'championship', name: '冠军（联盟大会）', value: titles[view.playerId] ?? 0, target: CIVILIZATION_CONTENT.championship.titlesNeededForVictory,
+  paths.push({ id: 'championship', name: '冠军（联盟大会）', value: titles[view.playerId] ?? 0, target: (view.gameplayVersion ?? 0) >= 21 ? victoryTargets(view).championshipTitles : CIVILIZATION_CONTENT.championship.titlesNeededForVictory,
     detail: `下一届第 ${civ.championship.nextRound} 轮 · 对手最多 ${Math.max(0, ...rivals.map(rival => titles[rival.id] ?? 0))}`, hint: '和平时报名六只宝可梦参加联盟大会。', nav: '#expansion-panel' });
   if (exp.contests) {
     const top = Math.max(0, ...exp.contests.rivals.map(rival => rival.appeal));
@@ -36,7 +37,7 @@ export function victoryPaths(view: PlayerView): Path[] {
       ...Object.entries(view.knowledge.lastKnownCities).map(([cityId, city]) => ({ ...city, id: Number(cityId) }))];
     const missingRivals = mine ? rivals.filter(rival => !Object.entries(exp.faith!.cityFaith).some(([cityId, founderId]) => founderId === view.playerId
       && knownCities.some(city => city.id === Number(cityId) && city.ownerId === rival.id))).length : rivals.length;
-    paths.push({ id: 'faith', name: '传说共鸣（宗教）', value: mine?.followers ?? 0, target: Math.max(FAITH_RULES.winMinimumCities, Math.ceil(exp.faith.totalCities * exp.faith.winShare)),
+    paths.push({ id: 'faith', name: '传说共鸣（宗教）', value: mine?.followers ?? 0, target: Math.max(victoryTargets(view).faithMinimumCities, Math.ceil(exp.faith.totalCities * exp.faith.winShare)),
       detail: `${mine ? `${LEGENDS[mine.legend].name}信仰` : '尚未创立'}${top ? ` · 对手最多 ${top.followers} 城（${LEGENDS[top.legend].name}）` : ''}${missingRivals ? ` · 仍有 ${missingRivals} 个对手未皈依` : ''}`,
       hint: '信仰城市达到全图 60%，且每个对手至少 1 城信仰。', nav: '#expansion-panel', blocked: missingRivals > 0 });
   }

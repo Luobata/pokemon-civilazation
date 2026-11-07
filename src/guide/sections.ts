@@ -84,6 +84,24 @@ export const SECTIONS: readonly GuideSection[] = [
     ${T.ballTable()}
     ${tip('任何城市都能训练已登记的宝可梦；宝可梦中心让本城新训练的宝可梦经验 +20，并提高城市羁绊。前线兵营城优先建它。')}` },
 
+  { id: 'opening', group: '入门', title: '开局目标与道具球', badge: 'v21 新增', html: `
+    <p>新局（v21 起）开局更快，前 30 轮一直有事可做。地图左上角的<strong>开局目标</strong>卡列出接下来的 3 个目标；完成时立刻发奖励并弹出提示，全部完成后卡片消失。</p>
+    ${T.objectiveTable()}
+    <h3>道具球</h3>
+    <p>地图上散落着道具球（约每 ${T.openingRules.landTilesPerBall} 格陆地一个，离开局城市至少 ${T.openingRules.ballCityDistance} 格，彼此至少隔 ${T.openingRules.ballSpacing} 格）。看见过的道具球会画在地图上；任意己方单位走上去就会捡起，奖励随机为下面一种。AI 也会派侦察去捡。</p>
+    ${T.itemBallTable()}
+    <h3>开局节奏的其他改动</h3>
+    <ul>
+      <li><strong>城市中心产科研</strong>：首都 +${T.openingRules.capitalResearch}，其他城市 +${T.openingRules.cityResearch}；首都生产 +${T.openingRules.capitalProduction}。</li>
+      <li><strong>一阶科技 14、二阶科技 32</strong>（原来 20 / 40）；开拓队生产花费 24（原来 30）。</li>
+      <li><strong>图鉴发现「初次交手」</strong>：驯化的发现改为“己方单位第一次攻击野生宝可梦”（原来要先捕捉，而捕捉本身需要驯化）。</li>
+      <li><strong>巢穴暴走预告</strong>：下一轮就会暴走的巢穴在地图上标红色“!”，点格子也会写出来。</li>
+      <li><strong>城市更耐打</strong>：城市 HP 100（原来 50；被占领后 50），每轮恢复 ${T.openingRules.cityHealing}。<strong>城墙</strong>：每 ${T.openingRules.wallRounds} 轮城市防守战斗力 +${T.openingRules.wallStep}，最多 +${T.openingRules.wallMax}；首都再 +${T.openingRules.capitalDefense}。攻击预览的防守栏会列出“城墙”。</li>
+      <li><strong>胜利门槛随轮上限变化</strong>：200 轮的对局比 100 轮要求更多（100 轮与旧版相同）。</li>
+    </ul>
+    ${T.victoryTargetTable()}
+    <p class="note">旧版对局（v≤20）没有开局目标、道具球与城墙，胜利门槛固定（按 100 轮一行）。</p>` },
+
   { id: 'techs', group: '世界', title: '科技与时代', html: `
     <p>科技分 3 层，研究某一层需要先完成上一层的任意一项。每项科技都有一个<strong>图鉴发现</strong>：达成条件时立刻获得该科技花费 40% 的进度（每项只触发一次）。</p>
     ${T.techTable()}

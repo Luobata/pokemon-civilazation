@@ -1,3 +1,4 @@
+import { wallBonus } from './opening.ts';
 import { cityCounterBreakdown, cityFactors, cityStrengthBreakdown, strengthDamage, strikeFactors, unitStrengthBreakdown } from './strength.ts';
 import { affinityPermille, candyGold, classCityMultiplier, classCounterPermille, classStrikeMultiplier } from './unit-classes.ts';
 import { stoneEvolutionsFor } from '../content/roster.ts';
@@ -144,7 +145,7 @@ export function resolveAttack(state: GameState, unitId: number, target: CombatTa
       assault: cityAssaultMultiplier(owner, state.setup.eraProgression, state.setup.gameplayVersion, attacker, content, hexDistance(attacker.position, city.position), hasTech(state, attacker.ownerId, 'siegeCraft'))
         ?? (content.species[attacker.speciesId].role === 'siege' && hasTech(state, attacker.ownerId, 'siegeCraft') ? content.balance.effects.siegeMultiplier : 1000),
       leader: leaderAttackMultiplier(state, attacker.ownerId, leaderEffects(owner?.leaderId).activeAttackMultiplier), eraAttack: eraAttackMultiplier(combatContext(state), attacker, content, true, false),
-      enraged: attacker.enraged, breacher: promotionCityMultiplier(state, attacker.id), affinity: affinityPermille(state, attacker, content) })), 85 + randomBelow(state.rng, 16), false, city.hp);
+      enraged: attacker.enraged, breacher: promotionCityMultiplier(state, attacker.id), affinity: affinityPermille(state, attacker, content) }), content.opening ? wallBonus(state.round, city.ownerId !== null && state.players[city.ownerId].headquartersCityId === city.id) : 0), 85 + randomBelow(state.rng, 16), false, city.hp);
     else hit = cityDamage(attacker, state.map.tiles[hexToIndex(attacker.position, state.map)!],
       state.map.tiles[hexToIndex(city.position, state.map)!], hasTech(state, attacker.ownerId, 'siegeCraft'), 85 + randomBelow(state.rng, 16), content,
       Math.floor(scalePermille(scalePermille(leaderAttackMultiplier(state, attacker.ownerId, leaderEffects(attacker.ownerId === null ? undefined : state.players[attacker.ownerId].leaderId).activeAttackMultiplier)

@@ -152,8 +152,11 @@ export function describeTile(view: PlayerView, index: number): TileInfo {
   }
   const nest = expansion?.world.nests.find(item => item.tileIndex === index);
   if (nest) entities.push({ kind: 'nest', tone: 'wild', title: `${SPECIES_NAMES[nest.speciesId]}巢穴`, subtitle: '威胁',
-    lines: [`HP ${nest.hp}/${nest.maxHp} · 第 ${nest.nextSpawnRound} 轮刷出下一只`, `每 ${WORLD_DEFINITIONS.nests.spawnIntervalRounds} 轮刷出暴走宝可梦，它们会攻击所有文明。`],
+    lines: [...(nest.nextSpawnRound <= view.round + 1 ? ['⚠ 下一轮就会派出暴走宝可梦！把开拓队和工匠撤离，或派宝可梦守住。'] : []), `HP ${nest.hp}/${nest.maxHp} · 第 ${nest.nextSpawnRound} 轮刷出下一只`, `每 ${WORLD_DEFINITIONS.nests.spawnIntervalRounds} 轮刷出暴走宝可梦，它们会攻击所有文明。`],
     hint: `宝可梦在射程内攻击巢穴可清除，奖励 ${WORLD_DEFINITIONS.nests.clearGoldReward} 金 + ${WORLD_DEFINITIONS.nests.clearSatisfactionReward} 满意度。` });
+  const ball = expansion?.opening?.itemBalls.find(item => item.tileIndex === index);
+  if (ball) entities.push({ kind: 'resource', tone: 'info', title: '道具球', subtitle: '探索奖励',
+    lines: ['里面装着一件随机道具：金币、科研、精灵球、树果或学习装置。'], hint: '任何己方单位走到这一格就会捡起来，先到先得。' });
   const overlord = expansion?.world.overlords.find(item => item.tileIndex === index);
   if (overlord) {
     const rules = WORLD_DEFINITIONS.overlords;

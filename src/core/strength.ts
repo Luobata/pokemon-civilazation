@@ -75,11 +75,12 @@ export function unitStrengthBreakdown(attacker: MapUnit, defender: MapUnit, from
   return finish(a.attack, d.defense, factors, type.immune, false);
 }
 /** A unit attacking a city: the city's defense strength comes from the old city defense stat. */
-export function cityStrengthBreakdown(attacker: MapUnit, from: BiomeId, to: BiomeId, content: Content, extra: readonly StrikeFactor[]): StrengthBreakdown {
+export function cityStrengthBreakdown(attacker: MapUnit, from: BiomeId, to: BiomeId, content: Content, extra: readonly StrikeFactor[], walls = 0): StrengthBreakdown {
   if (attacker.kind !== 'pokemon') return finish(0, 0, [], true, false);
   const a = content.species[attacker.speciesId];
   return finish(a.attack, toStrength(content.balance.city.defense), [...terrainFactors(from, to), ...converted(extra),
-    ...(attacker.uniqueLeader ? [{ side: 'attack' as const, label: '领袖专属', value: STRENGTH_RULES.uniqueLeader }] : [])], false, false);
+    ...(attacker.uniqueLeader ? [{ side: 'attack' as const, label: '领袖专属', value: STRENGTH_RULES.uniqueLeader }] : []),
+    ...(walls ? [{ side: 'defense' as const, label: '城墙', value: walls }] : [])], false, false);
 }
 /** A city shooting back at the unit that attacked it. */
 export function cityCounterBreakdown(counterAttack: number, defender: MapUnit, from: BiomeId, to: BiomeId, content: Content): StrengthBreakdown {

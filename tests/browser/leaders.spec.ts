@@ -47,7 +47,8 @@ test('every leader applies only to a new game and pairs independently with the s
 });
 
 test('leader research is reflected in the UI and leader identity survives save/load and replay', async ({ page }) => {
-  await page.goto('/');
+  // Pinned to v20: v21 adds city-centre research, which would change the leader-only numbers checked here.
+  await page.goto('/?gameplay=20');
   await page.locator('#animate').uncheck();
   await expect(page.locator('#hud-research')).toContainText('2');
   await openScreen(page, 'research');

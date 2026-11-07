@@ -16,6 +16,7 @@ import type { EraHonorEvent, EraHonorState, EraHonorView } from './era-honors.ts
 import type { PromotionAction, PromotionEvent, PromotionState, PromotionView } from './promotions.ts';
 import type { LegendEvent, LegendState, LegendView } from './legends.ts';
 import type { CityNetworkAction, CityNetworkEvent, CityNetworkState, CityNetworkView } from './city-network.ts';
+import type { OpeningEvent, OpeningState, OpeningView } from './opening.ts';
 
 /** Opt-in rules pack. Absence preserves the legacy m5-v1 game and replay. */
 export type ExpansionState = {
@@ -51,7 +52,9 @@ export type ExpansionState = {
   legends?: LegendState;
   /** gameplayVersion >= 17 only. */
   cityNetwork?: CityNetworkState;
+  /** gameplayVersion >= 21 only. */
+  opening?: OpeningState;
 };
-export type ExpansionView = { version: 1; world: WorldView; civilization: CivilizationView; leaders: LeaderSystemsView; improvements?: ImprovementView; discoveries?: TechId[]; policies?: PolicyView; essences?: EssenceView; eraAbilities?: EraAbilityView; bonds?: Record<number, { bond: number; pressure: BondBreakdown }>; rareBerries?: RareBerryView; contests?: ContestView; faith?: FaithView; districts?: DistrictView; eraHonors?: EraHonorView; promotions?: PromotionView; legends?: LegendView; cityNetwork?: CityNetworkView };
+export type ExpansionView = { version: 1; world: WorldView; civilization: CivilizationView; leaders: LeaderSystemsView; improvements?: ImprovementView; discoveries?: TechId[]; policies?: PolicyView; essences?: EssenceView; eraAbilities?: EraAbilityView; bonds?: Record<number, { bond: number; pressure: BondBreakdown }>; rareBerries?: RareBerryView; contests?: ContestView; faith?: FaithView; districts?: DistrictView; eraHonors?: EraHonorView; promotions?: PromotionView; legends?: LegendView; cityNetwork?: CityNetworkView; opening?: OpeningView };
 export type ExpansionAction = WorldAction | CivilizationAction | LeaderAction | ImprovementAction | PolicyAction | EssenceAction | EraAbilityAction | BondAction | RareBerryAction | ContestAction | FaithAction | PromotionAction | CityNetworkAction;
-export type ExpansionEvent = WorldEvent | CivilizationEvent | LeaderEvent | ImprovementEvent | DiscoveryEvent | PolicyEvent | EssenceEvent | EraAbilityEvent | BondEvent | RareBerryEvent | ContestEvent | FaithEvent | EraHonorEvent | PromotionEvent | LegendEvent | CityNetworkEvent;
+export type ExpansionEvent = WorldEvent | CivilizationEvent | LeaderEvent | ImprovementEvent | DiscoveryEvent | PolicyEvent | EssenceEvent | EraAbilityEvent | BondEvent | RareBerryEvent | ContestEvent | FaithEvent | EraHonorEvent | PromotionEvent | LegendEvent | CityNetworkEvent | OpeningEvent;

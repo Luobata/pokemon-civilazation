@@ -37,7 +37,7 @@ test('research tree cards start research and show each discovery', async ({ page
   await expect(page.locator('#research-topic')).toBeFocused();
   await expect(page.locator('[data-tech-card]')).toHaveCount(12);
   await expect(page.locator('[data-tech-card="ballCraft"]')).toHaveClass(/locked/);
-  await expect(page.locator('[data-tech-card="domestication"] .tech-eureka')).toContainText('初次收服');
+  await expect(page.locator('[data-tech-card="domestication"] .tech-eureka')).toContainText('初次交手');
   await page.locator('[data-tech="domestication"]').click();
   expect((await state(page)).players[0].research.techId).toBe('domestication');
   await expect(page.locator('[data-tech-card="domestication"]')).toHaveClass(/active/);

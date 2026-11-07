@@ -9,7 +9,9 @@ export function planContestAction(view: PlayerView): Command['action'] | null {
   if (!contests) return null;
   const leaning = player.leaderId ? CONTEST_LEANING[player.leaderId] ?? 0 : 0;
   const atWar = view.diplomacy.some(pair => pair.status === 'war' && (pair.a === view.playerId || pair.b === view.playerId));
-  const wantsHalls = player.personality !== 'aggressive' || view.round >= 60 || leaning >= 2;
+  // v21: a hall halves a city's production while it is built, so wait until the 3-city opening is done.
+  const opening = (view.gameplayVersion ?? 0) >= 21 && view.economy.cities.length < 3 && view.round < 40;
+  const wantsHalls = !opening && (player.personality !== 'aggressive' || view.round >= 60 || leaning >= 2);
   const pending = Object.keys(contests.own.building).length;
   const cap = Math.max(1 + leaning, Math.ceil(view.economy.cities.length * (1 + leaning) / 3));
   if (!atWar && wantsHalls && pending === 0 && contests.own.halls.length < cap && player.gold >= CONTEST_RULES.hallGold + 20) {

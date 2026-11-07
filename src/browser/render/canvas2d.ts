@@ -172,12 +172,27 @@ function drawFeatures(d: Draw) {
       }
       if (item.kind === 'icon') drawIcon(context, item.icon as IconName, p.x, p.y, size * .74);
       else if (item.kind === 'legend') drawSpritePath(context, item.path, Math.round(p.x - size * .5), Math.round(p.y - size * .55), Math.round(size));
+      else if (item.kind === 'itemBall') {
+        // 道具球: a Poké Ball (red top, white bottom, black band and button).
+        const r = size * .38;
+        context.beginPath(); context.arc(p.x, p.y, r, Math.PI, 0); context.fillStyle = '#E5554A'; context.fill();
+        context.beginPath(); context.arc(p.x, p.y, r, 0, Math.PI); context.fillStyle = '#F6F1E4'; context.fill();
+        context.beginPath(); context.arc(p.x, p.y, r, 0, Math.PI * 2); context.strokeStyle = '#10191B'; context.lineWidth = Math.max(1.5, r * .18); context.stroke();
+        context.beginPath(); context.moveTo(p.x - r, p.y); context.lineTo(p.x + r, p.y); context.stroke();
+        context.beginPath(); context.arc(p.x, p.y, r * .3, 0, Math.PI * 2); context.fillStyle = '#F6F1E4'; context.fill(); context.stroke();
+      }
       else {
         if (!drawPokemonSprite(context, item.speciesId, Math.round(p.x - size * .55), Math.round(p.y - size * .62), Math.round(size * 1.1))) centeredText(d, item.fallback, p, '#FFF8E5', size * .5);
       }
       context.restore();
     }
     if (item.kind === 'sprite' && item.crown && d.onscreen(center)) drawIcon(context, 'crown', center.x, center.y - radius * .98, Math.max(10, radius * .5));
+    if (item.kind === 'sprite' && item.warning && d.onscreen(center)) {
+      const q = { x: center.x + radius * .42, y: center.y - radius * .92 }, r = Math.max(6, radius * .24);
+      context.beginPath(); context.arc(q.x, q.y, r, 0, Math.PI * 2); context.fillStyle = '#E5554A'; context.fill();
+      context.strokeStyle = '#10191B'; context.lineWidth = 1.5; context.stroke();
+      centeredText(d, '!', q, '#FFF8E5', r * 1.4);
+    }
   }
   // A district occupies its whole tile, so it is drawn as a building filling the hex.
   for (const item of scene.districts) {

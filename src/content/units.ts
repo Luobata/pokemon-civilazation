@@ -28,6 +28,8 @@ export type Content = {
   moveCosts: Record<BiomeId, number>;
   /** Gameplay v20: Civilization 6-style combat strength (attack/defense are strengths, every unit has 100 HP). */
   combat?: 'strength';
+  /** Gameplay v21: opening pace (city-centre research, sturdier cities, objectives, item balls). */
+  opening?: true;
   /** Gameplay v14 only: species-keyed tables that older contents read from their global constants. */
   roster?: RosterTables;
 };
@@ -121,16 +123,21 @@ const battleSpecies = Object.fromEntries(Object.entries(ROSTER_CONTENT.species).
   { ...species, attack: Math.max(1, Math.round(species.attack * 0.4) + 15), defense: Math.max(1, Math.round(species.defense * 0.4) + 15), maxHp: 100 }])) as Record<SpeciesId, SpeciesDefinition>;
 export const BATTLE_CONTENT: Content = { ...ROSTER_CONTENT, version: 'battle-v20', combat: 'strength', species: battleSpecies,
   units: { ...ROSTER_CONTENT.units, ...battleSpecies } };
+/** Gameplay v21: faster opening — cheaper tier-1/2 techs, 100 HP cities (spec docs/design/opening-v21.md). */
+export const OPENING_CONTENT: Content = { ...BATTLE_CONTENT, version: 'opening-v21', opening: true,
+  techs: Object.fromEntries(Object.entries(BATTLE_CONTENT.techs).map(([id, tech]) => [id, { ...tech, cost: tech.tier === 1 ? 14 : tech.tier === 2 ? 32 : tech.cost }])) as Content['techs'],
+  units: { ...BATTLE_CONTENT.units, settler: { ...BATTLE_CONTENT.units.settler, trainCost: 24 } },
+  balance: { ...BATTLE_CONTENT.balance, city: { ...BATTLE_CONTENT.balance.city, baseHp: 100, capturedHp: 50 } } };
 type ContentSetup = { expansionVersion?: 1; gameplayVersion?: number };
 /** The single place that maps a game setup to its content table; logs and saves record `content.version`. */
 export function contentFor(setup: ContentSetup): Content {
-  return setup.expansionVersion !== 1 ? CONTENT : (setup.gameplayVersion ?? 0) >= 20 ? BATTLE_CONTENT : (setup.gameplayVersion ?? 0) >= 14 ? ROSTER_CONTENT : EXPANSION_CONTENT;
+  return setup.expansionVersion !== 1 ? CONTENT : (setup.gameplayVersion ?? 0) >= 21 ? OPENING_CONTENT : (setup.gameplayVersion ?? 0) >= 20 ? BATTLE_CONTENT : (setup.gameplayVersion ?? 0) >= 14 ? ROSTER_CONTENT : EXPANSION_CONTENT;
 }
 /** Same choice from a player's view (views carry `expansion` and `gameplayVersion` but not the setup). */
 export function contentForView(view: { expansion?: unknown; gameplayVersion?: number }): Content {
   return view.expansion ? contentFor({ expansionVersion: 1, gameplayVersion: view.gameplayVersion }) : CONTENT;
 }
-export const STOCK_CONTENTS: readonly Content[] = [CONTENT, EXPANSION_CONTENT, ROSTER_CONTENT, BATTLE_CONTENT];
+export const STOCK_CONTENTS: readonly Content[] = [CONTENT, EXPANSION_CONTENT, ROSTER_CONTENT, BATTLE_CONTENT, OPENING_CONTENT];
 export function unitDefinition(unit: UnitIdentity, content: Content = CONTENT): UnitDefinition {
   const base = content.units[unit.kind === 'pokemon' ? unit.speciesId : unit.role];
   return unit.kind === 'pokemon' && unit.uniqueLeader ? { ...base, name: `${base.name}·${unit.uniqueLeader}`, vision: base.vision + 1 } : base;

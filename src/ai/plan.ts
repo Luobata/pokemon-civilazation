@@ -1,7 +1,7 @@
 import { candyGold, classTrainingBlocker, viewBadges } from '../core/unit-classes.ts';
 import { usesBuilders } from '../core/improvements.ts';
 import { pickEscort, traderPlan, wantsTrader } from './network-plan.ts';
-import { legendTraceTargets, planLegendWonder } from './legend-plan.ts';
+import { itemBallTargets, legendTraceTargets, planLegendWonder } from './legend-plan.ts';
 import { LEGEND_WONDERS } from '../content/legend-wonders.ts';
 import { classTrainingBonus, rosterEvolution, typeCounterBonus } from './roster-plan.ts';
 import { districtCandidates } from './district-plan.ts';
@@ -57,11 +57,13 @@ export function canCaptureByPersonality(view: PlayerView, target: MapUnit, query
   }
   return true;
 }
-export function canProduceSettler(view: PlayerView, ai: AiThresholds = AI_THRESHOLDS): boolean {
+export function canProduceSettler(view: PlayerView, ai: AiThresholds = AI_THRESHOLDS, opening = false): boolean {
   const player = view.economy.player, cities = view.economy.cities;
   const queued = cities.some(city => [...city.queue, ...city.pendingDeployments].some(order => order.item.kind === 'logistics' && order.item.defId === 'settler'));
   if (queued || view.units.some(unit => unit.ownerId === view.playerId && unit.kind === 'logistics' && unit.role === 'settler')) return false;
   const strategy = AI_STRATEGIES[player.personality];
+  // v21 opening: every personality expands to 3 cities first.
+  if (opening && cities.length < 3) return true;
   if (strategy.settlerMinCities !== null && cities.length < ai[strategy.settlerMinCities]) return false;
   if (strategy.settlerPeaceOnly && view.diplomacy.some(pair => (pair.a === view.playerId || pair.b === view.playerId) && pair.status === 'war')) return false;
   return strategy.settlerInterval === null || view.round - player.lastSettlerProducedRound >= ai[strategy.settlerInterval];
@@ -190,7 +192,7 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
     if (wonderCity === city.id && wonder) queue({ kind: 'legend', defId: wonder }, 'economy', 260, LEGEND_WONDERS[wonder].dex);
     const district = districtCandidates(view, city.id, content)[0];
     if (district) queue({ kind: 'district', defId: district.kind, tileIndex: district.tileIndex }, 'economy', district.score, district.tileIndex);
-    if (canProduceSettler(view, ai)) { const escortId = pickEscort(view, content); queue({ kind: 'logistics', defId: 'settler', ...(escortId ? { escortId } : {}) }, 'found', 50); }
+    if (canProduceSettler(view, ai, Boolean(content.opening))) { const escortId = pickEscort(view, content); queue({ kind: 'logistics', defId: 'settler', ...(escortId ? { escortId } : {}) }, 'found', content.opening && cities.length < 3 ? 900 : 50); }
     // The first 工匠 early (improvements compound); later ones only after the army is fed.
     if (wantsBuilder(view) && !threatened.has(city.id)) queue({ kind: 'logistics', defId: 'builder' }, 'economy', units.some(unit => unit.kind === 'logistics' && unit.role === 'builder') ? 70 : 400);
     if (wantsTrader(view, city.id)) { const escortId = pickEscort(view, content); queue({ kind: 'logistics', defId: 'trader', ...(escortId ? { escortId } : {}) }, 'economy', 140); }
@@ -221,7 +223,7 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
   const visible = new Set(view.visibleTileIds), explored = new Set(view.knowledge.exploredTileIds);
   const atWar = view.diplomacy.some(pair => pair.status === 'war' && (pair.a === actorId || pair.b === actorId));
   const workers = designatedWorkers(view, content, atWar || campaignActive || preparingSiege);
-  const traceTargets = legendTraceTargets(view, content);
+  const traceTargets = legendTraceTargets(view, content), ballTargets = itemBallTargets(view);
   for (const unit of units.filter(unit => unit.actionLeft)) {
     const trader = traderPlan(view, unit);
     if (trader.action) add(trader.action, 'economy', 900, unit.id);
@@ -271,6 +273,8 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
       }
       const trace = traceTargets.get(unit.id);
       if (trace && hexDistance(to, trace) < hexDistance(unit.position, trace)) add(action, 'explore', 120 - hexDistance(to, trace), unit.id, index);
+      const ball = ballTargets.get(unit.id);
+      if (ball && hexDistance(to, ball) < hexDistance(unit.position, ball)) add(action, 'explore', 125 - hexDistance(to, ball), unit.id, index);
       if (seek && hexDistance(to, seek) < hexDistance(unit.position, seek)) {
         add(action, 'military', 100 - hexDistance(to, seek), unit.id, index);
       }

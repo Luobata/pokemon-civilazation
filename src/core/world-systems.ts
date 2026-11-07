@@ -1,3 +1,4 @@
+import { victoryTargets } from '../content/opening.ts';
 import { nestPriorityFor, speciesGeneration, stoneEvolutionsFor } from '../content/roster.ts';
 import { generationAllows, maxGeneration } from './roster.ts';
 import { gameplayAtLeast } from '../content/eras.ts';
@@ -218,7 +219,7 @@ export function initializeWorld(state: GameState, content: Content = WORLD_CONTE
     version: 'world-v1', initializedAtRound: state.round, nests: {}, rampagingUnitIds: [],
     overlords: {}, resources: {}, players,
     // Gameplay v3 accelerates economies; the documented-species target rises so the Pokédex stays a long-game victory.
-    victory: { targetDocumentedSpecies: gameplayAtLeast(state.setup, 3) ? Math.min(Object.keys(content.species).length, definitions.pokedex.targetDocumentedSpecies + 3 + (content.roster?.pokedexTargetBonus ?? 0)) : definitions.pokedex.targetDocumentedSpecies, achievedAtRound: null },
+    victory: { targetDocumentedSpecies: gameplayAtLeast(state.setup, 3) ? Math.min(Object.keys(content.species).length, definitions.pokedex.targetDocumentedSpecies + 3 + (content.roster?.pokedexTargetBonus ?? 0) + victoryTargets(state.setup).pokedexBonus) : definitions.pokedex.targetDocumentedSpecies, achievedAtRound: null },
   };
   state.expansion.world = world;
 

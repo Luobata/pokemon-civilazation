@@ -25,6 +25,8 @@ function reached(before: GameState, next: GameState, playerId: number, events: r
   const own = (id: number) => (before.units[id] ?? next.units[id])?.ownerId === playerId;
   for (const event of events) {
     if (event.type === 'Captured' && event.playerId === playerId && event.success) hits.add('domestication');
+    // v21: capturing needs 驯化, so its discovery is a first battle with a wild Pokémon instead.
+    if (content.opening && event.type === 'BattleResolved' && own(event.attackerId) && event.target.kind === 'unit' && before.units[event.target.id]?.ownerId === null) hits.add('domestication');
     if (event.type === 'WorldResourceHarvested' && event.playerId === playerId) hits.add(event.resourceKind === 'berry' ? 'berryCultivation' : 'stoneCraft');
     if (event.type === 'TileWorked' && event.playerId === playerId && event.completed) {
       if (event.kind === 'berryFarm') hits.add('berryCultivation');

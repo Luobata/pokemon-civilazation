@@ -682,6 +682,12 @@ export function inspectSystem(systemId: string, state: GameState): AuditSystemIn
   }
   if (system.id === 's29-multiplayer') return { metrics: [metric('当前局模式', state.setup.multiplayer ? '多席位' : '单人本地'), metric('席位数', Object.keys(state.players).length)],
     data: { controllerByPlayer: state.setup.players, client: '/multiplayer.html', server: 'npm run server', authority: 'HTTP server authenticates each seat and returns only its projected view.', tokens: 'Never exposed by this local audit inspector.' } };
+  if (system.id === 's-opening') {
+    const opening = state.expansion?.opening;
+    if (!opening) return { metrics: [metric('当前规则', '未启用（需 v21）')], data: {} };
+    return { metrics: [metric('当前规则', '开局节奏 v21'), metric('地图上的道具球', Object.keys(opening.itemBalls).length),
+      ...Object.entries(opening.objectives).map(([id, done]) => metric(`玩家 ${id} 开局目标`, `${done.length}/8`))], data: { itemBalls: opening.itemBalls } };
+  }
   if (system.id === 's-combat-strength') {
     return { metrics: [metric('当前规则', (state.setup.gameplayVersion ?? 0) >= 20 ? '战斗力 v20' : '乘法公式（v≤19）')], data: {} };
   }

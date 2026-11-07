@@ -1,3 +1,5 @@
+import { discoveryText } from '../content/discoveries.ts';
+import { ITEM_BALLS, ITEM_BALL_KINDS, OBJECTIVES, OBJECTIVE_IDS, OPENING_RULES, victoryTargets } from '../content/opening.ts';
 import { STRENGTH_RULES, strengthFromPermille } from '../core/strength.ts';
 import { CLASS_COUNTERS, CLASS_HMS, CLASS_IDS, CLASS_NAMES, CLASS_NATIVE_TYPES, CLASS_RULES } from '../content/unit-classes.ts';
 import { hasAffinity } from '../core/unit-classes.ts';
@@ -13,7 +15,7 @@ import { LATEST_GAMEPLAY_VERSION } from '../content/eras.ts';
 // Handbook tables are rendered from the live content modules, so numbers cannot drift from the rules.
 // Only the default new-game setup (expansion v1 + era mode + LATEST_GAMEPLAY_VERSION) is described.
 import { FULL_TYPE_CHART } from '../content/combat.ts';
-import { DISCOVERIES, DISCOVERY_PERCENT } from '../content/discoveries.ts';
+import { DISCOVERY_PERCENT } from '../content/discoveries.ts';
 import { DISTRICTS, DISTRICT_IDS } from '../content/districts.ts';
 import type { DistrictEffects } from '../content/districts.ts';
 import { BALLS, BIOME_YIELDS, BUILDINGS, TECHS } from '../content/economy.ts';
@@ -104,7 +106,7 @@ export function techTable(): string {
   return table(['科技', '层级', '花费', '效果与解锁', '图鉴发现（立减 ' + DISCOVERY_PERCENT + '%）'],
     ids.map(id => {
       return [techName(id), String(TECHS[id].tier), String(TECHS[id].cost), techUnlocks(id, content, LATEST_GAMEPLAY_VERSION).map(item => item.text).join('；'),
-        `<strong>${DISCOVERIES[id].name}</strong>：${DISCOVERIES[id].hint}`];
+        `<strong>${discoveryText(id, Boolean(content.opening)).name}</strong>：${discoveryText(id, Boolean(content.opening)).hint}`];
     }), [1, 2]);
 }
 export function eraTable(): string {
@@ -360,3 +362,17 @@ export function sanctuaryTable(): string {
 }
 export const world = WORLD_DEFINITIONS;
 export const civilization = CIVILIZATION_CONTENT;
+
+/** v21: opening objectives, item balls and round-limit victory targets, read from src/content/opening.ts. */
+export const openingRules = OPENING_RULES;
+export function objectiveTable(): string {
+  const reward = (r: { gold?: number; research?: number; pokeBalls?: number }) => [r.gold ? `金币 +${r.gold}` : '', r.research ? `科研 +${r.research}` : '', r.pokeBalls ? `精灵球 +${r.pokeBalls}` : ''].filter(Boolean).join('、');
+  return table(['目标', '条件', '奖励'], OBJECTIVE_IDS.map(id => [OBJECTIVES[id].name, OBJECTIVES[id].hint, reward(OBJECTIVES[id].reward)]));
+}
+export function itemBallTable(): string {
+  return table(['道具球', '效果'], ITEM_BALL_KINDS.map(kind => [ITEM_BALLS[kind].name, ITEM_BALLS[kind].text]));
+}
+export function victoryTargetTable(): string {
+  const rows = [100, 200, 300].map(roundLimit => { const v = victoryTargets({ gameplayVersion: 21, roundLimit }); return [`${roundLimit} 轮`, String(v.contestMinimum), `${v.faithMinimumCities} 座`, `${v.championshipTitles} 次`, `+${v.pokedexBonus} 种`]; });
+  return table(['轮上限', '华丽大赛魅力', '信仰：有主城市至少', '冠军赛', '图鉴目标'], rows, [1, 2, 3, 4]);
+}

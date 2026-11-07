@@ -1,3 +1,4 @@
+import { discoveryText } from '../content/discoveries.ts';
 import { contentForView } from '../content/units.ts';
 import type { TechId } from '../content/economy.ts';
 import { canResearch } from '../core/economy-commands.ts';
@@ -33,7 +34,7 @@ export function renderResearchPanel(view: PlayerView, issue: (action: Command['a
     const tech = CONTENT.techs[id], done = research.unlockedIds.includes(id), active = id === current, available = !done && canResearch(player, id);
     const state = done ? 'done' : active ? 'active' : available ? 'available' : 'locked';
     const label = done ? '已完成' : active ? `研究中 · 剩 ${tech.cost - research.progressByTech[id]}` : available ? '可研究' : '未解锁';
-    const eureka = found ? `<div class="tech-eureka ${found.includes(id) ? 'hit' : ''}"><span class="eureka-mark" aria-hidden="true">${found.includes(id) ? '★' : '☆'}</span><div><b>图鉴发现 · ${DISCOVERIES[id].name}</b><small>${DISCOVERIES[id].hint}${found.includes(id) ? ` · 已触发 +${DISCOVERY_PERCENT}%` : ` · 达成后 +${DISCOVERY_PERCENT}%`}</small></div></div>` : '';
+    const eureka = found ? `<div class="tech-eureka ${found.includes(id) ? 'hit' : ''}"><span class="eureka-mark" aria-hidden="true">${found.includes(id) ? '★' : '☆'}</span><div><b>图鉴发现 · ${discoveryText(id, Boolean(CONTENT.opening)).name}</b><small>${discoveryText(id, Boolean(CONTENT.opening)).hint}${found.includes(id) ? ` · 已触发 +${DISCOVERY_PERCENT}%` : ` · 达成后 +${DISCOVERY_PERCENT}%`}</small></div></div>` : '';
     const action = available && !active ? `<button type="button" data-tech="${id}" ${disabled ? 'disabled' : ''}>研究此项</button>` : '';
     return `<article class="tech-card ${state}" data-tech-card="${id}" aria-label="${tech.name} · ${label}">
       <header><strong>${tech.name}</strong><span class="tech-cost">${tech.cost}</span></header>

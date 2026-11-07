@@ -1,3 +1,4 @@
+import { OPENING_RULES } from '../content/opening.ts';
 import { cityNetworkYield } from './city-network.ts';
 import { legendCityYield } from './legends.ts';
 import { legendCost } from '../content/legend-wonders.ts';
@@ -99,7 +100,9 @@ export function assignNewWorkers(state: GameState, city: CityState, count: numbe
 export function cityYield(state: GameState, city: CityState, content: Content = contentFor(state.setup)): Yield {
   if (city.ownerId === null || city.capturedAtRound === state.round) return { food: 0, production: 0, gold: 0, research: 0 };
   const player = state.players[city.ownerId];
-  const result = { food: 2, production: 1, gold: 1, research: city.population - city.workedTileIds.length };
+  const capital = state.players[city.ownerId].headquartersCityId === city.id;
+  const result = { food: 2, production: 1 + (content.opening && capital ? OPENING_RULES.capitalProduction : 0), gold: 1, research: city.population - city.workedTileIds.length
+    + (content.opening ? (capital ? OPENING_RULES.capitalResearch : OPENING_RULES.cityResearch) : 0) };
   for (const addition of [...city.workedTileIds.map(id => workedTileYield(state, id, player, content)),
     leaderCityYield(state, city.id), worldCityYield(state, city, content), ...city.buildingIds.map(id => content.buildings[id].yields)]) {
     for (const key of ['food', 'production', 'gold', 'research'] as const) result[key] += addition[key];

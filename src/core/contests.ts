@@ -1,3 +1,4 @@
+import { victoryTargets } from '../content/opening.ts';
 import { gameplayAtLeast } from '../content/eras.ts';
 import type { Content } from '../content/units.ts';
 import { finishGame } from './victory.ts';
@@ -95,7 +96,8 @@ export function resolveContestRound(state: GameState, content: Content): EventPa
     contests[playerId].appeal += appealPerRound(state, playerId, content);
   }
   const alive = state.turnOrder.filter(id => !state.players[id].eliminated);
-  const winners = alive.filter(id => contests[id].appeal >= CONTEST_RULES.minimum
+  const minimum = victoryTargets(state.setup).contestMinimum;
+  const winners = alive.filter(id => contests[id].appeal >= minimum
     && alive.every(other => other === id || contests[id].appeal >= CONTEST_RULES.winRatio * Math.max(1, contests[other].appeal)));
   if (winners.length === 1) events.push(...finishGame(state, 'contest', winners, content));
   return events;
@@ -105,5 +107,5 @@ export function observeContests(state: GameState, playerId: number, content: Con
   if (!contests) return undefined;
   const rivals = state.turnOrder.filter(id => id !== playerId && !state.players[id].eliminated).map(id => ({ playerId: id, appeal: contests[id].appeal }));
   return { own: { ...contests[playerId], halls: [...contests[playerId].halls], building: { ...contests[playerId].building }, perRound: appealPerRound(state, playerId, content) }, rivals,
-    target: Math.max(CONTEST_RULES.minimum, ...rivals.map(rival => CONTEST_RULES.winRatio * Math.max(1, rival.appeal))) };
+    target: Math.max(victoryTargets(state.setup).contestMinimum, ...rivals.map(rival => CONTEST_RULES.winRatio * Math.max(1, rival.appeal))) };
 }
