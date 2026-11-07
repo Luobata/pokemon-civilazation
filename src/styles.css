@@ -605,7 +605,8 @@ button.danger { border-color: var(--danger); background: #9E4B43; color: var(--o
 .screen-head h2 { margin: 0; color: #F3E7C9; font-size: 1.15rem; letter-spacing: .06em; }
 .screen-head h2::before { content: "◆"; margin-right: 10px; color: var(--gold); font-size: 11px; vertical-align: 3px; }
 .screen-close { min-width: 38px; min-height: 38px; padding: 0; font-size: 20px; line-height: 1; }
-.screen-body { display: grid; align-content: start; gap: 12px; min-height: 0; padding: 16px 18px 20px; overflow-y: auto; overscroll-behavior: contain; }
+/* Rows grow with their content (a .subpanel clips overflow, so a squeezed row would hide the bottom of long screens) and the body scrolls. */
+.screen-body { display: grid; grid-auto-rows: max-content; align-content: start; gap: 12px; min-height: 0; padding: 16px 18px 20px; overflow-y: auto; overscroll-behavior: contain; }
 .screen-body > .subpanel, .screen-body > #controls { margin: 0; }
 .screen-body #activity-list { max-height: none; }
 .menu-links { display: flex; flex-wrap: wrap; gap: 14px; font-size: var(--text-md); }
