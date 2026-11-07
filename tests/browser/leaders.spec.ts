@@ -56,7 +56,7 @@ test('leader research is reflected in the UI and leader identity survives save/l
   await openScreen(page, 'research');
   await page.locator('#set-research').click();
   await closeScreen(page);
-  await page.locator('#end-turn').click();
+  await page.locator('#end-turn').click({ modifiers: ['Shift'] });
   expect((await state(page)).players[0].research.progressByTech.domestication).toBe(2);
   await openScreen(page, 'menu');
   await page.locator('#save-game').click();

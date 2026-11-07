@@ -98,7 +98,7 @@ test('expansion-only content works through selection, movement, production and a
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
 
-  await page.goto('/');
+  await page.goto('/?dev=1');
   await page.locator('#animate').uncheck();
   await page.locator('#import-save').setInputFiles({ name: 'expansion-magnemite.json', mimeType: 'application/json', buffer: Buffer.from(fixture.save) });
   await expect(page.locator('#action-notice')).toContainText('读档完成');

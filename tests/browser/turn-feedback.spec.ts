@@ -25,13 +25,15 @@ test('finished research raises a notification that opens the research screen', a
   await openScreen(page, 'research');
   await page.locator('#research-panel [data-tech]').first().click();
   await page.keyboard.press('Escape');
-  const toast = page.locator('.toast-research');
+  // The notification rail keeps one round icon per notification; hovering opens its card.
+  const toast = page.locator('.toast-research', { hasText: '研究完成' });
   for (let turn = 0; turn < 20 && !(await toast.count()); turn++) {
-    await page.locator('#end-turn').click();
+    await page.locator('#end-turn').click({ modifiers: ['Shift'] });
     await expect(page.locator('#end-turn')).toBeEnabled();
   }
   await expect(toast).toContainText('研究完成');
   await expect(toast).toHaveCSS('opacity', '1');
+  await toast.hover();
   await page.screenshot({ path: `${reports}/toast-research-1280.png` });
   await toast.locator('.toast-action').click();
   await expect(page.locator('#screen-research')).toBeVisible();

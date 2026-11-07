@@ -41,7 +41,7 @@ test('complete Node game with three AI replays identically in Chromium', async (
   // Import the full command log in the existing save envelope at its genuine initial state.
   // The browser then executes every command through its normal replay control.
   const initial = replay(log, 0), imported = serializeSave(initial, log);
-  await page.goto('/?seed=2');
+  await page.goto('/?dev=1&seed=2');
   await page.locator('#animate').uncheck();
   await page.locator('#import-save').setInputFiles({ name: 'complete-node-log.json', mimeType: 'application/json', buffer: Buffer.from(imported) });
   await expect(page.locator('#action-notice')).toContainText('读档完成');
@@ -80,7 +80,7 @@ test('full browser game survives midgame save/load and reaches the same visible 
   const expectedNode = finishInNode(initial.setup).getState();
   const finish = async () => {
     for (let turn = 0; turn < 100 && !(await snapshot(page)).state.outcome; turn++) {
-      await page.locator('#end-turn').click();
+      await page.locator('#end-turn').click({ modifiers: ['Shift'] });
     }
     await expect(page.locator('#gameover-dialog')).toBeVisible();
     await expect(page.locator('#outcome-title')).toHaveText('失败出局');
@@ -95,7 +95,7 @@ test('full browser game survives midgame save/load and reaches the same visible 
   await page.locator('#gameover-close').click();
   await startNewGame(page);
   expect(canonicalSerialize((await snapshot(page)).state)).toBe(canonicalSerialize(initial));
-  for (let turn = 0; turn < 4; turn++) await page.locator('#end-turn').click();
+  for (let turn = 0; turn < 4; turn++) await page.locator('#end-turn').click({ modifiers: ['Shift'] });
   const checkpoint = await snapshot(page);
   expect(checkpoint.state.round).toBe(5);
   expect(checkpoint.state.outcome).toBeNull();
@@ -103,7 +103,7 @@ test('full browser game survives midgame save/load and reaches the same visible 
   await page.locator('#save-game').click();
   await expect(page.locator('#action-notice')).toContainText('已保存');
   await closeScreen(page);
-  await page.locator('#end-turn').click();
+  await page.locator('#end-turn').click({ modifiers: ['Shift'] });
   expect((await snapshot(page)).state.commandSeq).toBeGreaterThan(checkpoint.state.commandSeq);
   await openScreen(page, 'menu');
   await page.locator('#load-game').click();

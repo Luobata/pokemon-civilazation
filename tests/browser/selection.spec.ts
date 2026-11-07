@@ -76,7 +76,7 @@ test('city production trains a new settler with a replayable command history', a
   await expect(page.locator('#production-queue')).toContainText('开拓队');
   let trained: GameState['units'][number] | undefined;
   for (let turn = 0; turn < 20 && !trained; turn++) {
-    await page.locator('#end-turn').click();
+    await page.locator('#end-turn').click({ modifiers: ['Shift'] });
     trained = Object.values((await state(page)).units).find(unit => unit.ownerId === 0 && unit.kind === 'logistics' && unit.role === 'settler' && !before.units[unit.id]);
   }
   expect(trained).toBeDefined();
@@ -94,7 +94,7 @@ test('a completed training ground opens unit production in its own city', async 
   await page.locator('#production-item').selectOption({ label: '宝可梦中心 (60)' });
   await expect(page.locator('#production-preview img')).toHaveAttribute('src', '/buildings/trainingGround.svg');
   await page.locator('#add-production').click();
-  for (let turn = 0; turn < 35 && !(await state(page)).cities[cityId].buildingIds.includes('trainingGround'); turn++) await page.locator('#end-turn').click();
+  for (let turn = 0; turn < 35 && !(await state(page)).cities[cityId].buildingIds.includes('trainingGround'); turn++) await page.locator('#end-turn').click({ modifiers: ['Shift'] });
   await expect(page.locator('[data-building="trainingGround"]')).toBeVisible();
   await expect(page.locator('[data-building="trainingGround"] img')).toHaveAttribute('src', '/buildings/trainingGround.svg');
   await page.locator('[data-building="trainingGround"]').click();

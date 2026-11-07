@@ -64,7 +64,7 @@ test('found city, finish production, save/load JSON and continue identically in 
     await clickHex(page, current.position);
     await clickHex(page, destination);
     await expect.poll(async () => { const unit = (await state(page)).units[settler.id]; return isMapUnit(unit) ? unit.position : null; }).toEqual(destination);
-    await page.locator('#end-turn').click();
+    await page.locator('#end-turn').click({ modifiers: ['Shift'] });
     await expect(page.locator('#selection')).toContainText('行动点 1');
   }
   await page.locator('#found-city').click();
@@ -75,7 +75,7 @@ test('found city, finish production, save/load JSON and continue identically in 
   await expect(page.locator('#production-queue')).toContainText('友好商店0/40');
   let completed = false;
   for (let i = 0; i < 40; i++) {
-    await page.locator('#end-turn').click();
+    await page.locator('#end-turn').click({ modifiers: ['Shift'] });
     await expect(page.locator('#end-turn')).toBeEnabled();
     if ((await state(page)).cities[newCity.id].buildingIds.includes('meetingHall')) { completed = true; break; }
   }
@@ -97,12 +97,12 @@ test('found city, finish production, save/load JSON and continue identically in 
   expect(canonicalSerialize(deserializeSave(text).state)).toBe(canonicalSerialize(saved));
   const node = new GameSession(saved.setup); node.load(text);
   await closeScreen(page);
-  for (let i = 0; i < 3; i++) { await page.locator('#end-turn').click(); node.issue({ type: 'EndTurn' }); }
+  for (let i = 0; i < 3; i++) { await page.locator('#end-turn').click({ modifiers: ['Shift'] }); node.issue({ type: 'EndTurn' }); }
   const uninterrupted = await state(page); expect(stateDigest(node.getState())).toBe(stateDigest(uninterrupted));
   await openScreen(page, 'menu');
   await page.locator('#load-game').click(); expect(canonicalSerialize(await state(page))).toBe(canonicalSerialize(saved));
   await closeScreen(page);
-  for (let i = 0; i < 3; i++) await page.locator('#end-turn').click();
+  for (let i = 0; i < 3; i++) await page.locator('#end-turn').click({ modifiers: ['Shift'] });
   expect(canonicalSerialize(await state(page))).toBe(canonicalSerialize(uninterrupted));
   await page.locator('#import-save').setInputFiles({ name: 'saved.json', mimeType: 'application/json', buffer: Buffer.from(text) });
   await expect.poll(async () => stateDigest(await state(page))).toBe(stateDigest(saved));
@@ -129,7 +129,7 @@ test('work locking, queue reorder/cancel, purchases and version refusal use UI',
   await openScreen(page, 'research');
   await page.locator('#research-topic').selectOption('domestication'); await page.locator('#set-research').click();
   await closeScreen(page);
-  for (let i = 0; i < 20 && !(await state(page)).players[0].research.unlockedIds.includes('domestication'); i++) await page.locator('#end-turn').click();
+  for (let i = 0; i < 20 && !(await state(page)).players[0].research.unlockedIds.includes('domestication'); i++) await page.locator('#end-turn').click({ modifiers: ['Shift'] });
   expect((await state(page)).players[0].research.unlockedIds).toContain('domestication');
   const goldBefore = (await state(page)).players[0].gold;
   await page.locator('[data-city-section="supplies"]').click();

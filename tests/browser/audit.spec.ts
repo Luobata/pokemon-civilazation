@@ -29,8 +29,8 @@ test('every system has its own URL, explanation and truthful implementation stat
 });
 
 test('opening from the game copies the live session, and sandbox commands never alter the game or stored save', async ({ page, context }) => {
-  await page.goto('/'); await page.locator('#animate').uncheck();
-  await page.locator('#end-turn').click();
+  await page.goto('/?dev=1'); await page.locator('#animate').uncheck();
+  await page.locator('#end-turn').click({ modifiers: ['Shift'] });
   await openScreen(page, 'menu');
   await page.locator('#save-game').click();
   const gameBefore = await page.evaluate(async () => { const path = '/src/browser/main.ts'; return (await import(path)).developerAdapter.save(); });
