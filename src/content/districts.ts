@@ -1,6 +1,7 @@
 import type { TechId, Yield } from './economy.ts';
 import type { BiomeId } from './rules.ts';
 import type { ImprovementId } from './improvements.ts';
+import { TREE_DISTRICT_TECH } from './tech-tree.ts';
 
 export type DistrictId = 'researchDistrict' | 'gymDistrict' | 'harborDistrict' | 'powerPlantDistrict' | 'gardenDistrict';
 export type DistrictEffects = Yield & { trainedXp: number; bondPressure: number };
@@ -38,3 +39,5 @@ export const DISTRICTS: Record<DistrictId, DistrictDefinition> = {
     ] },
 };
 export const DISTRICT_IDS = (Object.keys(DISTRICTS) as DistrictId[]).sort();
+/** The technology a district needs: v22's tree moves the harbour and the power plant onto their own technologies. */
+export const districtTech = (id: DistrictId, tree: boolean): TechId => (tree ? TREE_DISTRICT_TECH[id] : undefined) ?? DISTRICTS[id].requiredTech;

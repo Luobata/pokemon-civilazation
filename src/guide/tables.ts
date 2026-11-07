@@ -19,7 +19,8 @@ import { DISCOVERY_PERCENT } from '../content/discoveries.ts';
 import { DISTRICTS, DISTRICT_IDS } from '../content/districts.ts';
 import type { DistrictEffects } from '../content/districts.ts';
 import { BALLS, BIOME_YIELDS, BUILDINGS, TECHS } from '../content/economy.ts';
-import type { TechId, Yield } from '../content/economy.ts';
+import type { LegacyTechId, TechId, Yield } from '../content/economy.ts';
+import { TECH_LINES, TECH_LINE_IDS, TREE_COLUMN_COSTS, TREE_COLUMNS, TREE_ERA_THRESHOLDS, TREE_NEW_TECH_IDS, TREE_TECHS } from '../content/tech-tree.ts';
 import { ERA_ABILITIES, ERA_ABILITY_IDS, WEATHERS, WEATHER_IDS } from '../content/era-abilities.ts';
 import { ERA_DEFINITIONS } from '../content/eras.ts';
 import { ESSENCES, ESSENCE_IDS, ESSENCE_RULES } from '../content/essences.ts';
@@ -34,7 +35,7 @@ import type { BiomeId } from '../content/rules.ts';
 import { SPECIES_NAMES } from '../content/species.ts';
 import type { SpeciesDefinition, SpeciesId, TypeId } from '../content/species.ts';
 import { TYPE_NAMES } from '../content/type-names.ts';
-import { contentFor } from '../content/units.ts';
+import { contentFor, WORLD_CONTENT } from '../content/units.ts';
 import { SPAWN_WEIGHTS } from '../content/wild.ts';
 import { WORLD_DEFINITIONS } from '../content/world-systems.ts';
 import { CIVILIZATION_CONTENT } from '../content/civilization-systems.ts';
@@ -72,7 +73,7 @@ const ROLE_NAMES: Record<SpeciesDefinition['role'], string> = {
 const typeChip = (type: TypeId) => `<span class="chip type" style="background:${TYPE_COLORS[type]}">${TYPE_NAMES[type]}</span>`;
 const biomeList = (biomes: readonly BiomeId[]) => biomes.map(biome => BIOME_NAMES[biome]).join('、');
 const speciesName = (id: SpeciesId) => SPECIES_NAMES[id];
-const techName = (id: TechId) => TECHS[id].name;
+const techName = (id: TechId) => TREE_TECHS[id].name;
 export function yieldText(value: Partial<Yield & DistrictEffects>): string {
   const parts: string[] = [];
   const labels: [keyof (Yield & DistrictEffects), string][] = [['food', '食物'], ['production', '生产'], ['gold', '金币'], ['research', '科研'],
@@ -102,12 +103,33 @@ export function biomeTable(): string {
 
 // ---------- Techs, eras, buildings ----------
 export function techTable(): string {
-  const ids = Object.keys(TECHS) as TechId[];
+  const ids = Object.keys(TECHS) as LegacyTechId[];
   return table(['科技', '层级', '花费', '效果与解锁', '图鉴发现（立减 ' + DISCOVERY_PERCENT + '%）'],
     ids.map(id => {
       return [techName(id), String(TECHS[id].tier), String(TECHS[id].cost), techUnlocks(id, content, LATEST_GAMEPLAY_VERSION).map(item => item.text).join('；'),
         `<strong>${discoveryText(id, Boolean(content.opening)).name}</strong>：${discoveryText(id, Boolean(content.opening)).hint}`];
     }), [1, 2]);
+}
+// ---------- v22 tech tree (generated from WORLD_CONTENT) ----------
+const isNewTech = (id: TechId) => (TREE_NEW_TECH_IDS as readonly string[]).includes(id);
+const lineChip = (id: TechId) => { const line = TECH_LINES[TREE_TECHS[id].line]; return `<span class="chip" style="background:${line.color};color:#fff">${line.name}</span>`; };
+/** Lines × columns: where each technology sits, so the routes and their cross-links read at a glance. */
+export function techTreeDiagram(): string {
+  return table(['路线', ...Array.from({ length: TREE_COLUMNS }, (_, index) => `第 ${index + 1} 列 · ${TREE_COLUMN_COSTS[index]}`)],
+    TECH_LINE_IDS.map(line => [`<span class="chip" style="background:${TECH_LINES[line].color};color:#fff">${TECH_LINES[line].name}</span>`,
+      ...Array.from({ length: TREE_COLUMNS }, (_, index) => (Object.keys(TREE_TECHS) as TechId[]).filter(id => TREE_TECHS[id].line === line && TREE_TECHS[id].tier === index + 1)
+        .map(id => isNewTech(id) ? `<strong>${techName(id)}</strong>` : techName(id)).join('<br>') || '—')]), [], 'tech-tree-diagram');
+}
+export function techTreeTable(): string {
+  const ids = Object.keys(TREE_TECHS) as TechId[];
+  return table(['科技', '列', '路线', '花费', '前置（全部完成）', '效果与解锁', '图鉴发现（立减 ' + DISCOVERY_PERCENT + '%）'],
+    ids.map(id => [`${techName(id)}${isNewTech(id) ? ' <span class="chip">v22 新增</span>' : ''}`, String(TREE_TECHS[id].tier), lineChip(id), String(TREE_TECHS[id].cost),
+      TREE_TECHS[id].requires.map(techName).join('、') || '—', techUnlocks(id, WORLD_CONTENT, 22).map(item => item.text).join('；'),
+      `<strong>${discoveryText(id, true).name}</strong>：${discoveryText(id, true).hint}`]), [1, 3]);
+}
+export function treeEraTable(): string {
+  return table(['进程', '时代', '进入条件（v22 科技树）'], (['simple-v1', 'full-v1'] as const).flatMap(mode => ERA_DEFINITIONS[mode].map((era, index) => [
+    mode === 'simple-v1' ? '精简' : '完整', era.name, `已完成 ${TREE_ERA_THRESHOLDS[mode][index]} 项科技（旧版 ${era.threshold}）`])));
 }
 export function eraTable(): string {
   const rows = (['simple-v1', 'full-v1'] as const).flatMap(mode => ERA_DEFINITIONS[mode].map(era => [

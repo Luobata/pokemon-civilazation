@@ -1,16 +1,19 @@
 // Player-facing description of what each technology does, shared by the research tree
 // and the handbook. Rule effects that live in src/core are summarised here by hand;
 // unlocked buildings, districts and recruits are derived from content.
-import { CLASS_HMS, CLASS_NAMES } from '../content/unit-classes.ts';
+import { CLASS_NAMES, classHms } from '../content/unit-classes.ts';
 import type { UnitClass } from '../content/unit-classes.ts';
 import type { Content } from '../content/units.ts';
-import { DISTRICTS, DISTRICT_IDS } from '../content/districts.ts';
+import { DISTRICTS, DISTRICT_IDS, districtTech } from '../content/districts.ts';
 import { BUILDINGS, TECHS } from '../content/economy.ts';
-import type { TechId } from '../content/economy.ts';
+import type { LegacyTechId, TechId } from '../content/economy.ts';
+import { TREE_RULES } from '../content/tech-tree.ts';
+import type { TreeTechId } from '../content/tech-tree.ts';
+import { BUILDER_RULES } from '../content/roles.ts';
 import { SPECIES_NAMES } from '../content/species.ts';
 import { ERA_SIEGE_TECH_MULTIPLIER, ERA_TECH_RECRUITS } from '../core/role-tactics.ts';
 
-export const TECH_EFFECTS: Record<TechId, string> = {
+export const TECH_EFFECTS: Record<LegacyTechId, string> = {
   domestication: '可购买精灵球并捕捉；渔场 +1 金币',
   berryCultivation: '树果田 +1 食物',
   stoneCraft: '矿坑 +1 生产',
@@ -25,17 +28,36 @@ export const TECH_EFFECTS: Record<TechId, string> = {
   meteorology: '雪原、火山可耕作，并各 +1 科研',
 };
 
+/**
+ * v22 tree: rule effects of the new technologies, and of older ones whose v22 role changed. Buildings, districts, HMs
+ * and recruits are derived from content below; an empty text means the tech only unlocks those.
+ */
+export const TREE_TECH_EFFECTS: Record<TreeTechId, string> & Partial<Record<LegacyTechId, string>> = {
+  typeResearch: '效果拔群从 ×2 提升为 ×2.2；可建造属性道馆',
+  seafaring: '', masonry: '', commerce: '可在有友好商店的城市训练商队',
+  lureCraft: '捕捉成功率 +10',
+  electricity: '', contestArts: '可建造华丽大赛会馆', aviation: '', laboratory: '',
+  urbanPlanning: `新训练的工匠可建 ${BUILDER_RULES.charges + TREE_RULES.builderExtraCharges} 处改良（原来 ${BUILDER_RULES.charges}）`,
+  oceanography: '', eliteTraining: '城市可训练最终形态宝可梦（仍需对应徽章）；新训练宝可梦经验 +10',
+  breeding: '', cartography: '城市视野 +1', legendLore: '每座城市科研 +1', steelworks: '每座城市生产 +1',
+  masterBallTheory: '捕捉成功率 +15；精灵球、超级球每个便宜 10 金',
+  dragonLore: '', championLeague: `计分再 ×${TREE_RULES.championScorePermille / 1000}（与联盟规章叠乘）`,
+};
+const effectText = (id: TechId, tree: boolean): string => (tree ? TREE_TECH_EFFECTS[id as TreeTechId] : undefined) ?? TECH_EFFECTS[id as LegacyTechId] ?? '';
+
 export type TechUnlock = { kind: 'effect' | 'building' | 'district' | 'recruit' | 'class'; text: string };
 export function techUnlocks(id: TechId, content?: Content, gameplayVersion?: number): TechUnlock[] {
-  const hm = (gameplayVersion ?? 0) >= 19 ? (Object.entries(CLASS_HMS) as [UnitClass, { hm: string; techId: TechId }][]).find(([, item]) => item.techId === id) : undefined;
+  const tree = Boolean(content?.techTree);
+  const hm = (gameplayVersion ?? 0) >= 19 ? (Object.entries(classHms(content ?? {})) as [UnitClass, { hm: string; techId: TechId }][]).find(([, item]) => item.techId === id) : undefined;
   const recruit = (content?.roster?.techRecruits ?? ERA_TECH_RECRUITS)[id];
+  const effect = effectText(id, tree);
   return [
-    { kind: 'effect', text: TECH_EFFECTS[id] },
-    ...Object.values(BUILDINGS).filter(building => building.requiredTech === id).map(building => ({ kind: 'building' as const, text: `建筑「${building.name}」` })),
-    ...DISTRICT_IDS.filter(district => DISTRICTS[district].requiredTech === id).map(district => ({ kind: 'district' as const, text: `设施区「${DISTRICTS[district].name}」` })),
+    ...(effect ? [{ kind: 'effect' as const, text: effect }] : []),
+    ...Object.values(content?.buildings ?? BUILDINGS).filter(building => building.requiredTech === id).map(building => ({ kind: 'building' as const, text: `建筑「${building.name}」` })),
+    ...DISTRICT_IDS.filter(district => districtTech(district, tree) === id).map(district => ({ kind: 'district' as const, text: `设施区「${DISTRICTS[district].name}」` })),
     ...(hm ? [{ kind: 'class' as const, text: `学会秘传「${hm[1].hm}」：可训练${CLASS_NAMES[hm[0]]}宝可梦` }] : []),
     ...(recruit ? [{ kind: 'recruit' as const, text: `各城可招募${SPECIES_NAMES[recruit]}` }] : []),
   ];
 }
 export const TECH_TIERS = [1, 2, 3] as const;
-export const techsInTier = (tier: number) => (Object.keys(TECHS) as TechId[]).filter(id => TECHS[id].tier === tier);
+export const techsInTier = (tier: number) => (Object.keys(TECHS) as LegacyTechId[]).filter(id => TECHS[id].tier === tier);

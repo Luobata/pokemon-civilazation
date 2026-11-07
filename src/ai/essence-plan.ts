@@ -3,6 +3,7 @@ import type { EssenceId } from '../content/essences.ts';
 import type { Content } from '../content/units.ts';
 import { LEADER_ESSENCE, speciesEssence } from '../core/essences.ts';
 import type { Command, PlayerView } from '../core/model.ts';
+import { treeGateOpen } from '../core/tech-tree.ts';
 
 /** The essence this AI wants most: its leader's, then whatever its registered army uses most. */
 export function preferredEssence(view: PlayerView, content: Content): EssenceId {
@@ -15,7 +16,7 @@ export function preferredEssence(view: PlayerView, content: Content): EssenceId 
 /** Build one gym per city once the stock allows, choosing a stocked essence the army can use. */
 export function planEssenceAction(view: PlayerView, content: Content): Command['action'] | null {
   const essences = view.expansion?.essences;
-  if (!essences || view.economy.player.gold < ESSENCE_RULES.gymGoldCost + 40) return null;
+  if (!essences || view.economy.player.gold < ESSENCE_RULES.gymGoldCost + 40 || !treeGateOpen(view.economy.player, 'gym')) return null;
   const withGym = new Set(essences.gyms.map(gym => gym.cityId));
   const city = view.economy.cities.filter(item => !withGym.has(item.id) && item.capturedAtRound !== view.round).sort((a, b) => b.population - a.population || a.id - b.id)[0];
   if (!city) return null;

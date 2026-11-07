@@ -8,7 +8,7 @@ import { visibleTiles } from './vision.ts';
 import { ballPrice, playerPolicyEffects } from './policies.ts';
 import { trainableSpeciesIds } from './role-tactics.ts';
 import { isMapUnit } from './model.ts';
-import { CONTENT, contentFor } from '../content/units.ts';
+import { CONTENT, contentFor, techOf } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
 import type { TechId } from '../content/economy.ts';
 import { hexDistance, hexToIndex } from './hex.ts';
@@ -18,8 +18,10 @@ import type { EconomyAction, EconomyEvent, GameState, PlayerState, StepResult } 
 type Rejection = Extract<StepResult, { ok: false }>['reason'];
 export function canResearch(player: PlayerState, techId: TechId, content: Content = CONTENT): boolean {
   if (!Object.hasOwn(content.techs, techId) || player.research.unlockedIds.includes(techId)) return false;
-  const tier = content.techs[techId].tier;
-  return tier === 1 || player.research.unlockedIds.some(id => content.techs[id].tier === tier - 1);
+  // v22 tree: every listed prerequisite must be complete. Older contents: any tech of the previous tier.
+  if (content.techTree) return (techOf(content, techId).requires ?? []).every(id => player.research.unlockedIds.includes(id));
+  const tier = techOf(content, techId).tier;
+  return tier === 1 || player.research.unlockedIds.some(id => techOf(content, id).tier === tier - 1);
 }
 export function validateEconomyAction(state: GameState, actor: number, action: EconomyAction, content: Content = contentFor(state.setup)): Rejection | null {
   const player = state.players[actor];

@@ -699,6 +699,67 @@ button.danger { border-color: var(--danger); background: #9E4B43; color: var(--o
 .tech-card.available { border-color: var(--border-strong); }
 .tech-card.locked { opacity: .55; }
 @media (max-width: 860px) { .tech-tree { grid-template-columns: 1fr; } .research-box .research-controls select { min-width: 0; } }
+/* v22 branching tech tree: horizontally scrolling node grid, connectors, detail aside */
+.tech-tree-help { margin: 0 0 8px; color: var(--ink-secondary); font-size: 12px; }
+.tech-line-legend { display: flex; flex-wrap: wrap; gap: 6px 12px; margin: 0 0 10px; padding: 0; list-style: none; font-size: 11px; color: var(--ink-secondary); }
+.tech-line-legend li::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 5px; border-radius: 2px; background: var(--line, transparent); vertical-align: -1px; }
+.tech-line-legend .legend-state::before { border: 2px solid var(--border-strong); background: var(--surface); }
+.tech-line-legend .legend-state.done::before { border-color: #6FB58F; background: #16291F; }
+.tech-line-legend .legend-state.active::before { border-color: #4A9FD4; background: #13304A; }
+.tech-line-legend .legend-state.available::before { border-color: var(--gold); }
+.tech-line-legend .legend-state.locked::before { border-style: dashed; opacity: .6; }
+.tech-tree-layout { display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 14px; align-items: start; }
+.tech-tree-main { display: grid; gap: 8px; min-width: 0; }
+.tech-tree-nav { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.tech-tree-nav button { min-height: 30px; padding: 4px 12px; font-size: 12px; }
+.tech-tree-scroll { overflow-x: auto; overflow-y: hidden; padding: 4px 4px 10px; border: 1px solid var(--border); border-radius: var(--radius-md); background: #0F1F24; overscroll-behavior-x: contain; }
+.tech-tree-scroll:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.tech-tree-v22 { position: relative; display: grid; gap: 10px 44px; align-items: start; width: max-content; padding: 4px 6px; }
+.tech-column-head { position: relative; z-index: 1; margin: 0; color: var(--gold); font-size: 12px; letter-spacing: .06em; }
+.tech-links { position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: visible; }
+.tech-links path { fill: none; stroke: #3E504C; stroke-width: 2; }
+.tech-links path.done { stroke: #5F9F7E; }
+.tech-links path.chain { stroke: var(--gold); stroke-width: 3; }
+.tech-node { position: relative; z-index: 1; display: grid; gap: 4px; width: 184px; min-height: 0; padding: 7px 9px 7px 12px; border: 2px solid var(--border); border-radius: var(--radius-md);
+  background: var(--surface); color: var(--ink); text-align: left; font: inherit; cursor: pointer; box-shadow: inset 4px 0 0 var(--line); }
+.tech-node .node-head { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; }
+.tech-node strong { color: #F3E7C9; font-size: 13px; }
+.tech-node .node-eureka { color: var(--gold); font-size: 12px; }
+.tech-node .node-meta { display: flex; justify-content: space-between; gap: 6px; color: var(--ink-muted); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+.tech-node .node-progress { height: 4px; overflow: hidden; border-radius: 2px; background: #0D1D21; }
+.tech-node .node-progress span { display: block; height: 100%; background: linear-gradient(90deg, #4A9FD4, #9CD6F2); }
+.tech-node .node-marks { display: flex; flex-wrap: wrap; gap: 3px; }
+.unlock-mark { display: inline-grid; place-items: center; min-width: 17px; height: 17px; padding: 0 2px; border-radius: 3px; background: #26393C; color: #D6E4D8; font-size: 10px; line-height: 1; }
+.unlock-mark.building { background: #4A3D22; color: #F1DCA0; }
+.unlock-mark.district { background: #3E3354; color: #D9CBF5; }
+.unlock-mark.recruit { background: #1F4430; color: #A8DDB5; }
+.unlock-mark.class { background: #1E3C55; color: #9CD6F2; }
+.tech-node.done { border-color: #4F7A5C; background: #16291F; }
+.tech-node.done .node-rounds { color: #8CD3A2; }
+.tech-node.done .node-progress span { background: linear-gradient(90deg, #4E8A6A, #8CD3A2); }
+.tech-node.active { border-color: #4A9FD4; background: #13304A; box-shadow: inset 4px 0 0 var(--line), 0 0 0 2px #4A9FD4; }
+.tech-node.active .node-rounds { color: #9CD6F2; }
+.tech-node.available { border-color: var(--gold); }
+.tech-node.available .node-rounds { color: #F4DFA6; }
+.tech-node.locked { border-style: dashed; background: #142226; }
+.tech-node.locked strong, .tech-node.locked .node-meta { opacity: .6; }
+.tech-node:hover, .tech-node.focus { transform: translateY(-1px); }
+.tech-node.chain { outline: 2px solid var(--gold); outline-offset: 1px; }
+.tech-node.selected { box-shadow: inset 4px 0 0 var(--line), 0 0 0 3px var(--focus); }
+.tech-node:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.tech-detail { display: grid; gap: 6px; padding: 12px 14px; border: 1px solid var(--border-strong); border-radius: var(--radius-md); background: var(--surface); position: sticky; top: 0; }
+.tech-detail header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.tech-detail header strong { color: #F3E7C9; font-size: 16px; }
+.tech-detail h4 { margin: 4px 0 0; color: var(--gold); font-size: 11px; letter-spacing: .06em; }
+.line-chip { padding: 1px 7px; border-radius: 999px; background: var(--line); color: #fff; font-size: 10.5px; }
+.tech-requires { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; font-size: 12px; }
+.tech-requires .met { color: #8CD3A2; }
+.tech-requires .missing { color: var(--danger); }
+.tech-detail .tech-unlocks li::before { content: none; }
+.tech-detail .tech-unlocks li { display: flex; gap: 5px; align-items: baseline; }
+.tech-locked-reason { margin: 4px 0 0; padding: 6px 8px; border-radius: 6px; background: var(--danger-soft); color: #F2C4BC; font-size: 12px; }
+.tech-detail button { justify-self: start; }
+@media (max-width: 860px) { .tech-tree-layout { grid-template-columns: 1fr; } .tech-detail { position: static; } }
 
 /* ===== Tile inspector and hover tooltip ===== */
 #map-tooltip { position: absolute; top: 0; left: 0; z-index: 4; max-width: 340px; padding: 5px 9px; border: 1px solid var(--border-strong); border-radius: 6px; background: rgb(16 28 32 / 94%); box-shadow: var(--shadow-sm); color: var(--ink); font-size: 12px; line-height: 1.45; pointer-events: none; }

@@ -1,6 +1,6 @@
-import { DISTRICTS, DISTRICT_IDS } from '../content/districts.ts';
+import { DISTRICTS, DISTRICT_IDS, districtTech } from '../content/districts.ts';
 import type { DistrictEffects, DistrictId } from '../content/districts.ts';
-import { EXPANSION_CONTENT } from '../content/units.ts';
+import { EXPANSION_CONTENT, WORLD_CONTENT, techOf } from '../content/units.ts';
 import { cityDistrictDetails, districtSites } from '../core/districts.ts';
 import type { DistrictBreakdown, DistrictSite } from '../core/districts.ts';
 import { indexToHex } from '../core/hex.ts';
@@ -10,9 +10,9 @@ import { BIOME_DISPLAY } from './canvas.ts';
 const EFFECT_LABELS: Record<keyof DistrictEffects, string> = {
   food: '食物', production: '生产', gold: '金币', research: '科研', trainedXp: '宝可梦出场经验', bondPressure: '每轮羁绊压力',
 };
-export function districtReason(reason: string | null, kind: DistrictId): string {
+export function districtReason(reason: string | null, kind: DistrictId, gameplayVersion?: number): string {
   if (!reason) return '';
-  const definition = DISTRICTS[kind], tech = EXPANSION_CONTENT.techs[definition.requiredTech].name;
+  const tree = (gameplayVersion ?? 0) >= 22, definition = DISTRICTS[kind], tech = techOf(tree ? WORLD_CONTENT : EXPANSION_CONTENT, districtTech(kind, tree)).name;
   const biomes = definition.biomes.map(biome => BIOME_DISPLAY[biome].label).join('、');
   const messages: Record<string, string> = {
     'districts-unavailable': '当前对局未启用设施区，需要显式 gameplay v10。',
@@ -53,7 +53,7 @@ export function districtTypeCards(view: PlayerView, cityId: number, disabled: bo
     const reason = available ? null : sites.find(site => site.reason === 'district-kind-limit')?.reason
       ?? sites.find(site => site.reason === 'district-city-limit')?.reason ?? sites.find(site => site.reason === 'district-tech-locked')?.reason ?? sites[0]?.reason ?? null;
     const queueFull = (city?.queue.length ?? 0) >= 5, blocked = disabled || !available || queueFull;
-    const reasonText = queueFull ? '生产队列已满 5 项，请先完成或取消订单。' : districtReason(reason, kind);
+    const reasonText = queueFull ? '生产队列已满 5 项，请先完成或取消订单。' : districtReason(reason, kind, view.gameplayVersion);
     return `<button type="button" class="district-type-card" data-district-kind="${kind}" aria-label="${definition.name}，${definition.cost} 生产${reasonText ? `，${reasonText}` : ''}" ${blocked ? 'disabled' : ''}>
       <span class="district-mark">${definition.mark}</span><strong>${definition.name}</strong><span>${definition.cost} 生产</span>
       <small>${definition.biomes.map(biome => BIOME_DISPLAY[biome].label).join('、')}${definition.coastal ? ' · 须临岸' : ''} · ${effectText(definition.base)}</small>
@@ -66,7 +66,7 @@ export function districtPreviewMarkup(view: PlayerView, site: DistrictSite, disa
   return `<section id="district-preview" class="district-preview" aria-label="设施区选址预览"><p class="eyebrow">设施区选址</p><h3>${definition.name} · 地块 ${site.tileIndex}（${position.q},${position.r}）</h3>
     <p>当前地形：${biome ? BIOME_DISPLAY[biome].label : '未知'}</p>${breakdownMarkup(site.effects)}
     ${site.releasesWork ? `<p class="district-release">下单后，城市 ${site.releasedCityIds.join('、')} 将释放该格工作与锁定；对应人口成为观测者，不自动改派。</p>` : ''}
-    ${site.reason ? `<p class="district-reason" role="status">${districtReason(site.reason, site.kind)}</p>` : ''}
+    ${site.reason ? `<p class="district-reason" role="status">${districtReason(site.reason, site.kind, view.gameplayVersion)}</p>` : ''}
     <div class="district-preview-actions">${site.reason === null ? `<button id="confirm-district" class="primary" ${disabled ? 'disabled' : ''}>确认入队</button>` : ''}<button id="cancel-district">取消选址</button></div></section>`;
 }
 

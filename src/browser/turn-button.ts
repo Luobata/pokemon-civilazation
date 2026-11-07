@@ -39,7 +39,7 @@ export function cycleId(ids: readonly number[], current: number | null, step: 1 
 export function turnReminders(view: PlayerView, content: typeof EXPANSION_CONTENT, reviewed: ReadonlySet<number> = new Set()): Reminder[] {
   const items: Reminder[] = [];
   const player = view.economy.player;
-  if (player.research.techId === null && (Object.keys(content.techs) as TechId[]).some(id => canResearch(player, id))) items.push({ label: '选择研究', target: '#research-panel' });
+  if (player.research.techId === null && (Object.keys(content.techs) as TechId[]).some(id => canResearch(player, id, content))) items.push({ label: '选择研究', target: '#research-panel' });
   const policies = view.expansion?.policies;
   if (policies && policies.charterId === null && policies.adopted.length < Object.keys(CHARTERS).length) items.push({ label: '选择规章', target: '#policy-panel' });
   const shaky = Object.values(view.expansion?.bonds ?? {}).filter(info => info.bond < 30 && info.pressure.total < 0).length;

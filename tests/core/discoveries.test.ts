@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { EXPANSION_CONTENT } from '../../src/content/units.ts';
+import { EXPANSION_CONTENT, STOCK_CONTENTS, WORLD_CONTENT } from '../../src/content/units.ts';
 import { DISCOVERIES } from '../../src/content/discoveries.ts';
 import { createGame } from '../../src/core/game.ts';
 import { createMapUnit } from '../../src/core/unit.ts';
@@ -21,7 +21,9 @@ const end: EventPayload[] = [];
 const evolved = (playerId: number): EventPayload[] => [{ type: 'Evolved', playerId, unitId: 1, speciesId: 'ivysaur' }];
 
 test('every technology has exactly one discovery and the ledger exists only in gameplay v2', () => {
-  expect(Object.keys(DISCOVERIES).sort()).toEqual(Object.keys(EXPANSION_CONTENT.techs).sort());
+  // Every technology of every content has one; the extra 18 belong to the v22 tree.
+  for (const content of STOCK_CONTENTS) for (const id of Object.keys(content.techs)) expect(DISCOVERIES).toHaveProperty(id);
+  expect(Object.keys(DISCOVERIES).sort()).toEqual(Object.keys(WORLD_CONTENT.techs).sort());
   expect(createGame(setup(2)).expansion?.discoveries).toEqual({ 0: [], 1: [] });
   expect(createGame(setup(1)).expansion).not.toHaveProperty('discoveries');
 });

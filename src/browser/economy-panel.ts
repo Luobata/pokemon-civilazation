@@ -17,7 +17,9 @@ import { ballPrice, viewPolicyEffects } from '../core/policies.ts';
 import { tileYieldReader } from './tile-yields.ts';
 import { IMPROVEMENTS } from '../content/improvements.ts';
 import { trainableSpeciesIds } from '../core/role-tactics.ts';
-import { CONTENT as BASE_CONTENT, contentForView } from '../content/units.ts';
+import { CONTENT as BASE_CONTENT, contentForView, techOf } from '../content/units.ts';
+import { TREE_GATES } from '../content/tech-tree.ts';
+import { treeGateOpen } from '../core/tech-tree.ts';
 import type { BallId, BuildingId } from '../content/economy.ts';
 import { growthThreshold, maxCityHp, productionCost } from '../core/city.ts';
 import { cityDistrictDetails } from '../core/districts.ts';
@@ -168,6 +170,7 @@ export function renderEconomyPanel(view: PlayerView, selectedCity: number | null
   const weatherMarkup = era?.unlocked.includes('weather') && essences ? `<div class="gym-build"><label>召唤天气（城市周围 ${ERA_ABILITY_RULES.weatherRadius} 格，${ERA_ABILITY_RULES.weatherRounds} 轮）<select id="weather-kind">${WEATHER_IDS.some(id => essences.stock[WEATHERS[id].essence] >= ERA_ABILITY_RULES.weatherCost) ? '' : `<option value="" selected disabled>精华不足（需 ${ERA_ABILITY_RULES.weatherCost}）</option>`}${WEATHER_IDS.map(id => `<option value="${id}" ${essences.stock[WEATHERS[id].essence] < ERA_ABILITY_RULES.weatherCost ? 'disabled' : ''}>${WEATHERS[id].name} · ${ERA_ABILITY_RULES.weatherCost} ${ESSENCES[WEATHERS[id].essence].name}</option>`).join('')}</select></label><button id="summon-weather" ${disabled || view.round < era.own.weatherReadyAtRound || !WEATHER_IDS.some(id => essences.stock[WEATHERS[id].essence] >= ERA_ABILITY_RULES.weatherCost) ? 'disabled' : ''}>${view.round < era.own.weatherReadyAtRound ? `冷却至第 ${era.own.weatherReadyAtRound} 轮` : '召唤'}</button></div><p class="unit-note">${ERA_ABILITIES.weather.description}</p>` : '';
   const essenceMarkup = essences && cityEssence ? `<section id="city-essences" class="city-essences" aria-label="属性精华"><p class="section-label">属性精华 · 每轮</p><div class="essence-row">${ESSENCE_IDS.filter(id => cityEssence[id]).map(id => `<span class="essence-chip" style="--essence:${ESSENCES[id].color}"><b>${ESSENCES[id].mark}</b>+${cityEssence[id]}</span>`).join('') || '<span class="unit-note">暂无</span>'}</div>
       ${gym ? `<p class="gym-status">${ESSENCES[gym].name}道馆：${ESSENCES[gym].types.map(type => TYPE_NAMES[type]).join('、')}系训练消耗精华时进度 +${ESSENCE_RULES.gymTrainingBoost}，出场经验 +${ESSENCE_RULES.gymTrainedXp}，每轮 +${ESSENCE_RULES.gymEssenceYield} ${ESSENCES[gym].name}。</p>`
+        : !treeGateOpen(player, 'gym') ? `<p class="unit-note" id="gym-locked">建造属性道馆需要先研究「${techOf(CONTENT, TREE_GATES.gym).name}」。</p>`
         : `<div class="gym-build"><label>建造属性道馆<select id="gym-essence">${ESSENCE_IDS.some(id => essences.stock[id] >= ESSENCE_RULES.gymEssenceCost) ? '' : `<option value="" selected disabled>精华不足（需任一属性 ${ESSENCE_RULES.gymEssenceCost}）</option>`}${ESSENCE_IDS.map(id => `<option value="${id}" ${essences.stock[id] < ESSENCE_RULES.gymEssenceCost ? 'disabled' : ''}>${ESSENCES[id].name}道馆（${ESSENCES[id].types.map(type => TYPE_NAMES[type]).join('/')}）· 库存 ${essences.stock[id]}</option>`).join('')}</select></label><button id="build-gym" ${disabled || player.gold < ESSENCE_RULES.gymGoldCost || !ESSENCE_IDS.some(id => essences.stock[id] >= ESSENCE_RULES.gymEssenceCost) ? 'disabled' : ''}>建造 · ${ESSENCE_RULES.gymEssenceCost} 精华 + ${ESSENCE_RULES.gymGoldCost} 金</button></div>`}
       <p class="unit-note">训练宝可梦时，若有对应精华，每轮自动消耗 ${ESSENCE_RULES.trainingSpend} 点加速 +${ESSENCE_RULES.trainingBoost}。</p>${weatherMarkup}</section>` : '';
   const districtXp = cityDistrictDetails(view, city.id).reduce((sum, district) => sum + district.effects.total.trainedXp, 0);

@@ -2,6 +2,7 @@ import { victoryTargets } from '../content/opening.ts';
 import { gameplayAtLeast } from '../content/eras.ts';
 import type { Content } from '../content/units.ts';
 import { finishGame } from './victory.ts';
+import { treeGateOpen } from './tech-tree.ts';
 import { distinctRareBerries } from './rare-berries.ts';
 import { cityYield } from './city.ts';
 import type { EventPayload, GameState } from './model.ts';
@@ -54,6 +55,7 @@ export function validateContestAction(state: GameState, actorId: number, action:
     if (!liveHalls(state, actorId).length || state.round < contests[actorId].showReadyAtRound) return 'contest-cooldown';
     return state.players[actorId].gold >= CONTEST_RULES.showGold ? null : 'contest-gold';
   }
+  if (!treeGateOpen(state.players[actorId], 'contestHall')) return 'hall-tech-locked';
   const city = state.cities[action.cityId];
   if (!city || city.ownerId !== actorId || city.capturedAtRound === state.round || contests[actorId].halls.includes(city.id)
     || contests[actorId].building[city.id] !== undefined) return 'hall-unavailable';

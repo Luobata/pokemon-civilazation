@@ -1,4 +1,5 @@
 import type { BiomeId } from './rules.ts';
+import type { TechLine, TreeTechId } from './tech-tree.ts';
 
 export type Yield = { food: number; production: number; gold: number; research: number };
 const yields = (food = 0, production = 0, gold = 0, research = 0): Yield => ({ food, production, gold, research });
@@ -20,7 +21,13 @@ export const TECHS = {
   leagueRules: { name: '联盟规章', tier: 3, cost: 70 },
   meteorology: { name: '气象观测', tier: 3, cost: 70 },
 } as const;
-export type TechId = keyof typeof TECHS;
+/** The 12 technologies of every content before v22 (their tables keep exactly these keys). */
+export type LegacyTechId = keyof typeof TECHS;
+/** v22 adds 18 more on its tree (src/content/tech-tree.ts); older contents simply have no entry for them. */
+export type TechId = LegacyTechId | TreeTechId;
+/** `requires` / `line` only exist on the v22 tree; older contents use the tier rule. */
+export type TechDefinition = { name: string; tier: number; cost: number; requires?: readonly TechId[]; line?: TechLine };
+export type TechTable = { readonly [K in LegacyTechId]: TechDefinition } & { readonly [K in TreeTechId]?: TechDefinition };
 export type BuildingId = 'headquarters' | 'pasture' | 'workshop' | 'meetingHall' | 'observatory' | 'trainingGround';
 export type BuildingDef = { name: string; cost: number | null; yields: Yield; trainedXp: number; requiredTech?: TechId };
 export const BUILDINGS: Record<BuildingId, BuildingDef> = {

@@ -1,6 +1,8 @@
 import { contentFor } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
 import type { CombatEvent, GameState, Score, GameOutcome } from './model.ts';
+import { TREE_RULES } from '../content/tech-tree.ts';
+import { onTechTree, treeGateOpen } from './tech-tree.ts';
 
 export function scorePlayer(state: GameState, playerId: number, content: Content = contentFor(state.setup)): Score {
   const player = state.players[playerId];
@@ -11,6 +13,8 @@ export function scorePlayer(state: GameState, playerId: number, content: Content
   const weights = content.balance.score;
   const base = score.cities * weights.cities + score.population * weights.population + score.species * weights.species + score.techs * weights.techs + score.knockdowns * weights.knockdowns;
   score.total = Math.floor(base * (player.research.unlockedIds.includes('leagueRules') ? content.balance.effects.leagueScoreMultiplier : 1000) / 1000);
+  // v22 冠军联盟: a further multiplier on top.
+  if (onTechTree(player) && treeGateOpen(player, 'championScore')) score.total = Math.floor(score.total * TREE_RULES.championScorePermille / 1000);
   return score;
 }
 export function compareScores(a: Score, b: Score): number {

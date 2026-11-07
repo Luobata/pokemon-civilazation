@@ -1,4 +1,5 @@
 import type { TechId } from '../content/economy.ts';
+import type { TechLine } from '../content/tech-tree.ts';
 import type { Content, SpeciesId } from '../content/units.ts';
 import type { LeaderId } from '../content/leaders.ts';
 import { activeDoctrine, isDoctrineTarget, LEADER_DOCTRINES } from '../core/leader-doctrines.ts';
@@ -28,6 +29,27 @@ export function leaderResearchBonus(view: PlayerView, techId: TechId): number {
   if (!hasGameplayPack(view) || leaderId === undefined) return 0;
   const index = LEADER_TECH_FOCUS[leaderId].indexOf(techId);
   return index === -1 ? 0 : 60 - index * 15;
+}
+
+/** v22 tree: the research lines each leader / personality pursues first (primary, secondary). */
+const LEADER_TECH_LINES: Record<LeaderId, readonly [TechLine, TechLine]> = {
+  oak: ['science', 'capture'], lance: ['raising', 'exploration'], jenny: ['cities', 'raising'], joy: ['raising', 'league'],
+  brock: ['cities', 'capture'], misty: ['exploration', 'capture'], steven: ['cities', 'science'], jasmine: ['league', 'cities'],
+  giovanni: ['capture', 'league'],
+};
+const PERSONALITY_TECH_LINE: Record<string, TechLine> = { expansion: 'exploration', aggressive: 'raising', conservative: 'science' };
+/**
+ * v22 research choice among researchable techs only: cheaper columns first, then the leader's and personality's lines,
+ * plus techs that open further steps on a preferred line (so the AI plans a route rather than buying the cheapest node).
+ */
+export function treeResearchBenefit(view: PlayerView, techId: TechId, content: Content): number {
+  const player = view.economy.player, tech = content.techs[techId]!;
+  const lines = player.leaderId ? LEADER_TECH_LINES[player.leaderId] : (['capture', 'cities'] as const);
+  const personal = PERSONALITY_TECH_LINE[player.personality];
+  const lineBonus = (line: TechLine | undefined) => (line === lines[0] ? 60 : line === lines[1] ? 30 : 0) + (line === personal ? 20 : 0);
+  const opens = (Object.keys(content.techs) as TechId[]).filter(id => !player.research.unlockedIds.includes(id) && content.techs[id]!.requires?.includes(techId));
+  return 300 - tech.tier * 40 + lineBonus(tech.line) + Math.min(30, opens.reduce((sum, id) => sum + Math.floor(lineBonus(content.techs[id]!.line) / 3), 0))
+    + (techId === 'domestication' ? 40 : 0) + leaderResearchBonus(view, techId);
 }
 
 /** Benefit added to training a species: assault roles for sieges, plus the leader's active and next window. */

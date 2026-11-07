@@ -13,7 +13,7 @@ import { planLeaderAction } from '../core/leader-systems.ts';
 import type { Command, MapUnit, PlayerView, ProductionItem } from '../core/model.ts';
 import { hexDistance, hexToIndex, indexToHex } from '../core/hex.ts';
 import { workRadius } from '../core/city.ts';
-import { CONTENT, unitDefinition, contentForView } from '../content/units.ts';
+import { CONTENT, unitDefinition, contentForView, techOf } from '../content/units.ts';
 import type { BallId, BuildingId, TechId } from '../content/economy.ts';
 import { knownCities, RULE_QUERIES } from './query.ts';
 import type { RuleQueries } from './query.ts';
@@ -26,7 +26,7 @@ import type { AiThresholds } from './thresholds.ts';
 import { seekUnknownHeadquarters } from './targets.ts';
 import { AI_STRATEGIES } from './strategies.ts';
 import { campaignPlan, eraCivilizationPolicy, hasEraProgression } from './war-plan.ts';
-import { leaderResearchBonus, roleCaptureBonus, roleTrainingBonus } from './role-plan.ts';
+import { leaderResearchBonus, roleCaptureBonus, roleTrainingBonus, treeResearchBenefit } from './role-plan.ts';
 import { trainableSpeciesIds } from '../core/role-tactics.ts';
 import { designatedWorkers, improvementSuggestions, wantsBuilder } from './improvement-plan.ts';
 import { usesTactics } from '../core/tactics.ts';
@@ -178,7 +178,8 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
   }
   if (player.research.techId === null) for (const [i, techId] of (Object.keys(content.techs) as TechId[]).entries()) {
     const unlocksLeaderUnit = view.expansion && player.leaderId && techId === 'training' && view.expansion.leaders.recruited === 0;
-    if (query.research(player, techId, content)) add({ type: 'SetResearch', techId }, 'research', unlocksLeaderUnit ? 1000 : 100 - content.techs[techId].cost + leaderResearchBonus(view, techId), 0, i);
+    if (query.research(player, techId, content)) add({ type: 'SetResearch', techId }, 'research', unlocksLeaderUnit ? 1000
+      : content.techTree ? treeResearchBenefit(view, techId, content) : 100 - techOf(content, techId).cost + leaderResearchBonus(view, techId), 0, i);
   }
   // v15: one legendary wonder at a time, in the most productive eligible city that is not threatened.
   const { cityId: wonderCity, legendId: wonder } = planLegendWonder(view, threatened);

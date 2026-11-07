@@ -6,6 +6,7 @@ import { eraState, gameplayAtLeast } from '../content/eras.ts';
 import type { LeaderId } from '../content/leaders.ts';
 import type { EventPayload, GameState, PlayerState } from './model.ts';
 import { ageEffects, ageLeaguePoints, eraAgeOf } from './era-honors.ts';
+import { onTechTree, treeEffects } from './tech-tree.ts';
 import type { EraAge } from '../content/era-honors.ts';
 
 /** Gameplay v3 only. Per player: charter progress, adopted charters and slotted policies. */
@@ -86,8 +87,9 @@ export function policyEffects(player: Pick<PlayerState, 'leaderId'>, slotted: re
 export function playerPolicyEffects(state: Pick<GameState, 'setup' | 'expansion' | 'players'>, playerId: number | null): Required<PolicyEffects> {
   if (playerId === null || !usesPolicies(state as GameState)) return { ...ZERO };
   const ledger = state.expansion!.policies?.[playerId];
-  return policyEffects(state.players[playerId], ledger?.slotted, ledger?.government ?? null,
-    state.expansion?.legends ? mergeEffects(ageEffects(eraAgeOf(state, playerId)), legendEffects(state as GameState, playerId)) : ageEffects(eraAgeOf(state, playerId)));
+  const extra = state.expansion?.legends ? mergeEffects(ageEffects(eraAgeOf(state, playerId)), legendEffects(state as GameState, playerId)) : ageEffects(eraAgeOf(state, playerId));
+  // v22: completed tree technologies add their standing bonuses through the same channel (preview == authority).
+  return policyEffects(state.players[playerId], ledger?.slotted, ledger?.government ?? null, onTechTree(state.players[playerId]) ? mergeEffects(extra, treeEffects(state.players[playerId])) : extra);
 }
 export function leaguePointsPerRound(state: GameState, playerId: number): number {
   const cities = Object.values(state.cities).filter(city => city.ownerId === playerId);
@@ -97,10 +99,12 @@ export function leaguePointsPerRound(state: GameState, playerId: number): number
   return 1 + cities.length + Math.floor(population / 3) + Math.floor(improvements / 2) + (satisfaction >= 50 ? 2 : 0) + ageLeaguePoints(eraAgeOf(state, playerId));
 }
 /** Same effects computed from a player's own observation (UI previews and AI). */
-export function viewPolicyEffects(view: { playerId?: number; economy: { player: Pick<PlayerState, 'leaderId'> }; expansion?: { policies?: { slotted: PolicyId[]; government?: GovernmentId | null }; eraHonors?: { age: EraAge }; legends?: LegendView } }): Required<PolicyEffects> {
+export function viewPolicyEffects(view: { playerId?: number; economy: { player: Pick<PlayerState, 'leaderId'> & Partial<Pick<PlayerState, 'research'>> }; expansion?: { policies?: { slotted: PolicyId[]; government?: GovernmentId | null }; eraHonors?: { age: EraAge }; legends?: LegendView } }): Required<PolicyEffects> {
   const extra = view.expansion?.legends && view.playerId !== undefined
     ? mergeEffects(ageEffects(view.expansion.eraHonors?.age), viewLegendEffects({ playerId: view.playerId, expansion: view.expansion })) : ageEffects(view.expansion?.eraHonors?.age);
-  return view.expansion?.policies ? policyEffects(view.economy.player, view.expansion.policies.slotted, view.expansion.policies.government ?? null, extra) : { ...ZERO };
+  const own = view.economy.player.research ? { research: view.economy.player.research } : undefined;
+  return view.expansion?.policies ? policyEffects(view.economy.player, view.expansion.policies.slotted, view.expansion.policies.government ?? null,
+    onTechTree(own) ? mergeEffects(extra, treeEffects(own)) : extra) : { ...ZERO };
 }
 export function ballPrice(base: number, discount: number): number { return Math.max(1, base - discount); }
 export function swapCost(ledger: PolicyPlayerState): number { return ledger.freeSwap ? 0 : POLICY_SWAP_GOLD; }

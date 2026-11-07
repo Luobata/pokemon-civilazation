@@ -17,6 +17,16 @@ const system = (definition: AuditSystem): AuditSystem => definition;
 
 export const AUDIT_SYSTEMS: readonly AuditSystem[] = [
   system({
+    id: 's-tech-tree', name: '分支科技树（v22）', status: 'implemented',
+    summary: 'gameplay v22：30 项科技、6 个时代列、6 条路线；每项有 1–2 个指定前置（全部完成才能研究）；原 12 项保留并重新接线，新增 18 项各自解锁建筑、设施区、秘传、招募、属性道馆、大赛馆、最终形态训练、工匠次数、计分或常驻加成；每项都有图鉴发现；世代门槛按 30 项重设。读取 v≤21 存档时仍是三层规则。',
+    rules: ['SetResearch 只接受前置全部完成、尚未完成的科技；v≤21 仍按“上一层任意一项”。',
+      '常驻加成走方针效果同一通道（playerPolicyEffects / viewPolicyEffects），预览与结算一致。',
+      '新对局在玩家研究状态上记 tree，世代门槛、v22 规则门只读这一标记，旧存档不受影响。'],
+    checks: ['v21 固定 48 局改动前后逐文件一致。', 'tests/core/tech-tree.test.ts：图无环、全部可达、每项有解锁与发现、前置校验、世代门槛；tests/browser/tech-tree.spec.ts：连线、锁定原因、研究此项、滚轮到最后一列。'],
+    sources: ['src/content/tech-tree.ts', 'src/core/tech-tree.ts', 'src/browser/tech-tree-panel.ts', 'tests/core/tech-tree.test.ts', 'docs/design/world-v22.md'],
+    actionTypes: ['SetResearch'],
+  }),
+  system({
     id: 's-opening', name: '开局节奏（开局目标、道具球、城墙）', status: 'implemented',
     summary: 'gameplay v21：8 个开局目标发奖励；道具球（探索奖励）按稳定种子摆放；城市中心产科研、首都生产 +2；一阶/二阶科技降价、开拓队 24；城市 HP 100、每轮恢复、城墙随轮数成长；胜利门槛随轮上限变化；驯化发现改为“初次交手”。读取 v≤20 存档时不启用。',
     rules: ['开局目标与道具球只读取本条命令产生的事件与单位位置，摆放不消耗 state.rng。',

@@ -3,6 +3,7 @@
 // badges and Rare Candy.
 import type { TechId } from './economy.ts';
 import type { SpeciesDefinition, TypeId } from './species.ts';
+import { TREE_CLASS_HMS } from './tech-tree.ts';
 
 export type UnitClass = SpeciesDefinition['role'];
 export const CLASS_IDS: readonly UnitClass[] = ['melee', 'ranged', 'fast', 'scout', 'siege', 'air', 'naval'];
@@ -39,3 +40,5 @@ export const CLASS_HMS: Partial<Record<UnitClass, { hm: string; techId: TechId }
   fast: { hm: '骑乘', techId: 'riding' },
   air: { hm: '飞翔', techId: 'meteorology' },
 };
+/** The HM table of a content: v22's tree teaches 冲浪 with 近海航行 and 飞翔 with 飞行训练. */
+export const classHms = (content: { techTree?: true }): Partial<Record<UnitClass, { hm: string; techId: TechId }>> => content.techTree ? TREE_CLASS_HMS : CLASS_HMS;
