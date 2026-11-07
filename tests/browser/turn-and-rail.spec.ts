@@ -27,7 +27,7 @@ test('P0-5: the end-turn button leads through pending items and only then reads 
 
   await expect(endTurn(page)).toHaveText(/^城市 \d+ 需要生产 ›$/);
   await endTurn(page).click();
-  await page.locator('#add-production').click();
+  await page.locator('[data-production-option]:not([disabled])').first().click();
 
   // Units: each click selects the next unit still waiting for orders; reviewed units stop counting.
   await expect(endTurn(page)).toHaveText(/^单位需要命令（\d+）›$/);

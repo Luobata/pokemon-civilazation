@@ -104,7 +104,7 @@ export function renderUnitPanel(view: PlayerView, selected: number | null, mode:
       <ol class="founding-steps"><li>移动到陆地，与其他城市至少相距 4 格。</li><li>${usesMovementPoints(view) ? '移动消耗移动力；还有移动力就能当回合建城。' : '移动会消耗行动点；下一回合再建城。'}</li><li>建城消耗这支开拓队，随后进入城市管理。</li></ol>
       <p id="founding-status" class="founding-status ${reason ? 'unavailable' : ''}">${reason ?? '已知选址条件满足，可以在此建立城市。'}</p>
       ${inBar ? '' : `<div class="unit-actions"><button id="move-unit" ${busy || !unit.actionLeft ? 'disabled' : ''}>${mode === 'move' ? '取消移动' : '移动'}</button><button id="found-city" class="primary" ${busy || reason ? 'disabled' : ''}>在此建立城市</button></div>`}
-      <p class="unit-note">需要更多开拓队：选中城市 → 训练开拓队 → 加入队列（30 生产）。</p></div>`;
+      <p class="unit-note">需要更多开拓队：选中城市 → 训练开拓队 → 加入队列（${contentForView(view).units.settler.trainCost} 生产）。</p></div>`;
     root.querySelector('#found-city')?.addEventListener('click', callbacks.found);
     root.querySelector('#move-unit')?.addEventListener('click', () => callbacks.mode(mode === 'move' ? null : 'move'));
     return;
