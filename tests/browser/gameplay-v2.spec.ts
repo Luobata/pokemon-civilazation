@@ -27,7 +27,7 @@ test('v2–v17 rules: Pokémon build tile improvements, discoveries and field ta
   // Working a tile ends the unit's turn; v16 then selects the next unit waiting for orders.
   await expect(page.locator('#action-notice')).toContainText('下一个待命单位');
   expect((await state(page)).expansion!.improvements!.projects[tile]).toMatchObject({ kind: 'berryFarm', progress: 2, playerId: 0 });
-  await page.locator('#end-turn').click();
+  await page.locator('#end-turn').click({ modifiers: ['Shift'] });
   await expect(page.locator('#round-display')).toContainText('2');
   await selectStarter(page);
   await page.locator(`[data-improve="${tile}:berryFarm"]`).click();
@@ -55,7 +55,7 @@ test('gameplay v3: charters, policy cards and end-turn reminders work in the pag
   await expect(page.locator('#turn-reminders')).not.toContainText('选择规章');
   for (let turn = 0; turn < 40 && !(await state(page)).expansion!.policies![0].adopted.includes('gymCode'); turn++) {
     await closeScreen(page);
-    await page.locator('#end-turn').click();
+    await page.locator('#end-turn').click({ modifiers: ['Shift'] });
     await expect(page.locator('#end-turn')).toBeEnabled();
   }
   await expect(page.locator('#activity-list')).toContainText('确立规章「道馆守则」');

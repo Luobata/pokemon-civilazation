@@ -19,10 +19,11 @@ export async function closeScreen(page: Page): Promise<void> {
   if (await open.count()) { await open.click(); await expect(page.locator('#screen-host')).toBeHidden(); }
 }
 
-/** Opens the game menu's developer drawer (god view, replay, debug output). */
+/** Opens the game menu's developer drawer (god view, replay, debug output). The page must be opened with `?dev=1`. */
 export async function openDevDrawer(page: Page): Promise<void> {
   await openScreen(page, 'menu');
   const drawer = page.locator('#dev-drawer');
+  await expect(drawer, 'the developer drawer is only shown with ?dev=1').toBeVisible();
   if (await drawer.getAttribute('open') === null) await drawer.locator('summary').click();
 }
 

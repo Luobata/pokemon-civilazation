@@ -41,7 +41,7 @@ test('war confirmation, peace proposal and AI response update public diplomacy',
   expect((await state(page)).diplomacy[0].status).toBe('war');
   await closeScreen(page);
   for (let round = 0; round < 5; round++) {
-    await page.locator('#end-turn').click();
+    await page.locator('#end-turn').click({ modifiers: ['Shift'] });
     await expect(page.locator('#end-turn')).toBeEnabled();
   }
   await openScreen(page, 'diplomacy');
@@ -49,7 +49,7 @@ test('war confirmation, peace proposal and AI response update public diplomacy',
   await expect(page.locator('#diplomacy')).toContainText('等待对方回应');
   await page.screenshot({ path: `${reports}/m4ui-diplomacy.png`, fullPage: true });
   await closeScreen(page);
-  await page.locator('#end-turn').click();
+  await page.locator('#end-turn').click({ modifiers: ['Shift'] });
   await expect(page.locator('#diplomacy')).toContainText('和平');
   const peaceful = await state(page), cooldown = peaceful.diplomacy[0].cooldownUntilRound - peaceful.round;
   await expect(page.locator('#diplomacy')).toContainText(`冷却剩余 ${cooldown} 轮`);
@@ -151,12 +151,12 @@ test('new game applies round limit, AI count and personality', async ({ page }) 
 
 test('visible AI movement uses projected events and a real AI turn replays identically', async ({ page }) => {
   await importFixture(page, visibleAiSave());
-  await page.locator('#end-turn').click();
+  await page.locator('#end-turn').click({ modifiers: ['Shift'] });
   await expect(page.locator('#activity-list')).toContainText('文明 2单位移动');
   await page.screenshot({ path: `${reports}/m4ui-ai-turn.png`, fullPage: true });
   await page.goto('/?seed=12345');
   await page.locator('#animate').uncheck();
-  await page.locator('#end-turn').click();
+  await page.locator('#end-turn').click({ modifiers: ['Shift'] });
   await expect(page.locator('#end-turn')).toBeEnabled();
   const result = await page.evaluate(async () => {
     const mainPath = '/src/browser/main.ts';

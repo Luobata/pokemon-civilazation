@@ -47,7 +47,7 @@ for (const seed of [12345, 0]) {
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
     page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
-    await page.goto(`/?seed=${seed}&size=24x16`);
+    await page.goto(`/?dev=1&seed=${seed}&size=24x16`);
     await expect(page.getByRole('status')).toContainText(`种子 ${seed}`);
     await page.locator('#map-legend summary').click();
     await expect(page.getByRole('list', { name: '群系图例' }).locator('li')).toHaveCount(7);
@@ -62,7 +62,7 @@ for (const seed of [12345, 0]) {
     const movedState = JSON.parse(moved.state);
     expect(movedState.units[points.unitId].position).toEqual(points.destination);
     expect(movedState.commandSeq).toBe(1);
-    await page.locator('#end-turn').click();
+    await page.locator('#end-turn').click({ modifiers: ['Shift'] });
     await expect(page.getByRole('status')).toContainText('第 2 轮 · 当前文明 1');
     await expect(page.locator('#selection')).toContainText('行动点 1');
     const final = await snapshot(page), commandCount = final.log.commands.length;
@@ -115,8 +115,8 @@ test('playing interpolation, skipping, and disabling animation preserve the same
     const authoritative = (await snapshot(page)).digest;
     await expect(page.locator('#end-turn')).toBeEnabled();
     expect((await snapshot(page)).digest).toBe(authoritative);
-    await page.locator('#end-turn').click();
-    await expect(page.getByRole('status')).toContainText('第 2 轮');
+    await page.locator('#end-turn').click({ modifiers: ['Shift'] });
+    await expect(page.locator('#round-display')).toHaveText(/^2\b/); // #map-info (seed, round) is dev-only now
     states.push((await snapshot(page)).state);
   }
   expect(new Set(states).size).toBe(1);
@@ -138,7 +138,7 @@ test('camera pan/zoom changes hit coordinates while DPR is capped and game state
 });
 
 test('starter selection restarts the game and god view only changes presentation', async ({ page }) => {
-  await page.goto('/'); const before = await snapshot(page);
+  await page.goto('/?dev=1'); const before = await snapshot(page);
   await openDevDrawer(page);
   await openDevDrawer(page);
   await page.locator('#god').check(); expect((await snapshot(page)).digest).toBe(before.digest);
@@ -197,7 +197,7 @@ test('normal fog never issues hidden faction badge draw calls', async ({ page })
       return original.call(this, text, x, y, maxWidth);
     };
   });
-  await page.goto('/?seed=12345');
+  await page.goto('/?dev=1&seed=12345');
   await page.locator('#fit').click();
   const drawnTexts = () => page.evaluate(() => (window as unknown as { __drawnTexts: string[] }).__drawnTexts);
   const normal = await drawnTexts();

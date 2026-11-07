@@ -83,7 +83,7 @@ for (const width of widths) {
       await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
       await expect(page.locator('#end-turn')).toBeInViewport();
       await screenshot(page, `p3-ui-float-${width}`);
-      await page.locator('#end-turn').click();
+      await page.locator('#end-turn').click({ modifiers: ['Shift'] });
       await expect(page.locator('#map-info')).toContainText('第 2 轮 · 当前文明 1');
     }
 
@@ -107,7 +107,7 @@ for (const width of widths) {
     await screenshot(page, `p3-ui-attack-${width}`);
     await page.locator('#confirm-action').click();
     await expect(page.locator('#action-notice')).toContainText('攻击结算');
-    await page.locator('#end-turn').click();
+    await page.locator('#end-turn').click({ modifiers: ['Shift'] });
     await expect(page.locator('#map-info')).toContainText(`第 ${attack.state.round + 1} 轮 · 当前文明 1`);
     await openScreen(page, 'log');
     await page.locator('#activity-panel').scrollIntoViewIfNeeded();

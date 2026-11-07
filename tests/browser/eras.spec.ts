@@ -74,7 +74,7 @@ test('multiplayer submits selected eras and leaders and restores its panel after
     await expect(page.locator('#era-panel')).toContainText('乔伊小姐');
     await page.locator('#save-room').click();
     await expect(page.locator('#network-notice')).toContainText('已保存');
-    await page.locator('#end-turn').click();
+    await page.locator('#end-turn').click({ modifiers: ['Shift'] });
     await expect(page.locator('#connection-status')).toContainText('等待文明 2');
     await expect(page.locator('#end-turn')).toBeDisabled();
     await page.locator('#load-room').click();

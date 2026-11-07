@@ -75,7 +75,7 @@ test('city production trains a new settler with a replayable command history', a
   await expect(page.locator('#production-queue')).toContainText('开拓队');
   let trained: GameState['units'][number] | undefined;
   for (let turn = 0; turn < 20 && !trained; turn++) {
-    await page.locator('#end-turn').click();
+    await page.locator('#end-turn').click({ modifiers: ['Shift'] });
     trained = Object.values((await state(page)).units).find(unit => unit.ownerId === 0 && unit.kind === 'logistics' && unit.role === 'settler' && !before.units[unit.id]);
   }
   expect(trained).toBeDefined();
@@ -95,7 +95,7 @@ test('a completed training ground opens unit production in its own city', async 
   await expect(trainingGround.locator('.production-option-cost b')).toHaveText('60');
   await expect(trainingGround.locator('img')).toHaveAttribute('src', '/buildings/trainingGround.svg');
   await trainingGround.click();
-  for (let turn = 0; turn < 35 && !(await state(page)).cities[cityId].buildingIds.includes('trainingGround'); turn++) await page.locator('#end-turn').click();
+  for (let turn = 0; turn < 35 && !(await state(page)).cities[cityId].buildingIds.includes('trainingGround'); turn++) await page.locator('#end-turn').click({ modifiers: ['Shift'] });
   // P0-1: the building strip lives in the city's 详情 tab.
   await page.locator('[data-city-section="details"]').click();
   await expect(page.locator('[data-building="trainingGround"]')).toBeVisible();

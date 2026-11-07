@@ -29,7 +29,7 @@ test('measure Canvas2D draw time in four reachable late-game scenes including 10
     }
     const saved = dense ? dense.save : realGameSave(game!, true);
     const peakState = dense ? dense.state : game!.maxState;
-    await page.goto(`/?seed=${scenario.seed}`);
+    await page.goto(`/?dev=1&seed=${scenario.seed}`);
     await page.locator('#import-save').setInputFiles({ name: `${scenario.name}.json`, mimeType: 'application/json', buffer: Buffer.from(saved) });
     await expect(page.locator('#action-notice')).toContainText('读档完成');
     await verifyImportedReplay(page, saved);

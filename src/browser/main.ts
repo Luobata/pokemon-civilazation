@@ -6,8 +6,10 @@ import type { GameplayVersion } from '../content/eras.ts';
 import { audio, audioSettingsMarkup, bindAudioSettings } from './audio/index.ts';
 import type { SoundId } from './audio/index.ts';
 import { usesMovementPoints } from '../core/movement.ts';
-import { toastFor, toastMarkup } from './notifications.ts';
-import type { Toast } from './notifications.ts';
+import { toastFor } from './notifications.ts';
+import { createNotificationRail } from './notification-rail.ts';
+import { ReviewedUnits, cycleId, idleCityIds, idleUnitIds, turnReminders, turnStep } from './turn-button.ts';
+import type { TurnStep } from './turn-button.ts';
 import { legendCompletionMarkup, legendScreenMarkup, legendTitle } from './legend-panel.ts';
 import type { LegendWonderId } from '../content/legend-wonders.ts';
 import type { SpeciesId } from '../content/species.ts';
@@ -17,8 +19,6 @@ import { RARE_BERRIES } from '../content/rare-berries.ts';
 import { ERA_ABILITIES, WEATHERS } from '../content/era-abilities.ts';
 import { ESSENCE_IDS, ESSENCES } from '../content/essences.ts';
 import { TYPE_NAMES } from '../content/type-names.ts';
-import type { TechId } from '../content/economy.ts';
-import { canResearch } from '../core/economy-commands.ts';
 import { CHARTERS, POLICIES, GOVERNMENTS } from '../content/policies.ts';
 import { IMPROVEMENTS } from '../content/improvements.ts';
 import { renderEraPanel } from './era-panel.ts';
@@ -79,6 +79,10 @@ const god = document.querySelector<HTMLInputElement>('#god')!;
 const starter = document.querySelector<HTMLSelectElement>('#starter')!;
 const sequence = document.querySelector<HTMLInputElement>('#sequence')!;
 const endTurn = document.querySelector<HTMLButtonElement>('#end-turn')!;
+/** `?dev=1` shows the debug line (seed, command number) and the developer drawer (replay, god view, audit). */
+const devMode = new URLSearchParams(location.search).get('dev') === '1';
+info.hidden = !devMode;
+document.querySelector<HTMLElement>('#dev-drawer')!.hidden = !devMode;
 document.querySelector<HTMLAnchorElement>('#open-audit')!.addEventListener('click', event => {
   event.preventDefault();
   try {
@@ -206,33 +210,15 @@ function activityText(payload: VisibleEvent['payload']) {
     default: return '';
   }
 }
-// ---------- notifications (Civilization-style toasts) ----------
-const toasts: Toast[] = [];
-function pushToast(item: Toast | null) {
-  if (!item) return;
-  toasts.push(item); toasts.splice(0, Math.max(0, toasts.length - 4));
-  window.setTimeout(() => dismissToast(item.id), 7000);
-  renderToasts();
-}
-function dismissToast(id: number) {
-  const index = toasts.findIndex(item => item.id === id);
-  if (index >= 0) { toasts.splice(index, 1); renderToasts(); }
-}
-function renderToasts() {
-  const host = document.querySelector<HTMLElement>('#toast-host');
-  if (!host) return;
-  host.innerHTML = toastMarkup(toasts);
-  for (const button of host.querySelectorAll<HTMLButtonElement>('[data-toast-close]')) button.addEventListener('click', () => dismissToast(Number(button.dataset.toastClose)));
-  for (const button of host.querySelectorAll<HTMLButtonElement>('[data-toast-action]')) button.addEventListener('click', () => {
-    const item = toasts.find(candidate => candidate.id === Number(button.dataset.toastAction));
-    dismissToast(Number(button.dataset.toastAction));
-    const target = item?.target;
-    if (!target) return;
-    if (target.kind === 'screen') openScreen(target.screen);
-    else if (target.kind === 'city') { closeScreen(); selectCity(target.cityId); }
-    else { closeScreen(); selectUnit(target.unitId); }
-  });
-}
+// ---------- notifications (Civilization-style rail, notification-rail.ts) ----------
+const rail = createNotificationRail(document.querySelector<HTMLElement>('#toast-host')!, target => {
+  if (target.kind === 'screen') openScreen(target.screen);
+  else if (target.kind === 'city') { closeScreen(); selectCity(target.cityId); }
+  else { closeScreen(); selectUnit(target.unitId); }
+});
+/** Cities the viewer owned at the last refresh, so a city taken during the AI turns still reads as "yours". */
+const knownOwnCityIds = new Set<number>();
+const reviewedUnits = new ReviewedUnits();
 /** Music follows the situation: war while the viewer is at war, otherwise exploration. */
 function syncMusic() {
   if (!session) return;
@@ -265,7 +251,7 @@ function recordActivity(payload: VisibleEvent['payload']) {
   if (sound) audio.play(sound);
   if (payload.type === 'DiplomacyChanged' || payload.type === 'GameEnded') syncMusic();
   if (payload.type === 'LegendWonderCompleted' && payload.playerId === session.getView().playerId) legendArrivals.push(payload.legendId);
-  pushToast(toastFor(payload, session.getView()));
+  rail.push(toastFor(payload, session.getView(), { ownCityIds: knownOwnCityIds, unitName: id => knownUnitLabels.get(id)?.replace(/^(野生 |文明 \d+ 的 )/, '') }));
   const text = activityText(payload);
   if (!text || activityLog[0]?.text === text) return;
   activityLog.unshift({ text, round: session.getView().round, routine: payload.type === 'TurnChanged' || payload.type === 'Moved' });
@@ -364,10 +350,12 @@ function controls() {
     element.disabled = element.id === 'skip' ? !busy()
       : element.id === 'new-game' || newGameSetting ? busy() || transition : busy() || ended || transition;
   }
-  endTurn.disabled = busy() || ended || pendingPeace;
-  endTurn.textContent = `第 ${view.round} 轮 · 结束回合 ›`;
   document.querySelector('#context-drawer')!.classList.toggle('has-selection', selected !== null || selectedCity !== null || neutralCity !== null || inspectedTile !== null || districtPlacement !== null);
-  document.querySelector('#turn-reminders')!.innerHTML = ended ? '' : turnReminders(view, CONTENT).map(item => `<button type="button" data-reminder="${item.target}">${item.label}</button>`).join('');
+  const reminders = turnReminders(view, CONTENT, reviewedUnits.of(view.round));
+  renderTurnButton(view, reminders, ended, pendingPeace);
+  if (!busy()) { knownOwnCityIds.clear(); for (const city of view.economy.cities) knownOwnCityIds.add(city.id); }
+  rail.sync(view, busy(), { unitId: selected, cityId: selectedCity });
+  document.querySelector('#turn-reminders')!.innerHTML = ended ? '' : reminders.map(item => `<button type="button" data-reminder="${item.target}">${item.label}</button>`).join('');
   for (const button of document.querySelectorAll<HTMLButtonElement>('[data-reminder]')) button.onclick = () => {
     const kind = button.dataset.reminder!;
     if (kind.startsWith('danger:')) { selectUnit(Number(kind.slice(7))); notice = '附近有野生或敌方宝可梦：让宝可梦护送，或先撤回城市。'; controls(); return; }
@@ -378,40 +366,46 @@ function controls() {
   };
 }
 
-/** Selects the next idle city or unit after the current selection, cycling. */
-function cycleIdle(kind: 'city' | 'unit') {
+/** Selects the next (or previous) idle city or unit after the current selection, cycling. */
+function cycleIdle(kind: 'city' | 'unit', step: 1 | -1 = 1) {
   const view = session.getView();
   if (kind === 'city') {
-    const ids = view.economy.cities.filter(city => city.queue.length === 0).map(city => city.id).sort((a, b) => a - b);
-    selectCity(ids.find(id => id > (selectedCity ?? -1)) ?? ids[0] ?? null);
+    selectCity(cycleId(idleCityIds(view), selectedCity, step));
     const economy = document.querySelector<HTMLElement>('#economy');
     if (economy) revealPanel(economy);
-  } else {
-    const ids = view.units.filter(unit => unit.ownerId === view.playerId && unit.actionLeft).map(unit => unit.id).sort((a, b) => a - b);
-    selectUnit(ids.find(id => id > (selected ?? -1)) ?? ids[0] ?? null);
-  }
+  } else selectUnit(cycleId(idleUnitIds(view), selected, step));
 }
-/** Non-blocking reminders for idle research, charters, cities or units (Civilization "needs orders"). */
-function turnReminders(view: PlayerView, content: typeof EXPANSION_CONTENT): { label: string; target: string }[] {
-  const items: { label: string; target: string }[] = [];
-  const player = view.economy.player;
-  if (player.research.techId === null && (Object.keys(content.techs) as TechId[]).some(id => canResearch(player, id))) items.push({ label: '选择研究', target: '#research-panel' });
-  const policies = view.expansion?.policies;
-  if (policies && policies.charterId === null && policies.adopted.length < Object.keys(CHARTERS).length) items.push({ label: '选择规章', target: '#policy-panel' });
-  const shaky = Object.values(view.expansion?.bonds ?? {}).filter(info => info.bond < 30 && info.pressure.total < 0).length;
-  if (shaky) items.push({ label: `${shaky} 城羁绊告急`, target: 'city' });
-  const exposed = view.units.filter(unit => unit.ownerId === view.playerId && unit.kind === 'logistics'
-    && !view.economy.cities.some(city => hexDistance(city.position, unit.position) === 0)
-    && view.units.some(other => other.kind === 'pokemon' && other.ownerId !== view.playerId && (other.ownerId === null || view.diplomacy.some(pair => pair.status === 'war' && (pair.a === other.ownerId || pair.b === other.ownerId) && (pair.a === view.playerId || pair.b === view.playerId))) && hexDistance(other.position, unit.position) <= 2)
-    && !view.units.some(guard => guard.ownerId === view.playerId && guard.kind === 'pokemon' && hexDistance(guard.position, unit.position) <= 1));
-  if (exposed.length) items.push({ label: `开拓队有危险`, target: `danger:${exposed[0].id}` });
-  const idleCities = view.economy.cities.filter(city => city.queue.length === 0).length;
-  if (idleCities) items.push({ label: `${idleCities} 城空闲`, target: 'city' });
-  const settler = view.units.find(unit => unit.ownerId === view.playerId && unit.kind === 'logistics' && unit.actionLeft);
-  if (settler && !exposed.length) items.push({ label: '开拓队：去建新城', target: `unit:${settler.id}` });
-  const idleUnits = view.units.filter(unit => unit.ownerId === view.playerId && unit.actionLeft).length;
-  if (idleUnits) items.push({ label: `${idleUnits} 单位待命`, target: 'unit' });
-  return items;
+// ---------- end-turn state machine (turn-button.ts) ----------
+const turnHint = document.querySelector<HTMLElement>('#turn-hint')!;
+const unitCycle = [...document.querySelectorAll<HTMLButtonElement>('[data-cycle-unit]')];
+let turnState: TurnStep | null = null;
+function renderTurnButton(view: PlayerView, reminders: ReturnType<typeof turnReminders>, ended: boolean, pendingPeace: boolean) {
+  turnState = ended ? null : turnStep(view, reminders, { unitId: selected, cityId: selectedCity }, reviewedUnits.of(view.round));
+  endTurn.disabled = busy() || ended || pendingPeace;
+  endTurn.textContent = turnState?.label ?? `第 ${view.round} 轮 · 对局已结束`;
+  endTurn.dataset.state = turnState?.kind ?? 'ended';
+  endTurn.title = turnState && turnState.kind !== 'ready' ? '还有待办：点击前往。Shift+点击或 Ctrl/⌘+Enter 直接结束回合。' : '结束本回合（Ctrl/⌘+Enter）';
+  turnHint.hidden = !turnState || turnState.kind === 'ready' || endTurn.disabled;
+  const idle = idleUnitIds(view).length;
+  for (const button of unitCycle) button.disabled = busy() || ended || pendingPeace || idle === 0;
+}
+/** End-turn button: a plain click goes to the first pending item; with nothing pending (or Shift held) it ends the turn. */
+function onEndTurn(force: boolean) {
+  if (busy() || !turnState) return;
+  const step = turnState;
+  if (force || step.kind === 'ready') { issue({ type: 'EndTurn' }); return; }
+  if (step.kind === 'city') {
+    selectCity(step.cityId);
+    const economy = document.querySelector<HTMLElement>('#economy');
+    if (economy) revealPanel(economy);
+    return;
+  }
+  if (step.kind !== 'unit') { const panel = document.querySelector<HTMLElement>(step.panel); if (panel) revealPanel(panel); return; }
+  const view = session.getView();
+  reviewedUnits.add(view.round, step.unitId);
+  selectUnit(step.unitId);
+  notice = step.remaining > 1 ? `待命单位（还有 ${step.remaining - 1} 个）：下达命令，或再点一次按钮看下一个。` : '最后一个待命单位：下达命令，或再点一次按钮进入下一回合。';
+  controls();
 }
 function issue(action: Command['action'], successNotice?: string) {
   const view = session.getView();
@@ -647,6 +641,7 @@ function newGame() {
       roundLimit: Number(document.querySelector<HTMLSelectElement>('#round-limit')!.value) as GameSetup['roundLimit'], players });
     session = driver.asPlayerSession();
     timeline.clear(); presenting.clear(); presentationIndex = 0; selected = null; selectedCity = session.getView().economy.player.headquartersCityId; neutralCity = null; inspectedTile = null; keyboardIndex = null; activityLog.length = 0; knownUnitLabels.clear();
+    rail.clear(); reviewedUnits.clear(); knownOwnCityIds.clear();
     frameDurations.length = 0;
     resetAction(); notice = ''; sequence.value = '0';
     canvas.hidden = false;
@@ -657,6 +652,7 @@ function newGame() {
     closeScreen();
   } catch (error) {
     canvas.hidden = true;
+    info.hidden = false;
     info.textContent = `无法生成地图：${error instanceof Error ? error.message : String(error)}`;
     for (const element of document.querySelectorAll<HTMLButtonElement>('#controls button, #end-turn')) element.disabled = true;
   }
@@ -801,7 +797,7 @@ canvas.addEventListener('keydown', event => {
     keyboardIndex = hexToIndex(directions[event.key], view.map) ?? fallback;
     if (districtPlacement) districtPlacement.tileIndex = keyboardIndex;
     controls(); requestFrame();
-  } else if (event.key === 'Enter') { event.preventDefault(); activateIndex(fallback, true); }
+  } else if (event.key === 'Enter' && !event.ctrlKey && !event.metaKey) { event.preventDefault(); activateIndex(fallback, true); }
   else if (event.key === 'Escape') { event.preventDefault(); if (actionMode === 'attack' && pendingTarget) cancelTarget(); else clearSelection(); }
   else if (event.key === '+' || event.key === '=' || event.key === '-') {
     event.preventDefault();
@@ -809,7 +805,8 @@ canvas.addEventListener('keydown', event => {
     requestFrame();
   } else if (event.key.toLowerCase() === 'f') { event.preventDefault(); fit(); }
 });
-endTurn.addEventListener('click', () => { if (!busy()) issue({ type: 'EndTurn' }); });
+endTurn.addEventListener('click', event => onEndTurn(event.shiftKey));
+for (const button of unitCycle) button.addEventListener('click', () => cycleIdle('unit', button.dataset.cycleUnit === 'prev' ? -1 : 1));
 document.querySelector('#skip')!.addEventListener('click', skip);
 document.querySelector('#debug-overlay')!.addEventListener('change', requestFrame);
 document.querySelector('#new-game')!.addEventListener('click', newGame);
@@ -832,6 +829,7 @@ const saveKey = 'pokemon-civilization-save';
 function load(text: string) {
   if (transitionBlocked()) return;
   driver.load(text); closeScreen(); timeline.clear(); presenting.clear(); selected = null; selectedCity = session.getView().economy.cities[0]?.id ?? null; neutralCity = null; inspectedTile = null; keyboardIndex = null; activityLog.length = 0; knownUnitLabels.clear(); resetAction(); notice = '读档完成';
+  rail.clear(); reviewedUnits.clear(); knownOwnCityIds.clear();
   frameDurations.length = 0;
   fit();
   const focusCity = session.getView().economy.cities.find(city => city.id === selectedCity);
@@ -862,7 +860,8 @@ document.querySelector<HTMLInputElement>('#import-save')!.addEventListener('chan
 document.addEventListener('keydown', event => {
   const target = event.target as HTMLElement | null;
   if (target?.matches('input, select, textarea, [contenteditable="true"]')) return;
-  if (event.ctrlKey && event.key === 'Enter') { event.preventDefault(); if (!busy()) issue({ type: 'EndTurn' }); }
+  if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); onEndTurn(true); }
+  else if ((event.key === ',' || event.key === '.') && !event.ctrlKey && !event.metaKey && !event.altKey) { event.preventDefault(); if (!busy()) cycleIdle('unit', event.key === ',' ? -1 : 1); }
   else if (event.key.toLowerCase() === 'c') {
     event.preventDefault();
     selectCity(session.getView().economy.cities[0]?.id ?? null);
@@ -890,7 +889,7 @@ bindAudioSettings(document.querySelector<HTMLElement>('#audio-settings-root')!);
 for (const type of ['pointerdown', 'keydown'] as const) window.addEventListener(type, () => { audio.unlock(); syncMusic(); }, { passive: true });
 document.addEventListener('click', event => { if ((event.target as HTMLElement).closest('button')) audio.play('click'); }, true);
 // The map fills the stage; redraw when a screen closes so the canvas picks up any resize.
-onScreenChange(screen => { if (screen === null && session) requestFrame(); });
+onScreenChange(screen => { rail.screenOpened(screen); if (screen === null && session) requestFrame(); });
 document.querySelector<HTMLInputElement>('#activity-important')!.addEventListener('change', event => { activityImportantOnly = (event.target as HTMLInputElement).checked; controls(); });
 for (const { label, color, symbol } of Object.values(BIOME_DISPLAY)) {
   const item = document.createElement('li'), swatch = document.createElement('span'), text = document.createElement('span');
