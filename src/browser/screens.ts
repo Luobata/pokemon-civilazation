@@ -44,6 +44,19 @@ export function closeScreen(): void {
   for (const listener of listeners) listener(null);
 }
 
+/** The map and drawer sit behind the backdrop: Tab and Shift+Tab wrap inside the open screen instead of leaving it. */
+function trapFocus(event: KeyboardEvent): void {
+  const screen = host()?.querySelector<HTMLElement>('.screen:not([hidden])');
+  if (!screen) return;
+  const items = [...screen.querySelectorAll<HTMLElement>('a[href], button, input, select, textarea, summary, [tabindex]:not([tabindex="-1"])')]
+    .filter(item => !(item as HTMLButtonElement).disabled && item.checkVisibility() && !item.closest('details:not([open]) > :not(summary)'));
+  if (!items.length) return;
+  const first = items[0], last = items[items.length - 1], active = document.activeElement as HTMLElement | null;
+  const outside = !active || !screen.contains(active);
+  if (event.shiftKey && (outside || active === first)) { event.preventDefault(); last.focus(); }
+  else if (!event.shiftKey && (outside || active === last)) { event.preventDefault(); first.focus(); }
+}
+
 export function onScreenChange(listener: (screen: ScreenId | null) => void): void { listeners.add(listener); }
 
 /** Brings any panel into view: opens the screen that hosts it, or scrolls it inside the drawer. */
@@ -63,5 +76,6 @@ export function installScreens(): void {
   for (const element of document.querySelectorAll<HTMLElement>('[data-close-screen]')) element.addEventListener('click', closeScreen);
   document.addEventListener('keydown', event => {
     if (event.key === 'Escape' && currentScreen() !== null && !document.querySelector('dialog[open]')) { event.preventDefault(); closeScreen(); }
+    if (event.key === 'Tab' && currentScreen() !== null && !document.querySelector('dialog[open]')) trapFocus(event);
   });
 }

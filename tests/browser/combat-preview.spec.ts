@@ -143,3 +143,26 @@ test('P0-4: the card button attacks too; pre-v20 games show only the damage rang
   await card.locator('#combat-card-attack').click();
   await expect(page.locator('#action-notice')).toContainText('攻击结算');
 });
+
+test.describe('narrow desktop (1024×768)', () => {
+  test.use({ viewport: { width: 1024, height: 768 } });
+  test('the combat card stays clear of the unit action bar and its 攻击 button is clickable', async ({ page }) => {
+    const fixture = strengthFixture();
+    await importSave(page, fixture.save);
+    await page.locator('#unit-select').selectOption(String(fixture.unitId));
+    await page.locator('#fit').click();
+    await page.locator('#attack-unit').click();
+    await clickUnit(page, fixture.targetId);
+    await expect(page.locator('#combat-card')).toBeVisible();
+    const card = (await page.locator('#combat-card').boundingBox())!;
+    for (const selector of ['#unit-action-bar', '.turn-block']) {
+      const other = await page.locator(selector).boundingBox();
+      if (other) expect(card.x + card.width <= other.x || card.y + card.height <= other.y || card.x >= other.x + other.width || card.y >= other.y + other.height, selector).toBe(true);
+    }
+    // The button's centre hits the button itself, not an overlay above it.
+    expect(await page.locator('#combat-card-attack').evaluate(button => {
+      const rect = button.getBoundingClientRect(), hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+      return hit === button || button.contains(hit);
+    })).toBe(true);
+  });
+});

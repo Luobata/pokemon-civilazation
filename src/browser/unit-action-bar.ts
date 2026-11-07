@@ -120,7 +120,7 @@ function barActions(view: PlayerView, unit: MapUnit, mode: ActionMode, lock: str
     actions.push({
       id: 'capture-unit', action: 'capture', icon: 'capture', label: '捕捉', hotkey: 'Q', key: UNIT_BAR_HOTKEYS.capture,
       title: mode === 'capture' ? '取消捕捉' : '捕捉', reason: blocked(capture), selected: mode === 'capture',
-      detail: `选择相邻的野生宝可梦，再确认捕捉。精灵球 ${player.ballInventory.pokeBall} · 超级球 ${player.ballInventory.greatBall}`,
+      detail: `点相邻的野生宝可梦看捕捉率，再点一次即捕捉。精灵球 ${player.ballInventory.pokeBall} · 超级球 ${player.ballInventory.greatBall}`,
     });
     const state = evolutionState(view, unit, content), evolution = state.evolution;
     const candy = evolution && unit.xp < evolution.xp ? state.candyPrice(evolution) : null;
@@ -243,5 +243,5 @@ export function installUnitActionBar(): void {
     else run(button);
   });
   const stage = root.closest<HTMLElement>('.stage'), block = stage?.querySelector<HTMLElement>('.turn-block');
-  if (stage && block) new ResizeObserver(() => stage.style.setProperty('--turn-block-h', `${block.offsetHeight}px`)).observe(block);
+  if (stage && block) new ResizeObserver(() => { stage.style.setProperty('--turn-block-h', `${block.offsetHeight}px`); stage.style.setProperty('--turn-block-w', `${block.offsetWidth}px`); }).observe(block);
 }

@@ -27,3 +27,18 @@ test('every launcher screen scrolls with the wheel until its last control can be
     await expect(body).toBeHidden();
   }
 });
+
+test('map hotkeys do nothing behind an open screen, and Tab stays inside it', async ({ page }) => {
+  await page.goto('/?seed=7');
+  await page.locator('[data-open-screen="victory"]').click();
+  const state = () => page.evaluate(() => ({ city: document.querySelector<HTMLSelectElement>('#city-select')!.value, yields: document.querySelector<HTMLInputElement>('#show-yields')!.checked }));
+  const before = await state();
+  await page.keyboard.press('c');
+  await page.keyboard.press('y');
+  expect(await state()).toEqual(before);
+  await expect(page.locator('#screen-victory')).toBeVisible();
+  for (let step = 0; step < 25; step++) {
+    await page.keyboard.press('Tab');
+    expect(await page.evaluate(() => !!document.activeElement?.closest('#screen-victory')), `Tab ${step}`).toBe(true);
+  }
+});

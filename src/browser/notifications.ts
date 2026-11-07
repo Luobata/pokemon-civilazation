@@ -99,7 +99,7 @@ export function toastFor(payload: VisibleEvent['payload'], view: PlayerView, mem
       const other = relation.a === me ? relation.b : relation.a;
       if (relation.proposal && relation.proposal.recipientId === me) return toast('info', '✉', `文明 ${other + 1} 提议停战`, '在外交页面接受或拒绝。', { kind: 'screen', screen: 'diplomacy' }, '外交',
         decision({ kind: 'peace-answered', otherId: other }, `peace:${other}`));
-      if (relation.status === 'war' && relation.changedAtRound === view.round && relation.declaredBy !== me) return toast('war', '⚔', `文明 ${other + 1} 向你宣战！`, '保护城市和开拓队。', { kind: 'screen', screen: 'diplomacy' }, '外交',
+      if (relation.status === 'war' && relation.changedAtRound >= view.round - 1 && relation.declaredBy !== me) return toast('war', '⚔', `文明 ${other + 1} 向你宣战！`, '保护城市和开拓队。', { kind: 'screen', screen: 'diplomacy' }, '外交',
         decision(undefined, `war:${other}`));
       return null;
     }

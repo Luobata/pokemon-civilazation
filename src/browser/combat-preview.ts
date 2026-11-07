@@ -88,13 +88,19 @@ export function placeCard(size: { width: number; height: number }, anchor: { x: 
     { left: anchor.x - width / 2, top: anchor.y - gap - height }, { left: anchor.x - width / 2, top: anchor.y + gap },
     { left: anchor.x + gap, top: anchor.y - gap - height }, { left: anchor.x - gap - width, top: anchor.y - gap - height },
     { left: anchor.x + gap, top: anchor.y + gap }, { left: anchor.x - gap - width, top: anchor.y + gap },
-  ].map(spot => ({ left: Math.round(clamp(spot.left, margin, area.width - width - margin)), top: Math.round(clamp(spot.top, margin, area.height - height - margin)) }));
+  ];
+  // On small maps none of the spots beside the target may be free: also try a coarse grid over the whole map.
+  const step = 16;
+  for (let top = margin; top <= area.height - height - margin; top += step) for (let left = margin; left <= area.width - width - margin; left += step) candidates.push({ left, top });
+  const spots = candidates.map(spot => ({ left: Math.round(clamp(spot.left, margin, area.width - width - margin)), top: Math.round(clamp(spot.top, margin, area.height - height - margin)) }));
   const target: Rect = { left: anchor.x - radius, top: anchor.y - radius, width: radius * 2, height: radius * 2 };
+  // Covering the target or an overlay costs far more than distance, so the nearest free spot wins; beside-the-target spots win ties.
   const score = (spot: { left: number; top: number }) => {
     const rect = { ...spot, width, height };
-    return overlap(rect, target) * 50 + obstacles.reduce((sum, obstacle) => sum + overlap(rect, obstacle), 0);
+    const covered = overlap(rect, target) * 50 + obstacles.reduce((sum, obstacle) => sum + overlap(rect, obstacle), 0);
+    return covered * 1000 + Math.hypot(spot.left + width / 2 - anchor.x, spot.top + height / 2 - anchor.y);
   };
-  return candidates.reduce((best, spot) => score(spot) < score(best) ? spot : best);
+  return spots.reduce((best, spot) => score(spot) < score(best) ? spot : best);
 }
 
 export type CombatCardCallbacks = { confirm: () => void; cancel: () => void };
@@ -120,7 +126,7 @@ function ensureHost(): HTMLElement | null {
 const RESERVED_CORNER = { width: 340, height: 170 };
 function obstacles(frame: DOMRect, area: { width: number; height: number }): Rect[] {
   const rects: Rect[] = area.width >= 720 ? [{ left: area.width - RESERVED_CORNER.width, top: area.height - RESERVED_CORNER.height, ...RESERVED_CORNER }] : [];
-  for (const element of document.querySelectorAll<HTMLElement>('.topbar, .map-toolbar, .hud-notices, .turn-block')) {
+  for (const element of document.querySelectorAll<HTMLElement>('.topbar, .map-toolbar, .hud-notices, .turn-block, #unit-action-bar, #opening-goals, .map-legend, #toast-host')) {
     const box = element.getBoundingClientRect();
     if (box.width && box.height) rects.push({ left: box.left - frame.left, top: box.top - frame.top, width: box.width, height: box.height });
   }

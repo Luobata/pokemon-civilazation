@@ -10,6 +10,9 @@ import { hexDistance } from '../core/hex.ts';
 import { unitDefinition, contentForView } from '../content/units.ts';
 import { CIVILIZATION_CONTENT } from '../content/civilization-systems.ts';
 import { WORLD_DEFINITIONS } from '../content/world-systems.ts';
+
+/** Display name of a berry or evolution stone id (falls back to the id). */
+const resourceName = (id: string): string => (WORLD_DEFINITIONS.berries as Record<string, { name: string }>)[id]?.name ?? (WORLD_DEFINITIONS.stones as Record<string, { name: string }>)[id]?.name ?? id;
 import { parseAuditAction } from '../audit/commands.ts';
 
 const escape = (value: unknown) => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
@@ -46,10 +49,10 @@ export function renderExpansionPanel(view: PlayerView, selectedUnitId: number | 
       + (city ? button('供奉食物', { type: 'OfferToOverlord', overlordId: site.id, cityId: city.id, currency: 'food' }, site.lastOfferRound !== view.round && city.food >= 10 && hexDistance(city.position, site.position) <= WORLD_DEFINITIONS.overlords.reach)
         + button('供奉金币', { type: 'OfferToOverlord', overlordId: site.id, cityId: city.id, currency: 'gold' }, site.lastOfferRound !== view.round && player.gold >= 20 && hexDistance(city.position, site.position) <= WORLD_DEFINITIONS.overlords.reach) : '')).join(''));
   html += card('s20-berries', '树果、进化石与满意度', `<p>满意度 ${world.player?.satisfaction ?? 0}/100。移动到资源地块后采集；树果提供食物与满意度，石头存入库存。</p>`
-    + world.resources.map(site => `<p>${escape(site.definitionId)} · (${site.position.q},${site.position.r}) · 剩余 ${site.remaining}</p>`
+    + world.resources.map(site => `<p>${escape(resourceName(site.definitionId))} · (${site.position.q},${site.position.r}) · 剩余 ${site.remaining}</p>`
       + (unit ? button('采集', { type: 'HarvestResource', unitId: unit.id, tileIndex: site.tileIndex }, Boolean(unit.actionLeft) && site.remaining > 0 && hexDistance(unit.position, site.position) === 0) : '')).join('')
-    + `<p>进化石：${escape(JSON.stringify(world.player?.stoneInventory ?? {}))}</p>`
-    + (unit?.kind === 'pokemon' ? stoneEvolutionsFor(CONTENT).filter(path => path.fromSpeciesId === unit.speciesId).map(path => button(`${CONTENT.species[path.intoSpeciesId].name} · ${path.stoneId}`, { type: 'UseEvolutionStone', unitId: unit.id, intoSpeciesId: path.intoSpeciesId, stoneId: path.stoneId }, Boolean(unit.actionLeft) && (world.player?.stoneInventory[path.stoneId] ?? 0) > 0 && unit.xp >= path.requiredXp)).join('') : ''));
+    + `<p>进化石：${Object.entries(world.player?.stoneInventory ?? {}).map(([id, count]) => `${escape(resourceName(id))} ${count}`).join(' · ') || '无'}</p>`
+    + (unit?.kind === 'pokemon' ? stoneEvolutionsFor(CONTENT).filter(path => path.fromSpeciesId === unit.speciesId).map(path => button(`进化成${CONTENT.species[path.intoSpeciesId].name} · ${resourceName(path.stoneId)}`, { type: 'UseEvolutionStone', unitId: unit.id, intoSpeciesId: path.intoSpeciesId, stoneId: path.stoneId }, Boolean(unit.actionLeft) && (world.player?.stoneInventory[path.stoneId] ?? 0) > 0 && unit.xp >= path.requiredXp)).join('') : ''));
   const rare = exp.rareBerries;
   if (rare) {
     const partners = exp.civilization.relations.filter(relation => relation.tradeSinceRound !== null && !relation.targetEliminated);

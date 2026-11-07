@@ -241,7 +241,7 @@ function soundFor(payload: VisibleEvent['payload'], view: PlayerView): SoundId |
     case 'UnitPromoted': return 'promotion';
     case 'LegendWonderCompleted': return 'wonder';
     case 'LegendClueFound': case 'EraAgeBegan': return payload.playerId === me ? 'notify' : null;
-    case 'DiplomacyChanged': return payload.relation.a !== me && payload.relation.b !== me ? null : payload.relation.status === 'war' && payload.relation.changedAtRound === view.round ? 'war' : payload.relation.status === 'peace' && payload.relation.changedAtRound === view.round ? 'peace' : null;
+    case 'DiplomacyChanged': return payload.relation.a !== me && payload.relation.b !== me ? null : payload.relation.status === 'war' && payload.relation.changedAtRound >= view.round - 1 ? 'war' : payload.relation.status === 'peace' && payload.relation.changedAtRound >= view.round - 1 ? 'peace' : null;
     case 'TurnChanged': return payload.activePlayerId === me ? 'turn' : null;
     default: return null;
   }
@@ -294,7 +294,7 @@ function controls() {
     : '点选城市管理生产，点选单位执行行动，点任意地块查看详情；拖动地图平移，滚轮缩放。';
   actionNotice.textContent = notice || (pendingPeace ? '请先回应停战提议。' : districtPlacement ? '设施区选址：点击格子预览，再确认入队。Esc 取消。' : actionMode === 'attack' ? (targets.length ? `攻击模式：${targets.length} 个可攻击目标（红色虚线）。点目标看战斗预览，再点一次即攻击。Esc 取消。` : '攻击模式：射程内没有可攻击的目标（和平中的文明不能攻击）。Esc 取消。')
     : actionMode === 'move' ? '移动模式：点击高亮格移动，包括己方城市。Esc 取消。'
-    : actionMode === 'capture' ? (targets.length ? '捕捉模式：选择相邻的野生宝可梦，再确认捕捉。' : '捕捉模式：没有可捕捉目标；检查相邻目标、当前球种的库存与科技。Esc 取消。') : ended ? '对局已结束，可开始新局。' : '');
+    : actionMode === 'capture' ? (targets.length ? '捕捉模式：点相邻的野生宝可梦看捕捉率，再点一次即捕捉。Esc 取消。' : '捕捉模式：没有可捕捉目标；检查相邻目标、当前球种的库存与科技。Esc 取消。') : ended ? '对局已结束，可开始新局。' : '');
   actionNotice.classList.toggle('is-error', notice.includes('拒绝') || notice.includes('失败'));
   debug.textContent = `seed=${view.seed} round=${view.round} activePlayer=${view.activePlayerId} commandSeq=${view.commandSeq}\n最近拒绝：${driver.lastRejected ? JSON.stringify(driver.lastRejected) : '无'}${notice ? '\n' + notice : ''}`;
   sequence.max = String(driver.exportLog().commands.length);
@@ -347,8 +347,9 @@ function controls() {
   for (const element of document.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLSelectElement>('#controls button, #controls input, #controls select, #dev-drawer button, #dev-drawer input, #skip')) {
     const newGameSetting = element.matches('#leader-setup input, #starter, #map-size, #round-limit, #ai-count, #ai-personality, #era-progression');
     const transition = pendingPeace && !ended && (newGameSetting || ['new-game', 'load-game', 'import-save', 'replay', 'resume'].includes(element.id));
+    const storage = ['load-game', 'export-save', 'import-save'].includes(element.id);
     element.disabled = element.id === 'skip' ? !busy()
-      : element.id === 'new-game' || newGameSetting ? busy() || transition : busy() || ended || transition;
+      : element.id === 'new-game' || newGameSetting || storage ? busy() || transition : busy() || ended || transition;
   }
   document.querySelector('#context-drawer')!.classList.toggle('has-selection', selected !== null || selectedCity !== null || neutralCity !== null || inspectedTile !== null || districtPlacement !== null);
   const reminders = turnReminders(view, CONTENT, reviewedUnits.of(view.round));
@@ -456,6 +457,12 @@ function updateCombatCard(view: PlayerView) {
   });
 }
 /** Drops the chosen target (closing the combat card) but stays in the current action mode. */
+/** Esc on the map: drop the chosen target, then leave the action mode, then clear the selection. */
+function escapeAction() {
+  if (pendingTarget) cancelTarget();
+  else if (actionMode !== null || districtPlacement) { resetAction(); notice = ''; controls(); requestFrame(); }
+  else clearSelection();
+}
 function cancelTarget() {
   pendingTarget = null; notice = ''; canvas.focus(); controls(); requestFrame();
 }
@@ -485,13 +492,18 @@ function requestedGameplayVersion(): GameplayVersion {
   return isGameplayVersion(value) && value >= 1 ? value : LATEST_GAMEPLAY_VERSION;
 }
 // ---------- v21 opening objectives ----------
+let goalsCollapsed = false;
+document.querySelector<HTMLElement>('#opening-goals')?.addEventListener('click', event => {
+  if (!(event.target as HTMLElement).closest('.goals-toggle')) return;
+  goalsCollapsed = !goalsCollapsed; renderGoals(session.getView());
+});
 function renderGoals(view: PlayerView) {
   const root = document.querySelector<HTMLElement>('#opening-goals')!, opening = view.expansion?.opening;
   const left = opening ? OBJECTIVE_IDS.filter(id => !opening.objectives.includes(id)) : [];
   root.hidden = !opening || !left.length;
   if (!opening) return;
   const reward = (id: ObjectiveId) => { const r = OBJECTIVES[id].reward; return [r.gold ? `金 +${r.gold}` : '', r.research ? `研 +${r.research}` : '', r.pokeBalls ? `球 +${r.pokeBalls}` : ''].filter(Boolean).join(' '); };
-  const markup = `<p class="section-label">开局目标 ${opening.objectives.length}/${OBJECTIVE_IDS.length}</p><ul>${left.slice(0, 3).map(id => `<li><b>${OBJECTIVES[id].name}</b><small>${OBJECTIVES[id].hint}</small><span>${reward(id)}</span></li>`).join('')}</ul>`;
+  const markup = `<button type="button" class="section-label goals-toggle" aria-expanded="${!goalsCollapsed}" title="${goalsCollapsed ? '展开' : '收起'}开局目标">开局目标 ${opening.objectives.length}/${OBJECTIVE_IDS.length} <span aria-hidden="true">${goalsCollapsed ? '▸' : '▾'}</span></button>${goalsCollapsed ? '' : `<ul>${left.slice(0, 3).map(id => `<li><b>${OBJECTIVES[id].name}</b><small>${OBJECTIVES[id].hint}</small><span>${reward(id)}</span></li>`).join('')}</ul>`}`;
   if (root.innerHTML !== markup) root.innerHTML = markup;
 }
 // ---------- v15 legendary wonders ----------
@@ -680,13 +692,15 @@ function activateIndex(index: number | null, confirmSelection = false) {
   }
   if (actionMode && selected !== null) {
     const target = actionTargets(view, selected, actionMode, selectedBall).find(candidate => hexToIndex(candidate.position, view.map) === index);
-    // Civilization-style: clicking the chosen attack target a second time confirms the attack.
-    if (target && actionMode === 'attack' && pendingTarget?.index === index && pendingTarget.kind === target.kind && pendingTarget.id === target.id) {
+    // Civilization-style: clicking the chosen attack / capture target a second time confirms it.
+    if (target && (actionMode === 'attack' || actionMode === 'capture') && pendingTarget?.index === index && pendingTarget.kind === target.kind && pendingTarget.id === target.id) {
       tapFeedback(index); confirmAction(); requestFrame(); return;
     }
     if (target) { pendingTarget = { kind: target.kind, id: target.id, index }; tapFeedback(index); }
     else { pendingTarget = null; tapFeedback(index, 'error'); notice = '该目标不适用；请选择高亮目标。'; }
-    controls(); requestFrame(); return;
+    controls(); requestFrame();
+    if (target && actionMode === 'capture') document.querySelector('#capture-preview')?.closest('.combat-preview')?.scrollIntoView({ block: 'nearest' });
+    return;
   }
   tapFeedback(index);
   const hex = indexToHex(index, view.map);
@@ -799,7 +813,7 @@ canvas.addEventListener('keydown', event => {
     if (districtPlacement) districtPlacement.tileIndex = keyboardIndex;
     controls(); requestFrame();
   } else if (event.key === 'Enter' && !event.ctrlKey && !event.metaKey) { event.preventDefault(); activateIndex(fallback, true); }
-  else if (event.key === 'Escape') { event.preventDefault(); if (actionMode === 'attack' && pendingTarget) cancelTarget(); else clearSelection(); }
+  else if (event.key === 'Escape') { event.preventDefault(); escapeAction(); }
   else if (event.key === '+' || event.key === '=' || event.key === '-') {
     event.preventDefault();
     zoomAt(camera, { x: canvas.clientWidth / 2, y: canvas.clientHeight / 2 }, event.key === '-' ? .9 : 1.1);
@@ -861,9 +875,14 @@ document.querySelector<HTMLInputElement>('#import-save')!.addEventListener('chan
 document.addEventListener('keydown', event => {
   const target = event.target as HTMLElement | null;
   if (target?.matches('input, select, textarea, [contenteditable="true"]')) return;
-  if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); onEndTurn(true); }
-  else if ((event.key === ',' || event.key === '.') && !event.ctrlKey && !event.metaKey && !event.altKey) {
-    if (document.querySelector('dialog[open]') || !document.querySelector<HTMLElement>('#screen-host')!.hidden || !idleUnitIds(session.getView()).length) return;
+  // Hotkeys act on the map: not behind an open screen or dialog (Esc and Tab are handled by screens.ts).
+  if (document.querySelector('dialog[open]') || !document.querySelector<HTMLElement>('#screen-host')!.hidden) return;
+  // The canvas handles its own Esc; elsewhere (drawer, action bar, page) Esc backs out of the current action too.
+  if (event.key === 'Escape' && target !== canvas && !target?.closest('#combat-card') && !document.querySelector('#unit-action-bar .unit-action-menu')) { escapeAction(); return; }
+  if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); onEndTurn(true); return; }
+  if (event.ctrlKey || event.metaKey || event.altKey) return;
+  if (event.key === ',' || event.key === '.') {
+    if (!idleUnitIds(session.getView()).length) return;
     event.preventDefault(); if (!busy()) cycleIdle('unit', event.key === ',' ? -1 : 1);
   }
   else if (event.key.toLowerCase() === 'c') {

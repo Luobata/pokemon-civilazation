@@ -124,7 +124,7 @@ for (const width of widths) {
     if (!isMapUnit(captureTarget)) throw new Error('Expected a deployed capture target');
     await closeScreen(page);
     await page.locator('#capture-unit').click();
-    await expect(page.locator('#action-notice')).toContainText('捕捉模式：选择相邻的野生宝可梦，再确认捕捉');
+    await expect(page.locator('#action-notice')).toContainText('捕捉模式：点相邻的野生宝可梦看捕捉率，再点一次即捕捉');
     await clickHex(page, captureTarget.position);
     await expect(page.locator('#capture-preview')).toContainText('捕捉成功率');
     await screenshot(page, `p3-ui-capture-${width}`);
@@ -155,7 +155,7 @@ test('capture targets follow the selected ball inventory', async ({ page }) => {
   await expect(page.locator('#action-notice')).toContainText('该目标不适用；请选择高亮目标');
   await expect(page.locator('#confirm-action')).toBeDisabled();
   await page.locator('#capture-ball').selectOption('greatBall');
-  await expect(page.locator('#action-notice')).toContainText('捕捉模式：选择相邻的野生宝可梦，再确认捕捉');
+  await expect(page.locator('#action-notice')).toContainText('捕捉模式：点相邻的野生宝可梦看捕捉率，再点一次即捕捉');
   await clickHex(page, target.position);
   await expect(page.locator('#capture-preview')).toContainText('捕捉成功率');
   await expect(page.locator('#confirm-action')).toBeEnabled();
