@@ -118,12 +118,13 @@ test('expansion-only content works through selection, movement, production and a
 
   await page.locator('#city-select').selectOption(String(imported.players[0].headquartersCityId));
   await page.locator('[data-production-kind="pokemon"]').click();
-  await page.locator('#production-item').selectOption({ label: `${definition.name} (${cost})` });
-  const preview = page.locator('#production-preview');
-  await expect(preview).toContainText(`需要 ${cost} 生产`);
-  const previewText = await preview.innerText();
-  expect(previewText).not.toMatch(/undefined|NaN/);
-  await page.locator('#add-production').click();
+  const row = page.locator(`[data-production-option="pokemon:${item.defId}"]`);
+  await expect(row).toContainText(definition.name);
+  await expect(row.locator('.production-option-cost b')).toHaveText(String(cost));
+  await expect(row).toContainText(/≈\d+ 轮/);
+  const rowText = await row.innerText();
+  expect(rowText).not.toMatch(/undefined|NaN/);
+  await row.click();
   await expect(page.locator('#production-queue').filter({ hasText: definition.name }).last()).toContainText(`0/${cost}`);
 
   await openDevDrawer(page);
