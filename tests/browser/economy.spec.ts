@@ -71,7 +71,8 @@ test('found city, finish production, save/load JSON and continue identically in 
   const founded = await state(page), newCity = Object.values(founded.cities).filter(c => c.ownerId === 0).at(-1)!;
   expect(founded.units[settler.id]).toBeUndefined(); expect(newCity.population).toBe(1);
   await expect(page.locator('#city-summary')).toContainText(`城市 ${newCity.id}`);
-  await page.locator('#production-item').selectOption({ label: '友好商店 (40)' }); await page.locator('#add-production').click();
+  await expect(page.locator('[data-production-option="building:meetingHall"]')).toContainText('友好商店');
+  await page.locator('[data-production-option="building:meetingHall"]').click();
   await expect(page.locator('#production-queue')).toContainText('友好商店0/40');
   let completed = false;
   for (let i = 0; i < 40; i++) {
@@ -121,9 +122,12 @@ test('work locking, queue reorder/cancel, purchases and version refusal use UI',
   await page.locator(`[data-work="${tileId}"]`).uncheck(); expect((await state(page)).cities[cityId].lockedTileIds).not.toContain(Number(tileId));
   await page.locator('[data-city-section="production"]').click();
   await page.locator('[data-production-kind="logistics"]').click();
-  await page.locator('#production-item').selectOption({ label: '开拓队 (24)' }); await page.locator('#add-production').click();
+  await expect(page.locator('[data-production-option="logistics:settler"] .production-option-cost b')).toHaveText('24');
+  await page.locator('[data-production-option="logistics:settler"]').click();
   await page.locator('[data-production-kind="pokemon"]').click();
-  await page.locator('#production-item').selectOption({ label: '【远程】妙蛙种子 (19)' }); await page.locator('#add-production').click();
+  await expect(page.locator('[data-production-option="pokemon:bulbasaur"]')).toContainText('【远程】妙蛙种子');
+  await expect(page.locator('[data-production-option="pokemon:bulbasaur"] .production-option-cost b')).toHaveText('19');
+  await page.locator('[data-production-option="pokemon:bulbasaur"]').click();
   await page.locator('[data-up="1"]').click(); await expect(page.locator('#production-queue li').first()).toContainText('妙蛙种子');
   await page.locator('[data-remove="1"]').click(); await expect(page.locator('#production-queue li')).toHaveCount(1);
   await openScreen(page, 'research');

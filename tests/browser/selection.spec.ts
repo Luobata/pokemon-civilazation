@@ -55,7 +55,7 @@ test('unit and city selection expose only the actions of the selected object', a
   await expect(page.locator('#unit-panel')).toBeEmpty();
   await expect(page.locator('#city-select')).toHaveValue(String(city.id));
   await expect(page.locator('#unit-select')).toHaveValue('');
-  await expect(page.locator('#production-item')).toBeVisible();
+  await expect(page.locator('#production-list')).toBeVisible();
   expect(canonicalSerialize(await state(page))).toBe(canonicalSerialize(initial));
   await page.locator('#clear-selection').click();
   await expect(page.locator('#economy')).toBeHidden();
@@ -70,9 +70,8 @@ test('city production trains a new settler with a replayable command history', a
   const before = await state(page);
   await page.locator('[data-production-kind="logistics"]').click();
   // v18: the logistics tab offers 开拓队 and 工匠; pick the settler.
-  await expect(page.locator('#production-item option')).toHaveText([/^开拓队/, /^工匠/]);
-  await page.locator('#production-item').selectOption({ index: 0 });
-  await page.locator('#add-production').click();
+  await expect(page.locator('#production-list [data-production-option]')).toHaveText([/^开拓队/, /^工匠/]);
+  await page.locator('[data-production-option="logistics:settler"]').click();
   await expect(page.locator('#production-queue')).toContainText('开拓队');
   let trained: GameState['units'][number] | undefined;
   for (let turn = 0; turn < 20 && !trained; turn++) {
@@ -91,19 +90,23 @@ test('a completed training ground opens unit production in its own city', async 
   await page.goto('/?seed=12345');
   await page.locator('#animate').uncheck();
   const initial = await state(page), cityId = initial.players[0].headquartersCityId;
-  await page.locator('#production-item').selectOption({ label: '宝可梦中心 (60)' });
-  await expect(page.locator('#production-preview img')).toHaveAttribute('src', '/buildings/trainingGround.svg');
-  await page.locator('#add-production').click();
+  const trainingGround = page.locator('[data-production-option="building:trainingGround"]');
+  await expect(trainingGround).toContainText('宝可梦中心');
+  await expect(trainingGround.locator('.production-option-cost b')).toHaveText('60');
+  await expect(trainingGround.locator('img')).toHaveAttribute('src', '/buildings/trainingGround.svg');
+  await trainingGround.click();
   for (let turn = 0; turn < 35 && !(await state(page)).cities[cityId].buildingIds.includes('trainingGround'); turn++) await page.locator('#end-turn').click();
+  // P0-1: the building strip lives in the city's 详情 tab.
+  await page.locator('[data-city-section="details"]').click();
   await expect(page.locator('[data-building="trainingGround"]')).toBeVisible();
   await expect(page.locator('[data-building="trainingGround"] img')).toHaveAttribute('src', '/buildings/trainingGround.svg');
   await page.locator('[data-building="trainingGround"]').click();
   await expect(page.locator('[data-production-kind="pokemon"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('.building-detail-head img')).toHaveAttribute('src', '/buildings/trainingGround.svg');
   await expect(page.locator('#building-detail')).toContainText('经验 +20');
-  await expect(page.locator('#production-preview img')).toHaveAttribute('src', pokemonSpritePath('bulbasaur'));
+  await expect(page.locator('[data-production-option="pokemon:bulbasaur"] img')).toHaveAttribute('src', pokemonSpritePath('bulbasaur'));
   await page.screenshot({ path: 'test-results/screenshots/context-training-ground.png', fullPage: false });
-  await page.locator('#add-production').click();
+  await page.locator('[data-production-option="pokemon:bulbasaur"]').click();
   const queued = await state(page);
   expect(queued.cities[cityId].queue[0].item).toEqual({ kind: 'pokemon', defId: 'bulbasaur' });
   const log = await page.evaluate(async () => { const path = '/src/browser/main.ts'; return (await import(path)).developerAdapter.exportLog(); });

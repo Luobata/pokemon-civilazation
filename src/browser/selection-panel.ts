@@ -11,10 +11,11 @@ export function renderSelectionPanel(view: PlayerView, selectedUnit: number | nu
   if (signature === rendered) return;
   rendered = signature;
   const root = document.querySelector<HTMLElement>('#selection-panel')!;
-  root.innerHTML = `<div class="subpanel-head"><strong>行动对象</strong><button id="clear-selection" class="quiet-button" ${busy ? 'disabled' : ''}>取消选择</button></div>
-    <div class="entity-selectors"><label>我的城市<select id="city-select" ${busy ? 'disabled' : ''}><option value="">选择城市</option>${cities.map(city => `<option value="${city.id}" ${city.id === selectedCity ? 'selected' : ''}>城市 ${city.id} · 人口 ${city.population}</option>`).join('')}</select></label>
-    <label>我的单位<select id="unit-select" ${busy ? 'disabled' : ''}><option value="">选择单位</option>${units.map(unit => `<option value="${unit.id}" ${unit.id === selectedUnit ? 'selected' : ''}>${unitDefinition(unit, CONTENT).name} #${unit.id} · 行动 ${unit.actionLeft}</option>`).join('')}</select></label></div>
-    <p class="selection-help">点选地图上的城市或单位，也可从列表选择。城市负责生产，开拓队负责建城。</p>`;
+  // One compact row: the drawer's first screen belongs to the selected city or unit, not to the picker.
+  root.title = '点选地图上的城市或单位，也可从列表选择。城市负责生产，开拓队负责建城。';
+  root.innerHTML = `<div class="entity-selectors"><label><span class="visually-hidden">我的城市</span><select id="city-select" aria-label="我的城市" ${busy ? 'disabled' : ''}><option value="">选择城市</option>${cities.map(city => `<option value="${city.id}" ${city.id === selectedCity ? 'selected' : ''}>城市 ${city.id} · 人口 ${city.population}</option>`).join('')}</select></label>
+    <label><span class="visually-hidden">我的单位</span><select id="unit-select" aria-label="我的单位" ${busy ? 'disabled' : ''}><option value="">选择单位</option>${units.map(unit => `<option value="${unit.id}" ${unit.id === selectedUnit ? 'selected' : ''}>${unitDefinition(unit, CONTENT).name} #${unit.id} · 行动 ${unit.actionLeft}</option>`).join('')}</select></label>
+    <button id="clear-selection" class="quiet-button" title="取消选择" ${busy ? 'disabled' : ''}>取消</button></div>`;
   root.querySelector<HTMLSelectElement>('#city-select')!.addEventListener('change', event => {
     const value = (event.target as HTMLSelectElement).value;
     callbacks.city(value ? Number(value) : null);
