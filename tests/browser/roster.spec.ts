@@ -16,9 +16,10 @@ test('v14: an Eevee lists all five evolution directions, each with what it still
   await importSave(page, fixture.save);
   await page.locator('#unit-select').selectOption(String(fixture.unitId));
   const main = page.locator('#evolve-unit'), branches = page.locator('#evolution-branches [data-evolve]');
-  await expect(main).toHaveText(/^进化→(太阳伊布|月亮伊布|叶伊布|冰伊布|仙子伊布)$/);
+  // The main direction is the action bar's 进化 button; its full label is the accessible name (and hover card title).
+  await expect(main).toHaveAttribute('aria-label', /^进化→(太阳伊布|月亮伊布|叶伊布|冰伊布|仙子伊布)$/);
   await expect(branches).toHaveCount(4);
-  const targets = [await main.textContent(), ...await branches.allTextContents()].map(text => text!.replace(/^进化→/, '').replace(/（.*$/, ''));
+  const targets = [await main.getAttribute('aria-label'), ...await branches.allTextContents()].map(text => text!.replace(/^进化→/, '').replace(/（.*$/, ''));
   expect(new Set(targets)).toEqual(new Set(['太阳伊布', '月亮伊布', '叶伊布', '冰伊布', '仙子伊布']));
   // Not enough EXP yet (250 needed): nothing can evolve, and the panel says so.
   const unit = fixture.state.units[fixture.unitId];
