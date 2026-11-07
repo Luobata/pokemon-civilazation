@@ -58,7 +58,7 @@ function treeMilestones(before: GameState, next: GameState, playerId: number, ev
   const units = Object.values(next.units).filter(unit => unit.ownerId === playerId && unit.kind === 'pokemon');
   const species = new Set<string>([...player.registeredSpeciesIds, ...units.map(unit => unit.kind === 'pokemon' ? unit.speciesId : '')].filter(Boolean));
   const hasType = (type: string) => [...species].some(id => content.species[id]?.typeId === type || content.species[id]?.secondaryTypeId === type);
-  const ocean = (index: number) => neighbors(indexToHex(index, next.map)).some(hex => { const at = hexToIndex(hex, next.map); return at !== null && next.map.tiles[at] === 'ocean'; });
+  const ocean = (index: number) => neighbors(indexToHex(index, next.map), next.map).some(hex => { const at = hexToIndex(hex, next.map); return at !== null && next.map.tiles[at] === 'ocean'; });
   for (const event of events) {
     if (event.type === 'TileWorked' && event.playerId === playerId && event.completed && event.kind === 'fishery') hits.push('seafaring');
     if (event.type === 'BuildingCompleted' && ownedCity(event.cityId)) hits.push('masonry');
