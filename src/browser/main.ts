@@ -326,7 +326,7 @@ function controls() {
       evolve: evolveSelected,
       found: () => { if (selected !== null) issue({ type: 'FoundCity', unitId: selected }); },
       improve: (tileIndex, kind) => { if (selected !== null) issue({ type: 'ImproveTile', unitId: selected, tileIndex, kind }); },
-      skip: () => cycleIdle('unit'),
+      skip: () => { if (selected !== null) reviewedUnits.add(session.getView().round, selected); cycleIdle('unit'); },
       explain: text => { notice = text; controls(); },
     });
   if (placementSite) {
@@ -649,6 +649,7 @@ function newGame() {
     selectCity(selectedCity);
     // Opening camera focus should not change the first keyboard unit selection.
     keyboardIndex = null;
+    info.hidden = !devMode;
     closeScreen();
   } catch (error) {
     canvas.hidden = true;
@@ -861,7 +862,10 @@ document.addEventListener('keydown', event => {
   const target = event.target as HTMLElement | null;
   if (target?.matches('input, select, textarea, [contenteditable="true"]')) return;
   if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); onEndTurn(true); }
-  else if ((event.key === ',' || event.key === '.') && !event.ctrlKey && !event.metaKey && !event.altKey) { event.preventDefault(); if (!busy()) cycleIdle('unit', event.key === ',' ? -1 : 1); }
+  else if ((event.key === ',' || event.key === '.') && !event.ctrlKey && !event.metaKey && !event.altKey) {
+    if (document.querySelector('dialog[open]') || !document.querySelector<HTMLElement>('#screen-host')!.hidden || !idleUnitIds(session.getView()).length) return;
+    event.preventDefault(); if (!busy()) cycleIdle('unit', event.key === ',' ? -1 : 1);
+  }
   else if (event.key.toLowerCase() === 'c') {
     event.preventDefault();
     selectCity(session.getView().economy.cities[0]?.id ?? null);

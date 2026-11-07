@@ -114,3 +114,22 @@ test('victory targets scale with the round limit in v21 only; 100 rounds keeps t
   expect(victoryTargets({ gameplayVersion: 21, roundLimit: 100 })).toEqual(old);
   expect(victoryTargets({ gameplayVersion: 21, roundLimit: 200 })).toEqual({ contestMinimum: 2000, faithMinimumCities: 8, championshipTitles: 3, pokedexBonus: 16 });
 });
+
+test('a captured former capital gets no capital walls in the preview either (its fallen founder still names it as headquarters)', () => {
+  const state = createGame({ ...duel(21), players: [...duel(21).players, { id: 2, controller: 'human', starterId: 'squirtle', leaderId: 'brock' }] });
+  const city = state.cities[state.players[1].headquartersCityId];
+  state.map.tiles.fill('grassland'); state.units = {}; for (const relation of state.diplomacy) relation.status = 'war'; state.round = 40;
+  // Player 2 took player 1's capital; player 1 is out but keeps its headquartersCityId.
+  city.ownerId = 2; state.players[1].eliminated = true; state.turnOrder = [0, 2];
+  capital(state, 0).position = { q: 3, r: 3 }; capital(state, 2).position = { q: 20, r: 2 }; city.position = { q: 12, r: 8 };
+  state.units[9000] = createMapUnit({ kind: 'pokemon', speciesId: 'machop' }, 9000, 0, { q: 11, r: 8 }, OPENING_CONTENT, 0, 1);
+  refreshKnowledge(state);
+  expect(observe(state, 0).cities.find(item => item.id === city.id)?.headquartersOf).toBe(1);
+  const preview = previewAttack(observe(state, 0), 9000, { kind: 'city', id: city.id });
+  if (!preview.ok) throw new Error(preview.reason);
+  expect(preview.strength!.factors).toContainEqual({ side: 'defense', label: '城墙', value: wallBonus(40) });
+  const hp = city.hp;
+  resolveAttack(state, 9000, { kind: 'city', id: city.id });
+  expect(hp - city.hp).toBeGreaterThanOrEqual(preview.damage.min);
+  expect(hp - city.hp).toBeLessThanOrEqual(preview.damage.max);
+});

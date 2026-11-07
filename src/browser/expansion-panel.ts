@@ -2,6 +2,7 @@ import { leaderUnitFor, stoneEvolutionsFor } from '../content/roster.ts';
 import { FAITH_RULES, LEGENDS, LEGEND_IDS, TENETS, TENET_IDS } from '../content/faith-legends.ts';
 import type { LegendId, TenetId } from '../content/faith-legends.ts';
 import { CONTEST_RULES } from '../core/contests.ts';
+import { victoryTargets } from '../content/opening.ts';
 import { RARE_BERRIES, RARE_BERRY_IDS, RARE_BERRY_RULES } from '../content/rare-berries.ts';
 import type { Command, PlayerView } from '../core/model.ts';
 import { LEADER_KITS } from '../core/leader-systems.ts';
@@ -61,7 +62,7 @@ export function renderExpansionPanel(view: PlayerView, selectedUnitId: number | 
   const contest = exp.contests;
   if (contest) {
     const leader = [...contest.rivals].sort((a, b) => b.appeal - a.appeal)[0];
-    html += card('s39-contests', `华丽大赛 · 人气 ${contest.own.appeal}/${contest.target}`, `<p>华丽大赛馆每轮产出人气：每座馆 +${CONTEST_RULES.perHall}，再按已登记物种、稀有物种、稀有树果种类和属性道馆加成（每座馆最多 +${CONTEST_RULES.hallCap}）。人气达到 ${CONTEST_RULES.minimum} 且为每个对手的 ${CONTEST_RULES.winRatio} 倍时获得华丽大赛胜利。</p>`
+    html += card('s39-contests', `华丽大赛 · 人气 ${contest.own.appeal}/${contest.target}`, `<p>华丽大赛馆每轮产出人气：每座馆 +${CONTEST_RULES.perHall}，再按已登记物种、稀有物种、稀有树果种类和属性道馆加成（每座馆最多 +${CONTEST_RULES.hallCap}）。人气达到 ${victoryTargets(view).contestMinimum} 且为每个对手的 ${CONTEST_RULES.winRatio} 倍时获得华丽大赛胜利。</p>`
       + `<p>当前每轮 +${contest.own.perRound} · 大赛馆 ${contest.own.halls.length} 座${Object.keys(contest.own.building).length ? ` · 建造中 ${Object.entries(contest.own.building).map(([id, progress]) => `城市 ${id} ${progress}/${CONTEST_RULES.hallCost}`).join('、')}` : ''}${leader ? ` · 最高对手：文明 ${leader.playerId + 1} ${leader.appeal}` : ''}</p>`
       + (city ? button(`在城市 #${city.id} 建造大赛馆 · ${CONTEST_RULES.hallGold} 金`, { type: 'BuildContestHall', cityId: city.id }, player.gold >= CONTEST_RULES.hallGold && !contest.own.halls.includes(city.id) && contest.own.building[city.id] === undefined) : '')
       + button(`举办华丽大赛 · ${CONTEST_RULES.showGold} 金（+${contest.own.halls.length * CONTEST_RULES.showPerHall} 人气）`, { type: 'HoldContest' }, contest.own.halls.length > 0 && player.gold >= CONTEST_RULES.showGold && view.round >= contest.own.showReadyAtRound)

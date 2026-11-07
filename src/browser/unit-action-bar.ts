@@ -234,8 +234,8 @@ export function installUnitActionBar(): void {
     if (document.querySelector('dialog[open]') || !document.querySelector<HTMLElement>('#screen-host')?.hidden) return;
     if (event.key === 'Escape' && menuOpen) { menuOpen = false; rendered = ''; current.callbacks.explain(''); return; }
     const key = event.key.toLowerCase();
-    // Space keeps its native meaning on focused controls outside the bar (buttons, links, summaries).
-    if (key === ' ' && target?.matches('button, a, summary, [role="button"]') && !root.contains(target)) return;
+    // Space keeps its native meaning on any focused control (bar buttons and the improvement menu included); skip uses it from the map.
+    if (key === ' ' && target?.matches('button, a, summary, [role="button"], [role="menuitem"]')) return;
     const button = [...root.querySelectorAll<HTMLButtonElement>('button[data-hotkey]')].find(candidate => candidate.dataset.hotkey === key);
     if (!button) return;
     event.preventDefault();

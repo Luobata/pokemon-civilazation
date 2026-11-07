@@ -1,4 +1,7 @@
 import { wallBonus } from './opening.ts';
+
+/** Same test as the authority (owner's headquarters is this city): a captured former capital still names its fallen founder in `headquartersOf`. */
+const isOwnCapital = (city: { ownerId: number | null; headquartersOf?: number | null } | undefined) => city?.headquartersOf != null && city.headquartersOf === city.ownerId;
 import { cityCounterBreakdown, cityFactors, cityStrengthBreakdown, strengthDamage, strikeFactors, unitStrengthBreakdown } from './strength.ts';
 import type { StrengthBreakdown } from './strength.ts';
 import { affinityPermille, classCityMultiplier, classCounterPermille, classStrikeMultiplier } from './unit-classes.ts';
@@ -79,7 +82,7 @@ export function previewAttack(view: PlayerView, unitId: number, target: CombatTa
     if (content.combat === 'strength') {
       strength = cityStrengthBreakdown(unit, from, to, content, cityFactors({ assault: assault ?? (content.species[unit.speciesId].role === 'siege' && techs.includes('siegeCraft') ? content.balance.effects.siegeMultiplier : 1000),
         leader: attackMultiplier, eraAttack: eraAttackMultiplier(viewCombatContext(view), unit, content, true, false), enraged: unit.enraged,
-        breacher: promotionCityMultiplier(view, unit.id), affinity: affinityPermille(view, unit, content) }), content.opening ? wallBonus(view.round, (view.cities.find(item => item.id === defender.id)?.headquartersOf ?? null) !== null) : 0);
+        breacher: promotionCityMultiplier(view, unit.id), affinity: affinityPermille(view, unit, content) }), content.opening ? wallBonus(view.round, isOwnCapital(view.cities.find(item => item.id === defender.id))) : 0);
       min = strengthDamage(strength, 85, false, hp); max = strengthDamage(strength, 100, false, hp);
       if (canCounter) counter = strengthDamage(cityCounterBreakdown(city.counterAttack, unit, to, from, content), 100, true, unit.hp);
     } else {
