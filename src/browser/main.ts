@@ -29,6 +29,7 @@ import { renderExpansionPanel } from './expansion-panel.ts';
 import { renderEconomyPanel } from './economy-panel.ts';
 import { AUDIT_SNAPSHOT_KEY } from '../audit/sandbox.ts';
 import { renderUnitPanel } from './unit-panel.ts';
+import { installUnitActionBar, renderUnitActionBar } from './unit-action-bar.ts';
 import { renderSelectionPanel } from './selection-panel.ts';
 import { renderResearchPanel } from './research-panel.ts';
 import { renderLeaderPanel, renderLeaderSetup, selectedLeaderId } from './leader-panel.ts';
@@ -330,7 +331,17 @@ function controls() {
     found: () => { if (selected !== null) issue({ type: 'FoundCity', unitId: selected }); },
     improve: (tileIndex, kind) => { if (selected !== null) issue({ type: 'ImproveTile', unitId: selected, tileIndex, kind }); },
     issue,
-  });
+  }, { actionsInBar: true });
+  // Unit orders live in the bar at the bottom-right of the map (same callbacks as the old drawer buttons).
+  renderUnitActionBar(view, districtPlacement ? null : selected, actionMode,
+    busy() ? '动画播放中，请稍候或跳过动画。' : ended ? '对局已结束。' : pendingPeace ? '请先回应停战提议。' : null, {
+      mode: mode => { actionMode = mode; pendingTarget = null; notice = ''; controls(); requestFrame(); },
+      evolve: evolveSelected,
+      found: () => { if (selected !== null) issue({ type: 'FoundCity', unitId: selected }); },
+      improve: (tileIndex, kind) => { if (selected !== null) issue({ type: 'ImproveTile', unitId: selected, tileIndex, kind }); },
+      skip: () => cycleIdle('unit'),
+      explain: text => { notice = text; controls(); },
+    });
   if (placementSite) {
     document.querySelector<HTMLElement>('#unit-panel')!.innerHTML = districtPreviewMarkup(view, placementSite, busy() || ended || pendingPeace);
     document.querySelector<HTMLButtonElement>('#confirm-district')?.addEventListener('click', confirmDistrictPlacement);
@@ -853,6 +864,7 @@ if (!import.meta.env.DEV) {
 }
 new ResizeObserver(() => { if (session) requestFrame(); }).observe(canvas);
 installScreens();
+installUnitActionBar();
 // ---------- audio (original Web Audio music and effects; starts on the first gesture) ----------
 document.querySelector<HTMLElement>('#audio-settings-root')!.innerHTML = audioSettingsMarkup();
 bindAudioSettings(document.querySelector<HTMLElement>('#audio-settings-root')!);

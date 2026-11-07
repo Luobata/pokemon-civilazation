@@ -881,3 +881,32 @@ b.age-golden { color: #F2C14E !important; } b.age-dark { color: #B9A6E8 !importa
 
 /* Gens 6–9 sprites are tightly cropped, non-square, anti-aliased art: keep the aspect ratio and Emerald-like padding. */
 img[src*="/sprites/gen6/"], img[src*="/sprites/gen7/"], img[src*="/sprites/gen8/"], img[src*="/sprites/gen9/"] { object-fit: contain; padding: 12%; box-sizing: border-box; image-rendering: auto; }
+
+/* ===== Unit action bar (Civilization 6-style): bottom-right of the map, above the end-turn block ===== */
+.unit-action-bar { position: absolute; right: calc(var(--drawer-w, 400px) + 14px); bottom: calc(24px + var(--turn-block-h, 96px)); z-index: 6; display: flex; align-items: stretch; gap: 4px; padding: 6px 8px; border: 1px solid var(--border-strong); border-radius: var(--radius-md); background: rgb(20 37 42 / 94%); box-shadow: var(--shadow-md); }
+.unit-action-bar[hidden] { display: none; }
+.unit-action-name { align-self: center; max-width: 7em; margin-right: 4px; overflow: hidden; color: var(--gold); font-size: 12px; font-weight: 700; white-space: nowrap; text-overflow: ellipsis; }
+.unit-action-slot { position: relative; display: flex; }
+.unit-action { display: grid; grid-template-columns: auto auto; grid-template-rows: 20px auto; justify-items: center; align-content: center; gap: 3px 4px; min-width: 52px; min-height: 52px; padding: 5px 7px 4px; font-size: 12px; line-height: 1.2; white-space: nowrap; }
+.unit-action-icon { grid-column: 1 / -1; }
+.unit-action-icon svg { display: block; width: 18px; height: 18px; margin-top: 1px; }
+.unit-action kbd, .unit-action-tip kbd { display: inline-block; min-width: 13px; padding: 0 3px; border: 1px solid #56675A; border-radius: 3px; background: #0E1A20; color: var(--ink-secondary); font: 600 10px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace; text-align: center; }
+.unit-action.selected { border-color: var(--gold); background: #493D25; color: #FFE4A4; }
+.unit-action.attack.selected { border-color: var(--danger); background: #4B302E; color: #FFC0B4; }
+.unit-action.primary:not(:disabled) { border-color: #67C4A5; background: linear-gradient(#3D9B7F, #2B745F); color: var(--on-accent); }
+.unit-action:disabled .unit-action-icon { filter: grayscale(1); opacity: .55; }
+.unit-action-tip { position: absolute; right: 0; bottom: calc(100% + 8px); z-index: 7; display: none; gap: 3px; width: max-content; max-width: 260px; padding: 7px 9px; border: 1px solid var(--border-strong); border-left: 3px solid var(--accent); border-radius: var(--radius-md); background: #10201F; box-shadow: var(--shadow-md); color: var(--ink-secondary); font-size: 12px; line-height: 1.45; text-align: left; white-space: normal; pointer-events: none; }
+.unit-action-tip b { color: #F3E7C9; }
+.unit-action-tip.unavailable { border-left-color: var(--danger); }
+.unit-action-reason { color: #F2B3A8; }
+.unit-action-tip small { color: var(--ink-muted); font-size: 12px; }
+.unit-action-slot:hover .unit-action-tip, .unit-action-slot:focus-within .unit-action-tip { display: grid; }
+.unit-action-slot:has(.unit-action-menu) .unit-action-tip { display: none; }
+.unit-action-menu { position: absolute; right: 0; bottom: calc(100% + 8px); z-index: 8; display: grid; gap: 4px; min-width: 220px; padding: 6px; border: 1px solid var(--gold); border-radius: var(--radius-md); background: #10201F; box-shadow: var(--shadow-md); }
+.unit-action-menu button { min-height: 32px; padding: 5px 9px; font-size: 12px; text-align: left; white-space: nowrap; }
+@media (max-width: 860px) {
+  /* Narrow screens scroll the page: pin the bar to the bottom edge of the map (not the window) so it never covers the drawer. */
+  .unit-action-bar { top: max(58vh, 320px); right: 8px; bottom: auto; flex-wrap: wrap; justify-content: flex-end; max-width: calc(100vw - 16px); padding: 4px; transform: translateY(calc(-100% - 8px)); }
+  .unit-action-name { display: none; }
+  .unit-action { min-width: 46px; min-height: 46px; padding: 4px 5px 3px; }
+}
