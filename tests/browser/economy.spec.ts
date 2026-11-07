@@ -53,7 +53,7 @@ test('found city, finish production, save/load JSON and continue identically in 
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
-  await page.goto('/?seed=12345'); await page.locator('#animate').uncheck();
+  await page.goto('/?seed=12345&gameplay=21'); await page.locator('#animate').uncheck();
   const initial = await state(page), settler = Object.values(initial.units).find(u => u.ownerId === 0 && u.kind === 'logistics')!;
   const route = foundingRoute(createGame(initial.setup), settler.id);
   // v16: the settler starts beside the capital, so the route is shorter than when it started on the capital.

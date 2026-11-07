@@ -31,7 +31,7 @@ test('the map fills the window and every launcher entry opens its own screen', a
 });
 
 test('research tree cards start research and show each discovery', async ({ page }) => {
-  await page.goto('/?seed=12345');
+  await page.goto('/?seed=12345&gameplay=21');
   await page.keyboard.press('r');
   await expect(page.locator('#screen-research')).toBeVisible();
   await expect(page.locator('#research-topic')).toBeFocused();

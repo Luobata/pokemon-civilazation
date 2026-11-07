@@ -16,7 +16,8 @@ async function expectInFirstScreen(page: Page, element: Locator): Promise<void> 
 test('P0-1/P0-2: the capital shows its queue and a clickable production list in the drawer\'s first screen', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(String(error)));
-  await page.goto('/?seed=12345');
+  // Pinned to v21, where buildings are available from the start (v22 locks them behind the tech tree; see below).
+  await page.goto('/?seed=12345&gameplay=21');
   await page.locator('#animate').uncheck();
   const initial = await state(page), cityId = initial.players[0].headquartersCityId;
   await page.locator('#city-select').selectOption(String(cityId));
@@ -82,4 +83,15 @@ test('P0-2: a full queue disables the rows', async ({ page }) => {
   await expect(page.locator('#production-queue li')).toHaveCount(5);
   await expect(row).toBeDisabled();
   await expect(page.locator('.production-section')).toContainText('队列已满');
+});
+
+test('v22: with every building still locked, the city opens on a production tab that has items', async ({ page }) => {
+  await page.goto('/?seed=12345');
+  const cityId = (await state(page)).players[0].headquartersCityId;
+  await page.locator('#city-select').selectOption(String(cityId));
+  await expect(page.locator('[data-production-kind="building"]')).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('#production-list [data-production-option]').first()).toBeVisible();
+  // The empty buildings tab still explains itself when the player opens it.
+  await page.locator('[data-production-kind="building"]').click();
+  await expect(page.locator('#economy')).toContainText('研究新科技可解锁更多建筑');
 });

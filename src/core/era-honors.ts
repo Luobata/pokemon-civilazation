@@ -1,7 +1,7 @@
 // Gameplay v12: era score and golden / dark ages (Civilization 6 eras). Points come only from events
 // already produced by other systems; the age of a new era is decided by the previous era's average.
-import { ERA_AGES, ERA_HONOR_RULES, ERA_MILESTONES } from '../content/era-honors.ts';
-import type { EraAge, EraMilestone } from '../content/era-honors.ts';
+import { ERA_AGES, ERA_HONOR_RULES, ERA_HONOR_RULES_V22, ERA_MILESTONES } from '../content/era-honors.ts';
+import type { AgeLines, EraAge, EraMilestone } from '../content/era-honors.ts';
 import { eraState, gameplayAtLeast } from '../content/eras.ts';
 import type { PolicyEffects } from '../content/policies.ts';
 import type { SpeciesId } from '../content/species.ts';
@@ -36,11 +36,13 @@ export function initializeEraHonors(state: GameState): void {
 }
 
 /** Age chosen from an era's average points per round (integer permille math). */
-export function ageFor(score: number, rounds: number): EraAge {
+export function ageFor(score: number, rounds: number, lines: AgeLines = ERA_HONOR_RULES): EraAge {
   if (rounds < ERA_HONOR_RULES.minimumRounds) return 'normal';
   const rate = Math.floor(score * 1000 / rounds);
-  return rate >= ERA_HONOR_RULES.goldenRatePermille ? 'golden' : rate < ERA_HONOR_RULES.darkRatePermille ? 'dark' : 'normal';
+  return rate >= lines.goldenRatePermille ? 'golden' : rate < lines.darkRatePermille ? 'dark' : 'normal';
 }
+/** v22 games (dedications) use their own golden / dark lines; older rules keep the v12 lines. */
+export const ageLines = (state: Pick<GameState, 'setup' | 'expansion'>): AgeLines => usesDedications(state) ? ERA_HONOR_RULES_V22 : ERA_HONOR_RULES;
 
 const documentedCount = (state: GameState, playerId: number) => Object.values(state.expansion?.world.players[playerId]?.pokedex ?? {} as Record<SpeciesId, { observed: boolean; battled: boolean; captured: boolean }>)
   .filter(record => record.observed && (record.battled || record.captured)).length;
@@ -103,7 +105,7 @@ export function recordEraHonors(before: GameState, after: GameState, events: rea
     const index = eraState(player, after.setup.eraProgression)?.index ?? 0;
     if (index === record.eraIndex) continue;
     const rounds = after.round - record.eraStartRound;
-    const age = ageFor(record.score, rounds);
+    const age = ageFor(record.score, rounds, ageLines(after));
     if (record.dedication) {
       // v22: the finished era remembers its cards; the new one asks for 1 card (3 in a heroic age).
       const heroic = isHeroic(record.age, age), picks = dedicationPicks(age, heroic);
@@ -152,6 +154,7 @@ export const eraHonorRecord = (state: Pick<GameState, 'expansion'>, playerId: nu
 export function observeEraHonors(state: GameState, playerId: number): EraHonorView | undefined {
   const record = state.expansion?.eraHonors?.players[playerId];
   if (!record) return undefined;
-  return { ...(JSON.parse(JSON.stringify(record)) as EraHonorPlayerState), goldenRatePermille: ERA_HONOR_RULES.goldenRatePermille,
-    darkRatePermille: ERA_HONOR_RULES.darkRatePermille, minimumRounds: ERA_HONOR_RULES.minimumRounds };
+  const lines = ageLines(state);
+  return { ...(JSON.parse(JSON.stringify(record)) as EraHonorPlayerState), goldenRatePermille: lines.goldenRatePermille,
+    darkRatePermille: lines.darkRatePermille, minimumRounds: ERA_HONOR_RULES.minimumRounds };
 }

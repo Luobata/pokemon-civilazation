@@ -84,7 +84,7 @@ function eraHonorMarkup(view: PlayerView, eraNames: (index: number) => string): 
   if (!honor) return '';
   const rounds = Math.max(0, view.round - honor.eraStartRound);
   const rate = rounds ? honor.score / rounds : 0, golden = honor.goldenRatePermille / 1000, dark = honor.darkRatePermille / 1000;
-  const projected = ageFor(honor.score, rounds), scale = golden * 1.5;
+  const projected = ageFor(honor.score, rounds, honor), scale = golden * 1.5;
   const pct = (value: number) => Math.min(100, Math.round(value * 100 / scale));
   const breakdown = ERA_MILESTONE_IDS.filter(id => honor.byMilestone[id]).map(id => `<li>${ERA_MILESTONES[id].name} ×${honor.byMilestone[id]} <b>+${ERA_MILESTONES[id].points * honor.byMilestone[id]!}</b></li>`).join('');
   return `<section class="era-honor age-${honor.age}" aria-label="世代荣誉">

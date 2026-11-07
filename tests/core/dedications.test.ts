@@ -2,6 +2,7 @@ import { expect, test } from 'vitest';
 import { contentFor } from '../../src/content/units.ts';
 import { DEDICATION_IDS, DEDICATIONS } from '../../src/content/dedications.ts';
 import type { DedicationId } from '../../src/content/dedications.ts';
+import { ERA_HONOR_RULES_V22 } from '../../src/content/era-honors.ts';
 import type { EraAge } from '../../src/content/era-honors.ts';
 import type { GameplayVersion } from '../../src/content/eras.ts';
 import { RULE_QUERIES } from '../../src/ai/query.ts';
@@ -16,7 +17,7 @@ import { observe } from '../../src/core/vision.ts';
 import { step } from '../../src/core/step.ts';
 import { gameVersions } from '../../src/core/versions.ts';
 import { canonicalSerialize } from '../../src/core/snapshot.ts';
-import { recordEraHonors, resolveEraHonorRound } from '../../src/core/era-honors.ts';
+import { ageFor, recordEraHonors, resolveEraHonorRound } from '../../src/core/era-honors.ts';
 import { validateDedicationAction } from '../../src/core/dedications.ts';
 import { leaguePointsPerRound, playerPolicyEffects } from '../../src/core/policies.ts';
 import type { Command, EventPayload, GameSetup, GameState } from '../../src/core/model.ts';
@@ -55,8 +56,9 @@ test('v22 era games carry a dedication ledger; v21 ones do not', () => {
 
 test('entering an era asks for 1 card (normal, dark, golden) or 3 (heroic: golden right after dark)', () => {
   const cases: [EraAge, number, EraAge, boolean, number][] = [
-    ['normal', 6, 'normal', false, 1], ['normal', 0, 'dark', false, 1], ['normal', 9, 'golden', false, 1],
-    ['dark', 9, 'golden', true, 3], ['golden', 9, 'golden', false, 1], ['dark', 0, 'dark', false, 1]];
+    // Scores over 10 rounds against the v22 lines (golden ≥ 1.5 per round, dark < 1.0).
+    ['normal', 12, 'normal', false, 1], ['normal', 0, 'dark', false, 1], ['normal', 16, 'golden', false, 1],
+    ['dark', 16, 'golden', true, 3], ['golden', 16, 'golden', false, 1], ['dark', 0, 'dark', false, 1]];
   for (const [previous, score, age, heroic, picks] of cases) {
     const { state, events } = enterEra(previous, score);
     expect(record(state)).toMatchObject({ age, dedication: { pending: picks, heroic, chosen: [], progress: {} } });
@@ -81,7 +83,7 @@ test('ChooseDedication: only while pending, with the exact count and no duplicat
   expect(validateDedicationAction(v21, 0, { type: 'ChooseDedication', dedicationIds: ['ballMaster'] })).toBe('dedications-unavailable');
   expect(choose(v21, ['ballMaster'])).toEqual({ ok: false, reason: 'invalid-command' });
 
-  const { state } = enterEra('dark', 9); // heroic: 3 cards
+  const { state } = enterEra('dark', 16); // heroic: 3 cards
   state.activePlayerId = 0;
   const check = (ids: string[]) => validateDedicationAction(state, 0, { type: 'ChooseDedication', dedicationIds: ids as DedicationId[] });
   expect(check(['ballMaster'])).toBe('dedication-count');
@@ -127,12 +129,13 @@ test('promises add era score in normal and dark ages (not in golden ones), and f
   }
   // The promise points are part of the score the next age is judged on.
   const before = createGame(setup(22));
-  Object.assign(record(before), { age: 'normal', score: 6, eraStartRound: before.round - 10, dedication: { pending: 0, heroic: false, chosen: ['evolutionLight'], progress: {} } });
+  Object.assign(record(before), { age: 'normal', score: 11, eraStartRound: before.round - 10, dedication: { pending: 0, heroic: false, chosen: ['evolutionLight'], progress: {} } });
   const after = clone(before);
   after.players[0].research.unlockedIds = Object.keys(contentFor(after.setup).techs) as never;
   const events = recordEraHonors(before, after, [{ type: 'Evolved', playerId: 0, unitId: 1, speciesId: 'ivysaur' }]);
-  expect(events[0]).toMatchObject({ type: 'EraAgeBegan', previousScore: 6 + 2 + 2, age: 'golden' }); // 10 / 10 rounds ≥ 0.8
-  expect(record(after).history.at(-1)).toMatchObject({ score: 10, dedications: ['evolutionLight'] });
+  // 11 + milestone 2 + promise 2 = 15 over 10 rounds: exactly the v22 golden line (without the promise it would be normal).
+  expect(events[0]).toMatchObject({ type: 'EraAgeBegan', previousScore: 11 + 2 + 2, age: 'golden' });
+  expect(record(after).history.at(-1)).toMatchObject({ score: 15, dedications: ['evolutionLight'] });
 });
 
 test('golden effects apply only in golden and heroic ages and replace the fixed golden bonus', () => {
@@ -201,3 +204,12 @@ test('a real v22 AI game: every era change is answered at once, promises score, 
   const log: CommandLog = { version: 1, ...gameVersions(state.setup), contentVersion: state.contentVersion, setup: state.setup, commands };
   expect(canonicalSerialize(replay(log))).toBe(canonicalSerialize(state));
 }, 180_000);
+
+test('v22 golden / dark lines are stricter than v12 and the view reports them; older rules keep 0.8 / 0.45', () => {
+  expect(ageFor(9, 10)).toBe('golden');
+  expect(ageFor(9, 10, ERA_HONOR_RULES_V22)).toBe('dark');
+  expect(ageFor(12, 10, ERA_HONOR_RULES_V22)).toBe('normal');
+  expect(ageFor(15, 10, ERA_HONOR_RULES_V22)).toBe('golden');
+  expect(observe(createGame(setup(22)), 0).expansion!.eraHonors).toMatchObject(ERA_HONOR_RULES_V22);
+  expect(observe(createGame(setup(21)), 0).expansion!.eraHonors).toMatchObject({ goldenRatePermille: 800, darkRatePermille: 450 });
+});

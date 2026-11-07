@@ -87,7 +87,7 @@ test('city production trains a new settler with a replayable command history', a
 });
 
 test('a completed training ground opens unit production in its own city', async ({ page }) => {
-  await page.goto('/?seed=12345');
+  await page.goto('/?seed=12345&gameplay=21');
   await page.locator('#animate').uncheck();
   const initial = await state(page), cityId = initial.players[0].headquartersCityId;
   const trainingGround = page.locator('[data-production-option="building:trainingGround"]');

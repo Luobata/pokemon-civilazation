@@ -42,7 +42,7 @@ test('new games default to three eras; full mode keeps the selected round limit'
   await page.goto('/');
   await expect(page.locator('#era-progression')).toHaveValue('simple-v1');
   expect((await state(page)).setup).toMatchObject({ eraProgression: 'simple-v1', roundLimit: 200 });
-  await expect(page.locator('#era-panel')).toContainText('还需 3 项科技');
+  await expect(page.locator('#era-panel')).toContainText('还需 7 项科技');
   await expect(page.locator('#era-panel')).toContainText('侦察');
   await openScreen(page, 'menu');
   await page.locator('#era-progression').selectOption('full-v1');
@@ -50,7 +50,7 @@ test('new games default to three eras; full mode keeps the selected round limit'
   await startNewGame(page);
   expect((await state(page)).setup).toMatchObject({ eraProgression: 'full-v1', roundLimit: 200 });
   await expect(page.locator('#era-panel')).toContainText('完整世代');
-  await expect(page.locator('#era-panel')).toContainText('还需 1 项科技');
+  await expect(page.locator('#era-panel')).toContainText('还需 2 项科技');
 });
 
 test('multiplayer submits selected eras and leaders and restores its panel after refresh', async ({ browser }) => {

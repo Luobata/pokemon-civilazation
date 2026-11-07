@@ -48,7 +48,7 @@ for (const seed of [12345, 0]) {
     page.on('pageerror', error => errors.push(error.message));
     page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
     await page.goto(`/?dev=1&seed=${seed}&size=24x16`);
-    await expect(page.getByRole('status')).toContainText(`种子 ${seed}`);
+    await expect(page.locator('#map-info')).toContainText(`种子 ${seed}`);
     await page.locator('#map-legend summary').click();
     await expect(page.getByRole('list', { name: '群系图例' }).locator('li')).toHaveCount(7);
     await page.locator('#map-legend summary').click();
@@ -63,7 +63,7 @@ for (const seed of [12345, 0]) {
     expect(movedState.units[points.unitId].position).toEqual(points.destination);
     expect(movedState.commandSeq).toBe(1);
     await page.locator('#end-turn').click({ modifiers: ['Shift'] });
-    await expect(page.getByRole('status')).toContainText('第 2 轮 · 当前文明 1');
+    await expect(page.locator('#map-info')).toContainText('第 2 轮 · 当前文明 1');
     await expect(page.locator('#selection')).toContainText('行动点 1');
     const final = await snapshot(page), commandCount = final.log.commands.length;
     expect(commandCount).toBeGreaterThan(1);
@@ -155,7 +155,7 @@ test('invalid seeds show an explanation instead of a blank map', async ({ page }
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/?seed=invalid');
-  await expect(page.getByRole('status')).toContainText('无法生成地图');
+  await expect(page.locator('#map-info')).toContainText('无法生成地图');
   await expect(page.locator('canvas')).toBeHidden();
   await page.waitForLoadState('networkidle');
   expect(errors).toEqual([]);

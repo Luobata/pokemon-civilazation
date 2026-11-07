@@ -9,7 +9,7 @@ const state = (page: Page): Promise<GameState> => page.evaluate(async () => { co
 test('v19: the unit panel names the class, its counters and affinity; training is grouped by class; research shows HMs', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(String(error)));
-  await page.goto('/?seed=12345');
+  await page.goto('/?seed=12345&gameplay=21');
   const game = await state(page);
   expect(game.setup.gameplayVersion).toBeGreaterThanOrEqual(19);
   const starter = Object.values(game.units).find(unit => unit.ownerId === 0 && unit.kind === 'pokemon')!;

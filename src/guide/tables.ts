@@ -43,7 +43,7 @@ import { LEADER_DOCTRINES } from '../core/leader-doctrines.ts';
 import { LEADER_KITS } from '../core/leader-systems.ts';
 import { ROLE_CITY_ASSAULT, ERA_TECH_RECRUITS } from '../core/role-tactics.ts';
 import { pokemonSpritePath } from '../browser/sprites.ts';
-import { ERA_AGES, ERA_HONOR_RULES, ERA_MILESTONES, ERA_MILESTONE_IDS } from '../content/era-honors.ts';
+import { ERA_AGES, ERA_HONOR_RULES, ERA_HONOR_RULES_V22, ERA_MILESTONES, ERA_MILESTONE_IDS } from '../content/era-honors.ts';
 import { DEDICATION_IDS, DEDICATION_RULES, DEDICATIONS } from '../content/dedications.ts';
 import { PROMOTION_RULES, PROMOTION_TRAITS, PROMOTION_TRAIT_IDS } from '../content/promotions.ts';
 import { techUnlocks } from '../browser/tech-info.ts';
@@ -314,8 +314,9 @@ export function eraMilestoneTable(): string {
   return table(['里程碑', '世代分'], ERA_MILESTONE_IDS.map(id => [ERA_MILESTONES[id].name, `+${ERA_MILESTONES[id].points}`]), [1]);
 }
 export function eraAgeTable(): string {
-  return table(['世代', '条件（上一世代平均每轮得分）', '效果'], (['golden', 'normal', 'dark'] as const).map(age => [ERA_AGES[age].name,
-    age === 'golden' ? `≥ ${ERA_HONOR_RULES.goldenRatePermille / 1000}` : age === 'dark' ? `< ${ERA_HONOR_RULES.darkRatePermille / 1000}` : '介于两者之间，或上一世代不足 4 轮', ERA_AGES[age].description]));
+  const line = (age: 'golden' | 'normal' | 'dark') => age === 'golden' ? `≥ ${ERA_HONOR_RULES_V22.goldenRatePermille / 1000}（v≤21：≥ ${ERA_HONOR_RULES.goldenRatePermille / 1000}）`
+    : age === 'dark' ? `< ${ERA_HONOR_RULES_V22.darkRatePermille / 1000}（v≤21：< ${ERA_HONOR_RULES.darkRatePermille / 1000}）` : '介于两者之间，或上一世代不足 4 轮';
+  return table(['世代', '条件（上一世代平均每轮得分）', '效果'], (['golden', 'normal', 'dark'] as const).map(age => [ERA_AGES[age].name, line(age), ERA_AGES[age].description]));
 }
 /** v22: era dedications, generated from src/content/dedications.ts. */
 export function dedicationTable(): string {

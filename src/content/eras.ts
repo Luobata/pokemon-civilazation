@@ -118,7 +118,7 @@ export function eraState(player: EraPlayer, mode?: EraProgression): EraState | n
  * 22: world: east-west map wrap, a branching tech tree (~30 techs, explicit prerequisites), era dedications.
  */
 export type GameplayVersion = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22;
-export const LATEST_GAMEPLAY_VERSION: GameplayVersion = 21;
+export const LATEST_GAMEPLAY_VERSION: GameplayVersion = 22;
 export function isGameplayVersion(value: unknown): value is GameplayVersion {
   return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 22;
 }

@@ -28,6 +28,11 @@ export const ERA_HONOR_RULES = {
   /** Eras shorter than this always lead to a normal age. */
   minimumRounds: 4,
 } as const;
+/** Gameplay v22 (with dedications): golden is a reward, normal the usual age. Measured on the fixed 48 games, v22 era rates
+ *  have p20 ≈ 1.04 and p75 ≈ 1.53 points per round; the v12 lines (0.8 / 0.45) made 92% of eras golden, so promises never
+ *  counted. These lines aim at roughly a quarter golden and a sixth dark. */
+export const ERA_HONOR_RULES_V22 = { goldenRatePermille: 1500, darkRatePermille: 1000 } as const;
+export type AgeLines = { goldenRatePermille: number; darkRatePermille: number };
 export const ERA_AGES: Record<EraAge, { name: string; policy: PolicyEffects; satisfaction: number; leaguePoints: number; description: string }> = {
   normal: { name: '普通世代', policy: {}, satisfaction: 0, leaguePoints: 0, description: '没有额外效果。' },
   golden: { name: '黄金世代', policy: { cityGold: 1 }, satisfaction: 3, leaguePoints: 2, description: '每座城市金币 +1，满意度每轮 +3，规章点每轮 +2。' },

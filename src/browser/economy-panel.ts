@@ -33,6 +33,8 @@ import type { DistrictId } from '../content/districts.ts';
 let rendered = '';
 type LegacyProductionItem = Exclude<ProductionItem, { kind: 'district' }>;
 let productionKind: ProductionItem['kind'] = 'building';
+/** False until the player picks a production tab for this city: until then an empty tab falls through to one with items. */
+let kindChosen = false;
 let previousCity: number | null = null;
 let selectedBuilding: BuildingId | null = null;
 type CitySection = 'production' | 'citizens' | 'supplies' | 'research' | 'details';
@@ -122,7 +124,7 @@ export function renderEconomyPanel(view: PlayerView, selectedCity: number | null
   issue: (action: Command['action']) => void, disabled = false,
   onDistrictPlacement?: (cityId: number, kind: DistrictId) => void): void {
   const CONTENT = contentForView(view);
-  if (selectedCity !== previousCity) { productionKind = 'building'; citySection = 'production'; selectedBuilding = null; previousCity = selectedCity; }
+  if (selectedCity !== previousCity) { productionKind = 'building'; kindChosen = false; citySection = 'production'; selectedBuilding = null; previousCity = selectedCity; }
   const signature = JSON.stringify([view.economy, view.map.tiles, view.commandSeq, selectedCity, disabled, productionKind, selectedBuilding, citySection]);
   if (signature === rendered) return;
   rendered = signature;
@@ -152,6 +154,8 @@ export function renderEconomyPanel(view: PlayerView, selectedCity: number | null
     ...(usesBuilders(view) ? [{ kind: 'logistics' as const, defId: 'builder' as const }] : []),
     ...buildableLegends(view, city).map(defId => ({ kind: 'legend' as const, defId })),
   ];
+  // v22 starts with every building locked behind a tech: open the first tab that has something to produce.
+  if (!kindChosen && !allOptions.some(item => item.kind === productionKind)) productionKind = (['building', 'pokemon', 'logistics'] as const).find(kind => allOptions.some(item => item.kind === kind)) ?? productionKind;
   const options = allOptions.filter(item => item.kind === productionKind);
   const remaining = Math.max(0, growthThreshold(city) - city.food), net = city.yields.food - 2 * city.population;
   const growthText = net > 0 ? `${Math.max(1, Math.ceil(remaining / net))} 轮后人口 +1` : net < 0 ? '食物不足，人口会减少' : '暂无增长';
@@ -235,7 +239,7 @@ export function renderEconomyPanel(view: PlayerView, selectedCity: number | null
     </section></div></div>`;
   const rerender = () => renderEconomyPanel(view, selectedCity, issue, disabled, onDistrictPlacement);
   for (const button of root.querySelectorAll<HTMLButtonElement>('[data-production-kind]')) button.addEventListener('click', () => {
-    productionKind = button.dataset.productionKind as ProductionItem['kind']; selectedBuilding = null; rerender();
+    productionKind = button.dataset.productionKind as ProductionItem['kind']; kindChosen = true; selectedBuilding = null; rerender();
   });
   for (const button of root.querySelectorAll<HTMLButtonElement>('[data-district-kind]')) button.addEventListener('click', () => {
     if (onDistrictPlacement) onDistrictPlacement(city.id, button.dataset.districtKind as DistrictId);
@@ -249,7 +253,7 @@ export function renderEconomyPanel(view: PlayerView, selectedCity: number | null
     selectedBuilding = id;
     const action = buildingActions[id];
     citySection = action.section;
-    if (action.kind) productionKind = action.kind;
+    if (action.kind) { productionKind = action.kind; kindChosen = true; }
     rerender();
     if (id === 'observatory') openScreen('research', '#research-topic');
   };
