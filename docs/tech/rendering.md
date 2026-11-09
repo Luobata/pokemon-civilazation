@@ -23,7 +23,19 @@
      canvas2d.render(scene, camera, animation)
 ```
 
-事件按顺序播放（和以前一样：上一个结束，下一个才开始），时长不变：移动每格 180 ms，战斗、捕捉 600 ms，进化 450 ms。`Timeline` 本身支持多条轨道同时播放，顺序播放只是主循环的选择。
+事件按顺序播放（上一个结束，下一个才开始）：移动每格 180 ms，捕捉 600 ms，进化 450 ms，战斗 600–900 ms（见下文“战斗表现”）。别人的行动如果完全在视口外，不加轨道、不占播放时间，只更新通知、日志和提示；自己的行动总是播放。`Timeline` 本身支持多条轨道同时播放，顺序播放只是主循环的选择。
+
+## 战斗表现（2026-11，`docs/design/handoff-combat-presentation.md`）
+
+- `battleTrack(spec)` 用一条轨道画完一场战斗，全程不超过 900 ms（`BATTLE_MAX_MS`）。0–150 ms 攻击方前冲（近战 0.3 格、远程 0.12 格，写进 `frame.poses`）；远程在 100–270 ms 发出属性色弹道（`projectile`，世界坐标，用 `nearestCopy` 走接缝的短路）；命中时间是近战 150 ms、远程 270 ms：白闪、属性色圆环和粒子（`impact`），伤害数字和效果拔群 / 效果不佳 / 没有效果（`number`）；反击在命中后 180 ms 落到攻击方；被击倒的单位用 `poses` 的 `alpha` / `grey` 画成残影，下沉、变灰、淡出（450 ms），挂“休养”（文明的宝可梦）或“击倒”；占城时旧阵营横幅撕下落下（`banner`），新阵营颜色按离城距离一圈圈扫过领土（`sweep`）。
+- 这些外观只从事件和 PlayerView 推出（`src/browser/battle-presentation.ts`：攻击方物种 → 属性，距离 → 远程，属性相克，谁被击倒，占城前的城主），不改事件，也不重算伤害。有击倒记录时，推出的相克倍率和权威记录一致（浏览器测试会比对）。
+- 数字用深色描边（`strokeText`，不用 `shadowBlur`），弹出、上浮、淡出；单位 HP 未满时在底部画 3 px 血条（`SceneUnit.hp`，只有看得见的单位）。
+- 震屏是 `AnimationFrame.shake`（CSS 像素，2–6 px，200 ms 衰减）。渲染器把它取整成设备像素，`blit` 和直接绘制共用同一个平移；相机和缓存键都不变，所以震屏帧照样命中 `base` / `fog` 缓存。夜晚每帧只压暗一次（以前每个地图副本各压一次），并多画 8 px 边距，盖住震屏露出的边。
+- 粒子用一张固定的 14 方向表，用 `fillRect` 画方块；所有地图副本合计每帧最多 `PARTICLE_CAP`（180）个。白闪只在命中的前 45% 用 `lighter` 合成；残影的灰度 `filter` 只作用于单个单位标记。
+- `prefers-reduced-motion`：不前冲、不飞弹道、不出粒子、不下沉、不震屏，只保留白闪、数字和淡出。关掉“移动动画”时，事件照旧立即结算。
+- 音效跟着轨道走：发起攻击时按属性家族播放 `attack:<家族>`（18 个属性归成 6 个家族，见 `src/browser/audio/sfx.ts`），效果拔群时再叠一段上行琶音；命中时由 `Track.cues` 播放 `hit` 或 `knockdown`。没有轨道时（关掉动画、屏幕外）这些声音在出队时一起播放。
+- v16 自动选中下一个待命单位时，相机要等这次行动的动画播完再移过去。
+- `tests/browser/performance.spec.ts` 在 dense 场景加测一组“四场战斗同时进行”的帧（`src/browser/render/benchmark.ts`：远程互射、击倒残影、占城扫色），平面地图和东西环绕各测一次。
 
 ## 图层顺序与缓存
 
@@ -53,6 +65,7 @@
 
 - `tests/core/render-scene.test.ts`（Node）：在真实的 50 轮 v10 对局里，每个玩家的场景中，单位只出现在当前可见格，其他标记只出现在已知格，单位集合与 PlayerView 完全一致；产出图层开关；Timeline 的插值、并行、按 key 替换、持续轨道和跳过。
 - `tests/browser/map.spec.ts`、`districts.spec.ts`、`diplomacy.spec.ts`：拦截真实的 Canvas 调用，检查迷雾下不会画出隐藏的阵营徽章或边界。
+- `tests/browser/combat-presentation.spec.ts`：真实 v22 AI 对局夹具（东西环绕地图），每项战斗表现一个测试（描边数字和反击位置、血条、震屏不动相机且命中缓存、屏幕外 AI 战斗不占时间、弹道和粒子的属性色、击倒残影、占城扫色、按属性的音效）；效果截图保存在 `docs/design/review-2026-11/shots-combat/`。
 - 重构时用 26 个固定场景做了逐像素对比（见提交说明）。
 
 ## 怎么扩展

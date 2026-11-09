@@ -37,10 +37,11 @@ test('measure Canvas2D draw time in four reachable late-game scenes including 10
     await openDevDrawer(page);
     await page.locator('#god').check();
     await expect(page.locator('#frame-metrics')).toContainText('p95');
-    const measured = await page.evaluate(async () => {
-      const mainPath = '/src/browser/main.ts', renderPath = '/src/browser/render/index.ts';
+    const measured = await page.evaluate(async combat => {
+      const mainPath = '/src/browser/main.ts', renderPath = '/src/browser/render/index.ts', benchmarkPath = '/src/browser/render/benchmark.ts';
       const { camera, developerAdapter } = await import(mainPath);
       const { createMapRenderer } = await import(renderPath);
+      const { combatBenchmarkFrames } = await import(benchmarkPath);
       const canvas = document.querySelector<HTMLCanvasElement>('#map')!;
       const view = developerAdapter.getDebugView();
       const stats = (durations: number[]) => {
@@ -48,29 +49,41 @@ test('measure Canvas2D draw time in four reachable late-game scenes including 10
         return { samples: durations.length, mean: durations.reduce((sum, value) => sum + value, 0) / durations.length,
           p50: sorted[Math.ceil(sorted.length * .50) - 1], p95: sorted[Math.ceil(sorted.length * .95) - 1], max: sorted.at(-1)! };
       };
-      /** 20 warm-up + 240 measured frames; `pan` moves the camera one pixel per frame (cache miss every frame). */
-      const measure = (cacheLayers: boolean, pan: boolean) => {
+      type Frames = ReturnType<typeof combatBenchmarkFrames>;
+      /** 20 warm-up + 240 measured frames; `pan` moves the camera one pixel per frame (cache miss every frame); `frames`: combat effects per frame. */
+      const measure = (cacheLayers: boolean, pan: boolean, input = view, frames?: Frames) => {
         const renderer = createMapRenderer(canvas, { cacheLayers }), durations: number[] = [];
         for (let frame = 0; frame < 260; frame++) {
           const started = performance.now();
-          renderer.render({ view, camera: pan ? { ...camera, x: camera.x + frame } : camera });
+          renderer.render({ view: input, camera: pan ? { ...camera, x: camera.x + frame } : camera, animation: frames?.[frame % frames.length] });
           if (frame >= 20) durations.push(performance.now() - started);
         }
         return stats(durations);
       };
       const uncached = measure(false, false), cachedStill = measure(true, false), cachedPan = measure(true, true);
+      // Combat effects (handoff-combat-presentation §4): four simultaneous battles between visible units, sampled across
+      // their whole length, on the scene as loaded and with the map drawn east-west wrapped (render input only; the game is untouched).
+      let combatEffects;
+      if (combat) {
+        const frames = combatBenchmarkFrames(view.units, view.map, 4, 260);
+        const wrapped = { ...view, map: { ...view.map, wrap: true as const } };
+        combatEffects = { effectsPerFrame: Math.max(...frames.map((frame: { effects: unknown[] }) => frame.effects.length)),
+          direct: measure(false, false, view, frames), cachedStill: measure(true, false, view, frames),
+          wrappedDirect: measure(false, false, wrapped, frames), wrappedCachedStill: measure(true, false, wrapped, frames) };
+      }
       return {
         mapTiles: view.map.tiles.length,
         visibleUnits: view.units.length,
         // Top-level figures stay comparable with earlier reports: every layer drawn directly.
         ...uncached,
-        cachedStill, cachedPan,
+        cachedStill, cachedPan, ...(combatEffects ? { combatEffects } : {}),
         dpr: window.devicePixelRatio,
         viewport: { width: window.innerWidth, height: window.innerHeight },
         userAgent: navigator.userAgent,
       };
-    });
+    }, Boolean(dense));
     if (dense) expect(measured.visibleUnits).toBeGreaterThanOrEqual(100);
+    if (dense) expect(measured.combatEffects!.effectsPerFrame).toBeGreaterThan(4);
     results.push({ scenario: scenario.name, seed: scenario.seed, round: peakState.round,
       commandSeq: peakState.commandSeq, expansionVersion: peakState.setup.expansionVersion,
       contentVersion: peakState.contentVersion, ...measured });

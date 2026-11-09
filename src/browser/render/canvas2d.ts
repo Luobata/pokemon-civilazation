@@ -14,8 +14,8 @@ import { drawTerrain } from '../terrain.ts';
 import { drawIcon, drawPixelNumber, drawYieldRow } from '../map-icons.ts';
 import type { IconName } from '../map-icons.ts';
 import type { MapScene, SceneCity, UnitMarkIdentity } from './scene.ts';
-import { EMPTY_FRAME } from './animation.ts';
-import type { AnimationFrame } from './animation.ts';
+import { EMPTY_FRAME, SWEEP_MS, SWEEP_RING_MS } from './animation.ts';
+import type { AnimationFrame, MapEffect, NumberTone } from './animation.ts';
 
 export const FACTIONS = ['#3BA68A', '#D3655C', '#9B83D0', '#D59A45'];
 const DISTRICT_COLORS: Record<keyof typeof DISTRICTS, string> = {
@@ -32,7 +32,8 @@ export type LayerName = 'base' | 'features' | 'cities' | 'yields' | 'weather' | 
  * canvas because the camera is moving (rebuilding a cache every frame costs more than it saves).
  */
 export type LayerStat = 'hit' | 'miss' | 'direct' | 'off';
-export type RenderStats = { base: LayerStat; fog: LayerStat | 'none' };
+/** `shake`: the whole-frame offset applied this frame, in device pixels. */
+export type RenderStats = { base: LayerStat; fog: LayerStat | 'none'; shake: Point };
 
 /** Per-frame drawing state shared by the layer functions. */
 type Draw = {
@@ -40,7 +41,16 @@ type Draw = {
   centers: Point[]; onscreen(p: Point): boolean; scene: MapScene;
   /** v22 wrapping maps: screen-x offset of the map copy being drawn, and the width of one copy (0 on flat maps). */
   shift: number; span: number;
+  /** Particles still allowed this frame, shared by every map copy (PARTICLE_CAP per frame). */
+  budget: { particles: number };
 };
+/** Upper bound on combat particles drawn in one frame, all map copies together. */
+export const PARTICLE_CAP = 180;
+/** Fixed particle spray (golden-angle directions, varied speed and size), reused by every impact: no allocation per frame. */
+const PARTICLES = Array.from({ length: 14 }, (_, index) => {
+  const angle = index * 2.39996 + .4;
+  return { dx: Math.cos(angle), dy: Math.sin(angle), speed: .55 + (index * 37 % 11) / 18, size: .1 + (index % 3) * .03, white: index % 4 === 0 };
+});
 
 function polygon(d: Draw, p: Point) {
   const { context, radius } = d;
@@ -59,6 +69,21 @@ function centeredText(d: Draw, text: string, p: Point, color: string, size: numb
   context.textBaseline = 'middle';
   context.fillText(text, p.x, p.y);
 }
+/** Text with a dark outline (stroke under fill), readable on every terrain; no shadowBlur. */
+function outlinedText(d: Draw, text: string, p: Point, color: string, size: number, outline = '#10191B') {
+  const { context } = d;
+  context.font = `800 ${Math.max(10, size)}px system-ui, sans-serif`;
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.lineJoin = 'round';
+  context.lineWidth = Math.max(2.5, size * .16);
+  context.strokeStyle = outline;
+  context.strokeText(text, p.x, p.y);
+  context.fillStyle = color;
+  context.fillText(text, p.x, p.y);
+}
+/** City-banner colours: red below half, otherwise green. */
+const hpColor = (current: number, max: number) => current * 2 < max ? '#E07A6D' : '#72C99E';
 export function ownerColor(ownerId: number | null) {
   return ownerId === null ? '#855000' : FACTIONS[ownerId] ?? '#5F6E66';
 }
@@ -338,7 +363,11 @@ function drawWeather(d: Draw) {
       centeredText(d, field.mark, p, '#10191B', size * 1.2);
     }
   }
-  if (scene.night) { context.fillStyle = '#0A143066'; context.fillRect(0, 0, d.width, d.height); }
+}
+/** Night dims the whole frame once (not once per map copy); the margin covers the screen-shake offset. */
+function drawNight(d: Draw | undefined) {
+  if (!d?.scene.night) return;
+  d.context.fillStyle = '#0A143066'; d.context.fillRect(-8, -8, d.width + 16, d.height + 16);
 }
 
 function unitMark(d: Draw, unit: UnitMarkIdentity, point: Point, actionLeft?: number, enraged = false) {
@@ -401,6 +430,17 @@ function rankMark(d: Draw, p: Point, rank: number, promotable: boolean) {
   }
 }
 
+/** A 3 px HP bar along the bottom of a damaged unit (same colours as the city banner bar). */
+function unitHpBar(d: Draw, point: Point, hp: { current: number; max: number }) {
+  if (!d.onscreen(point)) return;
+  const { context } = d;
+  const size = Math.max(26, Math.min(54, d.radius * 1.75));
+  const width = Math.round(size * .62), height = 3, left = Math.round(point.x - width / 2), top = Math.round(point.y + size * .46);
+  context.fillStyle = '#10191BE6'; context.fillRect(left - 1, top - 1, width + 2, height + 2);
+  context.fillStyle = '#3A2A28'; context.fillRect(left, top, width, height);
+  context.fillStyle = hpColor(hp.current, hp.max); context.fillRect(left, top, Math.max(1, Math.round(width * hp.current / hp.max)), height);
+}
+
 /** Units at their tiles, except those an animation is currently posing elsewhere. */
 function drawUnits(d: Draw, frame: AnimationFrame, camera: Camera) {
   const { context, centers, radius, scene } = d;
@@ -421,8 +461,24 @@ function drawUnits(d: Draw, frame: AnimationFrame, camera: Camera) {
       centeredText(d, item.status, q, '#FFF8E5', size * 1.1);
     }
     if ((item.rank || item.promotable) && d.onscreen(p)) rankMark(d, p, item.rank ?? 0, item.promotable ?? false);
+    if (item.hp) unitHpBar(d, p, item.hp);
   }
-  for (const pose of frame.poses) { const p = toScreen(pose.position, camera); unitMark(d, pose.unit, { x: p.x + d.shift, y: p.y }); }
+  for (const pose of frame.poses) {
+    const p = toScreen(pose.position, camera), point = { x: p.x + d.shift, y: p.y };
+    if (pose.alpha !== undefined || pose.grey) {
+      // A knocked-down unit's afterimage: one small greyscale sprite, fading (the filter covers a single unit mark).
+      if (!d.onscreen(point)) continue;
+      context.save();
+      context.globalAlpha = Math.max(0, Math.min(1, pose.alpha ?? 1));
+      if (pose.grey) context.filter = 'grayscale(1) brightness(.8)';
+      unitMark(d, pose.unit, point);
+      context.restore();
+      continue;
+    }
+    unitMark(d, pose.unit, point);
+    const hp = scene.units.find(item => item.unit.id === pose.unit.id)?.hp;
+    if (hp) unitHpBar(d, point, hp);
+  }
 }
 
 /** Civilization-style banner: faction mark, population (own cities), name, capital star, HP when damaged. */
@@ -573,9 +629,105 @@ function drawDebug(d: Draw) {
   }
 }
 
-function drawEffects(d: Draw, frame: AnimationFrame, indexOf: (hex: Hex) => number | null) {
+/** Combat text styles: colour, size as a share of the hex radius, and a cap in CSS px. */
+const NUMBER_STYLES: Record<NumberTone, { color: string; scale: number; max: number }> = {
+  damage: { color: '#FFF3E8', scale: .8, max: 30 }, counter: { color: '#FFD27A', scale: .62, max: 22 },
+  super: { color: '#F2C14E', scale: .42, max: 17 }, weak: { color: '#B8C2BD', scale: .4, max: 16 }, tag: { color: '#D4DED5', scale: .4, max: 16 },
+};
+const easeOut = (t: number) => 1 - (1 - t) * (1 - t);
+
+/** A ranged strike in flight: a short arc with a fading trail, in the attack type's colour. */
+function drawProjectile(d: Draw, effect: Extract<MapEffect, { kind: 'projectile' }>, camera: Camera) {
+  const { context, radius } = d;
+  const at = (t: number): Point => {
+    const s = toScreen({ x: effect.from.x + (effect.to.x - effect.from.x) * t, y: effect.from.y + (effect.to.y - effect.from.y) * t - Math.sin(Math.PI * t) * HEX_RADIUS * .45 }, camera);
+    return { x: s.x + d.shift, y: s.y };
+  };
+  const t = Math.max(0, Math.min(1, effect.progress)), head = at(t);
+  if (!d.onscreen(head)) return;
+  const size = Math.max(4, radius * .2);
+  context.save();
+  context.fillStyle = effect.color;
+  for (let i = 4; i >= 1; i--) {
+    const q = at(Math.max(0, t - i * .07)), s = Math.max(2, size * (1 - i * .18));
+    context.globalAlpha = 1 - i * .2;
+    context.fillRect(Math.round(q.x - s / 2), Math.round(q.y - s / 2), Math.ceil(s), Math.ceil(s));
+  }
+  context.globalAlpha = 1;
+  context.beginPath(); context.arc(head.x, head.y, size, 0, Math.PI * 2);
+  context.fill(); context.strokeStyle = '#10191B'; context.lineWidth = 2; context.stroke();
+  context.beginPath(); context.arc(head.x, head.y, size * .42, 0, Math.PI * 2); context.fillStyle = '#FFFDF7'; context.fill();
+  context.restore();
+}
+/** A hit: brief additive white flash on the tile; with `burst`, a type-coloured ring and pooled square particles. */
+function drawImpact(d: Draw, p: Point, effect: Extract<MapEffect, { kind: 'impact' }>) {
+  const { context, radius } = d, t = effect.progress;
+  context.save();
+  if (t < .45) {
+    context.globalCompositeOperation = 'lighter';
+    polygon(d, p); context.fillStyle = `rgb(255 253 247 / ${Math.round((1 - t / .45) * 40)}%)`; context.fill();
+    context.globalCompositeOperation = 'source-over';
+  }
+  if (effect.burst) {
+    context.globalAlpha = 1 - t;
+    context.beginPath(); context.arc(p.x, p.y, radius * (.25 + .8 * easeOut(t)), 0, Math.PI * 2);
+    context.strokeStyle = effect.color; context.lineWidth = Math.max(1.5, 4 * (1 - t)); context.stroke();
+    const reach = radius * 1.05 * easeOut(t);
+    for (const particle of PARTICLES) {
+      if (d.budget.particles <= 0) break;
+      d.budget.particles--;
+      const size = Math.max(2, radius * particle.size * (1 - t * .6));
+      context.fillStyle = particle.white ? '#FFFDF7' : effect.color;
+      context.fillRect(Math.round(p.x + particle.dx * reach * particle.speed - size / 2), Math.round(p.y + particle.dy * reach * particle.speed - radius * .15 - size / 2), Math.ceil(size), Math.ceil(size));
+    }
+  }
+  context.restore();
+}
+/** City capture: each territory tile lights up in the new owner's colour as the sweep reaches its ring. */
+function drawSweep(d: Draw, effect: Extract<MapEffect, { kind: 'sweep' }>, indexOf: (hex: Hex) => number | null) {
+  const { context, centers } = d, color = ownerColor(effect.ownerId), elapsed = effect.progress * SWEEP_MS;
+  context.save();
+  for (const tile of effect.tiles) {
+    const local = (elapsed - tile.ring * SWEEP_RING_MS) / (SWEEP_MS - 3 * SWEEP_RING_MS);
+    if (local <= 0 || local >= 1) continue;
+    const index = indexOf(tile.hex);
+    if (index === null || !d.onscreen(centers[index])) continue;
+    const alpha = local < .25 ? local / .25 : 1 - (local - .25) / .75;
+    polygon(d, centers[index]);
+    context.globalAlpha = alpha * .5; context.fillStyle = color; context.fill();
+    context.globalAlpha = alpha; context.strokeStyle = color; context.lineWidth = 2.5; context.stroke();
+  }
+  context.restore();
+}
+/** City capture: the previous owner's banner swings off its left corner and drops away. */
+function drawFallingBanner(d: Draw, p: Point, effect: Extract<MapEffect, { kind: 'banner' }>) {
+  const { context, radius } = d, t = effect.progress;
+  const height = Math.max(16, Math.min(24, radius * .8)), width = height * 2.8, top = p.y - citySize(radius) * .66 - height;
+  context.save();
+  context.globalAlpha = 1 - t * t;
+  context.translate(p.x - width / 2, top + height / 2 + t * t * radius * 1.5);
+  context.rotate(t * .9);
+  context.beginPath(); context.roundRect(0, -height / 2, width, height, height / 2);
+  context.fillStyle = '#14211FE6'; context.fill();
+  context.strokeStyle = ownerColor(effect.ownerId); context.lineWidth = 2; context.stroke();
+  const square = { x: height / 2, y: 0 };
+  factionRect(d, effect.ownerId, square, height - 4, (height - 4) / 2);
+  context.strokeStyle = '#FFFDF7'; context.lineWidth = 1; context.stroke();
+  centeredText(d, effect.ownerId === null ? '爪' : String(effect.ownerId + 1), { x: square.x, y: .3 }, '#FFFDF7', (height - 4) * .65);
+  // The torn edge: a zigzag in the banner colour on its right end.
+  context.beginPath(); context.moveTo(width - 3, -height / 2);
+  for (let i = 1; i <= 4; i++) context.lineTo(width - (i % 2 ? 9 : 3), -height / 2 + i * height / 4);
+  context.strokeStyle = ownerColor(effect.ownerId); context.lineWidth = 2; context.stroke();
+  context.restore();
+}
+
+function drawEffects(d: Draw, frame: AnimationFrame, indexOf: (hex: Hex) => number | null, camera: Camera) {
   const { context, centers, radius } = d;
+  // Territory sweeps first, under every other effect.
+  for (const effect of frame.effects) if (effect.kind === 'sweep') drawSweep(d, effect, indexOf);
   for (const effect of frame.effects) {
+    if (effect.kind === 'sweep') continue;
+    if (effect.kind === 'projectile') { drawProjectile(d, effect, camera); continue; }
     const index = indexOf(effect.position);
     if (index === null) continue;
     const p = centers[index];
@@ -586,14 +738,16 @@ function drawEffects(d: Draw, frame: AnimationFrame, indexOf: (hex: Hex) => numb
       context.beginPath(); context.arc(p.x, p.y, radius * grow, 0, Math.PI * 2);
       context.strokeStyle = effect.tone === 'error' ? '#E07A6D' : '#FFF3C4'; context.lineWidth = 3; context.stroke();
       context.restore();
-    } else if (effect.kind === 'battle') {
-      if (effect.progress < .5) {
-        polygon(d, p);
-        context.fillStyle = `rgb(255 253 247 / ${45 - effect.progress * 60}%)`;
-        context.fill();
-      }
-      centeredText(d, `−${effect.damage}`, { x: p.x, y: p.y - radius * (.7 + effect.progress * .5) }, '#F4E0DB', radius * .65);
-      if (effect.counterDamage) centeredText(d, `反击 −${effect.counterDamage}`, { x: p.x, y: p.y - radius * .15 }, '#FFFDF7', radius * .35);
+    } else if (effect.kind === 'impact') drawImpact(d, p, effect);
+    else if (effect.kind === 'banner') drawFallingBanner(d, p, effect);
+    else if (effect.kind === 'number') {
+      // Pop (scale 1.4 → 1 in the first 15%; tags don't pop), float up, fade out over the last 40%.
+      const t = effect.progress, style = NUMBER_STYLES[effect.tone];
+      const pop = effect.tone !== 'tag' && t < .15 ? 1.4 - (t / .15) * .4 : 1, size = Math.min(style.max, radius * style.scale) * pop;
+      context.save();
+      context.globalAlpha = t > .6 ? Math.max(0, 1 - (t - .6) / .4) : 1;
+      outlinedText(d, effect.text, { x: p.x, y: p.y - radius * (.55 + (effect.lift ?? 0) + t * .55) }, style.color, size);
+      context.restore();
     } else if (effect.kind === 'capture') {
       const offset = effect.progress < .45 ? (1 - effect.progress / .45) * radius * 1.5 : 0;
       context.beginPath(); context.arc(p.x, p.y - offset, radius * .32, 0, Math.PI * 2);
@@ -651,9 +805,13 @@ export function createCanvas2DRenderer(canvas: HTMLCanvasElement, options: Rende
       const deviceWidth = Math.round(width * dpr), deviceHeight = Math.round(height * dpr);
       if (canvas.width !== deviceWidth) canvas.width = deviceWidth;
       if (canvas.height !== deviceHeight) canvas.height = deviceHeight;
-      context.setTransform(dpr, 0, 0, dpr, 0, 0);
+      // Screen shake: one whole-device-pixel offset for the frame, shared by cached blits and direct drawing.
+      // The camera (and so every cache key) stays put.
+      const shakeX = Math.round((frame.shake?.x ?? 0) * dpr), shakeY = Math.round((frame.shake?.y ?? 0) * dpr);
+      context.setTransform(1, 0, 0, 1, 0, 0);
+      context.clearRect(0, 0, deviceWidth, deviceHeight);
+      context.setTransform(dpr, 0, 0, dpr, shakeX, shakeY);
       context.imageSmoothingEnabled = false;
-      context.clearRect(0, 0, width, height);
       const radius = HEX_RADIUS * camera.zoom;
       const centers = scene.tiles.map(tile => toScreen(tile.world, camera));
       const onscreen = (p: Point) => p.x >= -radius && p.x <= width + radius && p.y >= -radius && p.y <= height + radius;
@@ -662,8 +820,9 @@ export function createCanvas2DRenderer(canvas: HTMLCanvasElement, options: Rende
       const span = scene.wrap ? mapSpan(scene) * camera.zoom : 0;
       const copies = copyShifts(scene, camera, width, radius * 4).map(shift => ({
         shift, centers: shift === 0 ? centers : centers.map(p => ({ x: p.x + shift, y: p.y })) }));
+      const budget = { particles: PARTICLE_CAP };
       const draws = (target: CanvasRenderingContext2D): Draw[] => copies.map(copy => ({
-        context: target, width, height, radius, centers: copy.centers, onscreen, scene, shift: copy.shift, span }));
+        context: target, width, height, radius, centers: copy.centers, onscreen, scene, shift: copy.shift, span, budget }));
       const every = (paint: (draw: Draw) => void) => (target: CanvasRenderingContext2D) => { for (const item of draws(target)) paint(item); };
       const all = draws(context);
       const indexOf = (hex: Hex) => hexToIndex(hex, scene);
@@ -675,10 +834,10 @@ export function createCanvas2DRenderer(canvas: HTMLCanvasElement, options: Rende
       const layer = (cache: LayerCache | null, key: string, paint: (draw: Draw) => void): { cache: LayerCache | null; stat: LayerStat } => {
         const painter = every(paint);
         if (!caching) { painter(context); return { cache, stat: 'off' }; }
-        if (cache?.key === key) { blit(context, cache.canvas, dpr); return { cache, stat: 'hit' }; }
+        if (cache?.key === key) { blit(context, cache.canvas, dpr, shakeX, shakeY); return { cache, stat: 'hit' }; }
         if (!settled) { painter(context); return { cache, stat: 'direct' }; }
         const built = cachedLayer(cache, key, deviceWidth, deviceHeight, dpr, painter);
-        blit(context, built.cache.canvas, dpr);
+        blit(context, built.cache.canvas, dpr, shakeX, shakeY);
         return { cache: built.cache, stat: 'miss' };
       };
       const baseKey = `${view}|${scene.tiles.map(tile => tile.biome ?? '-').join(',')}|${scene.territoryEdges.map(edge => `${edge.index}.${edge.direction}.${edge.ownerId}`).join(',')}`;
@@ -690,6 +849,7 @@ export function createCanvas2DRenderer(canvas: HTMLCanvasElement, options: Rende
       for (const item of all) drawCities(item);
       for (const item of all) drawYields(item);
       for (const item of all) drawWeather(item);
+      drawNight(all[0]);
       for (const item of all) drawUnits(item, frame, camera);
       for (const item of all) drawBanners(item);
       for (const item of all) drawInteraction(item);
@@ -700,14 +860,15 @@ export function createCanvas2DRenderer(canvas: HTMLCanvasElement, options: Rende
       }
       for (const item of all) drawSelection(item, frame);
       if (scene.debug.overlay !== 'none') for (const item of all) drawDebug(item);
-      for (const item of all) drawEffects(item, frame, indexOf);
-      return { base: baseLayer.stat, fog: fogStat };
+      for (const item of all) drawEffects(item, frame, indexOf, camera);
+      return { base: baseLayer.stat, fog: fogStat, shake: { x: shakeX, y: shakeY } };
     },
   };
 }
 
-function blit(context: CanvasRenderingContext2D, layer: HTMLCanvasElement, dpr: number) {
+/** Copies a cached device-pixel layer; `dx`/`dy` is the frame's shake in device pixels. */
+function blit(context: CanvasRenderingContext2D, layer: HTMLCanvasElement, dpr: number, dx: number, dy: number) {
   context.setTransform(1, 0, 0, 1, 0, 0);
-  context.drawImage(layer, 0, 0);
-  context.setTransform(dpr, 0, 0, dpr, 0, 0);
+  context.drawImage(layer, dx, dy);
+  context.setTransform(dpr, 0, 0, dpr, dx, dy);
 }
