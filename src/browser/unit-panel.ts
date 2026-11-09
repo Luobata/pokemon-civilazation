@@ -3,7 +3,7 @@ import { captureBlocker, evolutionState, foundingReason } from './unit-action-ba
 import { classModifierLabels, hasAffinity, usesUnitClasses } from '../core/unit-classes.ts';
 import { CLASS_COUNTERS, CLASS_IDS, CLASS_NAMES, CLASS_NATIVE_TYPES } from '../content/unit-classes.ts';
 import { ROLE_POKEMON, BUILDER_RULES } from '../content/roles.ts';
-import { usesBuilders } from '../core/improvements.ts';
+import { usesBuilders, usesImprovementsV23 } from '../core/improvements.ts';
 import { tradeDestinations } from '../core/city-network.ts';
 import { ESCORT_BONUSES, escortBonusKind } from '../content/city-network.ts';
 import type { MapUnit } from '../core/model.ts';
@@ -25,7 +25,8 @@ import { doctrineEffects } from '../core/leader-doctrines.ts';
 import { ROLE_CITY_ASSAULT } from '../core/role-tactics.ts';
 import { improvementOptions, improvementYield } from '../core/improvements.ts';
 import { exertsZoc, ignoresZoc, usesTactics } from '../core/tactics.ts';
-import { IMPROVEMENT_WORK, IMPROVEMENTS } from '../content/improvements.ts';
+import { CREW_SPECIALTIES, IMPROVEMENT_WORK, IMPROVEMENTS, crewSpecialtyFor } from '../content/improvements.ts';
+import { pillageRewardLabel, viewPillage, viewRepairs } from '../core/pillage.ts';
 import type { ImprovementId } from '../content/improvements.ts';
 import { unitDefinition, contentForView } from '../content/units.ts';
 import type { BallId } from '../content/economy.ts';
@@ -71,10 +72,13 @@ export function renderUnitPanel(view: PlayerView, selected: number | null, mode:
   if (!unit) { root.innerHTML = ''; return; }
   if (unit.kind === 'logistics' && unit.role === 'builder') {
     const options = view.expansion?.improvements ? improvementOptions(view, unit.id, CONTENT) : [];
+    const repairs = viewRepairs(view, unit.id, CONTENT);
     const yieldText = (kind: ImprovementId) => Object.entries(improvementYield(kind, view.economy.player)).filter(([, amount]) => amount > 0)
       .map(([key, amount]) => `${({ food: '食', production: '产', gold: '金', research: '研' } as const)[key as 'food']}+${amount}`).join(' ');
     root.innerHTML = `<div class="unit-card builder-card"><div class="unit-head"><div class="unit-portrait"><img src="${ROLE_POKEMON.builder.sprite}" alt="${ROLE_POKEMON.builder.species}" width="64" height="64"></div><div><strong>工匠 · ${ROLE_POKEMON.builder.species}</strong><small>地块改良 · 剩余 ${unit.charges ?? 0} 次 · 文明 ${view.playerId + 1}</small></div><span class="unit-ap ${unit.actionLeft ? '' : 'spent'}">${actionPointLabel(view, unit, CONTENT)}</span></div>
       <p class="settler-intro">站到己方领地内的地块上（渔场可在相邻陆地施工），一次行动就建好一处改良。每个工匠能建 ${BUILDER_RULES.charges} 处，用完后离开。没有战斗力，被攻击会直接被打散。</p>
+      ${unit.escortId && usesImprovementsV23(view) ? `<p class="unit-note" id="crew-note">随行：${CONTENT.species[unit.escortId].name} · 特长「${CREW_SPECIALTIES[crewSpecialtyFor(CONTENT.species[unit.escortId].typeId)].name}」：${CREW_SPECIALTIES[crewSpecialtyFor(CONTENT.species[unit.escortId].typeId)].label}（记在建成的地块上）</p>` : ''}
+      ${repairs.length ? `<section class="improvement-box" id="repair-box" aria-label="修复改良">${repairs.map(tileIndex => `<button type="button" data-repair="${tileIndex}" ${busy ? 'disabled' : ''}>修复${IMPROVEMENTS[view.expansion!.improvements!.tiles.find(tile => tile.tileIndex === tileIndex)!.kind].name}（不消耗次数）</button>`).join('')}</section>` : ''}
       <section class="improvement-box" id="improvement-box" aria-label="地块改良">${options.length
         ? options.map(option => `<button type="button" data-improve="${option.tileIndex}:${option.kind}" ${busy ? 'disabled' : ''}>${IMPROVEMENTS[option.kind].name}（${yieldText(option.kind)}）</button>`).join('')
         : `<p class="unit-note">${unit.actionLeft ? '移到己方领地内的非城市地块（渔场可在相邻陆地施工）即可改良。' : '本回合行动点已用完。'}</p>`}</section>
@@ -84,6 +88,7 @@ export function renderUnitPanel(view: PlayerView, selected: number | null, mode:
       const [tile, kind] = button.dataset.improve!.split(':');
       callbacks.improve?.(Number(tile), kind as ImprovementId);
     });
+    for (const button of root.querySelectorAll<HTMLButtonElement>('[data-repair]')) button.addEventListener('click', () => callbacks.issue?.({ type: 'RepairImprovement', unitId: unit.id, tileIndex: Number(button.dataset.repair) }));
     return;
   }
   if (unit.kind === 'logistics' && unit.role === 'trader') {
@@ -145,6 +150,9 @@ export function renderUnitPanel(view: PlayerView, selected: number | null, mode:
   const improvementMarkup = view.expansion?.improvements && !usesBuilders(view) ? `<section class="improvement-box" id="improvement-box" aria-label="地块改良"><p class="section-label">地块改良 · 己方领地内，${IMPROVEMENT_WORK.required} 点完工（熟练属性每次 ${IMPROVEMENT_WORK.crew} 点，其他 ${IMPROVEMENT_WORK.other} 点）</p>${options.length
     ? options.map(option => `<button type="button" data-improve="${option.tileIndex}:${option.kind}" ${busy ? 'disabled' : ''}>${IMPROVEMENTS[option.kind].name}（${yieldLabel(option.kind)}）· 进度 ${option.progress}/${IMPROVEMENT_WORK.required} +${option.points}</button>`).join('')
     : `<p class="unit-note">${unit.actionLeft ? '移到己方领地内的非城市地块（渔场可在相邻陆地施工）即可改良。' : '本回合行动点已用完。'}</p>`}</section>` : '';
+  // v23: pillage lives in the action bar in single player; the drawer (multiplayer) shows it here.
+  const pillage = inBar ? null : viewPillage(view, unit.id);
+  const pillageMarkup = pillage ? `<section class="improvement-box" id="pillage-box" aria-label="掠夺改良"><button type="button" id="pillage-unit" ${busy ? 'disabled' : ''}>掠夺${IMPROVEMENTS[pillage.kind].name}（${pillageRewardLabel(pillage.reward)}）</button></section>` : '';
   const era = view.expansion?.eraAbilities, stock = view.expansion?.essences?.stock;
   const essence = era && stock ? primaryEssence(unit, CONTENT) : null;
   const status = era?.units[unit.id] ?? {};
@@ -175,7 +183,7 @@ export function renderUnitPanel(view: PlayerView, selected: number | null, mode:
     ${usesTactics(view) ? `<p class="unit-note" id="zoc-note">${exertsZoc(unit, CONTENT) ? '控制区：相邻敌军移动到此即停下。' : ''}${ignoresZoc(unit, CONTENT) ? '可无视敌方控制区。' : '进入敌方近战/快速单位相邻格会停下。'}${CONTENT.combat === 'strength' ? '夹击：相邻目标的友军 1 / 2 / 3 只，战斗力 +2 / +5 / +7。' : '夹击：每只相邻目标的友军 +10% 伤害（最多 +30%）。'}</p>` : ''}
     ${promotionMarkup(view, unit.id, busy)}
     ${eraMarkup}
-    ${improvementMarkup}
+    ${improvementMarkup}${pillageMarkup}
     ${branchMarkup}
     ${!inBar && evolutionNote ? `<p class="unit-note" id="evolution-blocker">进化→${CONTENT.species[evolution!.speciesId].name}：${EVOLUTION_BLOCKER_TEXT[evolutionNote]}。</p>` : ''}
     ${!inBar && !canCapture ? '<p class="unit-note">捕捉需要研究「驯化」，并在城市采购精灵球。</p>' : ''}
@@ -186,6 +194,7 @@ export function renderUnitPanel(view: PlayerView, selected: number | null, mode:
   root.querySelector('#capture-unit')?.addEventListener('click', () => callbacks.mode(mode === 'capture' ? null : 'capture'));
   root.querySelector('#evolve-unit')?.addEventListener('click', () => callbacks.evolve(CONTENT.roster && evolution ? evolution.speciesId : undefined));
   for (const button of root.querySelectorAll<HTMLButtonElement>('[data-evolve]')) button.addEventListener('click', () => callbacks.evolve(button.dataset.evolve as SpeciesId));
+  root.querySelector('#pillage-unit')?.addEventListener('click', () => callbacks.issue?.({ type: 'PillageImprovement', unitId: unit.id }));
   for (const button of root.querySelectorAll<HTMLButtonElement>('[data-promote]')) button.addEventListener('click', () => callbacks.issue?.({ type: 'PromoteUnit', unitId: unit.id, trait: button.dataset.promote as never }));
   for (const button of root.querySelectorAll<HTMLButtonElement>('[data-era-action]')) button.addEventListener('click', () => callbacks.issue?.(JSON.parse(button.dataset.eraAction!)));
   root.querySelector('#terastallize')?.addEventListener('click', () => callbacks.issue?.({ type: 'Terastallize', unitId: unit.id, typeId: root.querySelector<HTMLSelectElement>('#tera-type')!.value as TypeId }));

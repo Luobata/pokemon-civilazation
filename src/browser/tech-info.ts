@@ -11,6 +11,7 @@ import { TREE_RULES } from '../content/tech-tree.ts';
 import type { TreeTechId } from '../content/tech-tree.ts';
 import { BUILDER_RULES } from '../content/roles.ts';
 import { SPECIES_NAMES } from '../content/species.ts';
+import { IMPROVEMENTS, IMPROVEMENT_IDS_V23 } from '../content/improvements.ts';
 import { ERA_SIEGE_TECH_MULTIPLIER, ERA_TECH_RECRUITS } from '../core/role-tactics.ts';
 
 export const TECH_EFFECTS: Record<LegacyTechId, string> = {
@@ -45,7 +46,7 @@ export const TREE_TECH_EFFECTS: Record<TreeTechId, string> & Partial<Record<Lega
 };
 const effectText = (id: TechId, tree: boolean): string => (tree ? TREE_TECH_EFFECTS[id as TreeTechId] : undefined) ?? TECH_EFFECTS[id as LegacyTechId] ?? '';
 
-export type TechUnlock = { kind: 'effect' | 'building' | 'district' | 'recruit' | 'class'; text: string };
+export type TechUnlock = { kind: 'effect' | 'building' | 'district' | 'recruit' | 'class' | 'improvement'; text: string };
 export function techUnlocks(id: TechId, content?: Content, gameplayVersion?: number): TechUnlock[] {
   const tree = Boolean(content?.techTree);
   const hm = (gameplayVersion ?? 0) >= 19 ? (Object.entries(classHms(content ?? {})) as [UnitClass, { hm: string; techId: TechId }][]).find(([, item]) => item.techId === id) : undefined;
@@ -57,6 +58,10 @@ export function techUnlocks(id: TechId, content?: Content, gameplayVersion?: num
     ...DISTRICT_IDS.filter(district => districtTech(district, tree) === id).map(district => ({ kind: 'district' as const, text: `设施区「${DISTRICTS[district].name}」` })),
     ...(hm ? [{ kind: 'class' as const, text: `学会秘传「${hm[1].hm}」：可训练${CLASS_NAMES[hm[0]]}宝可梦` }] : []),
     ...(recruit ? [{ kind: 'recruit' as const, text: `各城可招募${SPECIES_NAMES[recruit]}` }] : []),
+    // v23: improvements that need this technology, and the new improvements it boosts.
+    ...(content?.resourceImprovements ? IMPROVEMENT_IDS_V23.filter(kind => IMPROVEMENTS[kind].requiredTech === id).map(kind => ({ kind: 'improvement' as const, text: `可建改良「${IMPROVEMENTS[kind].name}」` })) : []),
+    ...(content?.resourceImprovements ? IMPROVEMENT_IDS_V23.filter(kind => IMPROVEMENTS[kind].requiredTech && IMPROVEMENTS[kind].boostTech === id)
+      .map(kind => ({ kind: 'improvement' as const, text: `${IMPROVEMENTS[kind].name}再加${Object.entries(IMPROVEMENTS[kind].boost!).filter(([, v]) => v > 0).map(([k, v]) => `${({ food: '食物', production: '生产', gold: '金币', research: '科研' } as const)[k as 'food']} +${v}`).join('、')}` })) : []),
   ];
 }
 export const TECH_TIERS = [1, 2, 3] as const;

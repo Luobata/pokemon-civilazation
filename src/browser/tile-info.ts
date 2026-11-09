@@ -9,7 +9,7 @@ import { promotionMovement } from '../core/promotions.ts';
 import { promotionLine } from './promotion-panel.ts';
 import { DISTRICTS } from '../content/districts.ts';
 import { ESSENCES, BIOME_ESSENCE } from '../content/essences.ts';
-import { IMPROVEMENTS } from '../content/improvements.ts';
+import { CREW_SPECIALTIES, IMPROVEMENTS } from '../content/improvements.ts';
 import { LEADERS } from '../content/leaders.ts';
 import { RARE_BERRIES, RARE_BERRY_RULES } from '../content/rare-berries.ts';
 import type { RareBerryId } from '../content/rare-berries.ts';
@@ -187,7 +187,10 @@ export function describeTile(view: PlayerView, index: number): TileInfo {
   const improvement = expansion?.improvements?.tiles.find(item => item.tileIndex === index);
   if (improvement) {
     const definition = IMPROVEMENTS[improvement.kind];
-    entities.push({ kind: 'improvement', tone: 'info', title: definition.name, subtitle: '地块改良', lines: [definition.description] });
+    const crew = improvement.crew ? CREW_SPECIALTIES[improvement.crew] : undefined;
+    entities.push({ kind: 'improvement', tone: 'info', title: `${definition.name}${improvement.damaged ? '（已损坏）' : ''}`, subtitle: '地块改良',
+      lines: [definition.description, ...(crew ? [`随行特长「${crew.name}」：${crew.label}`] : []),
+        ...(improvement.damaged ? [`第 ${improvement.damagedAtRound} 轮被掠夺，修好之前没有产出；己方工匠站上去即可修复（不消耗次数）。`] : [])] });
   }
   const project = expansion?.improvements?.projects.find(item => item.tileIndex === index);
   if (project) entities.push({ kind: 'construction', tone: 'own', title: `${IMPROVEMENTS[project.kind].name}（施工中）`, subtitle: '你的改良工程', lines: [`进度 ${project.progress}/3`] });

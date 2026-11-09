@@ -25,7 +25,8 @@ import { ERA_ABILITIES, ERA_ABILITY_IDS, WEATHERS, WEATHER_IDS } from '../conten
 import { ERA_DEFINITIONS } from '../content/eras.ts';
 import { ESSENCES, ESSENCE_IDS, ESSENCE_RULES } from '../content/essences.ts';
 import { LEGENDS, LEGEND_IDS, TENETS, TENET_IDS, FAITH_RULES } from '../content/faith-legends.ts';
-import { IMPROVEMENTS, IMPROVEMENT_IDS, IMPROVEMENT_WORK } from '../content/improvements.ts';
+import { CREW_SPECIALTIES, CREW_SPECIALTY_IDS, IMPROVEMENTS, IMPROVEMENT_IDS, IMPROVEMENT_IDS_V23, IMPROVEMENT_RULES_V23, IMPROVEMENT_WORK, PILLAGE_REWARD } from '../content/improvements.ts';
+import { crewApplies } from '../core/improvements.ts';
 import { LEADERS, LEADER_IDS } from '../content/leaders.ts';
 import type { LeaderId } from '../content/leaders.ts';
 import { CHARTERS, CHARTER_IDS, GOVERNMENTS, GOVERNMENT_IDS, GOVERNMENT_SWAP_GOLD, LEADER_GOVERNMENT_AFFINITY, LEADER_POLICY_AFFINITY, POLICIES, POLICY_IDS, POLICY_SWAP_GOLD } from '../content/policies.ts';
@@ -338,6 +339,21 @@ export function improvementTable(): string {
   }));
 }
 export const improvementWork = IMPROVEMENT_WORK;
+/** v23: every improvement with its technology, resource, pillage reward and crew specialty (generated from content). */
+export function improvementTableV23(): string {
+  const resourceName = { berry: '树果丛', stone: '进化石矿脉', rare: '稀有树果' } as const;
+  const rewardName = { food: '食物', production: '生产', gold: '金币', research: '科研' } as const;
+  return table(['改良', '建在', '基础', '需要科技', '强化', '掠夺所得', '随行特长'], IMPROVEMENT_IDS_V23.map(id => {
+    const item = IMPROVEMENTS[id], reward = PILLAGE_REWARD[id];
+    const crews = CREW_SPECIALTY_IDS.filter(crew => crewApplies(crew, id, item.biomes.length === 1 ? item.biomes[0] : null)).map(crew => CREW_SPECIALTIES[crew].name);
+    return [item.name, item.resource ? `${resourceName[item.resource]}（任何地形）` : biomeList(item.biomes), yieldText(item.base), item.requiredTech ? techName(item.requiredTech) : '—',
+      item.boostTech ? `${techName(item.boostTech)}：${yieldText(item.boost!)}` : '—', `${rewardName[reward]} +${IMPROVEMENT_RULES_V23.pillage[reward]}`, crews.join('、') || '—'];
+  }));
+}
+export function crewSpecialtyTable(): string {
+  return table(['特长', '随行宝可梦第一属性', '效果（记在这只工匠建成的地块上）'], CREW_SPECIALTY_IDS.map(id => [CREW_SPECIALTIES[id].name, CREW_SPECIALTIES[id].types.map(typeChip).join(''), CREW_SPECIALTIES[id].label]));
+}
+export const improvementRulesV23 = IMPROVEMENT_RULES_V23;
 export function districtTable(): string {
   return table(['设施区', '前置科技', '生产花费', '可建群系', '基础效果', '相邻加成（每格 / 上限）'], DISTRICT_IDS.map(id => {
     const d = DISTRICTS[id];

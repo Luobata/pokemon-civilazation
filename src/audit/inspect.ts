@@ -706,6 +706,13 @@ export function inspectSystem(systemId: string, state: GameState): AuditSystemIn
     return { metrics: [metric('当前规则', '开局节奏 v21'), metric('地图上的道具球', Object.keys(opening.itemBalls).length),
       ...Object.entries(opening.objectives).map(([id, done]) => metric(`玩家 ${id} 开局目标`, `${done.length}/8`))], data: { itemBalls: opening.itemBalls, seenByPlayer: opening.seen } };
   }
+  if (system.id === 's-improvements-v23') {
+    const on = (state.setup.gameplayVersion ?? 0) >= 23, tiles = Object.values(state.expansion?.improvements?.tiles ?? {});
+    if (!on) return { metrics: [metric('当前规则', '未启用（需 v23）')], data: {} };
+    return { metrics: [metric('当前规则', '改良升级 v23'), metric('已建改良', tiles.length), metric('已损坏', tiles.filter(tile => tile.damaged).length),
+      metric('资源改良', tiles.filter(tile => ['berryGrove', 'stoneQuarry', 'plantation'].includes(tile.kind)).length), metric('带随行特长', tiles.filter(tile => tile.crew).length)],
+      data: { improvements: state.expansion?.improvements?.tiles ?? {} } };
+  }
   if (system.id === 's-tech-tree') {
     const tree = contentOf(state).techTree === true;
     return { metrics: [metric('当前规则', tree ? '分支科技树 v22' : '三层科技（v≤21）'), metric('科技定义', Object.keys(contentOf(state).techs).length),
@@ -780,8 +787,11 @@ export function inspectSystem(systemId: string, state: GameState): AuditSystemIn
   }
   if (system.id === 's31-improvements') {
     const improvements = state.expansion?.improvements;
+    const placed = Object.values(improvements?.tiles ?? {});
     return { metrics: [metric('当前规则', improvements ? '时代玩法 v2' : '本局未启用（需时代玩法 v2）'), metric('已建改良', improvements ? Object.keys(improvements.tiles).length : 0),
-      metric('施工中', improvements ? Object.keys(improvements.projects).length : 0)],
+      metric('施工中', improvements ? Object.keys(improvements.projects).length : 0),
+      ...((state.setup.gameplayVersion ?? 0) >= 23 ? [metric('已损坏', placed.filter(tile => tile.damaged).length), metric('资源改良', placed.filter(tile => ['berryGrove', 'stoneQuarry', 'plantation'].includes(tile.kind)).length),
+        metric('带随行特长', placed.filter(tile => tile.crew).length)] : [])],
       data: { improvements: improvements ?? null, setup: { gameplayVersion: state.setup.gameplayVersion ?? null } } };
   }
   if (system.id === 's32-discoveries') {

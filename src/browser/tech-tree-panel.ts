@@ -14,8 +14,8 @@ import type { TechUnlock } from './tech-info.ts';
 import { drawTreeLinks } from './tree-links.ts';
 
 const COLUMN_NAMES = ['启程', '探索', '发展', '联盟', '精英', '传说'];
-const UNLOCK_MARK: Record<TechUnlock['kind'], string> = { effect: '效', building: '建', district: '区', recruit: '招', class: '秘' };
-const UNLOCK_LABEL: Record<TechUnlock['kind'], string> = { effect: '效果', building: '建筑', district: '设施区', recruit: '招募', class: '秘传' };
+const UNLOCK_MARK: Record<TechUnlock['kind'], string> = { effect: '效', building: '建', district: '区', recruit: '招', class: '秘', improvement: '改' };
+const UNLOCK_LABEL: Record<TechUnlock['kind'], string> = { effect: '效果', building: '建筑', district: '设施区', recruit: '招募', class: '秘传', improvement: '改良' };
 
 let selected: TechId | null = null;
 let observer: ResizeObserver | null = null;

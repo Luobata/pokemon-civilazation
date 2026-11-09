@@ -1,6 +1,6 @@
 import { classTrainingBlocker, usesUnitClasses, viewBadges } from '../core/unit-classes.ts';
 import { CLASS_IDS, CLASS_NAMES } from '../content/unit-classes.ts';
-import { usesBuilders } from '../core/improvements.ts';
+import { usesBuilders, usesImprovementsV23 } from '../core/improvements.ts';
 import { BUILDER_RULES, ROLE_POKEMON } from '../content/roles.ts';
 import type { Content, SpeciesId } from '../content/units.ts';
 import { CITY_NETWORK_RULES, ESCORT_BONUSES, escortBonusKind } from '../content/city-network.ts';
@@ -15,7 +15,7 @@ import { TYPE_NAMES } from '../content/type-names.ts';
 import { leaderEffects } from '../content/leaders.ts';
 import { ballPrice, viewPolicyEffects } from '../core/policies.ts';
 import { tileYieldReader } from './tile-yields.ts';
-import { IMPROVEMENTS } from '../content/improvements.ts';
+import { CREW_SPECIALTIES, IMPROVEMENTS, crewSpecialtyFor } from '../content/improvements.ts';
 import { trainableSpeciesIds } from '../core/role-tactics.ts';
 import { CONTENT as BASE_CONTENT, contentForView, techOf } from '../content/units.ts';
 import { TREE_GATES } from '../content/tech-tree.ts';
@@ -112,12 +112,14 @@ function lockedSpeciesMarkup(view: PlayerView, content: Content): string {
 /** v17: escort / carrier choice for settlers and traders (registered species; the type decides the new city's head start). */
 function escortSelectMarkup(view: PlayerView, content: Content): string {
   const ids = [...view.economy.player.registeredSpeciesIds].filter(id => content.species[id]).sort();
-  return `<label class="escort-select">随行宝可梦<select id="escort-species">${ids.map(id => `<option value="${id}">${content.species[id].name} · ${ESCORT_BONUSES[escortBonusKind(content.species[id].typeId)].label}</option>`).join('')}</select></label>`;
+  // v23: the same escort gives a 工匠 its crew specialty.
+  const crew = (id: SpeciesId) => { const item = CREW_SPECIALTIES[crewSpecialtyFor(content.species[id].typeId)]; return usesImprovementsV23(view) ? `／工匠：${item.name}（${item.label}）` : ''; };
+  return `<label class="escort-select">随行宝可梦<select id="escort-species">${ids.map(id => `<option value="${id}">${content.species[id].name} · ${usesImprovementsV23(view) ? '开拓队：' : ''}${ESCORT_BONUSES[escortBonusKind(content.species[id].typeId)].label}${crew(id as SpeciesId)}</option>`).join('')}</select></label>`;
 }
 function withEscort(item: LegacyProductionItem, root: HTMLElement, view: PlayerView): LegacyProductionItem {
   const escort = root.querySelector<HTMLSelectElement>('#escort-species')?.value;
   // v18: only settlers take an escort (traders are always 变隐龙, builders 搬运小匠).
-  const takes = item.kind === 'logistics' && (item.defId === 'settler' || (item.defId === 'trader' && !usesBuilders(view)));
+  const takes = item.kind === 'logistics' && (item.defId === 'settler' || (item.defId === 'trader' && !usesBuilders(view)) || (item.defId === 'builder' && usesImprovementsV23(view)));
   return takes && escort ? { ...item, escortId: escort as SpeciesId } : item;
 }
 export function renderEconomyPanel(view: PlayerView, selectedCity: number | null,

@@ -27,6 +27,16 @@ export const AUDIT_SYSTEMS: readonly AuditSystem[] = [
     actionTypes: ['SetResearch'],
   }),
   system({
+    id: 's-improvements-v23', name: '资源改良、掠夺与修复、工匠随行（v23）', status: 'implemented',
+    summary: 'gameplay v23：树果丛 / 进化石矿脉 / 稀有树果只能建树果林 / 进化石矿场 / 种植园；新增牧场、甜蜜蜂巢、珍珠贝场（各需一项科技）；自己领地内和已开发的资源不能采集；交战时可掠夺敌方改良（损坏，一次性奖励），工匠修复不耗次数；工匠可带随行宝可梦，按第一属性获得记在地块上的特长。读取 v≤22 存档时不启用。',
+    rules: ['improvementBlocker / harvestBlocker / pillageBlocker / repairBlocker 由权威、界面、AI 共用。',
+      '损坏的改良没有产出，不算设施区相邻加成与联盟点；树果林、进化石矿场、种植园的效果同时停止。',
+      'v23 在 rememberedTiles 里记下最后看见的改良，迷雾里的掠夺、修复、新建不会泄露；自己领地内总是实时。'],
+    checks: ['v22 固定 48 局改动前后逐文件一致。', 'tests/core/improvements-v23.test.ts、pillage.test.ts、builder-crews.test.ts、improvements-v23-ai.test.ts。'],
+    sources: ['src/content/improvements.ts', 'src/core/improvements.ts', 'src/core/pillage.ts', 'src/ai/improvement-plan.ts', 'docs/design/improvements-v23.md'],
+    actionTypes: ['ImproveTile', 'PillageImprovement', 'RepairImprovement', 'HarvestResource'],
+  }),
+  system({
     id: 's-opening', name: '开局节奏（开局目标、道具球、城墙）', status: 'implemented',
     summary: 'gameplay v21：8 个开局目标发奖励；道具球（探索奖励）按稳定种子摆放；城市中心产科研、首都生产 +2；一阶/二阶科技降价、开拓队 24；城市 HP 100、每轮恢复、城墙随轮数成长；胜利门槛随轮上限变化；驯化发现改为“初次交手”。读取 v≤20 存档时不启用。',
     rules: ['开局目标与道具球只读取本条命令产生的事件与单位位置，摆放不消耗 state.rng。',

@@ -3,17 +3,19 @@
 // Buttons keep the ids of the old drawer buttons and dispatch exactly the same callbacks.
 import { candyGold } from '../core/unit-classes.ts';
 import { evolutionGold } from '../core/leader-systems.ts';
-import { usesBuilders, improvementOptions, improvementYield } from '../core/improvements.ts';
+import { usesBuilders, usesImprovementsV23, improvementOptions, improvementYield, lockedImprovementHints } from '../core/improvements.ts';
+import { pillageRewardLabel, viewPillage, viewRepairs } from '../core/pillage.ts';
+import type { TechId } from '../content/economy.ts';
 import { IMPROVEMENT_WORK, IMPROVEMENTS } from '../content/improvements.ts';
 import type { ImprovementId } from '../content/improvements.ts';
-import { contentForView, unitDefinition } from '../content/units.ts';
+import { contentForView, techOf, unitDefinition } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
 import type { EvolutionOption, SpeciesId } from '../content/species.ts';
 import { stoneEvolutionsFor } from '../content/roster.ts';
 import { EVOLUTION_BLOCKER_TEXT, evolutionBlocker, evolutionOptions, playerGeneration, tileBiome } from '../core/roster.ts';
 import { WORLD_DEFINITIONS } from '../content/world-systems.ts';
 import { hexDistance, hexToIndex } from '../core/hex.ts';
-import type { MapUnit, PlayerView } from '../core/model.ts';
+import type { Command, MapUnit, PlayerView } from '../core/model.ts';
 import { actionTargets } from './action-targets.ts';
 import type { ActionMode } from './unit-panel.ts';
 
@@ -74,6 +76,8 @@ const ICONS = {
   evolve: pixelIcon(['....k....', '...kyk...', '...kyk...', '.kkkykkk.', 'kyyywyyyk', '.kkkykkk.', '...kyk...', '...kyk...', '....k....'], { y: '#9CD6F2' }),
   found: pixelIcon(['....k....', '...krk...', '..krrrk..', '.krrrrrk.', 'kkkkkkkkk', '.kwwwwwk.', '.kwwkwwk.', '.kwwkwwk.', '.kkkkkkk.'], { r: '#D3655C' }),
   improve: pixelIcon(['kkkkkk...', 'kssssk...', 'kssssskk.', 'kkkkbkk..', '...kbk...', '...kbk...', '...kbk...', '...kbk...', '...kkk...'], { s: '#B3C2BA', b: '#A0703A' }),
+  pillage: pixelIcon(['k.......k', 'kk..k..kk', '.kkkrkkk.', '..krrrk..', '.krroorrk', '..krrrk..', '.kkkrkkk.', 'kk..k..kk', 'k.......k'], { r: '#E0483A', o: '#F2A93B' }),
+  repair: pixelIcon(['.kk...kk.', 'kssk.kssk', 'ksssksssk', '.kssssk..', '..kssk...', '.kbbk....', 'kbbk.....', 'kbk......', 'kk.......'], { s: '#B3C2BA', b: '#A0703A' }),
   skip: pixelIcon(['k...k....', 'kk..kk...', 'kwk.kwk..', 'kwwkkwwk.', 'kwwwkwwwk', 'kwwkkwwk.', 'kwk.kwk..', 'kk..kk...', 'k...k....'], {}),
 } as const;
 type IconName = keyof typeof ICONS;
@@ -85,6 +89,8 @@ export type UnitBarCallbacks = {
   evolve: (intoSpeciesId?: SpeciesId) => void;
   found: () => void;
   improve: (tileIndex: number, kind: ImprovementId) => void;
+  /** v23: pillage / repair orders (any other command the bar issues directly). */
+  order?: (action: Command['action']) => void;
   /** Leave this unit waiting and select the next idle one. */
   skip: () => void;
   /** Shows a sentence in the map notice (used when a hotkey hits an unavailable action). */
@@ -97,7 +103,7 @@ type BarAction = {
 };
 const escapeHtml = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 /** Hotkeys of the bar (lower-case `event.key`; Space is ' '). Chosen to avoid C (city), F (fit), R/T, Y, Enter, Esc, +/−. */
-export const UNIT_BAR_HOTKEYS = { move: 'm', attack: 'a', capture: 'q', evolve: 'e', found: 'b', improve: 'i', skip: ' ' } as const;
+export const UNIT_BAR_HOTKEYS = { move: 'm', attack: 'a', capture: 'q', evolve: 'e', found: 'b', improve: 'i', pillage: 'p', repair: 'x', skip: ' ' } as const;
 
 type ImproveOption = { tileIndex: number; kind: ImprovementId; label: string };
 function barActions(view: PlayerView, unit: MapUnit, mode: ActionMode, lock: string | null): { actions: BarAction[]; options: ImproveOption[] } {
@@ -159,7 +165,25 @@ function barActions(view: PlayerView, unit: MapUnit, mode: ActionMode, lock: str
       id: 'improve-unit', action: 'improve', icon: 'improve', label: builder ? '改良' : '施工', hotkey: 'I', key: UNIT_BAR_HOTKEYS.improve,
       title: builder ? '地块改良' : '施工改良',
       reason: lock ?? (options.length ? null : unit.actionLeft ? '移到己方领地内的非城市地块（渔场可在相邻陆地施工）即可改良。' : '本回合行动点已用完。'),
-      detail: options.length > 1 ? `可选：${options.map(option => option.label).join('；')}` : options[0]?.label ?? '',
+      detail: options.length > 1 ? `可选：${options.map(option => option.label).join('；')}` : options[0]?.label
+        ?? (builder ? lockedImprovementHints(view, unit.id, content).map(hint => `研究「${techOf(content, hint.tech as TechId).name}」后可建${IMPROVEMENTS[hint.kind].name}`).join('；') : ''),
+    });
+  }
+  // v23: pillage (Pokémon on an enemy improvement at war) and repair (builders on damaged own improvements).
+  if (usesImprovementsV23(view) && unit.kind === 'pokemon') {
+    const pillage = viewPillage(view, unit.id);
+    actions.push({
+      id: 'pillage-unit', action: 'pillage', icon: 'pillage', label: '掠夺', hotkey: 'P', key: UNIT_BAR_HOTKEYS.pillage, tone: 'attack',
+      title: '掠夺改良', reason: blocked(pillage ? null : '站在交战中敌方领地内、完好的改良上才能掠夺。'),
+      detail: pillage ? `掠夺${IMPROVEMENTS[pillage.kind].name}：${pillageRewardLabel(pillage.reward)}；改良损坏，直到对方工匠修复。` : '掠夺花掉这只宝可梦本回合的行动。',
+    });
+  }
+  if (usesImprovementsV23(view) && builder) {
+    const repairs = viewRepairs(view, unit.id, content);
+    actions.push({
+      id: 'repair-unit', action: 'repair', icon: 'repair', label: '修复', hotkey: 'X', key: UNIT_BAR_HOTKEYS.repair, data: repairs.length ? String(repairs[0]) : '',
+      title: '修复改良', reason: blocked(repairs.length ? null : '站到己方领地内损坏的改良上（海上改良站在相邻陆地）。'),
+      detail: '修复花掉本回合行动，不消耗工匠次数（随行「巧手」不占行动）。',
     });
   }
   const others = view.units.some(other => other.ownerId === view.playerId && other.actionLeft && other.id !== unit.id);
@@ -213,6 +237,8 @@ function run(button: HTMLButtonElement) {
       if (menuOpen) document.querySelector<HTMLButtonElement>('#unit-action-bar [data-action="improve-option"]')?.focus();
       return;
     case 'improve-option': menuOpen = false; callbacks.improve(Number(button.dataset.tile), button.dataset.kind as ImprovementId); return;
+    case 'pillage': if (current.unitId !== null) callbacks.order?.({ type: 'PillageImprovement', unitId: current.unitId }); return;
+    case 'repair': if (current.unitId !== null && button.dataset.species) callbacks.order?.({ type: 'RepairImprovement', unitId: current.unitId, tileIndex: Number(button.dataset.species) }); return;
     case 'skip': callbacks.skip(); return;
   }
 }

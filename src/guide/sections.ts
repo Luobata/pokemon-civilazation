@@ -234,7 +234,14 @@ export const SECTIONS: readonly GuideSection[] = [
   { id: 'improvements', group: '文明发展', title: '地块改良', html: `
     <p><strong>新局（v18 起）</strong>：只有<strong>工匠</strong>（搬运小匠）能修改良。工匠站到己方领地内的地块上，<strong>一次行动就建好一处</strong>；每个工匠能建 ${T.builderCharges} 处，用完后离开。渔场建在近岸海洋，工匠站在相邻陆地施工即可。</p>
     <p class="note">旧版对局（v≤17）：任何宝可梦都可以施工，每次 1 点，对应属性的“熟练工” 2 点，满 ${T.improvementWork.required} 点完成；小刚和方针卡「工匠联盟」每次再 +1。</p>
-    ${T.improvementTable()}` },
+    ${T.improvementTable()}
+    <h3>v23 新增：资源改良、掠夺与修复、工匠随行</h3>
+    <p><strong>资源改良</strong>：地图上的树果丛、进化石矿脉、稀有树果只能建对应的改良——树果林、进化石矿场、种植园——不能再建树果田或矿坑。树果林被耕作时这种树果算已开发，每种每轮满意度 +${T.improvementRulesV23.groveSatisfactionPerKind}；进化石矿场建成时拿到矿脉里的进化石，之后被耕作期间每 ${T.improvementRulesV23.quarryInterval} 轮再得 1 颗；种植园被耕作时这种稀有树果算 ${T.improvementRulesV23.plantationCopies} 份（多出的可以赠送）。另有三种新改良：牧场（草原）、甜蜜蜂巢（森林）、珍珠贝场（近岸海洋）。新改良都要先研究对应科技。</p>
+    <p><strong>采集（v23）</strong>：自己领地内（含城市中心）的资源不能采集，请建对应的资源改良；已经建了改良的资源格谁都不能采。无主土地上、或别人领地里还没开发的资源仍可以采。</p>
+    <p><strong>掠夺</strong>：交战中，你的宝可梦站在敌方领地内完好的改良上，可以花掉这回合的行动掠夺（单位栏「掠夺」，快捷键 P）：改良变成“损坏”，不再产出、不算设施区相邻加成和联盟点；你得到一次性奖励（见下表）。<strong>修复</strong>：己方工匠站到损坏的改良上（海上改良站在相邻陆地），花一次行动修好（快捷键 X），<strong>不消耗工匠次数</strong>。损坏状态和改良一样，看见后对所有人公开；迷雾里发生的变化，要再看见才会更新。</p>
+    <p><strong>工匠随行</strong>：训练工匠时可以在「随行宝可梦」里选一只已登记的宝可梦（和开拓队相同），它的第一属性决定工匠的特长。特长记在这只工匠建成的地块上，工匠离开后仍然有效。</p>
+    ${T.improvementTableV23()}
+    ${T.crewSpecialtyTable()}` },
 
   { id: 'legends', group: '文明发展', title: '传说奇观', badge: 'v15 新增', html: `
     <p>传说宝可梦不参加战斗。每位传说是一座<strong>传说奇观</strong>，配一段三章剧情：<strong>第一章 · 线索</strong>（找到线索时解锁）、<strong>第二章 · 筑殿</strong>（开工时）、<strong>终章 · 降临</strong>（落成时的全屏剧情卡）。顶栏「传说」打开奇观页面，能看到每位传说的线索条件、选址、效果和已解锁的剧情。</p>

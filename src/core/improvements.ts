@@ -259,6 +259,24 @@ export function viewImprovementRules(view: PlayerView, unit: Pick<MapUnit, 'kind
   return { resourceAt: resourceLookup(view.expansion?.world.resources ?? [], (view.expansion?.rareBerries?.deposits ?? []).map(item => item.tileIndex)),
     unlockedTechIds: view.economy.player.research.unlockedIds, oceanReach: oceanReach(builderCrew(unit as never, content, view)) };
 }
+/** v23: improvements the unit could build within reach once their technology is researched (for the UI hint). */
+export function lockedImprovementHints(view: PlayerView, unitId: number, content: Content): { kind: ImprovementId; tech: string }[] {
+  const unit = view.units.find(item => item.id === unitId && item.ownerId === view.playerId);
+  const rules = viewImprovementRules(view, unit, content), improvements = view.expansion?.improvements;
+  if (!unit || !rules || !improvements || unit.kind !== 'logistics' || unit.role !== 'builder') return [];
+  const done = new Set(improvements.tiles.map(tile => tile.tileIndex)), here = hexToIndex(unit.position, view.map)!;
+  const cities = [...view.economy.cities.map(city => ({ ownerId: city.ownerId, position: city.position, population: city.population })),
+    ...view.cities.filter(city => city.ownerId !== view.playerId).map(city => ({ ownerId: city.ownerId, position: city.position, population: 1 }))];
+  const all = { ...rules, unlockedTechIds: IMPROVEMENT_IDS_V23.flatMap(kind => IMPROVEMENTS[kind].requiredTech ?? []) };
+  const tiles = [here, ...view.map.tiles.flatMap((_, index) => index !== here && hexDistance(indexToHex(index, view.map), unit.position, view.map) <= rules.oceanReach ? [index] : [])];
+  const out = new Map<ImprovementId, string>();
+  for (const tileIndex of tiles) for (const kind of IMPROVEMENT_IDS_V23) {
+    const input = { tiles: view.map.tiles, width: view.map.width, height: view.map.height, wrap: view.map.wrap, cities, improved: (index: number) => done.has(index),
+      unitPosition: unit.position, playerId: view.playerId, tileIndex, kind };
+    if (improvementBlocker({ ...input, v23: rules }) === 'improvement-tech-locked' && improvementBlocker({ ...input, v23: all }) === null) out.set(kind, IMPROVEMENTS[kind].requiredTech!);
+  }
+  return [...out].map(([kind, tech]) => ({ kind, tech }));
+}
 /** Improvement choices available to a unit from its own observation (used by UI and AI). */
 export function improvementOptions(view: PlayerView, unitId: number, content: Content): { tileIndex: number; kind: ImprovementId; points: number; progress: number }[] {
   const unit = view.units.find(item => item.id === unitId && item.ownerId === view.playerId);

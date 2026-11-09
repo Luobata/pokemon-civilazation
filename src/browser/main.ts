@@ -189,6 +189,8 @@ function activityText(payload: VisibleEvent['payload']) {
     case 'UnitTrained': return `文明 ${payload.playerId + 1} 训练单位`;
     case 'CivilizationEliminated': return `文明 ${payload.eliminatedPlayerId + 1} 出局`;
     case 'GameEnded': return '对局结束';
+    case 'ImprovementPillaged': return `文明 ${payload.playerId + 1} 掠夺了文明 ${payload.ownerId + 1} 的${IMPROVEMENTS[payload.kind].name}`;
+    case 'ImprovementRepaired': return `文明 ${payload.playerId + 1} 修复了${IMPROVEMENTS[payload.kind].name}`;
     case 'TileWorked': return payload.completed ? `建成${IMPROVEMENTS[payload.kind].name}` : `施工${IMPROVEMENTS[payload.kind].name} ${payload.progress}/${payload.required}`;
     case 'WeatherSummoned': return `文明 ${payload.playerId + 1} 召唤了${WEATHERS[payload.weather].name}`;
     case 'EraAbilityUsed': return `文明 ${payload.playerId + 1} 发动${ERA_ABILITIES[payload.ability].name}${payload.typeId ? `（${TYPE_NAMES[payload.typeId]}）` : ''}`;
@@ -330,6 +332,7 @@ function controls() {
       evolve: evolveSelected,
       found: () => { if (selected !== null) issue({ type: 'FoundCity', unitId: selected }); },
       improve: (tileIndex, kind) => { if (selected !== null) issue({ type: 'ImproveTile', unitId: selected, tileIndex, kind }); },
+      order: issue,
       skip: () => { if (selected !== null) reviewedUnits.add(session.getView().round, selected); cycleIdle('unit'); },
       explain: text => { notice = text; controls(); },
     });

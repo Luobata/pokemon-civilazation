@@ -1,3 +1,6 @@
+import { IMPROVEMENTS } from '../content/improvements.ts';
+import { pillageRewardLabel } from '../core/pillage.ts';
+import { hexDistance } from '../core/hex.ts';
 // Civilization-style notifications for the viewer's own milestones and threats (research, production, growth,
 // wonders, war, knocked-out units, attacked cities). Pure description from the PlayerView; the notification rail
 // (notification-rail.ts) shows them and main.ts decides what a click does.
@@ -107,6 +110,13 @@ export function toastFor(payload: VisibleEvent['payload'], view: PlayerView, mem
       if (relation.status === 'war' && relation.changedAtRound >= view.round - 1 && relation.declaredBy !== me) return toast('war', '⚔', `文明 ${other + 1} 向你宣战！`, '保护城市和开拓队。', { kind: 'screen', screen: 'diplomacy' }, '外交',
         decision(undefined, `war:${other}`));
       return null;
+    }
+    case 'ImprovementPillaged': {
+      if (payload.ownerId !== me && payload.playerId !== me) return null;
+      const name = IMPROVEMENTS[payload.kind].name;
+      if (payload.playerId === me) return toast('war', '⚔', `掠夺了${name}`, pillageRewardLabel(payload.reward), payload.reward.cityId !== undefined ? { kind: 'city', cityId: payload.reward.cityId } : null);
+      const city = [...view.economy.cities].sort((a, b) => hexDistance(a.position, payload.position, view.map) - hexDistance(b.position, payload.position, view.map) || a.id - b.id)[0];
+      return toast('war', '⚔', `你的${name}被文明 ${payload.playerId + 1} 掠夺`, '改良已损坏，不再产出；派工匠站上去修复（不消耗次数）。', city ? { kind: 'city', cityId: city.id } : null, city ? '查看城市' : undefined);
     }
     case 'EscortBonus':
       if (payload.playerId !== me) return null;

@@ -3,7 +3,7 @@ import type { BerryId } from '../content/world-systems.ts';
 import type { Yield } from '../content/economy.ts';
 import { CONTENT } from '../content/units.ts';
 import { hexToIndex } from '../core/hex.ts';
-import { improvementYield } from '../core/improvements.ts';
+import { improvementTileYield, improvementYield, usesImprovementsV23 } from '../core/improvements.ts';
 import type { PlayerView } from '../core/model.ts';
 
 export type TileYieldInfo = { yields: Yield; workable: boolean };
@@ -19,7 +19,8 @@ export function tileYieldReader(view: PlayerView): (index: number) => TileYieldI
   const weather = researched.includes('meteorology');
   const blocked = new Set<number>([...view.cities, ...view.economy.cities].map(city => hexToIndex(city.position, view.map) ?? -1));
   for (const tile of view.expansion?.districts?.tiles ?? []) blocked.add(tile.tileIndex);
-  const improvements = new Map((view.expansion?.improvements?.tiles ?? []).map(tile => [tile.tileIndex, improvementYield(tile.kind, player)]));
+  const improvements = new Map((view.expansion?.improvements?.tiles ?? []).map(tile => [tile.tileIndex,
+    usesImprovementsV23(view) ? improvementTileYield(tile, view.map.tiles[tile.tileIndex], player) : improvementYield(tile.kind, player)]));
   const resources = new Map((view.expansion?.world.resources ?? []).map(site => [site.tileIndex, site]));
   return index => {
     const biome = view.map.tiles[index];
