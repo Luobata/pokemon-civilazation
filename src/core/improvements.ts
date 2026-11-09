@@ -232,6 +232,18 @@ export function observeImprovements(state: GameState, playerId: number, visible:
   const improvements = state.expansion?.improvements;
   if (!improvements) return undefined;
   const remembered = state.knowledge[playerId]?.rememberedTiles ?? {};
+  const projects = Object.entries(improvements.projects).map(([index, value]) => ({ ...value, tileIndex: Number(index) }))
+    .filter(project => project.playerId === playerId).sort((a, b) => a.tileIndex - b.tileIndex);
+  if (usesImprovementsV23(state)) {
+    // v23: live facts on visible tiles and in your own territory; elsewhere the improvement as you last saw it.
+    const own = Object.values(state.cities).filter(city => city.ownerId === playerId);
+    const live = (index: number) => visible.has(index) || own.some(city => hexDistance(city.position, indexToHex(index, state.map), state.map) <= workRadius(city));
+    const indices = [...new Set([...Object.keys(improvements.tiles), ...Object.keys(remembered)].map(Number))].sort((a, b) => a - b);
+    return { projects, tiles: indices.flatMap(index => {
+      const value = live(index) ? improvements.tiles[index] : remembered[index]?.improvement;
+      return value ? [{ ...JSON.parse(JSON.stringify(value)) as TileImprovement, tileIndex: index, position: indexToHex(index, state.map) }] : [];
+    }) };
+  }
   return {
     tiles: Object.entries(improvements.tiles).map(([index, value]) => ({ index: Number(index), value }))
       .filter(({ index }) => visible.has(index) || Object.hasOwn(remembered, index))

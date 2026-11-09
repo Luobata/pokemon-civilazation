@@ -11,6 +11,7 @@ import type { BiomeId } from '../content/rules.ts';
 import type { Hex, GridSize } from './hex.ts';
 import type { RngState } from './rng.ts';
 import type { MapTerrain } from './map.ts';
+import type { TileImprovement } from './improvements.ts';
 
 export type AiPersonality = 'expansion' | 'aggressive' | 'conservative';
 export type Score = { playerId: number; total: number; cities: number; population: number; species: number; techs: number; knockdowns: number };
@@ -86,7 +87,8 @@ export type LastKnownUnit = UnitIdentity & { ownerId: number | null; position: H
 export type KnowledgeState = {
   rememberedDistricts?: Record<number, ObservedDistrict>;
   exploredTileIds: number[];
-  rememberedTiles: Record<number, { biomeId: BiomeId; territoryOwnerIds?: number[] }>;
+  /** `improvement`: gameplay v23 only, the improvement as last seen (so changes in the fog stay hidden). */
+  rememberedTiles: Record<number, { biomeId: BiomeId; territoryOwnerIds?: number[]; improvement?: TileImprovement }>;
   lastKnownUnits: Record<number, LastKnownUnit>;
   lastKnownCities: Record<number, { ownerId: number | null; position: Hex; lastSeenRound: number; headquartersOf?: number | null }>;
 };

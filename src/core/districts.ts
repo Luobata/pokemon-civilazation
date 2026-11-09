@@ -25,7 +25,7 @@ export type DistrictInput = {
   territoryOwnerIds: readonly (readonly number[] | null)[]; knownLandTiles: ReadonlySet<number>;
   constructionSites: readonly ConstructionSite[];
   cities: readonly SiteCity[]; completed: readonly District[]; projects: readonly DistrictProject[];
-  improvements: readonly { tileIndex: number; kind: ImprovementId }[];
+  improvements: readonly { tileIndex: number; kind: ImprovementId; damaged?: true }[];
   improvementProjects: readonly { tileIndex: number }[]; berryTiles: ReadonlySet<number>;
 };
 export type DistrictBreakdown = { base: DistrictEffects; adjacency: { id: string; label: string; effect: keyof DistrictEffects;
@@ -78,7 +78,7 @@ export function districtEffects(input: Pick<DistrictInput, 'map' | 'cities' | 'i
   const unknownAdjacentTileIds = adjacent.filter(index => input.map.tiles[index] === null || (input.visible !== undefined && !input.visible.has(index)));
   const adjacency = definition.adjacency.map(rule => {
     const tileIndices = adjacent.filter(index => (input.map.tiles[index] !== null && rule.biomes?.includes(input.map.tiles[index]!))
-      || (rule.improvement && input.improvements.some(item => item.tileIndex === index && item.kind === rule.improvement))
+      || (rule.improvement && input.improvements.some(item => item.tileIndex === index && item.kind === rule.improvement && !item.damaged))
       || (rule.cityCenter && input.cities.some(city => hexToIndex(city.position, input.map) === index)));
     const value = Math.min(rule.cap, tileIndices.length * rule.perTile);
     total[rule.effect] += value;

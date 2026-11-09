@@ -96,7 +96,7 @@ export function playerPolicyEffects(state: Pick<GameState, 'setup' | 'expansion'
 export function leaguePointsPerRound(state: GameState, playerId: number): number {
   const cities = Object.values(state.cities).filter(city => city.ownerId === playerId);
   const population = cities.reduce((sum, city) => sum + city.population, 0);
-  const improvements = Object.values(state.expansion?.improvements?.tiles ?? {}).filter(tile => tile.builtBy === playerId).length;
+  const improvements = Object.values(state.expansion?.improvements?.tiles ?? {}).filter(tile => tile.builtBy === playerId && !tile.damaged).length;
   const satisfaction = state.expansion?.world.players[playerId]?.satisfaction ?? 0;
   return 1 + cities.length + Math.floor(population / 3) + Math.floor(improvements / 2) + (satisfaction >= 50 ? 2 : 0) + honorLeaguePoints(eraHonorRecord(state, playerId));
 }

@@ -11,7 +11,7 @@ import { observeBonds } from './bonds.ts';
 import { observeEraAbilities } from './era-abilities.ts';
 import { observeEssences } from './essences.ts';
 import { observePolicies, playerPolicyEffects } from './policies.ts';
-import { observeImprovements } from './improvements.ts';
+import { observeImprovements, usesImprovementsV23 } from './improvements.ts';
 import { CIVILIZATION_CONTENT } from '../content/civilization-systems.ts';
 import { observeWorld, worldVisionSources } from './world-systems.ts';
 import { observeCivilization } from './civilization-systems.ts';
@@ -76,7 +76,9 @@ export function refreshKnowledge(state: GameState, content: Content = contentFor
     rememberDistricts(state, playerId, visible);
     rememberOpening(state, playerId, visible);
     knowledge.exploredTileIds = [...new Set([...knowledge.exploredTileIds, ...visible])].sort((a, b) => a - b);
-    for (const tile of visible) knowledge.rememberedTiles[tile] = { biomeId: state.map.tiles[tile], territoryOwnerIds: [...territory[tile]] };
+    const remember = usesImprovementsV23(state) ? state.expansion?.improvements?.tiles : undefined;
+    for (const tile of visible) knowledge.rememberedTiles[tile] = { biomeId: state.map.tiles[tile], territoryOwnerIds: [...territory[tile]],
+      ...(remember?.[tile] ? { improvement: JSON.parse(JSON.stringify(remember[tile])) } : {}) };
     for (const [id, known] of Object.entries(knowledge.lastKnownUnits)) {
       const tile = hexToIndex(known.position, state.map)!;
       const current = state.units[Number(id)];
@@ -162,6 +164,12 @@ export function projectEvents(before: GameState, after: GameState, events: reado
   for (const event of events) {
     if (event.payload.type === 'DiplomacyChanged') {
       projected.push({ seq: event.seq, payload: { type: 'DiplomacyChanged', relation: projectDiplomacy(event.payload.relation, playerId) } });
+      continue;
+    }
+    // v23: pillage / repair reach the actor, the territory owner and anyone who sees the tile.
+    if (event.payload.type === 'ImprovementPillaged' || event.payload.type === 'ImprovementRepaired') {
+      const payload = event.payload, involved = payload.playerId === playerId || (payload.type === 'ImprovementPillaged' && payload.ownerId === playerId);
+      if (involved || visible.has(payload.tileIndex)) projected.push({ seq: event.seq, payload: JSON.parse(JSON.stringify(payload)) });
       continue;
     }
     if ('playerId' in event.payload && !('public' in event.payload && event.payload.public) && event.payload.playerId !== playerId) continue;
