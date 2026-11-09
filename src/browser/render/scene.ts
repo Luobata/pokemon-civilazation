@@ -20,6 +20,7 @@ import { hexDistance, hexToIndex, indexToHex, neighbors } from '../../core/hex.t
 import type { Hex } from '../../core/hex.ts';
 import type { PlayerView } from '../../core/model.ts';
 import { maxCityHp, workRadius } from '../../core/city.ts';
+import { maxUnitHp } from '../../core/unit.ts';
 import { hexToWorld } from '../camera.ts';
 import type { Point } from '../camera.ts';
 import { tileYieldReader } from '../tile-yields.ts';
@@ -62,7 +63,9 @@ export type SceneUnit = { key: string; unit: UnitMarkIdentity; index: number; wo
   /** At war with the viewer: drawn with a red ring so enemies read at a glance. */
   hostile: boolean;
   /** v13: number of promotion traits (public), and whether an own unit can be promoted now. */
-  rank?: number; promotable?: boolean };
+  rank?: number; promotable?: boolean;
+  /** Only while the unit is damaged (current < max); units in the scene are the visible ones. */
+  hp?: { current: number; max: number } };
 export type SceneYield = { index: number; yields: Yield; workable: boolean; inFocus: boolean };
 export type SceneWeather = { color: string; mark: string; tiles: number[]; center: number | null };
 
@@ -220,14 +223,16 @@ export function buildScene(input: MapRenderInput): MapScene {
   // Only the authorized PlayerView supplies entities; hidden live units never reach the scene.
   const atWar = new Set(view.diplomacy.filter(pair => pair.status === 'war' && (pair.a === view.playerId || pair.b === view.playerId))
     .map(pair => pair.a === view.playerId ? pair.b : pair.a));
+  const content = contentForView(view);
   const units: SceneUnit[] = view.units.map(unit => {
-    const index = indexOf(unit.position)!, status = era?.units[unit.id];
+    const index = indexOf(unit.position)!, status = era?.units[unit.id], maxHp = maxUnitHp(unit, content);
     const label = !status ? undefined : status.mega ? 'M' : (status.dynamaxUntilRound ?? 0) >= view.round ? '极' : status.tera ? '晶' : status.zPrimed ? 'Z' : undefined;
     const promotion = view.expansion?.promotions?.units[unit.id];
     return { key: `unit:${unit.id}`, unit, index, world: world[index], actionLeft: unit.actionLeft, enraged: unit.enraged ?? false,
       hostile: unit.ownerId !== null && atWar.has(unit.ownerId), ...(label ? { status: label } : {}),
       ...(promotion?.traits.length ? { rank: promotion.traits.length } : {}),
-      ...(unit.ownerId === view.playerId && pendingPromotions(promotion) ? { promotable: true } : {}) };
+      ...(unit.ownerId === view.playerId && pendingPromotions(promotion) ? { promotable: true } : {}),
+      ...(unit.hp < maxHp ? { hp: { current: Math.max(0, unit.hp), max: maxHp } } : {}) };
   });
 
   const mode = input.actionMode ?? null;

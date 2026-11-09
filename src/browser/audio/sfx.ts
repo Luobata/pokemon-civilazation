@@ -1,12 +1,14 @@
 // Original procedural sound effects. Each entry schedules a handful of voices starting
-// at `t`; all are under a second except the wonder fanfare (~1.6s). `duck` dips the
-// music for that many seconds so big moments cut through.
+// at `t`; most are under a second; the wonder, era and victory fanfares run 1.5–3.5 s.
+// `duck` dips the music for that many seconds so big moments cut through.
 
 import { midiToFreq as hz, noise, thump, tone, type SynthOut } from './synth.ts';
 
 export type SoundId =
   | 'click' | 'select' | 'move' | 'attack' | 'hit' | 'knockdown' | 'capture' | 'captureFail' | 'evolve'
-  | 'cityFounded' | 'production' | 'research' | 'turn' | 'war' | 'peace' | 'promotion' | 'wonder' | 'error' | 'notify';
+  | 'cityFounded' | 'production' | 'research' | 'turn' | 'war' | 'peace' | 'promotion' | 'wonder' | 'error' | 'notify'
+  | 'cityCaptured' | 'cityLost' | 'eraChange' | 'victory' | 'defeat' | 'weather' | 'formChange' | 'tradeRoute'
+  | 'legendLost' | 'alarm' | 'endTurn';
 
 export interface SoundEffect {
   duck?: number;
@@ -177,6 +179,124 @@ export const SOUND_EFFECTS: Record<SoundId, SoundEffect> = {
     play: (o, t) => {
       tone(o, t, hz(88), 0.05, { wave: 'sine', gain: 0.12, decay: 0.08, sustain: 0.3, release: 0.35 });
       tone(o, t + 0.12, hz(83), 0.05, { wave: 'sine', gain: 0.06, decay: 0.08, sustain: 0.3, release: 0.3 });
+    },
+  },
+
+  /** Our banner goes up: drum hit, rising brass triad, bright cymbal. */
+  cityCaptured: {
+    duck: 1.4,
+    play: (o, t) => {
+      thump(o, t, 120, 45, 0.35, 0.45);
+      [62, 66, 69].forEach((m, i) => brass(o, t + 0.08 + i * 0.09, m, 0.09, 0.08));
+      brass(o, t + 0.36, 74, 0.42, 0.1, 12);
+      for (const m of [50, 57]) tone(o, t + 0.36, hz(m), 0.4, { wave: 'triangle', gain: 0.07, attack: 0.03, decay: 0.3, sustain: 0.6, release: 0.25 });
+      noise(o, t + 0.36, 0.45, { filter: 'highpass', freq: 5200, gain: 0.07, attack: 0.02 });
+    },
+  },
+
+  /** One of our cities falls: low falling minor brass over a dull drum. */
+  cityLost: {
+    duck: 1.6,
+    play: (o, t) => {
+      thump(o, t, 90, 32, 0.5, 0.5);
+      noise(o, t, 0.5, { filter: 'lowpass', freq: 420, freqTo: 90, q: 0.6, gain: 0.2 });
+      [[57, 0], [53, 0.22], [50, 0.44]].forEach(([m, dt]) => brass(o, t + dt, m, 0.2, 0.08));
+      tone(o, t + 0.66, hz(45), 0.55, { wave: 'sawtooth', gain: 0.06, slideTo: hz(40), filter: 'lowpass', filterFreq: 500, attack: 0.04, decay: 0.3, sustain: 0.7, release: 0.35 });
+    },
+  },
+
+  /** A new era: short horn call (about 3 s) with a held chord. */
+  eraChange: {
+    duck: 3.2,
+    play: (o, t) => {
+      brass(o, t, 67, 0.22, 0.09);
+      brass(o, t + 0.28, 72, 0.22, 0.09);
+      brass(o, t + 0.56, 76, 0.16, 0.09);
+      brass(o, t + 0.76, 79, 0.9, 0.1, 10);
+      for (const m of [55, 60, 64, 67]) tone(o, t + 0.76, hz(m), 1.4, { wave: 'soft', gain: 0.05, attack: 0.25, decay: 0.6, sustain: 0.8, release: 0.9 });
+      thump(o, t + 0.76, 80, 50, 0.5, 0.35);
+      [84, 88, 91].forEach((m, i) => bell(o, t + 1.6 + i * 0.12, m, 0.05, 0.6));
+    },
+  },
+
+  /** Game won: bright major fanfare. */
+  victory: {
+    duck: 3.5,
+    play: (o, t) => {
+      [72, 72, 72].forEach((m, i) => brass(o, t + i * 0.13, m, 0.08, 0.09));
+      brass(o, t + 0.4, 79, 0.3, 0.1);
+      brass(o, t + 0.78, 77, 0.12, 0.09);
+      brass(o, t + 0.94, 79, 0.12, 0.09);
+      brass(o, t + 1.1, 84, 1.0, 0.11, 14);
+      for (const m of [48, 60, 64, 67, 72]) tone(o, t + 1.1, hz(m), 1.0, { wave: 'triangle', gain: 0.055, attack: 0.04, decay: 0.4, sustain: 0.7, release: 0.6 });
+      thump(o, t + 0.4, 98, 70, 0.3, 0.35);
+      thump(o, t + 1.1, 70, 48, 0.5, 0.5);
+      noise(o, t + 1.1, 0.8, { filter: 'highpass', freq: 6200, gain: 0.06, attack: 0.05 });
+    },
+  },
+
+  /** Game lost: a quiet descending minor phrase. */
+  defeat: {
+    duck: 3,
+    play: (o, t) => {
+      [[69, 0], [67, 0.4], [65, 0.8], [64, 1.2]].forEach(([m, dt]) => tone(o, t + dt, hz(m), 0.32, { wave: 'soft', gain: 0.08, attack: 0.05, decay: 0.3, sustain: 0.6, release: 0.4 }));
+      for (const m of [45, 52, 57]) tone(o, t + 1.2, hz(m), 1.2, { wave: 'triangle', gain: 0.05, attack: 0.2, decay: 0.6, sustain: 0.7, release: 0.9 });
+    },
+  },
+
+  /** Weather summoned: a wind sweep with a shimmer. */
+  weather: {
+    duck: 0.8,
+    play: (o, t) => {
+      noise(o, t, 0.7, { filter: 'bandpass', freq: 400, freqTo: 2400, q: 1.6, gain: 0.16, attack: 0.25 });
+      [86, 89, 93].forEach((m, i) => bell(o, t + 0.3 + i * 0.08, m, 0.04, 0.3));
+    },
+  },
+
+  /** Mega Evolution / Dynamax / Terastal / Z-Move: rising sweep into a bright burst. */
+  formChange: {
+    duck: 1,
+    play: (o, t) => {
+      for (const detune of [-12, 0, 12]) tone(o, t, 220, 0.4, { wave: 'sawtooth', gain: 0.04, slideTo: 1760, detune, filter: 'lowpass', filterFreq: 800, filterTo: 5000, attack: 0.05, decay: 0.2, sustain: 0.8, release: 0.08 });
+      thump(o, t + 0.42, 150, 60, 0.25, 0.4);
+      noise(o, t + 0.42, 0.3, { filter: 'highpass', freq: 3500, gain: 0.12 });
+      [91, 95, 98].forEach(m => bell(o, t + 0.42, m, 0.05, 0.35));
+    },
+  },
+
+  /** A trade route opens: a coin jingle. */
+  tradeRoute: {
+    play: (o, t) => {
+      [88, 91, 96].forEach((m, i) => {
+        tone(o, t + i * 0.07, hz(m), 0.03, { wave: 'square', gain: 0.05, decay: 0.03, sustain: 0.1, release: 0.1, filter: 'bandpass', filterFreq: hz(m) * 1.5, q: 2 });
+        tone(o, t + i * 0.07, hz(m + 12), 0.05, { wave: 'sine', gain: 0.06, decay: 0.06, sustain: 0.2, release: 0.2 });
+      });
+      noise(o, t, 0.2, { filter: 'highpass', freq: 7000, gain: 0.06 });
+    },
+  },
+
+  /** A wonder we were building went to someone else: a deflating tone. */
+  legendLost: {
+    duck: 1,
+    play: (o, t) => {
+      brass(o, t, 64, 0.18, 0.08);
+      tone(o, t + 0.22, hz(63), 0.5, { wave: 'pulse25', gain: 0.07, slideTo: hz(55), vibrato: 30, vibratoRate: 5, vibratoDelay: 0.1, decay: 0.2, sustain: 0.6, release: 0.2 });
+    },
+  },
+
+  /** Rampage, wild spawn or one of our cities under attack: two-tone alarm. */
+  alarm: {
+    play: (o, t) => {
+      for (const [dt, m] of [[0, 81], [0.14, 76], [0.28, 81], [0.42, 76]] as const) tone(o, t + dt, hz(m), 0.1, { wave: 'pulse25', gain: 0.07, decay: 0.05, sustain: 0.7, release: 0.03 });
+    },
+  },
+
+  /** End turn: a soft low-to-high two-note seal, distinct from the generic click. */
+  endTurn: {
+    play: (o, t) => {
+      thump(o, t, 160, 90, 0.12, 0.2);
+      tone(o, t, hz(67), 0.08, { wave: 'soft', gain: 0.09, attack: 0.008, decay: 0.1, sustain: 0.4, release: 0.2 });
+      tone(o, t + 0.09, hz(74), 0.12, { wave: 'soft', gain: 0.09, attack: 0.008, decay: 0.12, sustain: 0.4, release: 0.3 });
     },
   },
 };

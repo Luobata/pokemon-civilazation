@@ -32,7 +32,8 @@ export type LayerName = 'base' | 'features' | 'cities' | 'yields' | 'weather' | 
  * canvas because the camera is moving (rebuilding a cache every frame costs more than it saves).
  */
 export type LayerStat = 'hit' | 'miss' | 'direct' | 'off';
-export type RenderStats = { base: LayerStat; fog: LayerStat | 'none' };
+/** `shake`: the whole-frame offset applied this frame, in device pixels. */
+export type RenderStats = { base: LayerStat; fog: LayerStat | 'none'; shake: Point };
 
 /** Per-frame drawing state shared by the layer functions. */
 type Draw = {
@@ -59,6 +60,21 @@ function centeredText(d: Draw, text: string, p: Point, color: string, size: numb
   context.textBaseline = 'middle';
   context.fillText(text, p.x, p.y);
 }
+/** Text with a dark outline (stroke under fill), readable on every terrain; no shadowBlur. */
+function outlinedText(d: Draw, text: string, p: Point, color: string, size: number, outline = '#10191B') {
+  const { context } = d;
+  context.font = `800 ${Math.max(10, size)}px system-ui, sans-serif`;
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.lineJoin = 'round';
+  context.lineWidth = Math.max(2.5, size * .16);
+  context.strokeStyle = outline;
+  context.strokeText(text, p.x, p.y);
+  context.fillStyle = color;
+  context.fillText(text, p.x, p.y);
+}
+/** City-banner colours: red below half, otherwise green. */
+const hpColor = (current: number, max: number) => current * 2 < max ? '#E07A6D' : '#72C99E';
 export function ownerColor(ownerId: number | null) {
   return ownerId === null ? '#855000' : FACTIONS[ownerId] ?? '#5F6E66';
 }
@@ -338,7 +354,11 @@ function drawWeather(d: Draw) {
       centeredText(d, field.mark, p, '#10191B', size * 1.2);
     }
   }
-  if (scene.night) { context.fillStyle = '#0A143066'; context.fillRect(0, 0, d.width, d.height); }
+}
+/** Night dims the whole frame once (not once per map copy); the margin covers the screen-shake offset. */
+function drawNight(d: Draw | undefined) {
+  if (!d?.scene.night) return;
+  d.context.fillStyle = '#0A143066'; d.context.fillRect(-8, -8, d.width + 16, d.height + 16);
 }
 
 function unitMark(d: Draw, unit: UnitMarkIdentity, point: Point, actionLeft?: number, enraged = false) {
@@ -401,6 +421,17 @@ function rankMark(d: Draw, p: Point, rank: number, promotable: boolean) {
   }
 }
 
+/** A 3 px HP bar along the bottom of a damaged unit (same colours as the city banner bar). */
+function unitHpBar(d: Draw, point: Point, hp: { current: number; max: number }) {
+  if (!d.onscreen(point)) return;
+  const { context } = d;
+  const size = Math.max(26, Math.min(54, d.radius * 1.75));
+  const width = Math.round(size * .62), height = 3, left = Math.round(point.x - width / 2), top = Math.round(point.y + size * .46);
+  context.fillStyle = '#10191BE6'; context.fillRect(left - 1, top - 1, width + 2, height + 2);
+  context.fillStyle = '#3A2A28'; context.fillRect(left, top, width, height);
+  context.fillStyle = hpColor(hp.current, hp.max); context.fillRect(left, top, Math.max(1, Math.round(width * hp.current / hp.max)), height);
+}
+
 /** Units at their tiles, except those an animation is currently posing elsewhere. */
 function drawUnits(d: Draw, frame: AnimationFrame, camera: Camera) {
   const { context, centers, radius, scene } = d;
@@ -421,8 +452,14 @@ function drawUnits(d: Draw, frame: AnimationFrame, camera: Camera) {
       centeredText(d, item.status, q, '#FFF8E5', size * 1.1);
     }
     if ((item.rank || item.promotable) && d.onscreen(p)) rankMark(d, p, item.rank ?? 0, item.promotable ?? false);
+    if (item.hp) unitHpBar(d, p, item.hp);
   }
-  for (const pose of frame.poses) { const p = toScreen(pose.position, camera); unitMark(d, pose.unit, { x: p.x + d.shift, y: p.y }); }
+  for (const pose of frame.poses) {
+    const p = toScreen(pose.position, camera), point = { x: p.x + d.shift, y: p.y };
+    unitMark(d, pose.unit, point);
+    const hp = scene.units.find(item => item.unit.id === pose.unit.id)?.hp;
+    if (hp) unitHpBar(d, point, hp);
+  }
 }
 
 /** Civilization-style banner: faction mark, population (own cities), name, capital star, HP when damaged. */
@@ -592,8 +629,14 @@ function drawEffects(d: Draw, frame: AnimationFrame, indexOf: (hex: Hex) => numb
         context.fillStyle = `rgb(255 253 247 / ${45 - effect.progress * 60}%)`;
         context.fill();
       }
-      centeredText(d, `−${effect.damage}`, { x: p.x, y: p.y - radius * (.7 + effect.progress * .5) }, '#F4E0DB', radius * .65);
-      if (effect.counterDamage) centeredText(d, `反击 −${effect.counterDamage}`, { x: p.x, y: p.y - radius * .15 }, '#FFFDF7', radius * .35);
+    } else if (effect.kind === 'number') {
+      // Pop (scale 1.4 → 1 in the first 15%), float up, fade out over the last 40%.
+      const t = effect.progress, pop = t < .15 ? 1.4 - (t / .15) * .4 : 1;
+      const counter = effect.tone === 'counter', size = Math.min(counter ? 22 : 30, radius * (counter ? .62 : .8)) * pop;
+      context.save();
+      context.globalAlpha = t > .6 ? Math.max(0, 1 - (t - .6) / .4) : 1;
+      outlinedText(d, effect.text, { x: p.x, y: p.y - radius * (.55 + t * .55) }, counter ? '#FFD27A' : '#FFF3E8', size);
+      context.restore();
     } else if (effect.kind === 'capture') {
       const offset = effect.progress < .45 ? (1 - effect.progress / .45) * radius * 1.5 : 0;
       context.beginPath(); context.arc(p.x, p.y - offset, radius * .32, 0, Math.PI * 2);
@@ -651,9 +694,13 @@ export function createCanvas2DRenderer(canvas: HTMLCanvasElement, options: Rende
       const deviceWidth = Math.round(width * dpr), deviceHeight = Math.round(height * dpr);
       if (canvas.width !== deviceWidth) canvas.width = deviceWidth;
       if (canvas.height !== deviceHeight) canvas.height = deviceHeight;
-      context.setTransform(dpr, 0, 0, dpr, 0, 0);
+      // Screen shake: one whole-device-pixel offset for the frame, shared by cached blits and direct drawing.
+      // The camera (and so every cache key) stays put.
+      const shakeX = Math.round((frame.shake?.x ?? 0) * dpr), shakeY = Math.round((frame.shake?.y ?? 0) * dpr);
+      context.setTransform(1, 0, 0, 1, 0, 0);
+      context.clearRect(0, 0, deviceWidth, deviceHeight);
+      context.setTransform(dpr, 0, 0, dpr, shakeX, shakeY);
       context.imageSmoothingEnabled = false;
-      context.clearRect(0, 0, width, height);
       const radius = HEX_RADIUS * camera.zoom;
       const centers = scene.tiles.map(tile => toScreen(tile.world, camera));
       const onscreen = (p: Point) => p.x >= -radius && p.x <= width + radius && p.y >= -radius && p.y <= height + radius;
@@ -675,10 +722,10 @@ export function createCanvas2DRenderer(canvas: HTMLCanvasElement, options: Rende
       const layer = (cache: LayerCache | null, key: string, paint: (draw: Draw) => void): { cache: LayerCache | null; stat: LayerStat } => {
         const painter = every(paint);
         if (!caching) { painter(context); return { cache, stat: 'off' }; }
-        if (cache?.key === key) { blit(context, cache.canvas, dpr); return { cache, stat: 'hit' }; }
+        if (cache?.key === key) { blit(context, cache.canvas, dpr, shakeX, shakeY); return { cache, stat: 'hit' }; }
         if (!settled) { painter(context); return { cache, stat: 'direct' }; }
         const built = cachedLayer(cache, key, deviceWidth, deviceHeight, dpr, painter);
-        blit(context, built.cache.canvas, dpr);
+        blit(context, built.cache.canvas, dpr, shakeX, shakeY);
         return { cache: built.cache, stat: 'miss' };
       };
       const baseKey = `${view}|${scene.tiles.map(tile => tile.biome ?? '-').join(',')}|${scene.territoryEdges.map(edge => `${edge.index}.${edge.direction}.${edge.ownerId}`).join(',')}`;
@@ -690,6 +737,7 @@ export function createCanvas2DRenderer(canvas: HTMLCanvasElement, options: Rende
       for (const item of all) drawCities(item);
       for (const item of all) drawYields(item);
       for (const item of all) drawWeather(item);
+      drawNight(all[0]);
       for (const item of all) drawUnits(item, frame, camera);
       for (const item of all) drawBanners(item);
       for (const item of all) drawInteraction(item);
@@ -701,13 +749,14 @@ export function createCanvas2DRenderer(canvas: HTMLCanvasElement, options: Rende
       for (const item of all) drawSelection(item, frame);
       if (scene.debug.overlay !== 'none') for (const item of all) drawDebug(item);
       for (const item of all) drawEffects(item, frame, indexOf);
-      return { base: baseLayer.stat, fog: fogStat };
+      return { base: baseLayer.stat, fog: fogStat, shake: { x: shakeX, y: shakeY } };
     },
   };
 }
 
-function blit(context: CanvasRenderingContext2D, layer: HTMLCanvasElement, dpr: number) {
+/** Copies a cached device-pixel layer; `dx`/`dy` is the frame's shake in device pixels. */
+function blit(context: CanvasRenderingContext2D, layer: HTMLCanvasElement, dpr: number, dx: number, dy: number) {
   context.setTransform(1, 0, 0, 1, 0, 0);
-  context.drawImage(layer, 0, 0);
-  context.setTransform(dpr, 0, 0, dpr, 0, 0);
+  context.drawImage(layer, dx, dy);
+  context.setTransform(dpr, 0, 0, dpr, dx, dy);
 }

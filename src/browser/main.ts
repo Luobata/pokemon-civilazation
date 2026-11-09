@@ -58,7 +58,9 @@ import { reachablePaths } from '../core/movement.ts';
 import type { PlayerView, VisibleEvent } from '../core/model.ts';
 import { BIOME_DISPLAY, FACTION_LEGEND } from './canvas.ts';
 import { createMapRenderer, Timeline } from './render/index.ts';
-import type { DebugOverlay, Track } from './render/index.ts';
+import type { DebugOverlay, RenderStats, Track } from './render/index.ts';
+import type { UnitMarkIdentity } from './render/scene.ts';
+import type { Hex } from '../core/hex.ts';
 import { battleTrack, captureTrack, evolveTrack, moveTrack, tapTrack } from './render/animation.ts';
 import { describeTile, tileSummary } from './tile-info.ts';
 import { renderTilePanel } from './tile-panel.ts';
@@ -111,6 +113,8 @@ export const developerAdapter = {
   exportLog: () => driver.exportLog(),
   save: () => driver.save(),
   getFrameMetrics: () => ({ ...frameMetrics() }),
+  /** Last map frame's layer-cache stats and shake offset, and the recently presented events (animated or skipped). */
+  getPresentation: () => ({ render: lastRenderStats && { ...lastRenderStats, shake: { ...lastRenderStats.shake } }, events: presentationLog.map(item => ({ ...item })) }),
 };
 export let camera: Camera = { x: 0, y: 0, zoom: 1 };
 let selected: number | null = null;
@@ -137,13 +141,67 @@ let notice = '';
 let presentationIndex = 0;
 const busy = () => timeline.busy || presentationIndex < session.presentationQueue.length;
 
+const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+/** Identities of units seen earlier (owner, species), so a unit removed by a battle can still be drawn and attributed. */
+const knownUnits = new Map<number, UnitMarkIdentity>();
+/** City owners at the last idle refresh, so a city taken during the AI turns still knows its previous owner. */
+const knownCityOwners = new Map<number, number | null>();
+function unitOwner(view: PlayerView, id: number): number | null | undefined {
+  const unit = view.units.find(item => item.id === id) ?? view.recoveringUnits.find(item => item.id === id);
+  return unit ? unit.ownerId : knownUnits.get(id)?.ownerId;
+}
+/** Whether a battle was fought by, or against, the viewer. */
+function battleInvolvesViewer(payload: BattlePayload, view: PlayerView): boolean {
+  if (unitOwner(view, payload.attackerId) === view.playerId) return true;
+  return payload.target.kind === 'unit' ? unitOwner(view, payload.target.id) === view.playerId
+    : knownOwnCityIds.has(payload.target.id) || knownCityOwners.get(payload.target.id) === view.playerId;
+}
+/** Tiles an event happens on, for the off-screen check. */
+function eventTiles(payload: VisibleEvent['payload'], view: PlayerView): Hex[] {
+  const at = (id: number) => view.units.find(unit => unit.id === id)?.position;
+  switch (payload.type) {
+    case 'Moved': return payload.path;
+    case 'BattleResolved': return payload.positions;
+    case 'Captured': return [at(payload.targetUnitId), at(payload.unitId)].filter((hex): hex is Hex => hex !== undefined);
+    case 'Evolved': return [at(payload.unitId)].filter((hex): hex is Hex => hex !== undefined);
+    default: return [];
+  }
+}
+/** Any of the tiles inside the map viewport (on a wrapping map: the copy nearest the centre, which is the visible one if any is). */
+function onScreen(tiles: readonly Hex[], view: PlayerView): boolean {
+  const width = canvas.clientWidth, height = canvas.clientHeight, margin = HEX_RADIUS * camera.zoom;
+  return tiles.some(hex => {
+    const p = tileToScreen(hex, camera, view.map, width);
+    return p.x >= -margin && p.x <= width + margin && p.y >= -margin && p.y <= height + margin;
+  });
+}
+/** The viewer's own action (moves, attacks, captures, evolutions they issued). */
+function ownAction(payload: VisibleEvent['payload'], view: PlayerView): boolean {
+  switch (payload.type) {
+    case 'Moved': return payload.unit.ownerId === view.playerId;
+    case 'BattleResolved': return unitOwner(view, payload.attackerId) === view.playerId;
+    case 'Captured': case 'Evolved': return payload.playerId === view.playerId;
+    default: return false;
+  }
+}
+/** Recent presented events and whether each got a map animation (developer adapter, tests). */
+const presentationLog: { type: string; animated: boolean }[] = [];
+let lastRenderStats: RenderStats | null = null;
+
 /** The visual track for one presentation event, or null for events without an animation. */
 function presentationTrack(payload: VisibleEvent['payload']): Track | null {
+  const view = session.getView();
+  // V7: someone else's action entirely outside the viewport costs no playing time (its toast and log entry remain).
+  if (!ownAction(payload, view) && eventTiles(payload, view).length && !onScreen(eventTiles(payload, view), view)) {
+    notice = summary(payload) || notice;
+    return null;
+  }
   const key = `${payload.type}:${trackSerial++}`;
   const finish = () => { notice = summary(payload) || notice; presenting.delete(track!.key); };
   let track: Track | null = null;
-  if (payload.type === 'Moved') track = moveTrack(payload.unit, payload.path, finish, session.getView().map);
-  else if (payload.type === 'BattleResolved') track = battleTrack(key, payload.positions[1], payload.damage, payload.counterDamage, finish);
+  if (payload.type === 'Moved') track = moveTrack(payload.unit, payload.path, finish, view.map);
+  else if (payload.type === 'BattleResolved') track = battleTrack({ key, attacker: payload.positions[0], target: payload.positions[1],
+    damage: payload.damage, counterDamage: payload.counterDamage, motion: !reducedMotion(), onFinish: finish });
   else if (payload.type === 'Captured') track = captureTrack(key, payload.targetUnitId, payload.success, finish);
   else if (payload.type === 'Evolved') track = evolveTrack(key, payload.unitId, finish);
   if (track) presenting.set(track.key, payload);
@@ -227,30 +285,45 @@ function syncMusic() {
   const view = session.getView();
   audio.setMood(view.outcome ? 'menu' : view.diplomacy.some(pair => pair.status === 'war' && (pair.a === view.playerId || pair.b === view.playerId)) ? 'war' : 'peace');
 }
-/** The effect for one presented event (only what the viewer did, or what happened to the viewer). */
-function soundFor(payload: VisibleEvent['payload'], view: PlayerView): SoundId | null {
+/** Sounds for a battle: city captured / lost, an alarm when one of our cities is hit; nothing for strangers' fights off screen. */
+function battleSounds(payload: BattlePayload, view: PlayerView): SoundId[] {
+  const me = view.playerId, involved = battleInvolvesViewer(payload, view);
+  if (!involved && !onScreen(payload.positions, view)) return [];
+  const ownCity = payload.target.kind === 'city' && (knownOwnCityIds.has(payload.target.id) || knownCityOwners.get(payload.target.id) === me);
+  if (payload.capturedCity) return [unitOwner(view, payload.attackerId) === me ? 'cityCaptured' : ownCity ? 'cityLost' : 'hit'];
+  return [payload.knockedDownUnitIds.length ? 'knockdown' : 'hit', ...(ownCity ? ['alarm' as const] : [])];
+}
+/** The effects for one presented event (only what the viewer did, or what happened to the viewer). */
+export function soundsFor(payload: VisibleEvent['payload'], view: PlayerView): SoundId[] {
   const me = view.playerId;
+  const own = (playerId: number, id: SoundId): SoundId[] => playerId === me ? [id] : [];
   switch (payload.type) {
-    case 'Moved': return payload.unit.ownerId === me ? 'move' : null;
-    case 'BattleResolved': return payload.knockedDownUnitIds.length ? 'knockdown' : 'hit';
-    case 'Captured': return payload.playerId !== me ? null : payload.success ? 'capture' : 'captureFail';
-    case 'Evolved': case 'WorldStoneEvolution': return payload.playerId === me ? 'evolve' : null;
-    case 'CityFounded': return payload.playerId === me ? 'cityFounded' : null;
-    case 'BuildingCompleted': case 'DistrictCompleted': case 'UnitTrained': return payload.playerId === me ? 'production' : null;
-    case 'TechCompleted': case 'DiscoveryMade': return payload.playerId === me ? 'research' : null;
-    case 'TradeRouteEstablished': return payload.playerId === me ? 'production' : null;
-    case 'ObjectiveCompleted': case 'ItemBallClaimed': return payload.playerId === me ? 'notify' : null;
-    case 'UnitPromoted': return 'promotion';
-    case 'LegendWonderCompleted': return 'wonder';
-    case 'LegendClueFound': case 'EraAgeBegan': return payload.playerId === me ? 'notify' : null;
-    case 'DiplomacyChanged': return payload.relation.a !== me && payload.relation.b !== me ? null : payload.relation.status === 'war' && payload.relation.changedAtRound >= view.round - 1 ? 'war' : payload.relation.status === 'peace' && payload.relation.changedAtRound >= view.round - 1 ? 'peace' : null;
-    case 'TurnChanged': return payload.activePlayerId === me ? 'turn' : null;
-    default: return null;
+    case 'Moved': return payload.unit.ownerId === me ? ['move'] : [];
+    case 'BattleResolved': return battleSounds(payload, view);
+    case 'Captured': return payload.playerId !== me ? [] : [payload.success ? 'capture' : 'captureFail'];
+    case 'Evolved': case 'WorldStoneEvolution': return own(payload.playerId, 'evolve');
+    case 'CityFounded': return own(payload.playerId, 'cityFounded');
+    case 'BuildingCompleted': case 'DistrictCompleted': case 'UnitTrained': return own(payload.playerId, 'production');
+    case 'TechCompleted': case 'DiscoveryMade': return own(payload.playerId, 'research');
+    case 'TradeRouteEstablished': return own(payload.playerId, 'tradeRoute');
+    case 'ObjectiveCompleted': case 'ItemBallClaimed': return own(payload.playerId, 'notify');
+    case 'UnitPromoted': return own(payload.playerId, 'promotion');
+    case 'LegendWonderCompleted': return ['wonder'];
+    case 'LegendWonderLost': return own(payload.playerId, 'legendLost');
+    case 'LegendClueFound': return own(payload.playerId, 'notify');
+    case 'EraAgeBegan': return own(payload.playerId, 'eraChange');
+    case 'WeatherSummoned': return own(payload.playerId, 'weather');
+    case 'EraAbilityUsed': return own(payload.playerId, 'formChange');
+    case 'WildSpawned': case 'WorldNestSpawned': return ['alarm'];
+    case 'WorldRampageStruckCity': return knownOwnCityIds.has(payload.cityId) ? ['alarm'] : [];
+    case 'GameEnded': return payload.outcome.winners.includes(me) ? ['victory'] : ['defeat'];
+    case 'DiplomacyChanged': return payload.relation.a !== me && payload.relation.b !== me ? [] : payload.relation.status === 'war' && payload.relation.changedAtRound >= view.round - 1 ? ['war'] : payload.relation.status === 'peace' && payload.relation.changedAtRound >= view.round - 1 ? ['peace'] : [];
+    case 'TurnChanged': return payload.activePlayerId === me ? ['turn'] : [];
+    default: return [];
   }
 }
 function recordActivity(payload: VisibleEvent['payload']) {
-  const sound = soundFor(payload, session.getView());
-  if (sound) audio.play(sound);
+  for (const sound of soundsFor(payload, session.getView())) audio.play(sound);
   if (payload.type === 'DiplomacyChanged' || payload.type === 'GameEnded') syncMusic();
   if (payload.type === 'LegendWonderCompleted' && payload.playerId === session.getView().playerId) legendArrivals.push(payload.legendId);
   rail.push(toastFor(payload, session.getView(), { ownCityIds: knownOwnCityIds, unitName: id => knownUnitLabels.get(id)?.replace(/^(野生 |文明 \d+ 的 )/, '') }));
@@ -267,7 +340,10 @@ function controls() {
     selected = null; resetAction();
   }
   if (selectedCity !== null && !view.economy.cities.some(city => city.id === selectedCity)) selectedCity = null;
-  for (const unit of view.units) knownUnitLabels.set(unit.id, `${unit.ownerId === null ? '野生 ' : `文明 ${unit.ownerId + 1} 的 `}${unitDefinition(unit, CONTENT).name}`);
+  for (const unit of view.units) {
+    knownUnitLabels.set(unit.id, `${unit.ownerId === null ? '野生 ' : `文明 ${unit.ownerId + 1} 的 `}${unitDefinition(unit, CONTENT).name}`);
+    knownUnits.set(unit.id, unit);
+  }
   const { player } = view.economy;
   const yields = view.economy.cities.reduce((sum, city) => ({
     gold: sum.gold + city.yields.gold,
@@ -358,7 +434,10 @@ function controls() {
   document.querySelector('#context-drawer')!.classList.toggle('has-selection', selected !== null || selectedCity !== null || neutralCity !== null || inspectedTile !== null || districtPlacement !== null);
   const reminders = turnReminders(view, CONTENT, reviewedUnits.of(view.round));
   renderTurnButton(view, reminders, ended, pendingPeace);
-  if (!busy()) { knownOwnCityIds.clear(); for (const city of view.economy.cities) knownOwnCityIds.add(city.id); }
+  if (!busy()) {
+    knownOwnCityIds.clear(); for (const city of view.economy.cities) knownOwnCityIds.add(city.id);
+    for (const city of view.cities) knownCityOwners.set(city.id, city.ownerId);
+  }
   rail.sync(view, busy(), { unitId: selected, cityId: selectedCity });
   document.querySelector('#turn-reminders')!.innerHTML = ended ? '' : reminders.map(item => `<button type="button" data-reminder="${item.target}">${item.label}</button>`).join('');
   for (const button of document.querySelectorAll<HTMLButtonElement>('[data-reminder]')) button.onclick = () => {
@@ -399,6 +478,7 @@ function onEndTurn(force: boolean) {
   if (busy() || !turnState) return;
   const step = turnState;
   if (force || step.kind === 'ready') { issue({ type: 'EndTurn' }); return; }
+  audio.play('click');
   if (step.kind === 'city') {
     selectCity(step.cityId);
     const economy = document.querySelector<HTMLElement>('#economy');
@@ -428,6 +508,7 @@ function issue(action: Command['action'], successNotice?: string) {
   else {
     notice = successNotice ?? '';
     if (action.type === 'Attack') audio.play('attack');
+    if (action.type === 'EndTurn') audio.play('endTurn');
     if (action.type === 'Attack' || action.type === 'Capture' || action.type === 'Move' || action.type === 'EndTurn') resetAction();
     if (action.type === 'SetProductionQueue' && action.orders.some(order => order.item.kind === 'district')) districtPlacement = null;
     if (action.type === 'FoundCity') {
@@ -448,7 +529,9 @@ function advanceToNextUnit(action: Command['action']) {
   const next = view.units.filter(unit => unit.ownerId === view.playerId && unit.actionLeft && unit.id !== selected)
     .sort((a, b) => (origin ? hexDistance(origin, a.position, view.map) - hexDistance(origin, b.position, view.map) : 0) || a.id - b.id)[0];
   if (!next) return;
-  selectUnit(next.id);
+  // The camera moves on once the action's animation has played, so the player sees their own battle.
+  selectUnit(next.id, false);
+  deferredFocus = next.position;
   notice = `下一个待命单位：${next.kind === 'pokemon' ? contentForView(view).species[next.speciesId].name : '开拓队'}（还有 ${view.units.filter(unit => unit.ownerId === view.playerId && unit.actionLeft).length} 个单位待命）`;
 }
 /** P0-4: the floating combat preview beside the chosen attack target (follows the camera; hidden otherwise). */
@@ -563,13 +646,16 @@ function frame(now: number) {
     recordActivity(event.payload);
     const track = presentationTrack(event.payload);
     if (track) timeline.add(track, now);
+    presentationLog.push({ type: event.payload.type, animated: track !== null });
+    if (presentationLog.length > 80) presentationLog.shift();
   }
   const view = session.getView();
+  if (deferredFocus && !busy()) focusHex(deferredFocus);
   const animation = timeline.sample(now, { unitPosition: id => view.units.find(unit => unit.id === id)?.position });
   const paths = selected === null ? {} : reachablePaths(view, selected);
   const targets = selected === null ? [] : actionTargets(view, selected, actionMode, selectedBall).map(target => hexToIndex(target.position, view.map)!);
   const drawStarted = performance.now();
-  renderer.render({
+  lastRenderStats = renderer.render({
     view: import.meta.env.DEV && god.checked ? developerAdapter.getDebugView() : view, camera, animation,
     selected, selectedCity, reachable: Object.keys(paths).map(Number), cursorIndex: keyboardIndex,
     actionMode, actionTargets: targets, pendingTargetIndex: pendingTarget?.index, inspectedTile,
@@ -607,7 +693,10 @@ function clearSelection() {
   selected = null; selectedCity = null; neutralCity = null; inspectedTile = null; keyboardIndex = null;
   resetAction(); notice = ''; controls(); requestFrame();
 }
+/** A camera focus waiting for the presentation queue to drain (auto-advance to the next unit). */
+let deferredFocus: Hex | null = null;
 function focusHex(position: { q: number; r: number }) {
+  deferredFocus = null;
   keyboardIndex = hexToIndex(position, session.getView().map);
   camera.zoom = Math.max(camera.zoom, 1.5);
   const point = hexToWorld(position);
@@ -656,7 +745,7 @@ function newGame() {
     driver = new GameSession({ expansionVersion: 1, eraProgression, gameplayVersion: requestedGameplayVersion(), seed: Number(new URLSearchParams(location.search).get('seed') ?? '12345'), ...size,
       roundLimit: Number(document.querySelector<HTMLSelectElement>('#round-limit')!.value) as GameSetup['roundLimit'], players });
     session = driver.asPlayerSession();
-    timeline.clear(); presenting.clear(); presentationIndex = 0; selected = null; selectedCity = session.getView().economy.player.headquartersCityId; neutralCity = null; inspectedTile = null; keyboardIndex = null; activityLog.length = 0; knownUnitLabels.clear();
+    timeline.clear(); presenting.clear(); presentationIndex = 0; selected = null; selectedCity = session.getView().economy.player.headquartersCityId; neutralCity = null; inspectedTile = null; keyboardIndex = null; activityLog.length = 0; knownUnitLabels.clear(); knownUnits.clear(); knownCityOwners.clear(); deferredFocus = null;
     rail.clear(); reviewedUnits.clear(); knownOwnCityIds.clear();
     frameDurations.length = 0;
     resetAction(); notice = ''; sequence.value = '0';
@@ -774,7 +863,7 @@ canvas.addEventListener('pointermove', event => {
   const point = localPoint(event);
   if (Math.hypot(point.x - drag.start.x, point.y - drag.start.y) > 4) drag.moved = true;
   if (drag.moved) {
-    camera.x += point.x - drag.last.x; camera.y += point.y - drag.last.y;
+    deferredFocus = null; camera.x += point.x - drag.last.x; camera.y += point.y - drag.last.y;
     requestFrame();
   }
   drag.last = point;
@@ -787,7 +876,7 @@ canvas.addEventListener('pointerup', event => {
   activateIndex(hexToIndex(hex, session.getView().map));
 });
 canvas.addEventListener('wheel', event => {
-  event.preventDefault(); zoomAt(camera, localPoint(event), Math.exp(-event.deltaY * .001)); requestFrame();
+  event.preventDefault(); deferredFocus = null; zoomAt(camera, localPoint(event), Math.exp(-event.deltaY * .001)); requestFrame();
 }, { passive: false });
 canvas.addEventListener('contextmenu', event => {
   event.preventDefault();
@@ -838,17 +927,17 @@ document.querySelector('#export')!.addEventListener('click', () => {
 });
 document.querySelector('#replay')!.addEventListener('click', () => {
   if (transitionBlocked()) return;
-  try { driver.replayTo(Number(sequence.value)); selected = null; selectedCity = null; neutralCity = null; inspectedTile = null; keyboardIndex = null; knownUnitLabels.clear(); resetAction(); notice = ''; skip(); }
+  try { driver.replayTo(Number(sequence.value)); selected = null; selectedCity = null; neutralCity = null; inspectedTile = null; keyboardIndex = null; knownUnitLabels.clear(); knownUnits.clear(); knownCityOwners.clear(); deferredFocus = null; resetAction(); notice = ''; skip(); }
   catch (error) { notice = error instanceof Error ? error.message : String(error); controls(); }
 });
 document.querySelector('#resume')!.addEventListener('click', () => {
   if (transitionBlocked()) return;
-  driver.resumeFromReplay(); selected = null; selectedCity = null; neutralCity = null; inspectedTile = null; keyboardIndex = null; knownUnitLabels.clear(); resetAction(); controls(); requestFrame();
+  driver.resumeFromReplay(); selected = null; selectedCity = null; neutralCity = null; inspectedTile = null; keyboardIndex = null; knownUnitLabels.clear(); knownUnits.clear(); knownCityOwners.clear(); deferredFocus = null; resetAction(); controls(); requestFrame();
 });
 const saveKey = 'pokemon-civilization-save';
 function load(text: string) {
   if (transitionBlocked()) return;
-  driver.load(text); closeScreen(); timeline.clear(); presenting.clear(); selected = null; selectedCity = session.getView().economy.cities[0]?.id ?? null; neutralCity = null; inspectedTile = null; keyboardIndex = null; activityLog.length = 0; knownUnitLabels.clear(); resetAction(); notice = '读档完成';
+  driver.load(text); closeScreen(); timeline.clear(); presenting.clear(); selected = null; selectedCity = session.getView().economy.cities[0]?.id ?? null; neutralCity = null; inspectedTile = null; keyboardIndex = null; activityLog.length = 0; knownUnitLabels.clear(); knownUnits.clear(); knownCityOwners.clear(); deferredFocus = null; resetAction(); notice = '读档完成';
   rail.clear(); reviewedUnits.clear(); knownOwnCityIds.clear();
   frameDurations.length = 0;
   fit();
@@ -915,7 +1004,8 @@ installUnitActionBar();
 document.querySelector<HTMLElement>('#audio-settings-root')!.innerHTML = audioSettingsMarkup();
 bindAudioSettings(document.querySelector<HTMLElement>('#audio-settings-root')!);
 for (const type of ['pointerdown', 'keydown'] as const) window.addEventListener(type, () => { audio.unlock(); syncMusic(); }, { passive: true });
-document.addEventListener('click', event => { if ((event.target as HTMLElement).closest('button')) audio.play('click'); }, true);
+// Every button clicks, except 下一回合: it plays the end-turn cue when the turn ends (or a click when it only points at a pending unit or city).
+document.addEventListener('click', event => { const button = (event.target as HTMLElement).closest('button'); if (button && button !== endTurn) audio.play('click'); }, true);
 // The map fills the stage; redraw when a screen closes so the canvas picks up any resize.
 onScreenChange(screen => { rail.screenOpened(screen); if (screen === null && session) requestFrame(); });
 document.querySelector<HTMLInputElement>('#activity-important')!.addEventListener('change', event => { activityImportantOnly = (event.target as HTMLInputElement).checked; controls(); });

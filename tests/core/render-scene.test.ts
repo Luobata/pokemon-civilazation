@@ -11,7 +11,7 @@ import { hexToIndex } from '../../src/core/hex.ts';
 import type { GameSetup, GameState } from '../../src/core/model.ts';
 import { isMapUnit } from '../../src/core/model.ts';
 import { buildScene, sceneMarkedTiles } from '../../src/browser/render/scene.ts';
-import { BURST_MS, MOVE_STEP_MS, Timeline, battleTrack, captureTrack, moveTrack } from '../../src/browser/render/animation.ts';
+import { BURST_MS, COUNTER_DELAY_MS, MOVE_STEP_MS, SHAKE_MS, Timeline, battleTrack, captureTrack, moveTrack, shakeAmplitude, shakeAt } from '../../src/browser/render/animation.ts';
 import type { Track } from '../../src/browser/render/animation.ts';
 import { hexToWorld } from '../../src/browser/camera.ts';
 
@@ -87,11 +87,11 @@ test('move tracks interpolate along the path with the existing timing', () => {
 test('tracks run in parallel, replace by key, and finish once', () => {
   const finished: string[] = [];
   const timeline = new Timeline();
-  timeline.add(battleTrack('battle:1', { q: 1, r: 1 }, 12, 3, () => finished.push('battle')), 0);
+  timeline.add(battleTrack({ key: 'battle:1', attacker: { q: 0, r: 1 }, target: { q: 1, r: 1 }, damage: 12, counterDamage: 0, onFinish: () => finished.push('battle') }), 0);
   timeline.add(captureTrack('capture:1', 9, true, () => finished.push('capture')), 100);
   const both = timeline.sample(300, context);
-  expect(both.effects.map(effect => effect.kind)).toEqual(['battle', 'capture']);
-  expect(both.effects[1]).toMatchObject({ position: { q: 3, r: 2 }, progress: 200 / BURST_MS });
+  expect(both.effects.map(effect => effect.kind)).toEqual(['battle', 'number', 'capture']);
+  expect(both.effects[2]).toMatchObject({ position: { q: 3, r: 2 }, progress: 200 / BURST_MS });
   timeline.sample(BURST_MS, context);
   expect(finished).toEqual(['battle']);
   timeline.add(captureTrack('capture:1', 9, false, () => finished.push('replacement')), BURST_MS);
@@ -106,8 +106,47 @@ test('ambient loops keep animating without blocking the presentation queue; clea
   timeline.add(ambient, 0);
   expect(timeline.busy).toBe(false);
   expect(timeline.animating).toBe(true);
-  timeline.add(battleTrack('battle:2', { q: 0, r: 0 }, 1, 0, () => { called = true; }), 0);
+  timeline.add(battleTrack({ key: 'battle:2', attacker: { q: 1, r: 0 }, target: { q: 0, r: 0 }, damage: 1, counterDamage: 0, onFinish: () => { called = true; }, onImpact: () => { called = true; } }), 0);
   expect(timeline.clear()).toEqual(['ambient:water', 'battle:2']);
   expect(called).toBe(false);
   expect(timeline.animating).toBe(false);
+});
+
+test('battle numbers: the damage pops on the target, the counter on the attacker; the frame shakes without the camera', () => {
+  const attacker = { q: 2, r: 3 }, target = { q: 3, r: 3 };
+  const impacts: boolean[] = [];
+  const timeline = new Timeline();
+  timeline.add(battleTrack({ key: 'battle:3', attacker, target, damage: 30, counterDamage: 9, onImpact: counter => impacts.push(counter) }), 0);
+  const first = timeline.sample(16, context);
+  expect(first.effects).toContainEqual(expect.objectContaining({ kind: 'number', position: target, text: '−30', tone: 'damage' }));
+  expect(first.effects.some(effect => effect.kind === 'number' && effect.tone === 'counter')).toBe(false);
+  expect(Math.hypot(first.shake!.x, first.shake!.y)).toBeGreaterThan(1);
+  expect(impacts).toEqual([false]);
+  const counter = timeline.sample(COUNTER_DELAY_MS + 20, context);
+  expect(counter.effects).toContainEqual(expect.objectContaining({ kind: 'number', position: attacker, text: '反击 −9', tone: 'counter' }));
+  expect(impacts).toEqual([false, true]);
+  // Shake decays to nothing once both hits have settled; the whole battle stays within 900 ms.
+  expect(timeline.sample(COUNTER_DELAY_MS + SHAKE_MS + 1, context).shake).toBeUndefined();
+  timeline.sample(900, context);
+  expect(timeline.busy).toBe(false);
+  // Reduced motion: same numbers, no shake.
+  const still = new Timeline();
+  still.add(battleTrack({ key: 'battle:4', attacker, target, damage: 30, counterDamage: 0, motion: false }), 0);
+  const frame = still.sample(16, context);
+  expect(frame.shake).toBeUndefined();
+  expect(frame.effects.some(effect => effect.kind === 'number')).toBe(true);
+  expect(shakeAt(0, shakeAmplitude(100))!.x).toBeLessThanOrEqual(6);
+});
+
+test('cues run once when due, and the remaining ones when the track ends; skipping drops them', () => {
+  const ran: number[] = [];
+  const timeline = new Timeline();
+  const track = (key: string): Track => ({ key, duration: 100, sample: () => undefined, cues: [{ at: 10, run: () => ran.push(10) }, { at: 90, run: () => ran.push(90) }] });
+  timeline.add(track('a'), 0);
+  timeline.sample(5, context); expect(ran).toEqual([]);
+  timeline.sample(20, context); timeline.sample(30, context); expect(ran).toEqual([10]);
+  timeline.sample(500, context); expect(ran).toEqual([10, 90]);
+  timeline.add(track('b'), 1000);
+  timeline.clear();
+  timeline.sample(1200, context); expect(ran).toEqual([10, 90]);
 });
