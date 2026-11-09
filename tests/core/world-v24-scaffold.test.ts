@@ -23,8 +23,11 @@ test('v24 scaffolding: until the features land, a v24 game is the v23 game with 
   const v23 = createGame(setup(23)), v24 = createGame(setup(24));
   expect(v24.map).toEqual(v23.map);
   expect(v24.map.features).toBeUndefined();
-  expect(Object.keys(v24.expansion!).sort()).toEqual(Object.keys(v23.expansion!).sort());
-  expect({ ...observe(v24, 0), gameplayVersion: 23 }).toEqual(observe(v23, 0));
+  // Feature D adds its own ledger (and the view of it); everything else is still the v23 game.
+  const landed = ['researchTasks'];
+  expect(Object.keys(v24.expansion!).filter(key => !landed.includes(key)).sort()).toEqual(Object.keys(v23.expansion!).sort());
+  const view24 = observe(v24, 0);
+  expect({ ...view24, gameplayVersion: 23, expansion: Object.fromEntries(Object.entries(view24.expansion!).filter(([key]) => !landed.includes(key))) }).toEqual(observe(v23, 0));
   const challenge = { actorId: 0, expectedSeq: 0, action: { type: 'ChallengeGym' as const, gymId: 1, unitIds: [1] } };
   expect(step(v24, challenge)).toEqual({ ok: false, reason: 'invalid-command' });
   expect(step(v23, challenge)).toEqual({ ok: false, reason: 'invalid-command' });
