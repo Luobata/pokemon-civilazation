@@ -1,4 +1,9 @@
 import { observeOpening, rememberOpening } from './opening.ts';
+import { viewFeatures } from './terrain.ts';
+import { observeLandmarks } from './landmarks.ts';
+import { observeGymCircuit } from './gym-circuit.ts';
+import { observeRivals } from './rivals.ts';
+import { observeResearchTasks } from './research-tasks.ts';
 import { observeCityNetwork } from './city-network.ts';
 import { observeLegends } from './legends.ts';
 import { observeEraHonors } from './era-honors.ts';
@@ -125,6 +130,10 @@ export function observe(state: GameState, playerId: number, content: Content = c
       ...(state.expansion.legends ? { legends: observeLegends(state, playerId, visible) } : {}),
       ...(state.expansion.cityNetwork ? { cityNetwork: observeCityNetwork(state, playerId) } : {}),
       ...(state.expansion.opening ? { opening: observeOpening(state, playerId, visible) } : {}),
+      ...(state.expansion.landmarks ? { landmarks: observeLandmarks(state, playerId) } : {}),
+      ...(state.expansion.gymCircuit ? { gymCircuit: observeGymCircuit(state, playerId) } : {}),
+      ...(state.expansion.rivals ? { rivals: observeRivals(state, playerId) } : {}),
+      ...(state.expansion.researchTasks ? { researchTasks: observeResearchTasks(state, playerId) } : {}),
       ...(state.expansion.promotions ? { promotions: observePromotions(state, playerId, visible, hex => hexToIndex(hex, state.map)) } : {}),
       ...(state.expansion.faith ? { faith: observeFaith(state, playerId) } : {}),
       ...(state.expansion.contests ? { contests: observeContests(state, playerId, content) } : {}),
@@ -134,7 +143,8 @@ export function observe(state: GameState, playerId: number, content: Content = c
     ...(state.setup.gameplayVersion ? { gameplayVersion: state.setup.gameplayVersion } : {}),
     playerId, seed: state.setup.seed, round: state.round, activePlayerId: state.activePlayerId, commandSeq: state.commandSeq,
     map: { width: state.map.width, height: state.map.height, ...(state.map.wrap ? { wrap: true } : {}),
-      tiles: state.map.tiles.map((biome, i) => visible.has(i) ? biome : knowledge.rememberedTiles[i]?.biomeId ?? null) },
+      tiles: state.map.tiles.map((biome, i) => visible.has(i) ? biome : knowledge.rememberedTiles[i]?.biomeId ?? null),
+      ...(state.map.features ? { features: viewFeatures(state.map, knowledge.exploredTileIds) } : {}) },
     territoryOwnerIds: territory.map((ids, i) => visible.has(i) ? [...ids] : knowledge.rememberedTiles[i]?.territoryOwnerIds?.slice() ?? null),
     combat: {
       units: Object.fromEntries(Object.values(state.units).filter(isMapUnit).filter(unit => visible.has(hexToIndex(unit.position, state.map)!))

@@ -40,6 +40,10 @@ import { planRareBerryAction, siteRareBerryBonus } from './rare-berry-plan.ts';
 import { planContestAction } from './contest-plan.ts';
 import { planFaithAction } from './faith-plan.ts';
 import { planDedicationAction } from './dedication-plan.ts';
+import { gymMoveTargets, planGymAction } from './gym-plan.ts';
+import { rivalThreatenedCityIds } from './rival-plan.ts';
+import { researchCaptureScore } from './research-plan.ts';
+import { travelCloser, travelDistance } from './travel.ts';
 import type { Goal } from './strategies.ts';
 type Candidate = { action: Command['action']; goal: Goal; benefit: number; ownId: number; targetId: number };
 export const CANDIDATE_BUDGET = 256; // 32 representatives for each of eight goals, never a time budget.
@@ -120,7 +124,8 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
   if (contestAction) return result(contestAction);
   const faithAction = planFaithAction(view);
   if (faithAction) return result(faithAction);
-  const threatened = new Set(threatenedCityIds(view));
+  // v24 C: a rival's warned / attacked cities count as threatened too.
+  const threatened = new Set([...threatenedCityIds(view), ...rivalThreatenedCityIds(view)]);
   const leaderAction = planLeaderAction(view, content);
   if (leaderAction) return result(leaderAction);
   const worldAction = planWorldAction(view, { base: content, world: WORLD_DEFINITIONS });
@@ -129,6 +134,9 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
     ? planCivilizationAction(view.expansion.civilization, { ...CIVILIZATION_CONTENT, world: content }, eraCivilizationPolicy(view), view.map)
     : null;
   if (civilizationAction) return result(civilizationAction);
+  // v24 B: gym circuit and Elite Four challenges (null before v24).
+  const gymAction = planGymAction(view, content);
+  if (gymAction) return result(gymAction);
   const units = view.units.filter(unit => unit.ownerId === actorId).sort((a, b) => a.id - b.id);
   const combat = units.filter(unit => unit.kind === 'pokemon');
   const cities = [...view.economy.cities].sort((a, b) => a.id - b.id), known = knownCities(view);
@@ -229,7 +237,7 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
   const visible = new Set(view.visibleTileIds), explored = new Set(view.knowledge.exploredTileIds);
   const atWar = view.diplomacy.some(pair => pair.status === 'war' && (pair.a === actorId || pair.b === actorId));
   const workers = designatedWorkers(view, content, atWar || campaignActive || preparingSiege);
-  const traceTargets = legendTraceTargets(view, content), ballTargets = itemBallTargets(view);
+  const traceTargets = legendTraceTargets(view, content), ballTargets = itemBallTargets(view), gymTargets = gymMoveTargets(view, content);
   for (const unit of units.filter(unit => unit.actionLeft)) {
     const trader = traderPlan(view, unit);
     if (trader.action) add(trader.action, 'economy', 900, unit.id);
@@ -245,7 +253,7 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
         if (canCaptureByPersonality(view, target, query)) for (const ballId of ['pokeBall', 'greatBall'] as BallId[]) {
           const preview = query.capture(view, unit.id, target.id, ballId, content);
           if (preview.ok) add({ type: 'Capture', unitId: unit.id, targetUnitId: target.id, ballId }, 'capture', preview.probability
-            + captureBonus(target) + siegeCaptureBonus(target) + (target.kind === 'pokemon' ? roleCaptureBonus(view, target.speciesId, content) : 0), unit.id, target.id);
+            + captureBonus(target) + siegeCaptureBonus(target) + (target.kind === 'pokemon' ? roleCaptureBonus(view, target.speciesId, content) : 0) + researchCaptureScore(view, target), unit.id, target.id);
         }
         const preview = query.attack(view, unit.id, { kind: 'unit', id: target.id }, content);
         if (preview.ok && preview.damage.min > 0 && (target.ownerId === null || !strategy.defendTerritoryOnly || canSiege(view, target.ownerId, ai)
@@ -284,6 +292,8 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
       if (trace && hexDistance(to, trace, view.map) < hexDistance(unit.position, trace, view.map)) add(action, 'explore', 120 - hexDistance(to, trace, view.map), unit.id, index);
       const ball = ballTargets.get(unit.id);
       if (ball && hexDistance(to, ball, view.map) < hexDistance(unit.position, ball, view.map)) add(action, 'explore', 125 - hexDistance(to, ball, view.map), unit.id, index);
+      const gym = gymTargets.get(unit.id);
+      if (gym && travelCloser(view, unit, to, gym)) add(action, 'military', 90 - travelDistance(view, unit, to, gym), unit.id, index);
       if (seek && hexDistance(to, seek, view.map) < hexDistance(unit.position, seek, view.map)) {
         add(action, 'military', 100 - hexDistance(to, seek, view.map), unit.id, index);
       }

@@ -1,4 +1,5 @@
 import { wallBonus } from './opening.ts';
+import { viewResearchCaptureBonus } from './research-tasks.ts';
 
 /** Same test as the authority (owner's headquarters is this city): a captured former capital still names its fallen founder in `headquartersOf`. */
 const isOwnCapital = (city: { ownerId: number | null; headquartersOf?: number | null } | undefined) => city?.headquartersOf != null && city.headquartersOf === city.ownerId;
@@ -105,5 +106,5 @@ export function previewCapture(view: PlayerView, unitId: number, targetUnitId: n
   const definition = content.species[target.speciesId];
   return { ok: true, probability: Math.min(100, captureProbability(definition.maxHp, target.hp, ballId === 'greatBall' ? 1500 : 1000,
     player.research.unlockedIds.includes('fieldObservation'), definition.rare) + viewPolicyEffects(view).captureBonus + leaderEffects(player.leaderId).captureBonus
-    + (player.leaderId === 'giovanni' && (view.expansion?.leaders.activeUntilRound ?? 0) >= view.round ? 15 : 0)) };
+    + (player.leaderId === 'giovanni' && (view.expansion?.leaders.activeUntilRound ?? 0) >= view.round ? 15 : 0) + viewResearchCaptureBonus(view, target.speciesId)) };
 }

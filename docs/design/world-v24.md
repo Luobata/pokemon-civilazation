@@ -1,6 +1,6 @@
 # 世界 v24：大陆与地形、道馆巡回、劲敌训练家、图鉴调查任务
 
-- 状态：**设计稿，待用户批准**（本阶段只写设计，不改源码和测试）。批准后按第 7 节分步实现，流程同 `improvements-v23.md`。
+- 状态：**规格（实施中）**。用户 2026-11-09 批准，全部采用推荐选项（第 9 节）：两段下水（2A）、4 人图两块大陆各 2 家（4A）、陆地 56%（3A）、格子河流（1A）、馆主强度随徽章数（5A）、四天王头衔每人每局 1 次（6A）、劲敌第 8 轮首次登场（7A，第三城比 v23 同组退化 > 2 轮时改为第 12 轮）。未采用的选项在表中保留并标为“未采用”。
 - 依据：用户 2026-11-09 为 v24 选定四项：① 地形重做（大陆、海岸、气候带、丘陵、河流、水域与高山阻挡、原创自然地标、野生宝可梦按栖息地出现）；② 道馆巡回 + 四天王；③ 劲敌训练家；④ 图鉴调查任务。后三项对应评审 `review-2026-11/2-new-mechanics.md` 的提案 #1、#4、#2。
 - 版本：`gameplayVersion: 24`（schema 19，`rulesVersion: 'world-v24'`，内容 `WORLD24_CONTENT`，`version: 'world-v24'`）。内容标记：`terrain`（A1 生成与地形要素）、`embark`（A2 水域/高山通行）、`landmarks`（A3 地标与栖息地）、`gymCircuit`（B）、`rivals`（C）、`researchTasks`（D）。**v≤23 的存档、命令日志和回放逐字节不变**（`tools/district-smoke.ts 23` 49/49）。
 - 原则（同 v22/v23）：复刻《文明 6》的**机制与交互**，内容用自己的宝可梦设计；地标、馆主、劲敌的名字都是原创，不照搬任何现有游戏的具体地点或人物。
@@ -120,14 +120,14 @@ features?: { hills: number[]; peaks: number[]; rivers: number[]; lakes: number[]
 
 **选择 1：河流记在格子上还是格边上**
 
-| | 1A 格子河流（推荐） | 1B 格边河流（《文明 6》原样） |
+| | **1A 格子河流（采用）** | 1B 格边河流（《文明 6》原样，未采用） |
 | --- | --- | --- |
 | 表示 | 一个排序数组，同丘陵 | 每格 6 条边的位掩码，生成要沿边走 |
 | 规则 | “进入河流格 +1”“攻击河流格上的目标 −5” | “跨过河边”才罚；城市沿河选址更精细 |
 | 改动面 | `stepCost`、`terrainFactors` 多读一个集合 | 移动、攻击预览、AI、渲染都要传“从哪条边过来” |
 | 观感 | 一条蓝线串过格子中心，读起来像“河谷” | 河在格子之间，最像原作 |
 
-推荐 1A：效果相同的部分（淡水、渡河减攻、移动受阻）都有了，代价小得多。
+采用 1A：效果相同的部分（淡水、渡河减攻、移动受阻）都有了，代价小得多。
 
 ### 2.3 水域与高山通行（A2，`content.embark`）——宝可梦版“登船”
 
@@ -149,7 +149,7 @@ v24 规则：
 
 **选择 2：下水的门槛**
 
-| | 2A 两段（推荐） | 2B 一段 |
+| | **2A 两段（采用）** | 2B 一段（未采用） |
 | --- | --- | --- |
 | 规则 | 近海航行（第 1 列，20）→ 浅海；远洋航行（第 4 列，200）→ 深海 | 近海航行后浅海、深海都能下 |
 | 跨大陆 | 第 1 列后沿岛链可达（原型路线花费中位 30，约 8–12 轮），远洋航行后缩短到约 22 | 第 1 列后直接横渡（约 22） |
@@ -244,7 +244,7 @@ v24 规则：
 
 **选择 3：陆地比例**
 
-| | 3A 56%（推荐） | 3B 64% |
+| | **3A 56%（采用）** | 3B 64%（未采用） |
 | --- | --- | --- |
 | 每文明大陆份额（4 人 40×26） | 约 139 格 | 约 160 格 |
 | 海的分量 | 浅海约一半，海峡、岛链明显 | 海峡窄，更接近今天 |
@@ -252,7 +252,7 @@ v24 规则：
 
 **选择 4：4 人图的大陆布局**
 
-| | 4A 两块大陆各 2 家（推荐） | 4B 每家一块大陆 |
+| | **4A 两块大陆各 2 家（采用）** | 4B 每家一块大陆（未采用） |
 | --- | --- | --- |
 | 开局 | 每家都有陆上邻居，前 30 轮的扩张竞争与 v23 类似 | 前期完全隔离，必须先学冲浪才能见到别人 |
 | 中期 | 跨海是第二阶段的目标 | 所有战争都是登陆战，AI 风险最大 |
@@ -369,7 +369,7 @@ d d - ~ - . . . f F f f f - ~ - f f . m m m r d
   7 种精华各一座，保证每种最终形态都有徽章来源；第 8 座固定是龙。
 
 - **摆放**（依赖 A2 的可达性）：每个文明一座“家门口道馆”，在本大陆、离首都陆路 5–8 格；它的属性是**你的御三家克制的属性**（妙蛙种子→潮汐、小火龙→森灵、杰尼龟→炎；同御三家的两家共享精华但各自一座），像原作的第一座道馆。其余道馆（4 人图 4 座）先补齐没出现的精华，再是龙，放在大陆之间的中段、群岛和对方大陆，**至少 2 座要过海**（需要冲浪）。离任何首都 ≥ 4 格、彼此 ≥ 4 格，不在高山/地标/巢穴/圣所上。
-- **馆主强度随挑战者的徽章数**（选择 5）：第 k 次胜利面对的是 k 级队伍，无论哪座道馆：
+- **馆主强度随挑战者的徽章数**（选择 5，采用 5A；5B“每座道馆固定 1–8 级、按离首都距离分级”未采用）：第 k 次胜利面对的是 k 级队伍，无论哪座道馆：
 
   | 挑战者已有徽章 | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
   | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -390,7 +390,7 @@ d d - ~ - . . . f F f f f - ~ - f f . m m m r d
 
 **选择 6：四天王头衔**
 
-| | 6A 每人每局 1 次（推荐） | 6B 每 20 轮可再拿 |
+| | **6A 每人每局 1 次（采用）** | 6B 每 20 轮可再拿（未采用） |
 | --- | --- | --- |
 | 冠军赛胜利 | 最多替代 1 届冠军赛；仍要赢 2 届 | 可能完全绕开冠军赛，冠军赛胜利明显变快 |
 | 风险 | 低 | 中位结束可能被拉到 130 以下 |
@@ -432,7 +432,7 @@ d d - ~ - . . . f F f f f - ~ - f f . m m m r d
 ### 4.1 规则
 
 - **每个文明一名专属劲敌**，名字按 `stableSeed` 从原创名单里取（澈、凛、岚、朔、烬、汀），开局在文明面板就能看到“你的劲敌：凛”。
-- **三次登场**：第 **8 / 25 / 50** 轮（选择 7）。登场前 2 轮设好**预告**：目标城市（第 1 次是首都，之后是该文明离其他文明最远的城市，同距取 id 小的）和出生格（从目标城市出发**陆路可达**、距 5–7 格、优先在领土外的空陆地，`stableSeed` 排序）；到时格子被占则取最近的空格。
+- **三次登场**：第 **8 / 25 / 50** 轮（选择 7，采用 7A；7B“第 12 轮首次登场”未采用，作为第三城退化 > 2 轮时的后备）。登场前 2 轮设好**预告**：目标城市（第 1 次是首都，之后是该文明离其他文明最远的城市，同距取 id 小的）和出生格（从目标城市出发**陆路可达**、距 5–7 格、优先在领土外的空陆地，`stableSeed` 排序）；到时格子被占则取最近的空格。
 - **队伍克制你的御三家**：
 
   | 你的御三家 | 主克制 | 副克制 |
@@ -626,16 +626,37 @@ v23 对照（`improvements-v23.md` 第 10 节，同一组 36 局）：第一项�
 - 门禁：`npm run build && npm run lint && npm run lint:tools && npx vitest run`，再 `npx playwright test`。
 - Hub 合并：`LATEST_GAMEPLAY_VERSION` 改为 24，全量门禁与大地图测量。
 
-## 9. 待用户决定
+## 9. 用户确认（2026-11-09）
 
-| # | 问题 | 选项 | 推荐 |
+全部采用推荐选项：
+
+| # | 问题 | 采用 | 未采用 |
 | --- | --- | --- | --- |
-| 1 | 下水门槛（2.3） | 2A 近海航行→浅海、远洋航行→深海；2B 近海航行后全部水域 | **2A** |
-| 2 | 4 人图布局（2.11） | 4A 两块大陆各 2 家 + 岛链；4B 每家一块大陆 | **4A** |
-| 3 | 陆地比例（2.11） | 3A 56%；3B 64% | **3A**（大地图测量后可调） |
-| 4 | 河流表示（2.2） | 1A 格子河流；1B 格边河流 | **1A** |
-| 5 | 馆主强度（3.1，选择 5） | 5A 随挑战者徽章数（任意顺序、对每个出生点都公平）；5B 每座道馆固定 1–8 级、按离各首都距离分级（原作式顺序，但出生点之间难做公平） | **5A** |
-| 6 | 四天王头衔（3.2） | 6A 每人每局 1 次；6B 每 20 轮可再拿 | **6A** |
-| 7 | 劲敌首次登场（4.1，选择 7） | 7A 按评审第 8 轮（第 6 轮预告）；7B 第 12 轮 | **7A**，若大地图第三城比 v23 同组退化 > 2 轮再改 7B |
+| 1 | 下水门槛（2.3） | **2A** 近海航行→浅海、远洋航行→深海 | 2B 近海航行后全部水域 |
+| 2 | 4 人图布局（2.11） | **4A** 两块大陆各 2 家 + 岛链 | 4B 每家一块大陆 |
+| 3 | 陆地比例（2.11） | **3A** 56%（大地图测量后可调） | 3B 64% |
+| 4 | 河流表示（2.2） | **1A** 格子河流 | 1B 格边河流 |
+| 5 | 馆主强度（3.1） | **5A** 随挑战者徽章数 | 5B 每座道馆固定 1–8 级 |
+| 6 | 四天王头衔（3.2） | **6A** 每人每局 1 次 | 6B 每 20 轮可再拿 |
+| 7 | 劲敌首次登场（4.1） | **7A** 第 8 轮（第 6 轮预告） | 7B 第 12 轮——只作后备：大地图第三城比 v23 同组退化 > 2 轮时改用 |
 
-高山不可通行（只有飞行可越过）、地标原创名单、调查任务奖励量级按本文给出，如有异议一并提出。
+高山不可通行（只有飞行物种可越过）、原创地标名单、调查任务奖励量级按本文执行。
+
+## 10. 实现与验收
+
+### 第 0 步：脚手架（2026-11-09）
+
+- 版本：`gameplayVersion: 24` → schema 19、`rulesVersion: 'world-v24'`；`WORLD24_CONTENT`（`version: 'world-v24'`）打开六个标记 `terrain / embark / landmarks / gymCircuit / rivals / researchTasks`，v≤23 的内容表都没有这些键。`LATEST_GAMEPLAY_VERSION` 仍为 23；`?gameplay=24` 可开 v24 新局（目前与 v23 规则相同，只是版本号不同）。
+- 每项功能的逻辑放在自己的新文件里；共用文件只加了一次调用（返回空值/0/不变），各分支只改自己的文件，尽量不再碰共用文件：
+
+| 项 | 新文件（存根） | 已接好的调用点 |
+| --- | --- | --- |
+| A1 地形 | `src/content/terrain.ts`（`MAP_GENERATION_V24`、`TERRAIN_RULES_V24`、`LandmarkId`）、`src/core/map-v24.ts` `generateWorldMap`（目前转调 v23 生成器）、`src/core/terrain.ts`（`MapFeatures`、`usesTerrainV24`、`viewFeatures`） | `game.ts` `createGame`（`content.terrain` 时用新生成器、写 `map.features`）；`map.ts` `MapTerrain.features?`；`model.ts` `PlayerView.map.features?`；`vision.ts` `observe`（只给已探索格的要素）。产出、移动、战斗的接入点留给 A1：`city.ts` `tileYield` / `workCandidates`、`movement.ts` `stepCost` / `reachablePaths`、`strength.ts` `terrainFactors`、`vision.ts` 视野 |
+| A2 通行 | `src/ai/travel.ts` `travelDistance` / `travelCloser`（目前等于直线格数） | `ai/plan.ts` 道馆队移动已改用它；其他“直线变小”判断由 A2 迁移。规则接入点：`movement.ts` `canEnter` / `reachablePaths`、`step.ts` `Move` |
+| A3 地标 | `src/core/landmarks.ts`（账本、`recordLandmarks`、`resolveLandmarkRound`、`observeLandmarks`） | `expansion.ts` 初始化 / 轮末（劲敌之后）/ `recordExpansion`；`expansion-model.ts` 状态、视图、事件；`vision.ts` 视图 |
+| B 道馆巡回 | `src/content/gym-circuit.ts`（`GYM_LEADERS`、`GYM_RULES_V24`）、`src/core/gym-circuit.ts`（命令 `ChallengeGym` / `ChallengeEliteFour`、账本、视图、`stateCircuitBadges` / `viewCircuitBadges`）、`src/ai/gym-plan.ts`（`planGymAction`、`gymMoveTargets`） | `expansion-commands.ts` 命令字段；`expansion.ts` 初始化 / 校验 / 执行；`expansion-model.ts`；`vision.ts`；`unit-classes.ts` `stateBadges` / `viewBadges` 并入巡回徽章；`civilization-systems.ts` 导出 `simulateBattle`；`ai/plan.ts`（在文明行动之后发挑战命令、道馆队移动 90 − 距离） |
+| C 劲敌 | `src/content/rivals.ts`（`RIVAL_RULES_V24`、`RIVAL_COUNTERS`、`RIVAL_NAMES`）、`src/core/rivals.ts`（账本、`resolveRivalRound`、`isRivalUnit` / `viewIsRivalUnit`、`observeRivals`）、`src/ai/rival-plan.ts` `rivalThreatenedCityIds` | `expansion.ts` 初始化 / 轮末（世界暴走之后）；`expansion-model.ts`；`vision.ts`；`wild.ts` `actWild` 跳过劲敌单位；`ai/plan.ts` 受威胁城市并入劲敌目标 |
+| D 调查任务 | `src/content/research-tasks.ts`（`RESEARCH_TASK_IDS`、`RESEARCH_TASK_RULES_V24`）、`src/core/research-tasks.ts`（账本、`recordResearchTasks`、`researchCaptureBonus` / `viewResearchCaptureBonus`、`observeResearchTasks`）、`src/ai/research-plan.ts` `researchCaptureScore` | `expansion.ts` 初始化 / `recordExpansion`（最后一步）；`expansion-model.ts`；`vision.ts`；`combat.ts` 与 `preview.ts` 捕捉概率；`ai/plan.ts` 捕捉打分 |
+
+- 测试：`tests/core/world-v24-scaffold.test.ts`（v24 信封与六个标记；v23 没有标记；脚手架期间 v24 新局的地图、扩展账本、玩家视图与 v23 相同；`ChallengeGym` 两版都被拒）。
+- 验收：改动前在 3288e69 生成基线 `/tmp/v23-baseline-v24work`、`/tmp/v22-baseline-v24work`（`tools/district-smoke.ts`，各 49 个文件）。改动后 v23、v22 各 **49/49 逐字节一致**；v24 固定 48 局两次 **49/49 一致**、48 局全部完成，且与 v23 除版本字段外完全相同。门禁：`npm run build`、`npm run lint`、`npm run lint:tools` 通过；`npx vitest run` 692 项中 691 通过，唯一失败是 `tests/tools/district-preview-check.test.ts` 在机器满载（同时跑着两组 48 局基线）时超过 30 s 上限，单独重跑通过（v10 对局，脚手架不改它的规则）。未改 `src/browser/`，没有跑 Playwright。

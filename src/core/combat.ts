@@ -27,6 +27,7 @@ import { randomBelow } from './rng.ts';
 import { promotionCityMultiplier, promotionStrikeMultiplier, scalePermille } from './promotions.ts';
 import { registerSpecies } from './unit.ts';
 import { visibleTiles } from './vision.ts';
+import { researchCaptureBonus } from './research-tasks.ts';
 
 type Rejection = Extract<StepResult, { ok: false }>['reason'];
 const hasTech = (state: GameState, owner: number | null, tech: TechId) => owner !== null && state.players[owner].research.unlockedIds.includes(tech);
@@ -209,7 +210,7 @@ export function applyCombatAction(state: GameState, actor: number, action: Comba
   const definition = content.species[target.speciesId];
   const probability = Math.min(100, captureProbability(definition.maxHp, target.hp, action.ballId === 'greatBall' ? 1500 : 1000,
     hasTech(state, actor, 'fieldObservation'), definition.rare) + playerPolicyEffects(state, actor).captureBonus
-    + leaderCaptureBonus(state, actor));
+    + leaderCaptureBonus(state, actor) + researchCaptureBonus(state, actor, target.speciesId));
   player.ballInventory[action.ballId]--;
   const success = randomBelow(state.rng, 100) < probability;
   if (success) { target.ownerId = actor; target.actionLeft = 0; target.wildHome = null; registerSpecies(player, target); player.gold += leaderEffects(player.leaderId).captureGold; }

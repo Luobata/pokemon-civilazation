@@ -12,6 +12,7 @@ import { canEnter } from './movement.ts';
 import { createMapUnit } from './unit.ts';
 import { workRadius } from './city.ts';
 import { resolveAttack } from './combat.ts';
+import { isRivalUnit } from './rivals.ts';
 
 function roulette<T extends string>(state: GameState, entries: [T, number][]): T {
   entries.sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
@@ -53,7 +54,8 @@ export function actWild(state: GameState, content: Content = contentFor(state.se
   const events: EventPayload[] = [];
   for (const id of Object.values(state.units).filter(unit => unit.ownerId === null).map(unit => unit.id).sort((a, b) => a - b)) {
     const unit = state.units[id];
-    if (!unit || !isMapUnit(unit) || unit.kind !== 'pokemon' || state.expansion?.world.rampagingUnitIds.includes(id)) continue;
+    // v24 C: rival trainers act in resolveRivalRound, not as wild Pokémon.
+    if (!unit || !isMapUnit(unit) || unit.kind !== 'pokemon' || state.expansion?.world.rampagingUnitIds.includes(id) || isRivalUnit(state, id)) continue;
     if (wanderersFor(content).includes(unit.speciesId)) {
       const occupied = new Set(Object.values(state.units).filter(isMapUnit).map(other => hexToIndex(other.position, state.map)));
       const candidates = neighbors(unit.position, state.map).filter(position => {

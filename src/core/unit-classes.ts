@@ -9,6 +9,8 @@ import type { EraProgression } from '../content/eras.ts';
 import type { Content, SpeciesId, UnitIdentity } from '../content/units.ts';
 import { techOf } from '../content/units.ts';
 import { playerGeneration } from './roster.ts';
+import { stateCircuitBadges, viewCircuitBadges } from './gym-circuit.ts';
+import type { GymCircuitState, GymCircuitView } from './gym-circuit.ts';
 
 type Versioned = { setup?: { gameplayVersion?: number }; gameplayVersion?: number };
 export const usesUnitClasses = (source: Versioned) => ((source.setup?.gameplayVersion ?? source.gameplayVersion) ?? 0) >= 19;
@@ -76,9 +78,11 @@ export function candyGold(version: Versioned, player: { research: { unlockedIds:
   return evolutionGold * CLASS_RULES.candyGoldMultiplier;
 }
 
-type StateLike = { expansion?: { essences?: { gyms: Record<number, EssenceId> } }; cities: Record<number, { id: number; ownerId: number | null }> };
-export const stateBadges = (state: StateLike, playerId: number): Set<EssenceId> => ownBadges({
+// v24 B (world-v24 §3.1): badges also come from the neutral gym circuit (none before v24, so older games are unchanged).
+type StateLike = { expansion?: { essences?: { gyms: Record<number, EssenceId> }; gymCircuit?: GymCircuitState }; cities: Record<number, { id: number; ownerId: number | null }> };
+export const stateBadges = (state: StateLike, playerId: number): Set<EssenceId> => new Set([...ownBadges({
   gyms: Object.entries(state.expansion?.essences?.gyms ?? {}).map(([cityId, essence]) => ({ cityId: Number(cityId), essence })),
-  ownCityIds: new Set(Object.values(state.cities).filter(city => city.ownerId === playerId).map(city => city.id)) });
-type ViewLike = { expansion?: { essences?: { gyms: readonly { cityId: number; essence: EssenceId }[] } }; economy: { cities: readonly { id: number }[] } };
-export const viewBadges = (view: ViewLike): Set<EssenceId> => ownBadges({ gyms: view.expansion?.essences?.gyms ?? [], ownCityIds: new Set(view.economy.cities.map(city => city.id)) });
+  ownCityIds: new Set(Object.values(state.cities).filter(city => city.ownerId === playerId).map(city => city.id)) }), ...stateCircuitBadges(state, playerId)]);
+type ViewLike = { playerId: number; expansion?: { essences?: { gyms: readonly { cityId: number; essence: EssenceId }[] }; gymCircuit?: GymCircuitView }; economy: { cities: readonly { id: number }[] } };
+export const viewBadges = (view: ViewLike): Set<EssenceId> => new Set([...ownBadges({ gyms: view.expansion?.essences?.gyms ?? [], ownCityIds: new Set(view.economy.cities.map(city => city.id)) }),
+  ...viewCircuitBadges(view)]);

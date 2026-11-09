@@ -285,7 +285,8 @@ function strikeEffectiveness(attacker: BattleCombatant, defender: BattleCombatan
 function expectedDamage(attacker: BattleCombatant, defender: BattleCombatant): number {
   return Math.max(1, Math.floor(attacker.attack * attacker.power * strikeEffectiveness(attacker, defender) / (defender.defense * 1000)));
 }
-function simulateBattle(home: BattleCombatant[], away: BattleCombatant[], seed: number, terrain: Parameters<typeof terrainMultiplier>[0]): BattleTrace {
+/** Shared auto-battle (guardians, championship; v24 gym circuit and Elite Four). */
+export function simulateBattle(home: BattleCombatant[], away: BattleCombatant[], seed: number, terrain: Parameters<typeof terrainMultiplier>[0]): BattleTrace {
   const rng = createRng(seed || 1);
   const fighters = [...home.map(combatant => ({ ...combatant, side: 'home' as const })), ...away.map(combatant => ({ ...combatant, side: 'away' as const }))];
   const rounds: BattleRound[] = [];
