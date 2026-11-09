@@ -1,6 +1,7 @@
 import { RARE_BERRIES, RARE_BERRY_IDS, RARE_BERRY_RULES } from '../content/rare-berries.ts';
 import type { RareBerryId } from '../content/rare-berries.ts';
 import { gameplayAtLeast } from '../content/eras.ts';
+import { IMPROVEMENT_RULES_V23 } from '../content/improvements.ts';
 import { edgeDistance, hexDistance, hexToIndex, indexToHex } from './hex.ts';
 import type { EventPayload, GameState } from './model.ts';
 
@@ -42,9 +43,11 @@ export function ownedRareBerries(state: GameState, playerId: number): Record<Rar
   const ledger = state.expansion?.rareBerries;
   const owned = Object.fromEntries(RARE_BERRY_IDS.map(id => [id, 0])) as Record<RareBerryId, number>;
   if (!ledger) return owned;
+  const tiles = gameplayAtLeast(state.setup, 23) ? state.expansion?.improvements?.tiles : undefined;
   for (const city of Object.values(state.cities)) if (city.ownerId === playerId) for (const tile of city.workedTileIds) {
     const berry = ledger.deposits[tile];
-    if (berry) owned[berry]++;
+    // v23: a worked, intact 种植园 counts two copies (the second can be gifted).
+    if (berry) owned[berry] += tiles?.[tile]?.kind === 'plantation' && !tiles[tile].damaged ? IMPROVEMENT_RULES_V23.plantationCopies : 1;
   }
   for (const [berry, count] of Object.entries(ledger.gifts[playerId] ?? {}) as [RareBerryId, number][]) owned[berry] = Math.max(0, owned[berry] + count);
   return owned;

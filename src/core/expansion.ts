@@ -20,7 +20,7 @@ import { applyBondAction, initializeBonds, isBondAction, resolveBondRound, syncB
 import { applyEraAbilityAction, initializeEraAbilities, isEraAbilityAction, resolveEraAbilityRound, validateEraAbilityAction } from './era-abilities.ts';
 import { applyEssenceAction, initializeEssences, isEssenceAction, resolveEssenceRound, validateEssenceAction } from './essences.ts';
 import { applyPolicyAction, initializePolicies, isPolicyAction, resolvePolicyRound, validatePolicyAction } from './policies.ts';
-import { applyImprovementAction, initializeImprovements, isImprovementAction, validateImprovementAction } from './improvements.ts';
+import { applyImprovementAction, initializeImprovements, isImprovementAction, resolveImprovementRound, validateImprovementAction } from './improvements.ts';
 import { applyCivilizationAction, initializeCivilization, isCivilizationAction, resolveCivilizationRound, validateCivilizationAction } from './civilization-systems.ts';
 
 export function initializeExpansion(state: GameState, content: Content): void {
@@ -52,7 +52,7 @@ export function validateExpansionAction(state: GameState, actorId: number, actio
     if (isDedicationAction(clean)) return validateDedicationAction(state, actorId, clean) === null;
     if (isCityNetworkAction(clean)) return validateCityNetworkAction(state, actorId, clean) === null;
     if (isPromotionAction(clean)) return validatePromotionAction(state, actorId, clean) === null;
-    if (isImprovementAction(clean)) return validateImprovementAction(state, actorId, clean) === null;
+    if (isImprovementAction(clean)) return validateImprovementAction(state, actorId, clean, content) === null;
     if (isPolicyAction(clean)) return validatePolicyAction(state, actorId, clean) === null;
     if (isEssenceAction(clean)) return validateEssenceAction(state, actorId, clean) === null;
     if (isFaithAction(clean)) return validateFaithAction(state, actorId, clean) === null;
@@ -91,6 +91,7 @@ export function resolveExpansionRound(state: GameState, content: Content): Event
   if (!state.outcome) events.push(...resolveEssenceRound(state));
   if (!state.outcome) events.push(...resolveEraAbilityRound(state));
   if (!state.outcome) events.push(...resolveRareBerryRound(state));
+  if (!state.outcome) events.push(...resolveImprovementRound(state));
   if (!state.outcome) events.push(...resolveEraHonorRound(state));
   if (!state.outcome) events.push(...resolvePromotionRound(state));
   if (!state.outcome) events.push(...resolveCityNetworkRound(state));

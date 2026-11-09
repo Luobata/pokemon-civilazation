@@ -30,8 +30,8 @@ function reached(before: GameState, next: GameState, playerId: number, events: r
     if (content.opening && event.type === 'BattleResolved' && own(event.attackerId) && event.target.kind === 'unit' && before.units[event.target.id]?.ownerId === null) hits.add('domestication');
     if (event.type === 'WorldResourceHarvested' && event.playerId === playerId) hits.add(event.resourceKind === 'berry' ? 'berryCultivation' : 'stoneCraft');
     if (event.type === 'TileWorked' && event.playerId === playerId && event.completed) {
-      if (event.kind === 'berryFarm') hits.add('berryCultivation');
-      if (event.kind === 'mine') hits.add('stoneCraft');
+      if (event.kind === 'berryFarm' || event.kind === 'berryGrove') hits.add('berryCultivation');
+      if (event.kind === 'mine' || event.kind === 'stoneQuarry') hits.add('stoneCraft');
       if (event.kind === 'observatoryCamp') hits.add('fieldObservation');
     }
     if (event.type === 'BattleResolved' && own(event.attackerId)) {

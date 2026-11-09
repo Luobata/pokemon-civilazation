@@ -1,7 +1,7 @@
 import type { ExpansionAction } from './expansion-model.ts';
 import { ROSTER_CONTENT } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
-import { IMPROVEMENT_IDS } from '../content/improvements.ts';
+import { IMPROVEMENT_IDS, IMPROVEMENT_IDS_V23 } from '../content/improvements.ts';
 import { CHARTER_IDS, GOVERNMENT_IDS, POLICY_IDS } from '../content/policies.ts';
 import { ESSENCE_IDS, TYPE_ESSENCE } from '../content/essences.ts';
 import { WEATHER_IDS } from '../content/era-abilities.ts';
@@ -27,7 +27,7 @@ export function expansionActionFields(content: Content = ROSTER_CONTENT): Record
   ProposeAlliance: { targetPlayerId: 'id' }, RespondAlliance: { targetPlayerId: 'id', accept: 'boolean' },
   DissolveAlliance: { targetPlayerId: 'id' }, BetrayAlliance: { targetPlayerId: 'id' },
     ProposeTrade: { targetPlayerId: 'id' }, RespondTrade: { targetPlayerId: 'id', accept: 'boolean' },
-  ImproveTile: { unitId: 'id', tileIndex: 'id', kind: IMPROVEMENT_IDS },
+  ImproveTile: { unitId: 'id', tileIndex: 'id', kind: content.resourceImprovements ? IMPROVEMENT_IDS_V23 : IMPROVEMENT_IDS },
   SetCharter: { charterId: CHARTER_IDS },
   SetPolicies: { policyIds: 'policyIds' },
   SetGovernment: { governmentId: GOVERNMENT_IDS },

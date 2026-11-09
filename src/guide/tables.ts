@@ -334,7 +334,7 @@ export function governmentTable(): string {
 export function improvementTable(): string {
   return table(['改良', '可建群系', '基础', '强化科技', '强化后再加', '熟练工属性'], IMPROVEMENT_IDS.map(id => {
     const item = IMPROVEMENTS[id];
-    return [item.name, biomeList(item.biomes), yieldText(item.base), techName(item.boostTech), yieldText(item.boost), item.crewTypes.map(typeChip).join('')];
+    return [item.name, biomeList(item.biomes), yieldText(item.base), techName(item.boostTech!), yieldText(item.boost!), item.crewTypes.map(typeChip).join('')];
   }));
 }
 export const improvementWork = IMPROVEMENT_WORK;

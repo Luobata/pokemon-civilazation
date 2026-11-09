@@ -1,5 +1,5 @@
 import { classTrainingBlocker, stateBadges } from './unit-classes.ts';
-import { usesBuilders } from './improvements.ts';
+import { foundCityOnResource, usesBuilders } from './improvements.ts';
 import { applyEscortBonus } from './city-network.ts';
 import { CITY_NETWORK_RULES } from '../content/city-network.ts';
 import { legendWonderBlocker } from './legends.ts';
@@ -97,7 +97,8 @@ export function applyEconomyAction(state: GameState, actor: number, action: Econ
     for (const existing of Object.values(state.cities)) cleanWork(state, existing, content);
     assignNewWorkers(state, city, city.population, content);
     return [{ type: 'CityFounded', playerId: actor, cityId: id, unitId: unit.id, position: { ...city.position } },
-      ...applyEscortBonus(state, actor, city, unit.kind === 'logistics' ? unit.escortId : undefined, content) as EconomyEvent[]];
+      ...applyEscortBonus(state, actor, city, unit.kind === 'logistics' ? unit.escortId : undefined, content) as EconomyEvent[],
+      ...foundCityOnResource(state, actor, city.position) as EconomyEvent[]];
   }
   if (action.type === 'SetResearch') {
     player.research.techId = action.techId;

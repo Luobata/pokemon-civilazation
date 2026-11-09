@@ -20,6 +20,19 @@ import type { SpeciesId } from '../content/species.ts';
 import { WORLD_CONTENT } from '../content/world-systems.ts';
 import type { BerryId, StoneId, WorldDefinitions, WorldSystemContent } from '../content/world-systems.ts';
 import type { Hex } from './hex.ts';
+import type { MapShape } from './hex.ts';
+import { workRadius } from './city.ts';
+
+/**
+ * Gameplay v23 harvesting (docs/design/improvements-v23.md §5), shared by authority, UI and AI:
+ * a resource inside the harvester's own territory (or under its city) is developed by an improvement instead,
+ * and nobody may harvest a resource that already carries an improvement.
+ */
+export function harvestBlocker(input: { map: MapShape; ownCities: readonly { position: Hex; population: number }[]; position: Hex; improved: boolean }): string | null {
+  if (input.ownCities.some(city => hexDistance(city.position, input.position, input.map) <= workRadius(city as never))) return 'harvest-own-territory';
+  if (input.improved) return 'harvest-developed';
+  return null;
+}
 
 export type PokedexRecord = {
   speciesId: SpeciesId;
@@ -347,6 +360,11 @@ export function validateWorldAction(state: GameState, actorId: number, action: W
     if (!unit || !unit.actionLeft) return 'unit-unavailable';
     if (!resource || resource.remaining <= 0 || !visibleSite(state, actorId, action.tileIndex, content)) return 'world-target-unavailable';
     if (hexToIndex(unit.position, state.map) !== action.tileIndex) return 'world-target-unreachable';
+    if (gameplayAtLeast(state.setup, 23)) {
+      const blocked = harvestBlocker({ map: state.map, ownCities: Object.values(state.cities).filter(city => city.ownerId === actorId), position: resource.position,
+        improved: Object.hasOwn(state.expansion?.improvements?.tiles ?? {}, action.tileIndex) });
+      if (blocked) return blocked;
+    }
     if (resource.kind === 'berry') {
       const city = Object.values(state.cities).filter(candidate => candidate.ownerId === actorId)
         .sort((a, b) => hexDistance(resource.position, a.position, state.map) - hexDistance(resource.position, b.position, state.map) || a.id - b.id)[0];
@@ -727,6 +745,8 @@ export function planWorldAction(view: PlayerView, content: WorldSystemContent = 
       && hexToIndex(candidate.position, view.map) === resource.tileIndex);
     const berryHasNearbyCity = resource.kind !== 'berry' || view.economy.cities.some(city =>
       city.ownerId === view.playerId && hexDistance(city.position, resource.position, view.map) <= 3);
+    if (unit && berryHasNearbyCity && (view.gameplayVersion ?? 0) >= 23 && harvestBlocker({ map: view.map, ownCities: view.economy.cities, position: resource.position,
+      improved: (view.expansion?.improvements?.tiles ?? []).some(tile => tile.tileIndex === resource.tileIndex) })) continue;
     if (unit && berryHasNearbyCity) return { type: 'HarvestResource', unitId: unit.id, tileIndex: resource.tileIndex };
   }
   for (const overlord of world.overlords) {
