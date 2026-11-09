@@ -9,7 +9,7 @@ import type { Content } from '../content/units.ts';
 import { hexDistance, hexToIndex, neighbors } from './hex.ts';
 import { isMapUnit } from './model.ts';
 import type { CombatEvent, GameState } from './model.ts';
-import { canEnter } from './movement.ts';
+import { canEnterTile } from './movement.ts';
 import { createMapUnit, maxUnitHp } from './unit.ts';
 import { workRadius } from './city.ts';
 
@@ -26,7 +26,7 @@ export function resolveRecovery(state: GameState, content: Content = contentFor(
     const occupied = new Set([...Object.values(state.units).filter(isMapUnit), ...Object.values(state.cities)].map(entity => hexToIndex(entity.position, state.map)));
     const position = neighbors(city.position, state.map).filter(position => {
       const index = hexToIndex(position, state.map);
-      return index !== null && !occupied.has(index) && canEnter(unit, state.map.tiles[index], content);
+      return index !== null && !occupied.has(index) && canEnterTile(unit, state.map, index, content);
     }).sort((a, b) => hexToIndex(a, state.map)! - hexToIndex(b, state.map)!)[0];
     if (!position) continue;
     state.units[unit.id] = { ...createMapUnit(unit, unit.id, unit.ownerId, position, content, unit.xp), hp: unit.hp, enraged: unit.enraged };

@@ -1,5 +1,5 @@
 import { observeOpening, rememberOpening } from './opening.ts';
-import { viewFeatures } from './terrain.ts';
+import { featureVision, viewFeatures } from './terrain.ts';
 import { observeLandmarks } from './landmarks.ts';
 import { observeGymCircuit } from './gym-circuit.ts';
 import { observeRivals } from './rivals.ts';
@@ -44,7 +44,7 @@ export function visibleTiles(state: GameState, playerId: number, content: Conten
   for (const unit of Object.values(state.units).filter(isMapUnit).filter(unit => unit.ownerId === playerId)) {
     const index = hexToIndex(unit.position, state.map)!;
     sources.push({ position: unit.position,
-      radius: unitDefinition(unit, content).vision + (state.map.tiles[index] === 'mountain' ? 1 : 0) });
+      radius: unitDefinition(unit, content).vision + (state.map.tiles[index] === 'mountain' ? 1 : 0) + featureVision(state.map, index) });
   }
   const visible = new Set<number>();
   for (const { position, radius } of sources) for (let r = position.r - radius; r <= position.r + radius; r++) {

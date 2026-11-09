@@ -9,6 +9,8 @@ import { rareBerryCityFood } from './rare-berries.ts';
 import { gameplayAtLeast } from '../content/eras.ts';
 import { doctrineEffects } from './leader-doctrines.ts';
 import { tileImprovementYield } from './improvements.ts';
+import { applyFeatureYield, freshWater, workableFeature } from './terrain.ts';
+import { TERRAIN_RULES_V24 } from '../content/terrain.ts';
 import { playerPolicyEffects } from './policies.ts';
 import { worldCityYield } from './world-systems.ts';
 import { leaderCityYield } from './leader-systems.ts';
@@ -38,9 +40,9 @@ export function tileYield(biome: keyof Content['biomes'], player: PlayerState, c
   if ((biome === 'snow' || biome === 'volcano') && player.research.unlockedIds.includes('meteorology')) result.research += content.balance.effects.meteorologyResearch;
   return result;
 }
-/** Biome yield plus any completed improvement (gameplay v2); identical to tileYield otherwise. */
+/** Biome yield, v24 terrain features (deep water, hills, rivers) and any completed improvement (gameplay v2); identical to tileYield otherwise. */
 export function workedTileYield(state: GameState, index: number, player: PlayerState, content: Content = CONTENT): Yield {
-  const result = tileYield(state.map.tiles[index], player, content), bonus = tileImprovementYield(state, index, player);
+  const result = applyFeatureYield(state.map, index, tileYield(state.map.tiles[index], player, content)), bonus = tileImprovementYield(state, index, player);
   if (bonus) for (const key of ['food', 'production', 'gold', 'research'] as const) result[key] += bonus[key];
   return result;
 }
@@ -65,7 +67,7 @@ export function workCandidates(state: GameState, city: CityState, content: Conte
   const weather = state.players[city.ownerId].research.unlockedIds.includes('meteorology');
   return state.map.tiles.flatMap((biome, index) => !occupied.has(index)
     && hexDistance(city.position, indexToHex(index, state.map), state.map) <= workRadius(city)
-    && (weather || (biome !== 'snow' && biome !== 'volcano')) ? [index] : [])
+    && (weather || (biome !== 'snow' && biome !== 'volcano')) && workableFeature(state.map, index) ? [index] : [])
     .sort((a, b) => compareWorkTiles(state, city, a, b, content));
 }
 export function cleanWork(state: GameState, city: CityState, content: Content = contentFor(state.setup)): void {
@@ -101,7 +103,8 @@ export function cityYield(state: GameState, city: CityState, content: Content = 
   if (city.ownerId === null || city.capturedAtRound === state.round) return { food: 0, production: 0, gold: 0, research: 0 };
   const player = state.players[city.ownerId];
   const capital = state.players[city.ownerId].headquartersCityId === city.id;
-  const result = { food: 2, production: 1 + (content.opening && capital ? OPENING_RULES.capitalProduction : 0), gold: 1, research: city.population - city.workedTileIds.length
+  // v24: a fresh-water city centre (on or beside a river or lake) grows faster.
+  const result = { food: 2 + (freshWater(state.map, city.position) ? TERRAIN_RULES_V24.freshWaterFood : 0), production: 1 + (content.opening && capital ? OPENING_RULES.capitalProduction : 0), gold: 1, research: city.population - city.workedTileIds.length
     + (content.opening ? (capital ? OPENING_RULES.capitalResearch : OPENING_RULES.cityResearch) : 0) };
   for (const addition of [...city.workedTileIds.map(id => workedTileYield(state, id, player, content)),
     leaderCityYield(state, city.id), worldCityYield(state, city, content), ...city.buildingIds.map(id => content.buildings[id].yields)]) {

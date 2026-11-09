@@ -61,31 +61,36 @@ const converted = (extra: readonly StrikeFactor[]): StrengthFactor[] => extra.ma
   return factor.defense ? { side: 'defense', label: factor.label, value: -value } : { side: 'attack', label: factor.label, value };
 });
 
-/** One strike between units (the striker's attack strength against the target's defense strength). */
+/**
+ * One strike between units (the striker's attack strength against the target's defense strength). `features`: the v24 terrain terms
+ * from `featureStrikeFactors` (src/core/terrain.ts) — hills, river crossing, embarked targets; empty before v24.
+ */
 export function unitStrengthBreakdown(attacker: MapUnit, defender: MapUnit, from: BiomeId, to: BiomeId, researched: boolean, content: Content,
-  extra: readonly StrikeFactor[], defenderTypes: readonly TypeId[] | null): StrengthBreakdown {
+  extra: readonly StrikeFactor[], defenderTypes: readonly TypeId[] | null, features: readonly StrengthFactor[] = []): StrengthBreakdown {
   if (attacker.kind !== 'pokemon') return finish(0, 0, [], true, false);
   const a = content.species[attacker.speciesId];
   if (defender.kind === 'logistics') return finish(a.attack, 0, [], false, true);
   const d = content.species[defender.speciesId];
   const type = typeFactor(a.typeId, defenderTypes ?? [d.typeId, ...(d.secondaryTypeId ? [d.secondaryTypeId] : [])], researched);
-  const factors: StrengthFactor[] = [...(type.factor ? [type.factor] : []), ...terrainFactors(from, to), ...converted(extra),
+  const factors: StrengthFactor[] = [...(type.factor ? [type.factor] : []), ...terrainFactors(from, to), ...features, ...converted(extra),
     ...(attacker.uniqueLeader ? [{ side: 'attack' as const, label: '领袖专属', value: STRENGTH_RULES.uniqueLeader }] : []),
     ...(defender.uniqueLeader ? [{ side: 'defense' as const, label: '领袖专属', value: STRENGTH_RULES.uniqueLeader }] : [])];
   return finish(a.attack, d.defense, factors, type.immune, false);
 }
 /** A unit attacking a city: the city's defense strength comes from the old city defense stat. */
-export function cityStrengthBreakdown(attacker: MapUnit, from: BiomeId, to: BiomeId, content: Content, extra: readonly StrikeFactor[], walls = 0): StrengthBreakdown {
+export function cityStrengthBreakdown(attacker: MapUnit, from: BiomeId, to: BiomeId, content: Content, extra: readonly StrikeFactor[], walls = 0,
+  features: readonly StrengthFactor[] = []): StrengthBreakdown {
   if (attacker.kind !== 'pokemon') return finish(0, 0, [], true, false);
   const a = content.species[attacker.speciesId];
-  return finish(a.attack, toStrength(content.balance.city.defense), [...terrainFactors(from, to), ...converted(extra),
+  return finish(a.attack, toStrength(content.balance.city.defense), [...terrainFactors(from, to), ...features, ...converted(extra),
     ...(attacker.uniqueLeader ? [{ side: 'attack' as const, label: '领袖专属', value: STRENGTH_RULES.uniqueLeader }] : []),
     ...(walls ? [{ side: 'defense' as const, label: '城墙', value: walls }] : [])], false, false);
 }
 /** A city shooting back at the unit that attacked it. */
-export function cityCounterBreakdown(counterAttack: number, defender: MapUnit, from: BiomeId, to: BiomeId, content: Content): StrengthBreakdown {
+export function cityCounterBreakdown(counterAttack: number, defender: MapUnit, from: BiomeId, to: BiomeId, content: Content,
+  features: readonly StrengthFactor[] = []): StrengthBreakdown {
   if (counterAttack === 0 || defender.kind !== 'pokemon') return finish(0, 0, [], true, false);
-  return finish(toStrength(counterAttack), content.species[defender.speciesId].defense, [...terrainFactors(from, to),
+  return finish(toStrength(counterAttack), content.species[defender.speciesId].defense, [...terrainFactors(from, to), ...features,
     ...(defender.uniqueLeader ? [{ side: 'defense' as const, label: '领袖专属', value: STRENGTH_RULES.uniqueLeader }] : [])], false, false);
 }
 /** Damage from a breakdown; `roll` is 85–100 (100 for counters), `targetHp` is used for one-hit logistics targets. */

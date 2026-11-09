@@ -10,7 +10,7 @@ import { isMapUnit } from './model.ts';
 import type { Command, EventPayload, GameState, MapUnit, PlayerView } from './model.ts';
 
 export type PokemonMapUnit = Extract<MapUnit, { kind: 'pokemon' }>;
-import { canEnter } from './movement.ts';
+import { canEnterTile } from './movement.ts';
 import { randomBelow, shuffled } from './rng.ts';
 import { createMapUnit, registerSpecies } from './unit.ts';
 import { visibleTiles } from './vision.ts';
@@ -484,7 +484,7 @@ function freeSpawnTile(state: GameState, nest: NestSite, identity: { kind: 'poke
     .filter((position, index, all) => all.findIndex(other => other.q === position.q && other.r === position.r) === index)
     .filter(position => {
       const tileIndex = hexToIndex(position, state.map);
-      return tileIndex !== null && !occupied.has(tileIndex) && canEnter(identity, state.map.tiles[tileIndex], content);
+      return tileIndex !== null && !occupied.has(tileIndex) && canEnterTile(identity, state.map, tileIndex, content);
     })
     .sort((a, b) => hexDistance(nest.position, a, state.map) - hexDistance(nest.position, b, state.map)
       || (hexToIndex(a, state.map)! - hexToIndex(b, state.map)!));
@@ -555,7 +555,7 @@ export function resolveWorldRound(state: GameState, content: Content = WORLD_CON
     const steps = neighbors(attacker.position, state.map)
       .filter(position => {
         const tileIndex = hexToIndex(position, state.map);
-        return tileIndex !== null && !occupied.has(tileIndex) && canEnter(attacker, state.map.tiles[tileIndex], content)
+        return tileIndex !== null && !occupied.has(tileIndex) && canEnterTile(attacker, state.map, tileIndex, content)
           && hexDistance(position, target.position, state.map) < distance;
       })
       .sort((a, b) => hexDistance(a, target.position, state.map) - hexDistance(b, target.position, state.map)

@@ -1,5 +1,6 @@
 import { wallBonus } from './opening.ts';
 import { viewResearchCaptureBonus } from './research-tasks.ts';
+import { cityCounterTerrain, cityStrikeTerrain, unitStrikeTerrain } from './terrain.ts';
 
 /** Same test as the authority (owner's headquarters is this city): a captured former capital still names its fallen founder in `headquartersOf`. */
 const isOwnCapital = (city: { ownerId: number | null; headquartersOf?: number | null } | undefined) => city?.headquartersOf != null && city.headquartersOf === city.ownerId;
@@ -60,13 +61,15 @@ export function previewAttack(view: PlayerView, unitId: number, target: CombatTa
         misty: mistyWaterMultiplier(mapView, unit.ownerId, unit, content), home: home(defendingUnit, to), eraAttack: eraAttackMultiplier(era, unit, content, false, false),
         eraDefense: eraDefenseMultiplier(era, defendingUnit), zealot: viewZealotMultiplier(view, unit.position),
         assault: promotionStrikeMultiplier(view, unit.id, -1, false), bulwark: promotionStrikeMultiplier(view, -1, defendingUnit.id, false),
-        classCounter: classCounterPermille(view, unit, defendingUnit, content), affinity: affinityPermille(view, unit, content) }), teraTypes(era, defendingUnit.id));
+        classCounter: classCounterPermille(view, unit, defendingUnit, content), affinity: affinityPermille(view, unit, content) }), teraTypes(era, defendingUnit.id),
+        unitStrikeTerrain(view.map, unit, defendingUnit, false, content));
       min = strengthDamage(strength, 85, false, hp); max = strengthDamage(strength, 100, false, hp);
       if (canCounter) counter = strengthDamage(unitStrengthBreakdown(defendingUnit, unit, to, from, view.combat.units[defendingUnit.id].typeResearch, content, strikeFactors({ leader: 1000,
         enraged: defendingUnit.enraged, flank: 0, misty: mistyWaterMultiplier(mapView, defendingUnit.ownerId, defendingUnit, content), home: home(unit, from),
         eraAttack: eraAttackMultiplier(era, defendingUnit, content, false, true), eraDefense: eraDefenseMultiplier(era, unit), zealot: 1000,
         assault: promotionStrikeMultiplier(view, defendingUnit.id, -1, true), bulwark: promotionStrikeMultiplier(view, -1, unit.id, true),
-        classCounter: classCounterPermille(view, defendingUnit, unit, content), affinity: affinityPermille(view, defendingUnit, content) }), teraTypes(era, unit.id)), 100, true, unit.hp);
+        classCounter: classCounterPermille(view, defendingUnit, unit, content), affinity: affinityPermille(view, defendingUnit, content) }), teraTypes(era, unit.id),
+        unitStrikeTerrain(view.map, defendingUnit, unit, true, content)), 100, true, unit.hp);
     } else {
     min = unitDamage(unit, defendingUnit, from, to, techs.includes('typeResearch'), 85, false, content, attackMultiplier, Boolean(view.expansion), flank, side, teraTypes(era, defendingUnit.id));
     max = unitDamage(unit, defendingUnit, from, to, techs.includes('typeResearch'), 100, false, content, attackMultiplier, Boolean(view.expansion), flank, side, teraTypes(era, defendingUnit.id));
@@ -83,9 +86,10 @@ export function previewAttack(view: PlayerView, unitId: number, target: CombatTa
     if (content.combat === 'strength') {
       strength = cityStrengthBreakdown(unit, from, to, content, cityFactors({ assault: assault ?? (content.species[unit.speciesId].role === 'siege' && techs.includes('siegeCraft') ? content.balance.effects.siegeMultiplier : 1000),
         leader: attackMultiplier, eraAttack: eraAttackMultiplier(viewCombatContext(view), unit, content, true, false), enraged: unit.enraged,
-        breacher: promotionCityMultiplier(view, unit.id), affinity: affinityPermille(view, unit, content) }), content.opening ? wallBonus(view.round, isOwnCapital(view.cities.find(item => item.id === defender.id))) : 0);
+        breacher: promotionCityMultiplier(view, unit.id), affinity: affinityPermille(view, unit, content) }), content.opening ? wallBonus(view.round, isOwnCapital(view.cities.find(item => item.id === defender.id))) : 0,
+        cityStrikeTerrain(view.map, unit, defender.position, content));
       min = strengthDamage(strength, 85, false, hp); max = strengthDamage(strength, 100, false, hp);
-      if (canCounter) counter = strengthDamage(cityCounterBreakdown(city.counterAttack, unit, to, from, content), 100, true, unit.hp);
+      if (canCounter) counter = strengthDamage(cityCounterBreakdown(city.counterAttack, unit, to, from, content, cityCounterTerrain(view.map, defender.position, unit, content)), 100, true, unit.hp);
     } else {
     min = cityDamage(unit, from, to, techs.includes('siegeCraft'), 85, content, cityAttack, assault);
     max = cityDamage(unit, from, to, techs.includes('siegeCraft'), 100, content, cityAttack, assault);

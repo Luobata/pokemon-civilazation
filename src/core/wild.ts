@@ -8,7 +8,7 @@ import { hexDistance, hexToIndex, indexToHex, neighbors } from './hex.ts';
 import { isMapUnit } from './model.ts';
 import type { EventPayload, GameState } from './model.ts';
 import { randomBelow } from './rng.ts';
-import { canEnter } from './movement.ts';
+import { canEnterTile } from './movement.ts';
 import { createMapUnit } from './unit.ts';
 import { workRadius } from './city.ts';
 import { resolveAttack } from './combat.ts';
@@ -41,7 +41,7 @@ export function spawnWild(state: GameState, initial = false, content: Content = 
     const definition = content.species[speciesId], identity = { kind: 'pokemon' as const, speciesId };
     const occupied = new Set([...Object.values(state.units).filter(isMapUnit), ...Object.values(state.cities)].map(entity => hexToIndex(entity.position, state.map)));
     const candidates = tiles.filter(i => state.map.tiles[i] === biome && definition.spawnBiomes.includes(biome)
-      && canEnter(identity, biome, content) && !occupied.has(i) && starts.every(start => hexDistance(start, indexToHex(i, state.map), state.map) >= 3));
+      && canEnterTile(identity, state.map, i, content) && !occupied.has(i) && starts.every(start => hexDistance(start, indexToHex(i, state.map), state.map) >= 3));
     // Empty candidates retain decision/biome/species draws, but no position draw.
     if (!candidates.length) continue;
     const position = indexToHex(candidates[randomBelow(state.rng, candidates.length)], state.map), id = state.nextEntityId++;
@@ -60,7 +60,7 @@ export function actWild(state: GameState, content: Content = contentFor(state.se
       const occupied = new Set(Object.values(state.units).filter(isMapUnit).map(other => hexToIndex(other.position, state.map)));
       const candidates = neighbors(unit.position, state.map).filter(position => {
         const index = hexToIndex(position, state.map);
-        return index !== null && !occupied.has(index) && canEnter(unit, state.map.tiles[index], content)
+        return index !== null && !occupied.has(index) && canEnterTile(unit, state.map, index, content)
           && !Object.values(state.cities).some(city => hexDistance(position, city.position, state.map) <= workRadius(city));
       }).sort((a, b) => hexToIndex(a, state.map)! - hexToIndex(b, state.map)!);
       if (!candidates.length) continue;

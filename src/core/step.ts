@@ -11,7 +11,7 @@ import { resolveEconomy } from './economy.ts';
 import { contentFor } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
 import { hexToIndex } from './hex.ts';
-import { canEnter, movementBudget, reachablePaths, stepCost, usesMovementPoints } from './movement.ts';
+import { canEnterTile, movementBudget, pathCost, reachablePaths, usesMovementPoints } from './movement.ts';
 import { inZoc, usesTactics, zocTiles } from './tactics.ts';
 import { observe, refreshKnowledge, visibleTiles } from './vision.ts';
 import type { Command, EventPayload, GameState, StepResult } from './model.ts';
@@ -34,7 +34,7 @@ export function step(state: GameState, command: Command, content: Content = cont
     path = [planned[0]];
     for (const position of planned.slice(1)) {
       const index = hexToIndex(position, state.map)!;
-      if (!canEnter(unit, state.map.tiles[index], content)
+      if (!canEnterTile(unit, state.map, index, content)
         || Object.values(state.units).filter(isMapUnit).some(other => other.id !== unit.id && hexToIndex(other.position, state.map) === index)
         || Object.values(state.cities).some(city => city.ownerId !== unit.ownerId && hexToIndex(city.position, state.map) === index)) break;
       path.push(position);
@@ -69,7 +69,7 @@ export function step(state: GameState, command: Command, content: Content = cont
       // v16: pay the entered tiles; the unit keeps acting while points remain, unless it stopped in a hostile zone of control.
       // The zone of control is judged from the new position, so an enemy revealed on arrival still stops the unit.
       const view = observe(next, command.actorId, content);
-      const spent = (moving.movesSpent ?? 0) + path.slice(1).reduce((sum, position) => sum + stepCost(moving, state.map.tiles[hexToIndex(position, state.map)!], content), 0);
+      const spent = (moving.movesSpent ?? 0) + pathCost(moving, state.map, path, content);
       const stopped = usesTactics(view) && inZoc(moving.position, zocTiles(moving, view.units, view.diplomacy, content), view.map);
       moving.movesSpent = spent;
       if (stopped || spent >= movementBudget(view, moving, content)) moving.actionLeft = 0;

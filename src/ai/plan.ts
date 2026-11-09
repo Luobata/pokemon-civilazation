@@ -44,6 +44,7 @@ import { gymMoveTargets, planGymAction } from './gym-plan.ts';
 import { rivalThreatenedCityIds } from './rival-plan.ts';
 import { researchCaptureScore } from './research-plan.ts';
 import { travelCloser, travelDistance } from './travel.ts';
+import { featureVision } from '../core/terrain.ts';
 import type { Goal } from './strategies.ts';
 type Candidate = { action: Command['action']; goal: Goal; benefit: number; ownId: number; targetId: number };
 export const CANDIDATE_BUDGET = 256; // 32 representatives for each of eight goals, never a time budget.
@@ -320,7 +321,7 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
         if (distance < hexDistance(unit.position, target.position, view.map)) add(action, 'capture', 10 - distance
           + captureBonus(target) + siegeCaptureBonus(target) + (target.kind === 'pokemon' ? roleCaptureBonus(view, target.speciesId, content) : 0), unit.id, index);
       }
-      const radius = unitDefinition(unit, content).vision + (view.map.tiles[index] === 'mountain' ? 1 : 0);
+      const radius = unitDefinition(unit, content).vision + (view.map.tiles[index] === 'mountain' ? 1 : 0) + featureVision(view.map, index);
       const gain = view.map.tiles.reduce((sum, _, tile) => sum + (!explored.has(tile) && hexDistance(to, indexToHex(tile, view.map), view.map) <= radius ? 1 : 0), 0);
       if (gain > 0) add(action, 'explore', gain, unit.id, index);
     }
