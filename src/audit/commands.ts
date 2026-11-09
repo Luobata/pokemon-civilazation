@@ -25,7 +25,7 @@ function production(value: unknown, content: Content): boolean {
     : value.item.kind === 'pokemon' ? member(value.item.defId, content.species)
     : value.item.kind === 'district' ? member(value.item.defId, DISTRICTS) && integer(value.item.tileIndex)
     : value.item.kind === 'legend' ? member(value.item.defId, LEGEND_WONDERS)
-    : value.item.kind === 'logistics' && (value.item.defId === 'settler' || value.item.defId === 'trader') && (value.item.escortId === undefined || member(value.item.escortId, content.species));
+    : value.item.kind === 'logistics' && (value.item.defId === 'settler' || value.item.defId === 'trader' || value.item.defId === 'builder') && (value.item.escortId === undefined || member(value.item.escortId, content.species));
 }
 
 /** Validate input shape; gameplay eligibility remains the engine's responsibility. */

@@ -81,7 +81,8 @@ export function validateEconomyAction(state: GameState, actor: number, action: E
       if (content.species[item.defId].role === 'fast' && !player.research.unlockedIds.includes('riding')) return 'invalid-production';
       if (order.orderId === undefined && classTrainingBlocker(state, player, state.setup.eraProgression, stateBadges(state, actor), item.defId, content)) return 'invalid-production';
     } else if (item.kind !== 'logistics' || (item.defId !== 'settler' && item.defId !== 'trader' && item.defId !== 'builder')) return 'invalid-production';
-    else if (item.defId === 'builder' ? !usesBuilders(state) || item.escortId !== undefined : false) return 'invalid-production';
+    // v23: a builder may take an escort (registered species); its type becomes the builder's crew specialty.
+    else if (item.defId === 'builder' ? !usesBuilders(state) || (item.escortId !== undefined && (!content.builderCrews || !player.registeredSpeciesIds.includes(item.escortId))) : false) return 'invalid-production';
     else if (!state.expansion?.cityNetwork ? item.defId !== 'settler' || item.escortId !== undefined
       : (item.escortId !== undefined && !player.registeredSpeciesIds.includes(item.escortId))
         || (item.defId === 'trader' && !city.buildingIds.includes(CITY_NETWORK_RULES.trader.building))) return 'invalid-production';
