@@ -1,6 +1,7 @@
 import { candyGold, classTrainingBlocker, viewBadges } from '../core/unit-classes.ts';
 import { usesBuilders } from '../core/improvements.ts';
-import { pickEscort, traderPlan, wantsTrader } from './network-plan.ts';
+import { pickBuilderEscort, pickEscort, traderPlan, wantsTrader } from './network-plan.ts';
+import { viewPillage } from '../core/pillage.ts';
 import { itemBallTargets, legendTraceTargets, planLegendWonder } from './legend-plan.ts';
 import { LEGEND_WONDERS } from '../content/legend-wonders.ts';
 import { classTrainingBonus, rosterEvolution, typeCounterBonus } from './roster-plan.ts';
@@ -199,7 +200,7 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
     if (district) queue({ kind: 'district', defId: district.kind, tileIndex: district.tileIndex }, 'economy', district.score, district.tileIndex);
     if (canProduceSettler(view, ai, Boolean(content.opening))) { const escortId = pickEscort(view, content); queue({ kind: 'logistics', defId: 'settler', ...(escortId ? { escortId } : {}) }, 'found', content.opening && cities.length < 3 ? 900 : 50); }
     // The first 工匠 early (improvements compound); later ones only after the army is fed.
-    if (wantsBuilder(view) && !threatened.has(city.id)) queue({ kind: 'logistics', defId: 'builder' }, 'economy', units.some(unit => unit.kind === 'logistics' && unit.role === 'builder') ? 70 : 400);
+    if (wantsBuilder(view) && !threatened.has(city.id)) { const escortId = pickBuilderEscort(view, city.id, content); queue({ kind: 'logistics', defId: 'builder', ...(escortId ? { escortId } : {}) }, 'economy', units.some(unit => unit.kind === 'logistics' && unit.role === 'builder') ? 70 : 400); }
     if (wantsTrader(view, city.id)) { const escortId = pickEscort(view, content); queue({ kind: 'logistics', defId: 'trader', ...(escortId ? { escortId } : {}) }, 'economy', 140); }
     for (const [i, id] of (Object.keys(content.buildings) as BuildingId[]).entries()) {
       const building = content.buildings[id];
@@ -253,6 +254,9 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
           target.ownerId === null ? strategy.wildAttackGoal : 'military',
           preview.damage.min - preview.counter.damage + (target.ownerId !== null ? 200 : 0), unit.id, target.id);
       }
+      // v23: pillage an enemy improvement the unit already stands on (attacks score higher and win).
+      const pillage = viewPillage(view, unit.id);
+      if (pillage) add({ type: 'PillageImprovement', unitId: unit.id }, 'military', 180 + Math.floor(pillage.reward.amount / 5), unit.id, pillage.tileIndex);
       for (const city of view.cities) if (city.ownerId !== actorId && canSiege(view, city.ownerId, ai)) {
         const preview = query.attack(view, unit.id, { kind: 'city', id: city.id }, content);
         if (preview.ok) add({ type: 'Attack', unitId: unit.id, target: { kind: 'city', id: city.id } }, 'military', 300 + preview.damage.min - preview.counter.damage + (eraCampaign?.target.id === city.id ? 200 : 0), unit.id, city.id);
