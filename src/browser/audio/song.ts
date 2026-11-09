@@ -55,6 +55,11 @@ export interface SongData {
     /** Chance (1 in n) of a soft ghost hat on an empty step; 0 disables. */
     ghostEvery: number;
   };
+  /**
+   * A3: an extra percussion layer that only sounds when the music's intensity asks for it (war at its peak,
+   * the peace drums' warning). kick: low tom, snare: tight roll, hat: bright ride. Sixteen steps each.
+   */
+  accent?: DrumPattern & { gain: number };
 }
 
 export interface Chord {
@@ -162,6 +167,7 @@ export function compileSong(data: SongData): CompiledSong {
   });
   const patterns = [data.bass.pattern, data.arp.pattern, data.arp.patternAlt];
   if (data.drums) patterns.push(data.drums.kick, data.drums.snare, data.drums.hat);
+  if (data.accent) patterns.push(data.accent.kick, data.accent.snare, data.accent.hat);
   for (const pattern of patterns) if (pattern.length !== 16) throw new Error('Patterns must have 16 steps');
   for (const fill of data.drums?.fills ?? []) {
     if (fill.kick.length !== 4 || fill.snare.length !== 4 || fill.hat.length !== 4) throw new Error('Fills must have 4 steps');

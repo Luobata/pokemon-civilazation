@@ -9,6 +9,12 @@ import { AMBIENT_FADE_MS, FORM_MS, PULSE_MS, Timeline, WONDER_PAN_MS, WONDER_PIL
 import type { AnimationFrame } from '../../src/browser/render/animation.ts';
 import { bigEventTrack, FORM_COLORS } from '../../src/browser/event-tracks.ts';
 import { AmbientTransitions } from '../../src/browser/ambient-transitions.ts';
+import { WarIntensity, musicMood, tension } from '../../src/browser/music-director.ts';
+import { compileSong } from '../../src/browser/audio/song.ts';
+import { VICTORY_SONG } from '../../src/browser/audio/music-victory.ts';
+import { DEFEAT_SONG } from '../../src/browser/audio/music-defeat.ts';
+import { WAR_SONG } from '../../src/browser/audio/music-war.ts';
+import { PEACE_SONG } from '../../src/browser/audio/music-peace.ts';
 
 // Presentation batch 3 (review 3-audio-visual V8–V11, A3, A5): the pure parts, on a real v23 game's PlayerView.
 const setup: GameSetup = { seed: 1, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, eraProgression: 'full-v1', gameplayVersion: 23,
@@ -132,4 +138,53 @@ test('V11: night and weather changes between consecutive views fade; jumps (load
   expect(out.key).toBe('rain@2,2');
   expect(out.alpha).toBeGreaterThan(.5);
   expect(out.field?.color).toBe('#4E86C2');
+});
+
+test('A5 / A3: music mood and war intensity from the view and the presented events', () => {
+  const view = playedTo(3).getView(), me = view.playerId;
+  expect(musicMood({ ...view, round: 1 }, false)).toBe('menu');
+  expect(musicMood(view, false)).toBe('peace');
+  expect(musicMood(view, true)).toBe('menu');
+  const ended = (winners: number[]) => ({ ...view, outcome: { kind: 'score' as const, winners, ranking: [], round: view.round } });
+  expect(musicMood(ended([me]), false)).toBe('victory');
+  expect(musicMood(ended([me + 1]), true)).toBe('defeat');
+  // The ending theme waits until the end has been presented.
+  expect(musicMood({ ...ended([me]), round: 5 }, false, false)).toBe('peace');
+  const war = { ...view, diplomacy: view.diplomacy.map(pair => ({ ...pair, status: 'war' as const })) };
+  expect(musicMood(war, false)).toBe('war');
+
+  const intensity = new WarIntensity(), yes = () => true, no = () => false;
+  const battle = (target: { kind: 'unit' | 'city'; id: number }) => ({ type: 'BattleResolved', attackerId: 1, target, positions: [], damage: 1, counterDamage: 0, knockedDownUnitIds: [] }) as unknown as VisibleEvent['payload'];
+  expect(intensity.level(war)).toBe(0);
+  intensity.observe(battle({ kind: 'unit', id: 2 }), war, yes, no);
+  expect(intensity.level(war)).toBe(1);
+  intensity.observe(battle({ kind: 'unit', id: 2 }), war, () => false, no); // strangers' fight: ignored
+  intensity.observe(battle({ kind: 'unit', id: 2 }), war, yes, no);
+  intensity.observe(battle({ kind: 'unit', id: 2 }), war, yes, no);
+  expect(intensity.level(war)).toBe(2);
+  intensity.observe(battle({ kind: 'city', id: 1 }), war, yes, yes);
+  expect(intensity.level(war)).toBe(3);
+  // Our next turn: the level holds while we answer, then falls one step per quiet cycle.
+  const ourTurn = { type: 'TurnChanged', activePlayerId: me, round: 4 } as VisibleEvent['payload'];
+  intensity.observe(ourTurn, war, no, no);
+  expect(intensity.level(war)).toBe(3);
+  intensity.observe(ourTurn, war, no, no);
+  expect(intensity.level(war)).toBe(2);
+  intensity.observe(ourTurn, war, no, no);
+  expect(intensity.level(war)).toBe(1);
+  intensity.observe(ourTurn, war, no, no);
+  expect(intensity.level(war)).toBe(0);
+  // In peace the level is the tension warning only.
+  expect(intensity.level(view)).toBe(tension(view) ? 1 : 0);
+  const city = view.economy.cities[0], enemy = view.civilizations.find(civ => civ.id !== me)!.id;
+  const massing = { ...view, diplomacy: view.diplomacy.map(pair => ({ ...pair, cooldownUntilRound: 0 })),
+    units: [...view.units, ...[901, 902].map(id => ({ ...view.units.find(unit => unit.kind === 'pokemon')!, id, ownerId: enemy, position: city.position }))] } as PlayerView;
+  expect(tension(massing)).toBe(true);
+  expect(intensity.level(massing)).toBe(1);
+});
+
+test('A3 / A5: the new themes and the accent layers compile', () => {
+  for (const song of [VICTORY_SONG, DEFEAT_SONG, WAR_SONG, PEACE_SONG]) expect(compileSong(song).bars.length).toBeGreaterThan(0);
+  expect(WAR_SONG.accent && PEACE_SONG.accent).toBeTruthy();
+  expect(DEFEAT_SONG.drums).toBeUndefined();
 });

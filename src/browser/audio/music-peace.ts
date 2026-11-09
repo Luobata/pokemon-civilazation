@@ -71,4 +71,6 @@ export const PEACE_SONG: SongData = {
     ],
     ghostEvery: 9,
   },
+  // A3 warning (troops gathering at our borders): a distant march snare and a low tom on the downbeats.
+  accent: { gain: 0.3, kick: 'x.......x.......', snare: 'x.oo..o.x.oo..o.', hat: '................' },
 };

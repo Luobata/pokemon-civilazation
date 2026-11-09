@@ -1,12 +1,13 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { foundFixture, formFixture, nightFixture, wonderFixture } from './fixtures/big-events.ts';
+import { endingFixture, foundFixture, formFixture, nightFixture, wonderFixture } from './fixtures/big-events.ts';
+import { aiCaptureFixture } from './fixtures/combat-presentation.ts';
 import { verifyImportedReplay } from './fixtures/reachable.ts';
 import type { Hex } from '../../src/core/hex.ts';
 
 // Presentation batch 3 (docs/design/review-2026-11/3-audio-visual.md V8–V11, A3, A5): real v23 AI games (full era
-// progression), real input (end turn with Shift+click), audio through spies on the audio API.
+// progression) and a real v22 city capture, real input (end turn with Shift+click), audio through spies on the audio API.
 // Effect screenshots go to the combat screenshot folder of the test output, never into docs/.
 const shots = `${process.env.E2E_SCREENSHOT_DIR ?? 'test-results/screenshots'}/combat`;
 mkdirSync(shots, { recursive: true });
@@ -24,6 +25,11 @@ async function importSave(page: Page, save: string) {
   await verifyImportedReplay(page, save);
 }
 const idle = (page: Page) => expect(page.locator('#skip')).toBeDisabled({ timeout: 30_000 });
+async function endTurn(page: Page) {
+  await page.locator('#end-turn').click({ modifiers: ['Shift'] });
+  await expect(page.locator('#end-turn')).toBeEnabled({ timeout: 60_000 });
+  await idle(page);
+}
 async function screenOf(page: Page, hex: Hex) {
   return page.evaluate(async hex => {
     const mainPath = '/src/browser/main.ts', cameraPath = '/src/browser/camera.ts';
@@ -76,18 +82,20 @@ async function spyNight(page: Page) {
     };
   });
 }
-/** Spies on `audio.play` and `audio.setMood` (same module instance the game uses). */
+/** Spies on `audio.play`, `audio.setMood` and `audio.setIntensity` (same module instance the game uses). */
 async function spyAudio(page: Page) {
   await page.evaluate(async () => {
     const path = '/src/browser/audio/index.ts', { audio } = await import(path);
     const log = window as unknown as { __audio: { play: string[]; mood: (string | null)[]; intensity: number[] } };
     log.__audio = { play: [], mood: [], intensity: [] };
-    const play = audio.play.bind(audio), setMood = audio.setMood.bind(audio);
+    const play = audio.play.bind(audio), setMood = audio.setMood.bind(audio), setIntensity = audio.setIntensity.bind(audio);
     audio.play = (id: string) => { log.__audio.play.push(id); play(id); };
     audio.setMood = (mood: string | null) => { log.__audio.mood.push(mood); setMood(mood); };
+    audio.setIntensity = (level: number) => { log.__audio.intensity.push(level); setIntensity(level); };
   });
 }
 const audioLog = (page: Page) => page.evaluate(() => (window as unknown as { __audio: { play: string[]; mood: (string | null)[]; intensity: number[] } }).__audio);
+const diagnostics = (page: Page) => page.evaluate(async () => { const path = '/src/browser/audio/index.ts'; return (await import(path)).audio.diagnostics(); });
 const presented = (page: Page) => page.evaluate(async () => { const path = '/src/browser/main.ts'; return (await import(path)).developerAdapter.getPresentation().events as { type: string; animated: boolean }[]; });
 
 /** Crop (map-canvas CSS px) around `hex`; exposes the game module for per-frame polling. */
@@ -258,4 +266,65 @@ test('V11: the first night fades in over about a second, drawn as one overlay pe
   await page.locator('#end-turn').click({ modifiers: ['Shift'] });
   await idle(page);
   expect((await calm()).every(sample => sample.frame.night === undefined)).toBe(true);
+});
+
+test('A3: an AI attack on our city raises the war music to its top layer; the layers ramp on the playing song', async ({ page }) => {
+  test.setTimeout(120_000);
+  const fixture = aiCaptureFixture();
+  await importSave(page, fixture.save);
+  await spyAudio(page);
+  await endTurn(page);
+  const log = await audioLog(page);
+  expect(log.mood.at(-1)).toBe('war');
+  // One of our cities was attacked (and taken): intensity 3, held through our turn.
+  const live = await diagnostics(page);
+  expect(live.state).toBe('running');
+  expect(live.mood).toBe('war');
+  expect(live.intensity).toBe(3);
+  const layers = await page.evaluate(async () => { const path = '/src/browser/audio/index.ts'; return (await import(path)).MUSIC_LAYERS.war[3]; });
+  expect(live.layers).toEqual(layers);
+  // A quiet turn cycle afterwards steps the music down by one layer, not straight to silence.
+  await endTurn(page);
+  const after = await audioLog(page);
+  const next = after.intensity.slice(log.intensity.length);
+  if (next.length) expect(Math.min(...next)).toBeGreaterThanOrEqual(1);
+});
+
+test('A5: the map-table theme plays from the first gesture through the opening round and on the menu; the game ends on the defeat or victory theme', async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.goto('/?seed=1');
+  await expect(page.locator('#end-turn')).toBeEnabled();
+  // Nothing plays before the first gesture.
+  const locked = await diagnostics(page);
+  expect(locked.state).toBe('locked');
+  expect(locked.players).toBe(0);
+  await spyAudio(page);
+  const box = (await page.locator('#map').boundingBox())!;
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await expect.poll(async () => (await diagnostics(page)).mood).toBe('menu');
+  expect((await diagnostics(page)).players).toBeGreaterThan(0);
+  await page.locator('[data-open-screen="menu"]').click();
+  expect((await diagnostics(page)).mood).toBe('menu');
+  await page.locator('#screen-menu .screen-close').click();
+  await endTurn(page);
+  await expect.poll(async () => (await diagnostics(page)).mood).toBe('peace');
+  // Opening the menu (new game, leader choice) brings the theme back; closing it returns to the game's music.
+  await page.locator('[data-open-screen="menu"]').click();
+  await expect.poll(async () => (await diagnostics(page)).mood).toBe('menu');
+  await page.locator('#screen-menu .screen-close').click();
+  await expect.poll(async () => (await diagnostics(page)).mood).toBe('peace');
+
+  const fixture = endingFixture();
+  await importSave(page, fixture.save);
+  await spyAudio(page);
+  await page.locator('#end-turn').click({ modifiers: ['Shift'] });
+  await expect(page.locator('#end-turn')).toContainText('对局已结束', { timeout: 60_000 });
+  await idle(page);
+  const theme = fixture.won ? 'victory' : 'defeat';
+  await expect.poll(async () => (await diagnostics(page)).mood).toBe(theme);
+  const log = await audioLog(page);
+  expect(log.mood).toContain(theme);
+  // The theme starts with the presented end of the game, after the final battle's sounds.
+  expect(log.play.lastIndexOf('hit')).toBeLessThan(log.play.indexOf(theme));
+  expect(log.play).toContain(theme);
 });

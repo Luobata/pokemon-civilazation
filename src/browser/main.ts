@@ -64,6 +64,8 @@ import type { Hex } from '../core/hex.ts';
 import { battleTrack, captureTrack, evolveTrack, moveTrack, tapTrack, wonderRevealTrack } from './render/animation.ts';
 import { bigEventTiles, bigEventTrack } from './event-tracks.ts';
 import { AmbientTransitions } from './ambient-transitions.ts';
+import { WarIntensity, musicMood } from './music-director.ts';
+import { currentScreen } from './screens.ts';
 import type { BattleSpec } from './render/animation.ts';
 import { describeTile, tileSummary } from './tile-info.ts';
 import { renderTilePanel } from './tile-panel.ts';
@@ -352,11 +354,17 @@ const rail = createNotificationRail(document.querySelector<HTMLElement>('#toast-
 /** Cities the viewer owned at the last refresh, so a city taken during the AI turns still reads as "yours". */
 const knownOwnCityIds = new Set<number>();
 const reviewedUnits = new ReviewedUnits();
-/** Music follows the situation: war while the viewer is at war, otherwise exploration. */
+/** Events that can change the music (mood or war intensity, music-director.ts). */
+const MUSIC_EVENTS = new Set<string>(['DiplomacyChanged', 'GameEnded', 'BattleResolved', 'TurnChanged', 'WorldRampageStruckCity', 'RoundEnded']);
+const warIntensity = new WarIntensity();
+/** The GameEnded event has been presented (the ending theme starts with it, not with the final battle). */
+let endingPresented = false;
+/** Music follows the situation (A3 / A5): menu and opening, peace (drums forward when troops gather), war in layers, victory or defeat. */
 function syncMusic() {
   if (!session) return;
   const view = session.getView();
-  audio.setMood(view.outcome ? 'menu' : view.diplomacy.some(pair => pair.status === 'war' && (pair.a === view.playerId || pair.b === view.playerId)) ? 'war' : 'peace');
+  audio.setMood(musicMood(view, currentScreen() === 'menu', endingPresented || !busy()));
+  audio.setIntensity(warIntensity.level(view));
 }
 /**
  * Sounds for a battle: the attack type's sound (A2) plus a rising arpeggio when super effective; city captured / lost;
@@ -407,7 +415,13 @@ export function soundsFor(payload: VisibleEvent['payload'], view: PlayerView, an
 }
 function recordActivity(payload: VisibleEvent['payload'], animated = false) {
   for (const sound of soundsFor(payload, session.getView(), animated)) audio.play(sound);
-  if (payload.type === 'DiplomacyChanged' || payload.type === 'GameEnded') syncMusic();
+  if (payload.type === 'GameEnded') endingPresented = true;
+  if (MUSIC_EVENTS.has(payload.type)) {
+    const view = session.getView();
+    warIntensity.observe(payload, view, () => payload.type === 'BattleResolved' && battleInvolvesViewer(payload, view),
+      id => knownOwnCityIds.has(id) || knownCityOwners.get(id) === view.playerId);
+    syncMusic();
+  }
   // V10: an animated reveal opens the story card when its pillar ends (or on skip).
   if (payload.type === 'LegendWonderCompleted' && payload.playerId === session.getView().playerId && !animated) legendArrivals.push(payload.legendId);
   rail.push(toastFor(payload, session.getView(), { ownCityIds: knownOwnCityIds, unitName: id => knownUnitLabels.get(id)?.replace(/^(野生 |文明 \d+ 的 )/, '') }));
@@ -786,9 +800,9 @@ function frame(now: number) {
 /** Whether the panels were last drawn in the busy (animation playing) state. */
 let panelsBusy = false;
 const ambient = new AmbientTransitions();
-/** New game, load, replay: no fades from the previous game, no reveal camera to restore. */
+/** New game, load, replay: no fades from the previous game, no war layers carried over, no reveal camera to restore. */
 function resetPresentationState() {
-  ambient.reset(); revealHome = null; pendingReveal = null;
+  ambient.reset(); warIntensity.reset(); revealHome = null; pendingReveal = null; endingPresented = false;
 }
 function skip() { finishPresentations(); controls(); requestFrame(); }
 function fit() { camera = fitCamera(session.getView().map, canvas.clientWidth, canvas.clientHeight); requestFrame(); }
@@ -1120,7 +1134,7 @@ for (const type of ['pointerdown', 'keydown'] as const) window.addEventListener(
 // Every button clicks, except 下一回合: it plays the end-turn cue when the turn ends (or a click when it only points at a pending unit or city).
 document.addEventListener('click', event => { const button = (event.target as HTMLElement).closest('button'); if (button && button !== endTurn) audio.play('click'); }, true);
 // The map fills the stage; redraw when a screen closes so the canvas picks up any resize.
-onScreenChange(screen => { rail.screenOpened(screen); if (screen === null && session) requestFrame(); });
+onScreenChange(screen => { rail.screenOpened(screen); syncMusic(); if (screen === null && session) requestFrame(); });
 document.querySelector<HTMLInputElement>('#activity-important')!.addEventListener('change', event => { activityImportantOnly = (event.target as HTMLInputElement).checked; controls(); });
 for (const { label, color, symbol } of Object.values(BIOME_DISPLAY)) {
   const item = document.createElement('li'), swatch = document.createElement('span'), text = document.createElement('span');

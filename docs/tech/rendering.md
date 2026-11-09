@@ -45,6 +45,12 @@
 - **V11 昼夜和天气过渡** `AmbientTransitions`（`src/browser/ambient-transitions.ts`）：每帧比较 PlayerView，昼夜或天气场变化时加 1.2 s 的非阻塞渐变轨道，`frame.night`（0–1）缩放夜晚遮罩（仍是每帧一次整图遮罩），`frame.weather` 让天气场淡入，已结束的天气场按最后看到的样子淡出。读档、新局、回放这类跳变不渐变；减少动态效果或关掉移动动画时直接切换。
 - 帧预算：`tests/browser/performance.spec.ts` 的 dense 场景另测一组 `eventEffects`（`benchmark.ts` 的 `eventBenchmarkFrames`：四个脉冲、极巨化 + Mega、奇观光柱和夜晚渐变，环绕地图）。光柱用一个线性渐变 `fillRect`，粒子共用 `PARTICLE_CAP`，没有 `shadowBlur` / `filter`。
 
+## 音乐（第三批，评审 A3 / A5）
+
+- `src/browser/music-director.ts` 决定放什么：开局第 1 轮和打开游戏菜单（新游戏、选领袖）时放 `menu`；结束时按胜负放 `victory`（C 大调 116 BPM）或安静的 `defeat` 尾声（A 小调 66 BPM，无鼓），在 GameEnded 被播放时切换，不在最后一场战斗时提前切；其余照旧 war / peace。两首新曲子都是原创旋律（`music-victory.ts`、`music-defeat.ts`）。
+- 战争分层：`SongPlayer` 每个声部（lead / arp / bass / drums / accent）各有一个增益，`audio.setIntensity(0–3)` 让它们在 1.6 s 内线性渐变（不重启曲子、不爆音），完全静音的声部不再排音符。强度：0 没有战斗，1 本轮有一两场己方参与的战斗，2 三场以上，3 己方城市被攻击（含暴走袭城）；达到的强度保持到自己的下一回合，之后每个平静的回合降一级。和平时，可宣战的文明有 2 只以上宝可梦在己方城市 3 格内，鼓组加强并加入远处的进行曲小鼓（强度 1），作为开战预警。各档的声部音量见 `MUSIC_LAYERS`。
+- 首次用户操作之前不创建 AudioContext，也不播放任何声音（`setMood` / `setIntensity` 只记下来）。
+
 ## 图层顺序与缓存
 
 顺序：`base`（地形、格线、海岸、领土边界）→ 改良、信仰、资源徽章、设施区、施工标记 → 城市 → 地块产出与耕作标记 → 天气、夜晚 → 单位（动画中的单位画在动画位置）→ 城市横幅 → 移动范围、攻击/捕捉目标、设施区选址 → `fog`（记忆地形斜线）→ 选中圈、光标 → 调试层 → 特效。
@@ -73,7 +79,7 @@
 
 - `tests/core/render-scene.test.ts`（Node）：在真实的 50 轮 v10 对局里，每个玩家的场景中，单位只出现在当前可见格，其他标记只出现在已知格，单位集合与 PlayerView 完全一致；产出图层开关；Timeline 的插值、并行、按 key 替换、持续轨道和跳过。
 - `tests/browser/map.spec.ts`、`districts.spec.ts`、`diplomacy.spec.ts`：拦截真实的 Canvas 调用，检查迷雾下不会画出隐藏的阵营徽章或边界。
-- `tests/browser/presentation-batch3.spec.ts`：真实 v23 AI 对局夹具（完整时代进程），V8 建城脉冲不阻塞、V9 时代形态（含四种形态的参考截图）、V10 奇观运镜 / 光柱 / 号角 / 出卡 / 复原相机（含减少动态效果）、V11 夜晚渐变且每帧一次遮罩；`tests/core/presentation-batch3.test.ts` 测纯函数部分。
+- `tests/browser/presentation-batch3.spec.ts`：真实 v23 AI 对局夹具（完整时代进程），V8 建城脉冲不阻塞、V9 时代形态（含四种形态的参考截图）、V10 奇观运镜 / 光柱 / 号角 / 出卡 / 复原相机（含减少动态效果）、V11 夜晚渐变且每帧一次遮罩、A3 己方失城时战争音乐升到最高层、A5 首次操作前不出声 / 开局与菜单 / 失败尾声；`tests/core/presentation-batch3.test.ts` 测纯函数部分。
 - `tests/browser/combat-presentation.spec.ts`：真实 v22 AI 对局夹具（东西环绕地图），每项战斗表现一个测试（描边数字和反击位置、血条、震屏不动相机且命中缓存、屏幕外 AI 战斗不占时间、弹道和粒子的属性色、击倒残影、占城扫色、按属性的音效）；效果截图保存在 `docs/design/review-2026-11/shots-combat/`。
 - 重构时用 26 个固定场景做了逐像素对比（见提交说明）。
 

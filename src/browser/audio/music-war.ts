@@ -72,4 +72,6 @@ export const WAR_SONG: SongData = {
     ],
     ghostEvery: 6,
   },
+  // A3 top intensity (one of our cities under attack): driving low toms, snare rolls into each half bar, a ride on the beat.
+  accent: { gain: 0.42, kick: 'x.x...x.x.x...xx', snare: '.....oox.....oox', hat: 'x...x...x...x...' },
 };
