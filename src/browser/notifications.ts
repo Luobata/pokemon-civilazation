@@ -17,6 +17,7 @@ import { ERA_AGES } from '../content/era-honors.ts';
 import { DEDICATION_RULES } from '../content/dedications.ts';
 import { PROMOTION_TRAITS } from '../content/promotions.ts';
 import { LEGEND_WONDERS } from '../content/legend-wonders.ts';
+import { researchTaskToast } from './research-card.ts';
 
 export type ToastTarget = { kind: 'screen'; screen: 'research' | 'legends' | 'era' | 'diplomacy' } | { kind: 'city'; cityId: number } | { kind: 'unit'; unitId: number } | null;
 export type ToastTone = 'research' | 'production' | 'growth' | 'wonder' | 'war' | 'info';
@@ -135,6 +136,12 @@ export function toastFor(payload: VisibleEvent['payload'], view: PlayerView, mem
       const objective = OBJECTIVES[payload.objectiveId], reward = objective.reward;
       return toast('growth', '✔', `目标达成：${objective.name}`, [reward.gold ? `金币 +${reward.gold}` : '', reward.research ? `科研 +${reward.research}` : '', reward.pokeBalls ? `精灵球 +${reward.pokeBalls}` : ''].filter(Boolean).join('，'), null,
         undefined, decision());
+    }
+    case 'ResearchTaskCompleted': {
+      if (payload.playerId !== me) return null;
+      const note = researchTaskToast(payload, view, content);
+      // One rail item for all research progress: each completion replaces the previous one (no pile-up next to objectives).
+      return toast('research', '◎', note.title, note.detail, null, undefined, { key: 'research-task' });
     }
     case 'ItemBallClaimed':
       if (payload.playerId !== me) return null;

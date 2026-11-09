@@ -1,0 +1,17 @@
+/* Gameplay v24 D: Pokédex research cards (src/browser/research-card.ts). */
+.research-card { margin: 0 14px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 11px; color: var(--ink-secondary); }
+.research-card summary { display: flex; align-items: center; gap: 8px; padding: 6px 8px; cursor: pointer; }
+.research-card summary span:first-child { flex: 1; }
+.research-card summary b { color: var(--ink-primary, inherit); }
+.research-tasks { margin: 0; padding: 0 8px 4px 26px; }
+.research-tasks li { line-height: 1.6; }
+.research-tasks li.done { color: var(--ink-muted); }
+.research-next { margin: 0; padding: 2px 8px 4px; font-weight: 600; }
+.research-note { margin: 0; padding: 0 8px 8px; color: var(--ink-muted); }
+.research-pips { display: inline-flex; gap: 2px; }
+.research-pips i { width: 7px; height: 7px; border-radius: 50%; border: 1px solid currentColor; opacity: .55; }
+.research-pips i.done { background: #d9a93f; border-color: #d9a93f; opacity: 1; }
+.research-book summary { cursor: pointer; font-size: 11px; }
+.research-book .research-note { padding: 4px 0; }
+.research-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 2px 10px; font-size: 11px; }
+.research-list li { display: flex; justify-content: space-between; gap: 6px; }

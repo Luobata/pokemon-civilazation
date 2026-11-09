@@ -96,7 +96,7 @@ function eraHonorMarkup(view: PlayerView, eraNames: (index: number) => string): 
     <p class="era-honor-legend"><span class="dark">黑暗线 ${dark}</span><span class="golden">黄金线 ${golden}</span></p>
     <p class="era-honor-projection">${rounds < honor.minimumRounds ? `本世代还不到 ${honor.minimumRounds} 轮：现在进入下个世代会是普通世代。` : `按现在的速度，进入下个世代时将是 <b class="age-${projected}">${ERA_AGES[projected].name}</b>。`}</p>
     ${breakdown ? `<ul class="era-honor-breakdown">${breakdown}</ul>` : '<p class="unit-note">本世代还没有得分。建城、进化、捕捉、确立规章、建设施区、清巢穴都能得分。</p>'}
-    <details><summary>怎么得分</summary><ul class="era-honor-table">${ERA_MILESTONE_IDS.filter(id => id !== 'legendWonder' || view.expansion?.legends).map(id => `<li>${ERA_MILESTONES[id].name}<b>+${ERA_MILESTONES[id].points}</b></li>`).join('')}</ul></details>
+    <details><summary>怎么得分</summary><ul class="era-honor-table">${ERA_MILESTONE_IDS.filter(id => (id !== 'legendWonder' || view.expansion?.legends) && (id !== 'researchComplete' || view.expansion?.researchTasks)).map(id => `<li>${ERA_MILESTONES[id].name}<b>+${ERA_MILESTONES[id].points}</b></li>`).join('')}</ul></details>
     ${honor.history.length ? `<details><summary>以往世代</summary><ul class="era-honor-history">${honor.history.map(item => `<li>${eraNames(item.eraIndex)} · ${item.heroic ? '英雄世代' : ERA_AGES[item.age].name} · ${item.score} 分 / ${item.rounds} 轮${item.dedications?.length ? ` · 献礼：${item.dedications.map(id => DEDICATIONS[id].name).join('、')}` : ''}</li>`).join('')}</ul></details>` : ''}
   </section>${dedicationMarkup(view)}`;
 }
