@@ -1,4 +1,4 @@
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { aiBattleFixture, aiCaptureFixture, attackFixture } from './fixtures/combat-presentation.ts';
@@ -6,10 +6,16 @@ import type { AttackFixture } from './fixtures/combat-presentation.ts';
 import { verifyImportedReplay } from './fixtures/reachable.ts';
 import type { Hex } from '../../src/core/hex.ts';
 import type { GameState } from '../../src/core/model.ts';
+import type { TypeId } from '../../src/content/species.ts';
+import { contentFor } from '../../src/content/units.ts';
+import { TYPE_COLORS } from '../../src/content/type-colors.ts';
+import { ATTACK_FAMILIES } from '../../src/browser/audio/sfx.ts';
 
 // Combat presentation (docs/design/handoff-combat-presentation.md): real v22 games on the wrapping map, real input.
 const shots = 'docs/design/review-2026-11/shots-combat';
 mkdirSync(shots, { recursive: true });
+// DPR 2, like the performance budget (and crisp effect screenshots).
+test.use({ deviceScaleFactor: 2 });
 
 type CanvasCall = { op: string; text?: string; x: number; y: number; w?: number; h?: number; lineWidth?: number; strokeStyle?: string; fillStyle?: string };
 /** Records text and rect draws on the map canvas; the rect list is reset at the start of every map frame. */
@@ -91,7 +97,9 @@ async function attack(page: Page, fixture: AttackFixture) {
   await aim(page, fixture);
   await clickHex(page, fixture.targetPosition);
 }
-type FrameSample = { base: string; fog: string; shake: { x: number; y: number }; camera: string };
+type FrameEffect = { kind: string; color?: string; text?: string; tone?: string; ownerId?: number | null; progress: number };
+type FrameSample = { base: string; fog: string; shake: { x: number; y: number }; camera: string;
+  frame: { effects: FrameEffect[]; poses: { id: number; alpha?: number; grey?: boolean }[] } };
 /** Records the renderer's stats and the camera on every animation frame, `count` frames. */
 async function sampleFrames(page: Page, count: number) {
   await page.evaluate(async count => {
@@ -100,8 +108,8 @@ async function sampleFrames(page: Page, count: number) {
     const frames: unknown[] = [];
     (window as unknown as { __frames: unknown[] }).__frames = frames;
     const loop = () => {
-      const render = main.developerAdapter.getPresentation().render;
-      if (render) frames.push({ ...render, camera: JSON.stringify(main.camera) });
+      const { render, frame } = main.developerAdapter.getPresentation();
+      if (render) frames.push({ ...render, camera: JSON.stringify(main.camera), frame });
       if (frames.length < count) requestAnimationFrame(loop);
     };
     requestAnimationFrame(loop);
@@ -120,10 +128,9 @@ test('V1: damage numbers are outlined and pop on the target; the counter-attack 
   await aim(page, fixture);
   // The camera holds still while the battle plays; it moves on to the next unit afterwards.
   const target = await screenOf(page, fixture.targetPosition), attacker = await screenOf(page, fixture.attacker);
-  const clip = await clipAround(page, fixture.targetPosition);
+  const clip = await prepareShot(page, fixture.targetPosition);
   await clickHex(page, fixture.targetPosition);
-  await page.waitForTimeout(260);
-  await page.screenshot({ path: `${shots}/v1-counter-number.png`, clip });
+  await captureMoment(page, { effect: 'number', tone: 'counter', progress: .2 }, clip, 'v1-counter-number');
   await idle(page);
   const after = await state(page);
   const unitHp = (game: GameState, id: number) => { const unit = game.units[id]; return unit && 'hp' in unit ? unit.hp : 0; };
@@ -201,7 +208,7 @@ test('V4: a hit shakes the whole frame without moving the camera, and the layer 
   await idle(page);
   const sampled = await frames();
   const shaking = sampled.filter(frame => frame.shake.x || frame.shake.y);
-  expect(shaking.length).toBeGreaterThan(2);
+  expect(shaking.length).toBeGreaterThan(0); // frame-rate independent: the shake lasts 200 ms per hit
   expect(Math.max(...shaking.map(frame => Math.hypot(frame.shake.x, frame.shake.y)))).toBeLessThanOrEqual(6 * 2 * 1.5); // device px (DPR ≤ 2)
   // The camera never moves during the battle (it moves on to the next unit only afterwards), and both cached layers
   // are reused in every shaking frame.
@@ -311,3 +318,164 @@ async function clipAround(page: Page, hex: Hex) {
   const x = Math.max(box.x, Math.min(box.x + box.width - 520, box.x + p.x - 260)), y = Math.max(box.y, Math.min(box.y + box.height - 360, box.y + p.y - 200));
   return { x, y, width: 520, height: 360 };
 }
+
+// ---------- Batch 2: V3, V5, V6, A2 ----------
+type Presented = { type: string; animated: boolean; effectiveness?: number | null; recorded?: number };
+const presented = (page: Page) => page.evaluate(async () => { const path = '/src/browser/main.ts'; return (await import(path)).developerAdapter.getPresentation().events as Presented[]; });
+/** The attack type of a unit in the fixture's saved state. */
+function typeOf(fixture: AttackFixture, unitId: number): TypeId {
+  const save = JSON.parse(fixture.save) as { state: GameState }, unit = save.state.units[unitId];
+  if (!unit || unit.kind !== 'pokemon') throw new Error('Expected a Pokémon');
+  return contentFor(save.state.setup).species[unit.speciesId].typeId;
+}
+type MapFrame = { effects: { kind: string; progress: number }[]; poses: { id: number; alpha?: number }[] };
+type ExposedMain = { __main: { developerAdapter: { getPresentation(): { frame: MapFrame } } } };
+/** Exposes the game module on `window` so frames can be polled synchronously (an async predicate would resolve at once). */
+const exposeMain = (page: Page) => page.evaluate(async () => { const path = '/src/browser/main.ts'; (window as unknown as { __main: unknown }).__main = await import(path); });
+type Moment = { effect: string; progress: number; tone?: string } | { pose: number; alphaBelow: number };
+/** Call before starting the animation: the crop (map-canvas pixels) around `hex`, and the module exposed for polling. */
+async function prepareShot(page: Page, hex: Hex) {
+  await exposeMain(page);
+  const p = await screenOf(page, hex);
+  return { x: Math.max(0, Math.min(p.width - 520, p.x - 260)), y: Math.max(0, Math.min(p.height - 360, p.y - 200)), width: 520, height: 360 };
+}
+/**
+ * Waits, polling every animation frame, for a moment of the animation (an effect at least `progress` through its
+ * life, or a unit's afterimage below some opacity), and in that same frame copies the map canvas crop into
+ * `docs/.../shots-combat/<name>.png`: the real renderer's output at exactly that moment, whatever the page's latency.
+ */
+async function captureMoment(page: Page, moment: Moment, clip: Awaited<ReturnType<typeof prepareShot>>, name: string) {
+  await page.waitForFunction(({ moment, clip }) => {
+    const frame = (window as unknown as ExposedMain).__main.developerAdapter.getPresentation().frame;
+    const now = 'effect' in moment ? frame.effects.some(effect => effect.kind === moment.effect && effect.progress >= moment.progress && (!moment.tone || (effect as { tone?: string }).tone === moment.tone))
+      : frame.poses.some(pose => pose.id === moment.pose && pose.alpha !== undefined && pose.alpha < moment.alphaBelow);
+    if (!now) return false;
+    const map = document.querySelector<HTMLCanvasElement>('#map')!, ratio = map.width / map.clientWidth, crop = document.createElement('canvas');
+    crop.width = Math.round(clip.width * ratio); crop.height = Math.round(clip.height * ratio);
+    crop.getContext('2d')!.drawImage(map, clip.x * ratio, clip.y * ratio, clip.width * ratio, clip.height * ratio, 0, 0, crop.width, crop.height);
+    (window as unknown as { __shot: string }).__shot = crop.toDataURL('image/png');
+    return true;
+  }, { moment, clip }, { polling: 'raf', timeout: 30_000 });
+  const data = await page.evaluate(() => (window as unknown as { __shot: string }).__shot);
+  writeFileSync(`${shots}/${name}.png`, Buffer.from(data.slice(data.indexOf(',') + 1), 'base64'));
+}
+
+test('V3: the attacker lunges, a ranged hit flies in its type colour, lands with type-coloured particles and a flash, then the numbers', async ({ page }) => {
+  const fixture = attackFixture('ranged');
+  const color = TYPE_COLORS[typeOf(fixture, fixture.unitId)], counterColor = TYPE_COLORS[typeOf(fixture, fixture.target.id)];
+  await importSave(page, fixture.save);
+  await focusOn(page, fixture.targetPosition, 8);
+  await aim(page, fixture);
+  const clip = await prepareShot(page, fixture.targetPosition);
+  await settle(page);
+  const frames = await sampleFrames(page, 75);
+  await clickHex(page, fixture.targetPosition);
+  await captureMoment(page, { effect: 'projectile', progress: .5 }, clip, 'v3-projectile');
+  await captureMoment(page, { effect: 'impact', progress: .15 }, clip, 'v3-impact');
+  await idle(page);
+  const sampled = await frames();
+  const effects = sampled.flatMap(frame => frame.frame.effects);
+  const index = (kind: string) => sampled.findIndex(frame => frame.frame.effects.some(effect => effect.kind === kind));
+  // Order: lunge, projectile, impact (type colour); the counter-attack flies back in the defender's colour.
+  const lunge = sampled.findIndex(frame => frame.frame.poses.some(pose => pose.id === fixture.unitId));
+  expect(lunge).toBeGreaterThanOrEqual(0);
+  expect(index('projectile')).toBeGreaterThanOrEqual(lunge);
+  expect(index('impact')).toBeGreaterThan(index('projectile'));
+  expect(effects.filter(effect => effect.kind === 'projectile').map(effect => effect.color)).toContain(color);
+  expect(effects.filter(effect => effect.kind === 'impact').map(effect => effect.color)).toContain(color);
+  if (fixture.preview.counter.damage) expect(effects.filter(effect => effect.kind === 'projectile').map(effect => effect.color)).toContain(counterColor);
+  expect(effects.some(effect => effect.kind === 'number' && effect.tone === 'damage')).toBe(true);
+  // The matchup hint is shown exactly when the matchup is not neutral.
+  const battle = (await presented(page)).filter(event => event.type === 'BattleResolved').at(-1)!;
+  const hint = effects.some(effect => effect.tone === 'super' || effect.tone === 'weak');
+  expect(hint).toBe(battle.effectiveness !== null && battle.effectiveness !== undefined && battle.effectiveness !== 100);
+  // The whole battle (lunge to last number) stays within about 900 ms of frames.
+  const active = sampled.filter(frame => frame.frame.effects.length || frame.frame.poses.length);
+  expect(active.length).toBeLessThanOrEqual(Math.ceil(.9 * 60) + 6);
+});
+
+test('V5: a knocked-down Pokémon sinks, turns grey and fades with a 休养 tag instead of vanishing', async ({ page }) => {
+  test.setTimeout(120_000);
+  const fixture = attackFixture('knockdown');
+  await importSave(page, fixture.save);
+  await focusOn(page, fixture.targetPosition, 8);
+  await aim(page, fixture);
+  const clip = await prepareShot(page, fixture.targetPosition);
+  await settle(page);
+  const frames = await sampleFrames(page, 70);
+  await clickHex(page, fixture.targetPosition);
+  // Early in the fade, so the grey afterimage and its tag are both in the shot.
+  await captureMoment(page, { pose: fixture.target.id, alphaBelow: .62 }, clip, 'v5-knockdown');
+  await idle(page);
+  const after = await state(page);
+  expect(after.units[fixture.target.id]?.location ?? 'gone').not.toBe('map');
+  const sampled = await frames();
+  const ghost = sampled.flatMap(frame => frame.frame.poses).filter(pose => pose.id === fixture.target.id);
+  // Drawn at full strength until the hit (it is no longer in the scene), then grey and fading.
+  expect(ghost.some(pose => pose.alpha === undefined)).toBe(true);
+  const fading = ghost.filter(pose => pose.grey);
+  // Frame-rate independent: at least one sampled frame inside the 450 ms fade, each one grey and partly transparent, never brightening.
+  expect(fading.length).toBeGreaterThan(0);
+  expect(fading.every(pose => pose.alpha! > 0 && pose.alpha! < 1)).toBe(true);
+  expect(fading.map(pose => pose.alpha!)).toEqual([...fading.map(pose => pose.alpha!)].sort((a, b) => b - a));
+  expect(sampled.flatMap(frame => frame.frame.effects).some(effect => effect.tone === 'tag' && effect.text === '休养')).toBe(true);
+  // The presentation's type matchup agrees with the authority's knockdown record.
+  const battle = (await presented(page)).filter(event => event.type === 'BattleResolved').at(-1)!;
+  expect(battle.recorded).toBeDefined();
+  expect(battle.effectiveness).toBe(battle.recorded);
+});
+
+test('V6: an AI takes our city — the old banner tears off and the new colour sweeps over the territory, with the city-lost cue', async ({ page }) => {
+  test.setTimeout(120_000);
+  const fixture = aiCaptureFixture();
+  await importSave(page, fixture.save);
+  await spyAudio(page);
+  await focusOn(page, fixture.city, 8);
+  const clip = await prepareShot(page, fixture.city);
+  const frames = await sampleFrames(page, 2400);
+  await page.locator('#end-turn').click({ modifiers: ['Shift'] });
+  await captureMoment(page, { effect: 'sweep', progress: .28 }, clip, 'v6-city-capture');
+  await expect(page.locator('#end-turn')).toBeEnabled({ timeout: 30_000 });
+  await idle(page);
+  const sampled = await frames();
+  const effects = sampled.flatMap(frame => frame.frame.effects);
+  expect(effects.some(effect => effect.kind === 'banner' && effect.ownerId === fixture.previousOwner)).toBe(true);
+  expect(effects.some(effect => effect.kind === 'sweep' && effect.ownerId === fixture.ownerId)).toBe(true);
+  // The capture is part of the battle track, so the sweep fits in the 900 ms budget.
+  const sweeping = sampled.filter(frame => frame.frame.effects.some(effect => effect.kind === 'sweep'));
+  expect(sweeping.length).toBeLessThanOrEqual(Math.ceil(.6 * 60) + 6);
+  expect(await sounds(page)).toContain('cityLost');
+});
+
+test('A2: attacks sound by type family on launch, hits and knockdowns on impact, with an arpeggio when super effective', async ({ page }) => {
+  test.setTimeout(120_000);
+  const counter = attackFixture('counter');
+  await importSave(page, counter.save);
+  await spyAudio(page);
+  await attack(page, counter);
+  await idle(page);
+  const family = `attack:${ATTACK_FAMILIES[typeOf(counter, counter.unitId)]}`;
+  let played = await sounds(page);
+  expect(played).toContain(family);
+  // Launch first, then one hit when the strike lands and one when the counter lands.
+  expect(played.indexOf(family)).toBeLessThan(played.indexOf('hit'));
+  expect(played.filter(id => id === 'hit').length).toBe(2);
+  expect(played).not.toContain('attack');
+  let battle = (await presented(page)).filter(event => event.type === 'BattleResolved').at(-1)!;
+  expect(played.includes('superEffective')).toBe((battle.effectiveness ?? 100) > 100);
+
+  const knockdown = attackFixture('knockdown');
+  await importSave(page, knockdown.save);
+  await spyAudio(page);
+  await attack(page, knockdown);
+  await idle(page);
+  played = await sounds(page);
+  expect(played).toContain(`attack:${ATTACK_FAMILIES[typeOf(knockdown, knockdown.unitId)]}`);
+  expect(played).toContain('knockdown');
+  battle = (await presented(page)).filter(event => event.type === 'BattleResolved').at(-1)!;
+  expect(played.includes('superEffective')).toBe((battle.effectiveness ?? 100) > 100);
+  // Every type maps to one of the six families, and each family is a registered sound.
+  const ids = await page.evaluate(async () => { const path = '/src/browser/audio/index.ts'; return (await import(path)).SOUND_IDS as string[]; });
+  for (const name of new Set(Object.values(ATTACK_FAMILIES))) expect(ids).toContain(`attack:${name}`);
+  expect(ids).toContain('superEffective');
+});

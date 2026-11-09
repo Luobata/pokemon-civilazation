@@ -11,8 +11,9 @@ import { hexToIndex } from '../../src/core/hex.ts';
 import type { GameSetup, GameState } from '../../src/core/model.ts';
 import { isMapUnit } from '../../src/core/model.ts';
 import { buildScene, sceneMarkedTiles } from '../../src/browser/render/scene.ts';
-import { BURST_MS, COUNTER_DELAY_MS, MOVE_STEP_MS, SHAKE_MS, Timeline, battleTrack, captureTrack, moveTrack, shakeAmplitude, shakeAt } from '../../src/browser/render/animation.ts';
-import type { Track } from '../../src/browser/render/animation.ts';
+import { BATTLE_MAX_MS, BURST_MS, COUNTER_DELAY_MS, GHOST_MS, LUNGE_MS, MOVE_STEP_MS, PROJECTILE_FROM_MS, RANGED_IMPACT_MS, SHAKE_MS, SWEEP_MS, Timeline, battleTiming, battleTrack,
+  captureTrack, matchupHint, moveTrack, shakeAmplitude, shakeAt } from '../../src/browser/render/animation.ts';
+import type { AnimationFrame, Track } from '../../src/browser/render/animation.ts';
 import { hexToWorld } from '../../src/browser/camera.ts';
 
 function playedV10(rounds: number): GameState {
@@ -90,7 +91,7 @@ test('tracks run in parallel, replace by key, and finish once', () => {
   timeline.add(battleTrack({ key: 'battle:1', attacker: { q: 0, r: 1 }, target: { q: 1, r: 1 }, damage: 12, counterDamage: 0, onFinish: () => finished.push('battle') }), 0);
   timeline.add(captureTrack('capture:1', 9, true, () => finished.push('capture')), 100);
   const both = timeline.sample(300, context);
-  expect(both.effects.map(effect => effect.kind)).toEqual(['battle', 'number', 'capture']);
+  expect(both.effects.map(effect => effect.kind)).toEqual(['impact', 'number', 'capture']);
   expect(both.effects[2]).toMatchObject({ position: { q: 3, r: 2 }, progress: 200 / BURST_MS });
   timeline.sample(BURST_MS, context);
   expect(finished).toEqual(['battle']);
@@ -116,26 +117,90 @@ test('battle numbers: the damage pops on the target, the counter on the attacker
   const attacker = { q: 2, r: 3 }, target = { q: 3, r: 3 };
   const impacts: boolean[] = [];
   const timeline = new Timeline();
-  timeline.add(battleTrack({ key: 'battle:3', attacker, target, damage: 30, counterDamage: 9, onImpact: counter => impacts.push(counter) }), 0);
-  const first = timeline.sample(16, context);
+  const spec = { key: 'battle:3', attacker, target, damage: 30, counterDamage: 9, attackerUnit: unit, onImpact: (counter: boolean) => impacts.push(counter) };
+  const { impact, counter: counterAt, duration } = battleTiming(spec);
+  timeline.add(battleTrack(spec), 0);
+  // Before the hit: the attacker lunges toward the target (0.3 hex at the peak), nothing has landed yet.
+  expect(timeline.sample(impact - 1, context).effects.some(effect => effect.kind === 'number')).toBe(false);
+  expect(impacts).toEqual([]);
+  const windUp = timeline.sample(LUNGE_MS, context);
+  const home = hexToWorld(attacker), aim = hexToWorld(target);
+  expect(windUp.poses).toEqual([{ unit, position: { x: home.x + (aim.x - home.x) * .3, y: home.y + (aim.y - home.y) * .3 } }]);
+  const first = timeline.sample(impact + 16, context);
   expect(first.effects).toContainEqual(expect.objectContaining({ kind: 'number', position: target, text: '−30', tone: 'damage' }));
+  expect(first.effects).toContainEqual(expect.objectContaining({ kind: 'impact', position: target, burst: true }));
   expect(first.effects.some(effect => effect.kind === 'number' && effect.tone === 'counter')).toBe(false);
   expect(Math.hypot(first.shake!.x, first.shake!.y)).toBeGreaterThan(1);
   expect(impacts).toEqual([false]);
-  const counter = timeline.sample(COUNTER_DELAY_MS + 20, context);
+  const counter = timeline.sample(counterAt! + 20, context);
+  expect(counterAt).toBe(impact + COUNTER_DELAY_MS);
   expect(counter.effects).toContainEqual(expect.objectContaining({ kind: 'number', position: attacker, text: '反击 −9', tone: 'counter' }));
   expect(impacts).toEqual([false, true]);
   // Shake decays to nothing once both hits have settled; the whole battle stays within 900 ms.
-  expect(timeline.sample(COUNTER_DELAY_MS + SHAKE_MS + 1, context).shake).toBeUndefined();
-  timeline.sample(900, context);
+  expect(timeline.sample(counterAt! + SHAKE_MS + 1, context).shake).toBeUndefined();
+  expect(duration).toBeLessThanOrEqual(BATTLE_MAX_MS);
+  timeline.sample(BATTLE_MAX_MS, context);
   expect(timeline.busy).toBe(false);
-  // Reduced motion: same numbers, no shake.
+  // Reduced motion: same numbers and flash, no lunge, particles or shake.
   const still = new Timeline();
-  still.add(battleTrack({ key: 'battle:4', attacker, target, damage: 30, counterDamage: 0, motion: false }), 0);
-  const frame = still.sample(16, context);
+  still.add(battleTrack({ ...spec, key: 'battle:4', counterDamage: 0, motion: false }), 0);
+  expect(still.sample(LUNGE_MS, context).poses).toEqual([]);
+  const frame = still.sample(impact + 16, context);
   expect(frame.shake).toBeUndefined();
+  expect(frame.effects).toContainEqual(expect.objectContaining({ kind: 'impact', burst: false }));
   expect(frame.effects.some(effect => effect.kind === 'number')).toBe(true);
   expect(shakeAt(0, shakeAmplitude(100))!.x).toBeLessThanOrEqual(6);
+});
+
+test('ranged battles fly type-coloured projectiles the short way across a wrapping seam, with a matchup hint', () => {
+  const map = { width: 24, wrap: true };
+  // Attacker in the last column, target two hexes east across the seam (first columns), so the short way is 2 hexes.
+  const attacker = { q: 23 - 2, r: 4 }, target = { q: 1 - 2, r: 4 };
+  const spec = { key: 'battle:5', attacker, target, damage: 20, counterDamage: 6, map, ranged: true, attackColor: '#F08A4B', counterColor: '#6FA5EE', effectiveness: 200 };
+  const { impact, counter, duration } = battleTiming(spec);
+  expect(impact).toBe(RANGED_IMPACT_MS);
+  expect(duration).toBeLessThanOrEqual(BATTLE_MAX_MS);
+  const track = battleTrack(spec);
+  const frameAt = (elapsed: number) => { const frame: AnimationFrame = { poses: [], effects: [] }; track.sample(elapsed, context, frame); return frame; };
+  const flying = frameAt((PROJECTILE_FROM_MS + impact) / 2).effects.find(effect => effect.kind === 'projectile');
+  expect(flying).toMatchObject({ color: '#F08A4B' });
+  if (flying?.kind !== 'projectile') throw new Error('expected a projectile');
+  const hex = Math.sqrt(3) * 22;
+  expect(Math.hypot(flying.to.x - flying.from.x, flying.to.y - flying.from.y)).toBeCloseTo(hex * 2, 3);
+  const hit = frameAt(impact + 10).effects;
+  expect(hit).toContainEqual(expect.objectContaining({ kind: 'impact', color: '#F08A4B' }));
+  expect(hit).toContainEqual(expect.objectContaining({ kind: 'number', text: '效果拔群', tone: 'super' }));
+  const back = frameAt((impact + counter!) / 2 + 20).effects.find(effect => effect.kind === 'projectile');
+  expect(back).toMatchObject({ color: '#6FA5EE' });
+  expect(matchupHint(50)).toEqual({ text: '效果不佳', tone: 'weak' });
+  expect(matchupHint(0)).toEqual({ text: '没有效果', tone: 'weak' });
+  expect(matchupHint(100)).toBeNull();
+});
+
+test('a knocked-down unit leaves a sinking grey afterimage with its tag; a captured city sweeps its territory', () => {
+  const attacker = { q: 2, r: 3 }, target = { q: 3, r: 3 }, victim = { ...unit, id: 9, ownerId: 1 };
+  const spec = { key: 'battle:6', attacker, target, damage: 40, counterDamage: 0, targetUnit: victim, targetDown: '休养' };
+  const { impact, duration } = battleTiming(spec);
+  const track = battleTrack(spec);
+  const frameAt = (elapsed: number) => { const frame: AnimationFrame = { poses: [], effects: [] }; track.sample(elapsed, context, frame); return frame; };
+  // Still standing until the hit (the final state no longer has it), then fading grey.
+  expect(frameAt(impact - 10).poses).toEqual([{ unit: victim, position: hexToWorld(target) }]);
+  const fading = frameAt(impact + GHOST_MS / 2).poses[0];
+  expect(fading).toMatchObject({ unit: victim, grey: true });
+  expect(fading.alpha!).toBeGreaterThan(0); expect(fading.alpha!).toBeLessThan(1);
+  expect(fading.position.y).toBeGreaterThan(hexToWorld(target).y);
+  expect(frameAt(impact + 200).effects).toContainEqual(expect.objectContaining({ kind: 'number', text: '休养', tone: 'tag' }));
+  expect(frameAt(impact + GHOST_MS + 1).poses).toEqual([]);
+  expect(duration).toBeLessThanOrEqual(BATTLE_MAX_MS);
+
+  const tiles = [{ hex: target, ring: 0 }, { hex: { q: 4, r: 3 }, ring: 1 }, { hex: { q: 5, r: 3 }, ring: 2 }];
+  const siege = battleTrack({ key: 'battle:7', attacker, target, damage: 50, counterDamage: 0, capture: { tiles, ownerId: 0, previousOwner: 1 } });
+  const capture = battleTiming({ counterDamage: 0, capture: { tiles, ownerId: 0 } });
+  expect(capture.duration).toBe(capture.impact + SWEEP_MS);
+  const frame: AnimationFrame = { poses: [], effects: [] };
+  siege.sample(capture.impact + 100, context, frame);
+  expect(frame.effects).toContainEqual(expect.objectContaining({ kind: 'sweep', ownerId: 0, tiles }));
+  expect(frame.effects).toContainEqual(expect.objectContaining({ kind: 'banner', position: target, ownerId: 1 }));
 });
 
 test('cues run once when due, and the remaining ones when the track ends; skipping drops them', () => {

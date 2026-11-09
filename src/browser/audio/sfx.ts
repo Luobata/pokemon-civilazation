@@ -2,13 +2,27 @@
 // at `t`; most are under a second; the wonder, era and victory fanfares run 1.5–3.5 s.
 // `duck` dips the music for that many seconds so big moments cut through.
 
+import type { TypeId } from '../../content/species.ts';
 import { midiToFreq as hz, noise, thump, tone, type SynthOut } from './synth.ts';
+
+/** A2: the 18 attack types share six sound families. */
+export type AttackFamily = 'fire' | 'water' | 'electric' | 'grass' | 'psychic' | 'impact';
+export const ATTACK_FAMILIES: Record<TypeId, AttackFamily> = {
+  fire: 'fire', dragon: 'fire',
+  water: 'water', ice: 'water', poison: 'water',
+  electric: 'electric', steel: 'electric',
+  grass: 'grass', bug: 'grass', flying: 'grass',
+  psychic: 'psychic', ghost: 'psychic', fairy: 'psychic', dark: 'psychic',
+  fighting: 'impact', rock: 'impact', ground: 'impact', normal: 'impact',
+};
+/** The attack sound for a type; the generic swing when the type is unknown. */
+export const attackSound = (type: TypeId | null | undefined): SoundId => type ? `attack:${ATTACK_FAMILIES[type]}` : 'attack';
 
 export type SoundId =
   | 'click' | 'select' | 'move' | 'attack' | 'hit' | 'knockdown' | 'capture' | 'captureFail' | 'evolve'
   | 'cityFounded' | 'production' | 'research' | 'turn' | 'war' | 'peace' | 'promotion' | 'wonder' | 'error' | 'notify'
   | 'cityCaptured' | 'cityLost' | 'eraChange' | 'victory' | 'defeat' | 'weather' | 'formChange' | 'tradeRoute'
-  | 'legendLost' | 'alarm' | 'endTurn';
+  | 'legendLost' | 'alarm' | 'endTurn' | `attack:${AttackFamily}` | 'superEffective';
 
 export interface SoundEffect {
   duck?: number;
@@ -288,6 +302,63 @@ export const SOUND_EFFECTS: Record<SoundId, SoundEffect> = {
   alarm: {
     play: (o, t) => {
       for (const [dt, m] of [[0, 81], [0.14, 76], [0.28, 81], [0.42, 76]] as const) tone(o, t + dt, hz(m), 0.1, { wave: 'pulse25', gain: 0.07, decay: 0.05, sustain: 0.7, release: 0.03 });
+    },
+  },
+
+  /** Fire / dragon: a low-pass-swept roar of noise over a falling growl. */
+  'attack:fire': {
+    play: (o, t) => {
+      noise(o, t, 0.34, { filter: 'lowpass', freq: 3200, freqTo: 280, q: 1.3, gain: 0.3, attack: 0.02 });
+      tone(o, t, 150, 0.24, { wave: 'sawtooth', gain: 0.06, slideTo: 62, filter: 'lowpass', filterFreq: 700, decay: 0.12, sustain: 0.5, release: 0.08 });
+    },
+  },
+
+  /** Water / ice / poison: rising bubbles through a band-pass splash. */
+  'attack:water': {
+    play: (o, t) => {
+      [0, 0.05, 0.1, 0.16].forEach((dt, i) => tone(o, t + dt, 380 + i * 90, 0.04, { wave: 'sine', gain: 0.1, slideTo: 900 + i * 140, decay: 0.03, sustain: 0.2, release: 0.03 }));
+      noise(o, t, 0.26, { filter: 'bandpass', freq: 1300, freqTo: 650, q: 3, gain: 0.15 });
+    },
+  },
+
+  /** Electric / steel: a crackle of square-wave zaps over hiss. */
+  'attack:electric': {
+    play: (o, t) => {
+      for (let i = 0; i < 6; i++) tone(o, t + i * 0.028, hz(i % 2 ? 91 : 84), 0.022, { wave: 'square', gain: 0.055, decay: 0.015, sustain: 0.4, release: 0.01 });
+      noise(o, t, 0.2, { filter: 'highpass', freq: 4200, gain: 0.13 });
+      tone(o, t, 1200, 0.18, { wave: 'sawtooth', gain: 0.03, slideTo: 300, filter: 'bandpass', filterFreq: 1800, q: 4, decay: 0.1, sustain: 0.3, release: 0.04 });
+    },
+  },
+
+  /** Grass / bug / flying: two leafy rustles. */
+  'attack:grass': {
+    play: (o, t) => {
+      for (const [dt, level] of [[0, 1], [0.09, 0.75]] as const) noise(o, t + dt, 0.12, { filter: 'bandpass', freq: 3200, freqTo: 5200, q: 0.9, gain: 0.18 * level, attack: 0.01 });
+      tone(o, t + 0.04, 520, 0.08, { wave: 'triangle', gain: 0.05, slideTo: 760, decay: 0.05, sustain: 0.3, release: 0.05 });
+    },
+  },
+
+  /** Psychic / ghost / fairy / dark: a wavering sine pair. */
+  'attack:psychic': {
+    play: (o, t) => {
+      for (const detune of [0, 14]) tone(o, t, hz(76), 0.36, { wave: 'sine', gain: 0.08, detune, slideTo: hz(83), attack: 0.05, decay: 0.2, sustain: 0.7, release: 0.12, vibrato: 90, vibratoRate: 13, vibratoDelay: 0 });
+    },
+  },
+
+  /** Fighting / rock / ground / normal: a swing and a heavy thud. */
+  'attack:impact': {
+    play: (o, t) => {
+      noise(o, t, 0.09, { filter: 'bandpass', freq: 2600, freqTo: 900, q: 1.2, gain: 0.14 });
+      thump(o, t + 0.07, 170, 45, 0.24, 0.5);
+      noise(o, t + 0.07, 0.14, { filter: 'lowpass', freq: 1400, freqTo: 220, q: 0.7, gain: 0.26 });
+    },
+  },
+
+  /** Super effective: a quick rising arpeggio on top of the attack sound. */
+  superEffective: {
+    play: (o, t) => {
+      [79, 83, 86, 91].forEach((m, i) => blip(o, t + 0.12 + i * 0.045, m, 0.04, 0.085));
+      bell(o, t + 0.3, 95, 0.05, 0.25);
     },
   },
 

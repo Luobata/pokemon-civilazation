@@ -62,12 +62,17 @@ import type { DebugOverlay, RenderStats, Track } from './render/index.ts';
 import type { UnitMarkIdentity } from './render/scene.ts';
 import type { Hex } from '../core/hex.ts';
 import { battleTrack, captureTrack, evolveTrack, moveTrack, tapTrack } from './render/animation.ts';
+import type { BattleSpec } from './render/animation.ts';
 import { describeTile, tileSummary } from './tile-info.ts';
 import { renderTilePanel } from './tile-panel.ts';
 import { ERA_AGES } from '../content/era-honors.ts';
 import { previewSummary, targetPreviews } from './target-preview.ts';
 import { HEX_RADIUS, fitCamera, hexToWorld, tileToScreen, toWorld, worldToHex, zoomAt } from './camera.ts';
 import { combatCard, renderCombatCard } from './combat-preview.ts';
+import { battleLook } from './battle-presentation.ts';
+import { TYPE_COLORS } from '../content/type-colors.ts';
+import type { TypeId } from '../content/species.ts';
+import { attackSound } from './audio/sfx.ts';
 import type { Camera, Point } from './camera.ts';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#map')!;
@@ -114,7 +119,8 @@ export const developerAdapter = {
   save: () => driver.save(),
   getFrameMetrics: () => ({ ...frameMetrics() }),
   /** Last map frame's layer-cache stats and shake offset, and the recently presented events (animated or skipped). */
-  getPresentation: () => ({ render: lastRenderStats && { ...lastRenderStats, shake: { ...lastRenderStats.shake } }, events: presentationLog.map(item => ({ ...item })) }),
+  getPresentation: () => ({ render: lastRenderStats && { ...lastRenderStats, shake: { ...lastRenderStats.shake } }, events: presentationLog.map(item => ({ ...item })),
+    frame: { effects: lastAnimation.effects.map(item => ({ ...item })), poses: lastAnimation.poses.map(item => ({ ...item })) } }),
 };
 export let camera: Camera = { x: 0, y: 0, zoom: 1 };
 let selected: number | null = null;
@@ -184,9 +190,37 @@ function ownAction(payload: VisibleEvent['payload'], view: PlayerView): boolean 
     default: return false;
   }
 }
-/** Recent presented events and whether each got a map animation (developer adapter, tests). */
-const presentationLog: { type: string; animated: boolean }[] = [];
+/**
+ * Recent presented events and whether each got a map animation (developer adapter, tests). Battles also note the
+ * matchup the presentation derived and, when a knockdown record carries it, the authority's own figure.
+ */
+type PresentedEvent = { type: string; animated: boolean; effectiveness?: number | null; recorded?: number };
+const presentationLog: PresentedEvent[] = [];
 let lastRenderStats: RenderStats | null = null;
+/** The last map frame's effects and poses, summarised (developer adapter, tests). */
+let lastAnimation: { effects: { kind: string; color?: string; text?: string; tone?: string; ownerId?: number | null; progress: number }[]; poses: { id: number; alpha?: number; grey?: boolean }[] } = { effects: [], poses: [] };
+/** Territory of a captured city that the viewer knows belongs to its new owner, by distance (0–3) from the city. */
+function captureTiles(view: PlayerView, tile: number, ownerId: number | null): { hex: Hex; ring: number }[] {
+  const city = indexToHex(tile, view.map);
+  return view.territoryOwnerIds.flatMap((owners, index) => {
+    if (index !== tile && (ownerId === null || !owners?.includes(ownerId))) return [];
+    const hex = indexToHex(index, view.map), ring = hexDistance(city, hex, view.map);
+    return ring <= 3 ? [{ hex, ring }] : [];
+  });
+}
+function battleSpec(payload: BattlePayload, view: PlayerView, key: string, finish: () => void): BattleSpec {
+  const look = battleLook(payload, view, knownUnits, knownCityOwners);
+  const color = (type: TypeId | null) => type ? TYPE_COLORS[type] : undefined;
+  // Each hit sounds when it lands: a knockdown chime when the struck side goes down.
+  const onImpact = (counter: boolean) => audio.play((counter ? look.attackerDown : look.targetDown) ? 'knockdown' : 'hit');
+  return { key, attacker: payload.positions[0], target: payload.positions[1], damage: payload.damage, counterDamage: payload.counterDamage,
+    map: view.map, motion: !reducedMotion(), ranged: look.ranged, effectiveness: look.effectiveness, onFinish: finish, onImpact,
+    ...(color(look.attackType) ? { attackColor: color(look.attackType) } : {}), ...(color(look.counterType) ? { counterColor: color(look.counterType) } : {}),
+    ...(look.attacker ? { attackerUnit: look.attacker } : {}), ...(look.target ? { targetUnit: look.target } : {}),
+    ...(look.targetDown ? { targetDown: look.targetTag } : {}), ...(look.attackerDown ? { attackerDown: look.attackerTag } : {}),
+    ...(look.city ? { capture: { tiles: captureTiles(view, look.city.tile, look.city.ownerId), ownerId: look.city.ownerId,
+      ...(look.city.previousOwner !== undefined ? { previousOwner: look.city.previousOwner } : {}) } } : {}) };
+}
 
 /** The visual track for one presentation event, or null for events without an animation. */
 function presentationTrack(payload: VisibleEvent['payload']): Track | null {
@@ -200,8 +234,7 @@ function presentationTrack(payload: VisibleEvent['payload']): Track | null {
   const finish = () => { notice = summary(payload) || notice; presenting.delete(track!.key); };
   let track: Track | null = null;
   if (payload.type === 'Moved') track = moveTrack(payload.unit, payload.path, finish, view.map);
-  else if (payload.type === 'BattleResolved') track = battleTrack({ key, attacker: payload.positions[0], target: payload.positions[1],
-    damage: payload.damage, counterDamage: payload.counterDamage, motion: !reducedMotion(), onFinish: finish });
+  else if (payload.type === 'BattleResolved') track = battleTrack(battleSpec(payload, view, key, finish));
   else if (payload.type === 'Captured') track = captureTrack(key, payload.targetUnitId, payload.success, finish);
   else if (payload.type === 'Evolved') track = evolveTrack(key, payload.unitId, finish);
   if (track) presenting.set(track.key, payload);
@@ -285,21 +318,30 @@ function syncMusic() {
   const view = session.getView();
   audio.setMood(view.outcome ? 'menu' : view.diplomacy.some(pair => pair.status === 'war' && (pair.a === view.playerId || pair.b === view.playerId)) ? 'war' : 'peace');
 }
-/** Sounds for a battle: city captured / lost, an alarm when one of our cities is hit; nothing for strangers' fights off screen. */
-function battleSounds(payload: BattlePayload, view: PlayerView): SoundId[] {
+/**
+ * Sounds for a battle: the attack type's sound (A2) plus a rising arpeggio when super effective; city captured / lost;
+ * an alarm when one of our cities is hit. When the battle is animated, the hit / knockdown sound plays on impact instead
+ * (track cue). Nothing for strangers' fights off screen.
+ */
+function battleSounds(payload: BattlePayload, view: PlayerView, animated: boolean): SoundId[] {
   const me = view.playerId, involved = battleInvolvesViewer(payload, view);
   if (!involved && !onScreen(payload.positions, view)) return [];
+  const look = battleLook(payload, view, knownUnits, knownCityOwners);
+  const sounds: SoundId[] = [attackSound(look.attackType), ...((look.effectiveness ?? 100) > 100 ? ['superEffective' as const] : [])];
   const ownCity = payload.target.kind === 'city' && (knownOwnCityIds.has(payload.target.id) || knownCityOwners.get(payload.target.id) === me);
-  if (payload.capturedCity) return [unitOwner(view, payload.attackerId) === me ? 'cityCaptured' : ownCity ? 'cityLost' : 'hit'];
-  return [payload.knockedDownUnitIds.length ? 'knockdown' : 'hit', ...(ownCity ? ['alarm' as const] : [])];
+  if (!animated) sounds.push(payload.knockedDownUnitIds.length ? 'knockdown' : 'hit');
+  if (payload.capturedCity && unitOwner(view, payload.attackerId) === me) sounds.push('cityCaptured');
+  else if (payload.capturedCity && ownCity) sounds.push('cityLost');
+  else if (ownCity) sounds.push('alarm');
+  return sounds;
 }
-/** The effects for one presented event (only what the viewer did, or what happened to the viewer). */
-export function soundsFor(payload: VisibleEvent['payload'], view: PlayerView): SoundId[] {
+/** The effects for one presented event (only what the viewer did, or what happened to the viewer). `animated`: the event got a map track. */
+export function soundsFor(payload: VisibleEvent['payload'], view: PlayerView, animated = false): SoundId[] {
   const me = view.playerId;
   const own = (playerId: number, id: SoundId): SoundId[] => playerId === me ? [id] : [];
   switch (payload.type) {
     case 'Moved': return payload.unit.ownerId === me ? ['move'] : [];
-    case 'BattleResolved': return battleSounds(payload, view);
+    case 'BattleResolved': return battleSounds(payload, view, animated);
     case 'Captured': return payload.playerId !== me ? [] : [payload.success ? 'capture' : 'captureFail'];
     case 'Evolved': case 'WorldStoneEvolution': return own(payload.playerId, 'evolve');
     case 'CityFounded': return own(payload.playerId, 'cityFounded');
@@ -322,8 +364,8 @@ export function soundsFor(payload: VisibleEvent['payload'], view: PlayerView): S
     default: return [];
   }
 }
-function recordActivity(payload: VisibleEvent['payload']) {
-  for (const sound of soundsFor(payload, session.getView())) audio.play(sound);
+function recordActivity(payload: VisibleEvent['payload'], animated = false) {
+  for (const sound of soundsFor(payload, session.getView(), animated)) audio.play(sound);
   if (payload.type === 'DiplomacyChanged' || payload.type === 'GameEnded') syncMusic();
   if (payload.type === 'LegendWonderCompleted' && payload.playerId === session.getView().playerId) legendArrivals.push(payload.legendId);
   rail.push(toastFor(payload, session.getView(), { ownCityIds: knownOwnCityIds, unitName: id => knownUnitLabels.get(id)?.replace(/^(野生 |文明 \d+ 的 )/, '') }));
@@ -507,7 +549,6 @@ function issue(action: Command['action'], successNotice?: string) {
   }
   else {
     notice = successNotice ?? '';
-    if (action.type === 'Attack') audio.play('attack');
     if (action.type === 'EndTurn') audio.play('endTurn');
     if (action.type === 'Attack' || action.type === 'Capture' || action.type === 'Move' || action.type === 'EndTurn') resetAction();
     if (action.type === 'SetProductionQueue' && action.orders.some(order => order.item.kind === 'district')) districtPlacement = null;
@@ -643,15 +684,22 @@ function frame(now: number) {
   const queue = session.presentationQueue;
   while (!timeline.busy && presentationIndex < queue.length) {
     const event = queue[presentationIndex++]!;
-    recordActivity(event.payload);
     const track = presentationTrack(event.payload);
+    recordActivity(event.payload, track !== null);
     if (track) timeline.add(track, now);
-    presentationLog.push({ type: event.payload.type, animated: track !== null });
+    const payload = event.payload, battle = payload.type === 'BattleResolved' ? payload : null;
+    const recorded = battle?.knockdowns?.find(record => !record.counter && record.source.id === battle.attackerId && record.target.kind !== 'city')?.effectiveness;
+    presentationLog.push({ type: payload.type, animated: track !== null,
+      ...(battle ? { effectiveness: battleLook(battle, session.getView(), knownUnits, knownCityOwners).effectiveness, ...(recorded !== undefined ? { recorded } : {}) } : {}) });
     if (presentationLog.length > 80) presentationLog.shift();
   }
   const view = session.getView();
   if (deferredFocus && !busy()) focusHex(deferredFocus);
   const animation = timeline.sample(now, { unitPosition: id => view.units.find(unit => unit.id === id)?.position });
+  lastAnimation = {
+    effects: animation.effects.map(effect => ({ kind: effect.kind, progress: effect.progress,
+      ...('color' in effect ? { color: effect.color } : {}), ...('text' in effect ? { text: effect.text, tone: effect.tone } : {}), ...('ownerId' in effect ? { ownerId: effect.ownerId } : {}) })),
+    poses: animation.poses.map(pose => ({ id: pose.unit.id, ...(pose.alpha !== undefined ? { alpha: pose.alpha } : {}), ...(pose.grey ? { grey: true } : {}) })) };
   const paths = selected === null ? {} : reachablePaths(view, selected);
   const targets = selected === null ? [] : actionTargets(view, selected, actionMode, selectedBall).map(target => hexToIndex(target.position, view.map)!);
   const drawStarted = performance.now();

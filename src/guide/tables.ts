@@ -15,6 +15,7 @@ import { LATEST_GAMEPLAY_VERSION } from '../content/eras.ts';
 // Handbook tables are rendered from the live content modules, so numbers cannot drift from the rules.
 // Only the default new-game setup (expansion v1 + era mode + LATEST_GAMEPLAY_VERSION) is described.
 import { FULL_TYPE_CHART } from '../content/combat.ts';
+import { TYPE_COLORS } from '../content/type-colors.ts';
 import { DISCOVERY_PERCENT } from '../content/discoveries.ts';
 import { DISTRICTS, DISTRICT_IDS } from '../content/districts.ts';
 import type { DistrictEffects } from '../content/districts.ts';
@@ -63,11 +64,6 @@ export const BIOME_NAMES: Record<BiomeId, string> = {
 const BIOME_ORDER: readonly BiomeId[] = ['grassland', 'forest', 'mountain', 'ocean', 'desert', 'snow', 'volcano'];
 const TYPE_ORDER: readonly TypeId[] = ['normal', 'fire', 'water', 'electric', 'grass', 'ice', 'fighting', 'poison', 'ground',
   'flying', 'psychic', 'bug', 'rock', 'ghost', 'dragon', 'dark', 'steel', 'fairy'];
-const TYPE_COLORS: Record<TypeId, string> = {
-  normal: '#C6C2A8', fire: '#F08A4B', water: '#6FA5EE', electric: '#F5D04A', grass: '#7FCB5C', ice: '#9ADBD8',
-  fighting: '#D2614E', poison: '#B979C2', ground: '#DDB868', flying: '#A99AF0', psychic: '#F47FA0', bug: '#B3C341',
-  rock: '#C3AE5C', ghost: '#8C7CB8', dragon: '#8E6EF5', dark: '#8F7B6D', steel: '#BFC3D6', fairy: '#F0A8C8',
-};
 const ROLE_NAMES: Record<SpeciesDefinition['role'], string> = {
   ranged: '远程', melee: '近战', scout: '侦察', fast: '快速', siege: '攻城', naval: '水面', air: '飞行',
 };
