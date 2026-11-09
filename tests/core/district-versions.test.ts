@@ -13,14 +13,14 @@ const setup = { seed: 31, width: 24, height: 16, roundLimit: 100 as const, expan
     { id: 0, controller: 'human' as const, starterId: 'bulbasaur' as const }, { id: 1, controller: 'human' as const, starterId: 'bulbasaur' as const },
   ] };
 
-test('v10 explicit setup, room and CLI are supported; new games default to the latest version (v22)', () => {
-  expect(LATEST_GAMEPLAY_VERSION).toBe(22); expect(isGameplayVersion(10)).toBe(true); expect(isGameplayVersion(23)).toBe(true); expect(isGameplayVersion(24)).toBe(false);
+test('v10 explicit setup, room and CLI are supported; new games default to the latest version (v23)', () => {
+  expect(LATEST_GAMEPLAY_VERSION).toBe(23); expect(isGameplayVersion(10)).toBe(true); expect(isGameplayVersion(23)).toBe(true); expect(isGameplayVersion(24)).toBe(false);
   expect(validateRoomCreateRequest({ seed: 31, gameplayVersion: 10 })?.gameplayVersion).toBe(10);
-  expect(validateRoomCreateRequest({ seed: 31 })?.gameplayVersion).toBe(22);
+  expect(validateRoomCreateRequest({ seed: 31 })?.gameplayVersion).toBe(23);
   expect(validateRoomCreateRequest({ seed: 31, gameplayVersion: 10 })?.gameplayVersion).toBe(10);
   expect(validateRoomCreateRequest({ seed: 31, gameplayVersion: 9 })?.gameplayVersion).toBe(9);
   expect(parseLeaderBalanceArgs(['--expansion', 'true', '--eras', 'simple', '--gameplay', '10']).config.gameplayVersion).toBe(10);
-  expect(parseLeaderBalanceArgs(['--expansion', 'true', '--eras', 'simple']).config.gameplayVersion).toBe(22);
+  expect(parseLeaderBalanceArgs(['--expansion', 'true', '--eras', 'simple']).config.gameplayVersion).toBe(23);
 });
 
 test.each([9, 10] as const)('v%s save and replay preserve state, envelope and event determinism', version => {

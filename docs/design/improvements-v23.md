@@ -270,6 +270,7 @@ v23 的采集规则（只在 v23，`harvestBlocker` 由权威、界面、AI 共�
 ### 实现（与规格的出入）
 
 - 提交：脚手架 d2d6ef7 → A 917e221 → B 5a45912 → C 373008c → AI fa84a92 → 界面/手册/审计 6b2a42d → 合并战斗表现分支 16f8e34 → 损坏标记 5a16e8f。`LATEST_GAMEPLAY_VERSION` **仍为 22**（同 v22 的做法，等 Hub 合并后统一切换）；`?gameplay=23` 可开 v23 新局。
+- 合并（2026-11-09）：main 快进到 7b90faa 后，`LATEST_GAMEPLAY_VERSION` 改为 23（新局默认 v23）。用户确认：满意度中位数 5 → 51.5 保持不调（改良价值上升是本版目的）。
 - 数据：`src/content/improvements.ts`（`IMPROVEMENT_IDS_V23`、`IMPROVEMENT_RULES_V23`、`PILLAGE_REWARD`、`CREW_SPECIALTIES`）。v≤22 的 `IMPROVEMENT_IDS` 仍是原来四种、原顺序。
 - 规则：`src/core/improvements.ts`（资源/科技门、产出与特长、进化石矿场、树果林满意度、迷雾记忆）、`src/core/pillage.ts`（掠夺/修复，权威与视图共用 `pillageBlocker` / `repairBlocker`）、`src/core/world-systems.ts`（`harvestBlocker`）、`src/core/rare-berries.ts`（种植园 2 份）、`src/core/districts.ts` / `policies.ts`（损坏不计）。
 - 掠夺的“受害方”：该格所在领土里、与掠夺者交战的城市中离得最近的那座的主人（同距取城市 id 小的）。掠夺只要求单位站在格上（海上改良要水面/飞行单位站上去）。
