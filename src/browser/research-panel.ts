@@ -6,6 +6,7 @@ import type { Command, PlayerView } from '../core/model.ts';
 import { DISCOVERIES, DISCOVERY_PERCENT } from '../content/discoveries.ts';
 import { TECH_TIERS, techUnlocks, techsInTier } from './tech-info.ts';
 import { renderTechTree } from './tech-tree-panel.ts';
+import { civHint } from './civ-hint.ts';
 
 const TIER_NOTES = ['无前置', '需完成任一第一层科技', '需完成任一第二层科技'];
 
@@ -51,7 +52,7 @@ export function renderResearchPanel(view: PlayerView, issue: (action: Command['a
   };
   root.innerHTML = `<section class="research-box" aria-label="研究选择">
       <div class="research-summary"><div><small>当前研究</small><strong id="research-status">${current ? `${tech(current).name} ${research.progressByTech[current]}/${tech(current).cost}` : '未选课题，科研进入储备'}</strong>
-        <span>储备科研 ${research.reserve} · 已完成 ${research.unlockedIds.length}/${Object.keys(CONTENT.techs).length}${found ? ` · 图鉴发现 ${found.length}/${Object.keys(CONTENT.techs).filter(id => Object.hasOwn(DISCOVERIES, id)).length}` : ''}</span></div>
+        <span>储备科研 ${research.reserve} · 已完成 ${research.unlockedIds.length}/${Object.keys(CONTENT.techs).length}${found ? ` · 图鉴发现 ${found.length}/${Object.keys(CONTENT.techs).filter(id => Object.hasOwn(DISCOVERIES, id)).length} ${civHint('discovery')}` : ''}</span></div>
         <div class="research-controls"><label>研究课题<select id="research-topic" ${disabled ? 'disabled' : ''}><option value="">选择课题</option>${topics.map(id => `<option value="${id}" ${id === current ? 'selected' : ''}>T${tech(id).tier} ${tech(id).name} ${research.progressByTech[id]}/${tech(id).cost}${found?.includes(id) ? ' ★' : ''}</option>`).join('')}</select></label>
         <button id="set-research" ${disabled || !topics.length ? 'disabled' : ''}>选择研究</button></div></div>
       ${current ? `<div class="research-progress" aria-hidden="true"><span style="width:${percent(current)}%"></span></div>` : ''}
