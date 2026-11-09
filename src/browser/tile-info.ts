@@ -20,6 +20,7 @@ import { unitDefinition, contentForView } from '../content/units.ts';
 import { WORLD_DEFINITIONS } from '../content/world-systems.ts';
 import type { BerryId, StoneId } from '../content/world-systems.ts';
 import { CIVILIZATION_CONTENT } from '../content/civilization-systems.ts';
+import { civAside } from '../content/civ-glossary.ts';
 import { hexDistance, hexToIndex, indexToHex } from '../core/hex.ts';
 import type { PlayerView } from '../core/model.ts';
 import { maxUnitHp } from '../core/unit.ts';
@@ -87,7 +88,7 @@ export function describeTile(view: PlayerView, index: number): TileInfo {
     const capital = city.headquartersOf !== undefined && city.headquartersOf !== null;
     const combat = view.combat.cities[city.id];
     if (city.ownerId === null) {
-      entities.push({ kind: 'city', tone, cityId: city.id, title: `中立营地 ${city.id}`, subtitle: '脱离了原文明的城市',
+      entities.push({ kind: 'city', tone, cityId: city.id, title: `中立营地 ${city.id}`, subtitle: `脱离了原文明的城市${civAside('neutralCamp')}`,
         lines: [`HP ${combat?.hp ?? '未知'}`, '不属于任何文明，不产出也不能工作。'],
         hint: view.expansion?.bonds ? '在己方城市 6 格内可花 80 金和平收复；也可以攻打占领。' : '可以攻打占领。' });
     } else if (own) {
@@ -105,7 +106,7 @@ export function describeTile(view: PlayerView, index: number): TileInfo {
     const definition = unitDefinition(unit, content);
     const tone: Tone = unit.ownerId === null ? 'wild' : relationTone(view, unit.ownerId);
     if (unit.kind === 'logistics') {
-      entities.push({ kind: 'unit', tone, unitId: unit.id, title: definition.name, subtitle: unit.ownerId === null ? '野生' : unit.ownerId === view.playerId ? '你的单位' : `${civName(view, unit.ownerId)} · ${RELATION_TEXT[tone]}`,
+      entities.push({ kind: 'unit', tone, unitId: unit.id, title: definition.name, subtitle: (unit.ownerId === null ? '野生' : unit.ownerId === view.playerId ? '你的单位' : `${civName(view, unit.ownerId)} · ${RELATION_TEXT[tone]}`) + civAside(unit.role),
         lines: [`${ROLE_POKEMON[unit.role].unitName}（${ROLE_POKEMON[unit.role].species}）：${ROLE_POKEMON[unit.role].job}，不能战斗。${unit.role === 'builder' && unit.charges !== undefined && unit.ownerId === view.playerId ? `还能建 ${unit.charges} 处。` : ''}`],
         hint: unit.ownerId === view.playerId ? { settler: '选中后点“建立城市”，或移动到别处。', builder: '选中后站到己方地块上，点改良按钮。', trader: '选中后走到另一座己方城市旁，开通商路。' }[unit.role] : tone === 'enemy' ? '交战中：没有战斗力，可以攻击。' : undefined });
       continue;
@@ -118,7 +119,7 @@ export function describeTile(view: PlayerView, index: number): TileInfo {
     if (promotion) lines.push(promotion);
     let subtitle: string, hint: string | undefined;
     if (unit.ownerId === null) {
-      subtitle = rampaging.has(unit.id) ? '暴走宝可梦（来自巢穴）' : '野生宝可梦';
+      subtitle = rampaging.has(unit.id) ? `暴走宝可梦 · 来自巢穴${civAside('rampaging')}` : '野生宝可梦';
       hint = rampaging.has(unit.id) ? '会主动攻击任何文明附近的单位和城市。击倒或捕捉它。'
         : `相邻时可用精灵球捕捉，HP 越低越容易${species.rare ? '（稀有，成功率减半）' : ''}；也可以攻击。`;
     } else if (unit.ownerId === view.playerId) {
@@ -151,18 +152,18 @@ export function describeTile(view: PlayerView, index: number): TileInfo {
       lines: [`用途：${uses.join('、')}`, '城市耕作这一格：生产 +1'], hint: resource.remaining ? '宝可梦站在上面可以采集，只能采一次。' : undefined });
   }
   const nest = expansion?.world.nests.find(item => item.tileIndex === index);
-  if (nest) entities.push({ kind: 'nest', tone: 'wild', title: `${SPECIES_NAMES[nest.speciesId]}巢穴`, subtitle: '威胁',
+  if (nest) entities.push({ kind: 'nest', tone: 'wild', title: `${SPECIES_NAMES[nest.speciesId]}巢穴`, subtitle: `威胁${civAside('nest')}`,
     lines: [...(nest.nextSpawnRound <= view.round + 1 ? ['⚠ 下一轮就会派出暴走宝可梦！把开拓队和工匠撤离，或派宝可梦守住。'] : []), `HP ${nest.hp}/${nest.maxHp} · 第 ${nest.nextSpawnRound} 轮刷出下一只`, `每 ${WORLD_DEFINITIONS.nests.spawnIntervalRounds} 轮刷出暴走宝可梦，它们会攻击所有文明。`],
     hint: `宝可梦在射程内攻击巢穴可清除，奖励 ${WORLD_DEFINITIONS.nests.clearGoldReward} 金 + ${WORLD_DEFINITIONS.nests.clearSatisfactionReward} 满意度。` });
   const ball = expansion?.opening?.itemBalls.find(item => item.tileIndex === index);
-  if (ball) entities.push({ kind: 'resource', tone: 'info', title: '道具球', subtitle: '探索奖励',
+  if (ball) entities.push({ kind: 'resource', tone: 'info', title: '道具球', subtitle: `探索奖励${civAside('itemBall')}`,
     lines: ['里面装着一件随机道具：金币、科研、精灵球、树果或学习装置。'], hint: '任何己方单位走到这一格就会捡起来，先到先得。' });
   const overlord = expansion?.world.overlords.find(item => item.tileIndex === index);
   if (overlord) {
     const rules = WORLD_DEFINITIONS.overlords;
     const tier = overlord.bond >= rules.tier3Bond ? 3 : overlord.bond >= rules.tier2Bond ? 2 : overlord.bond >= rules.tier1Bond ? 1 : 0;
     const next = [rules.tier1Bond, rules.tier2Bond, rules.tier3Bond][tier];
-    entities.push({ kind: 'overlord', tone: 'neutral', title: `霸主 · ${SPECIES_NAMES[overlord.speciesId]}`, subtitle: '中立势力（相当于文明里的城邦）',
+    entities.push({ kind: 'overlord', tone: 'neutral', title: `霸主 · ${SPECIES_NAMES[overlord.speciesId]}`, subtitle: `中立势力${civAside('overlord')}`,
       lines: [`你的羁绊 ${overlord.bond}${next !== undefined ? ` / 下一级 ${next}` : '（已满级）'} · 当前 ${tier} 级`,
         `1 级：周围 ${rules.tier1VisionRadius} 格视野；2 级：3 格内城市 食物/生产/金币 +1；3 级：再加金币 +1、科研 +1。`],
       hint: `你的城市在 ${rules.reach} 格内时可供奉（${rules.foodCost} 食物或 ${rules.goldCost} 金），每次羁绊 +${rules.bondPerOffering}。` });
@@ -188,7 +189,7 @@ export function describeTile(view: PlayerView, index: number): TileInfo {
   if (improvement) {
     const definition = IMPROVEMENTS[improvement.kind];
     const crew = improvement.crew ? CREW_SPECIALTIES[improvement.crew] : undefined;
-    entities.push({ kind: 'improvement', tone: 'info', title: `${definition.name}${improvement.damaged ? '（已损坏）' : ''}`, subtitle: '地块改良',
+    entities.push({ kind: 'improvement', tone: 'info', title: `${definition.name}${improvement.damaged ? '（已损坏）' : ''}`, subtitle: `地块改良${civAside('improvement')}`,
       lines: [definition.description, ...(crew ? [`随行特长「${crew.name}」：${crew.label}`] : []),
         ...(improvement.damaged ? [`第 ${improvement.damagedAtRound} 轮被掠夺，修好之前没有产出；己方工匠站上去即可修复（不消耗次数）。`] : [])] });
   }
@@ -197,7 +198,7 @@ export function describeTile(view: PlayerView, index: number): TileInfo {
   const district = expansion?.districts?.tiles.find(item => item.tileIndex === index);
   if (district) {
     const tone = relationTone(view, district.ownerId);
-    entities.push({ kind: 'district', tone, title: DISTRICTS[district.kind].name, subtitle: district.ownerId === null ? '停用的设施区（中立）' : district.ownerId === view.playerId ? `城市 ${district.cityId} 的设施区` : `${civName(view, district.ownerId)} 的设施区`,
+    entities.push({ kind: 'district', tone, title: DISTRICTS[district.kind].name, subtitle: (district.ownerId === null ? '停用的设施区（中立）' : district.ownerId === view.playerId ? `城市 ${district.cityId} 的设施区` : `${civName(view, district.ownerId)} 的设施区`) + civAside('district'),
       lines: [`占用整格，不能耕作。${!visible && district.ownerId !== view.playerId ? `（第 ${district.lastSeenRound} 轮所见）` : ''}`] });
   }
   const districtProject = expansion?.districts?.projects.find(item => item.tileIndex === index);

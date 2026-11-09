@@ -6,6 +6,7 @@ import { BIOME_DISPLAY } from './canvas.ts';
 import { legendSiteBiome, viewLegendBlocker } from '../core/legends.ts';
 import type { LegendView } from '../core/legends.ts';
 import type { PlayerView } from '../core/model.ts';
+import { civHint } from './civ-hint.ts';
 
 type ViewCity = PlayerView['economy']['cities'][number];
 const YIELD_NAMES = { food: '食物', production: '生产', gold: '金币', research: '科研' } as const;
@@ -74,7 +75,7 @@ export function legendScreenMarkup(view: PlayerView): string {
       ${site && !wonder ? `<button type="button" data-legend-site="${site.tileIndex}">在地图上定位踪迹</button>` : ''}
       ${chapters.length ? `<details class="legend-story"><summary>剧情（${chapters.length}/3）</summary>${chapters.map(([title, text]) => `<h4>${title}</h4><p>${text}</p>`).join('')}</details>` : ''}</div></article>`;
   };
-  return `<div class="legend-screen"><p class="legend-summary">你建成 ${built} 座 · 全世界已建成 ${legends.wonders.length}/${ids.length} 座 · 你的线索 ${legends.clues.length} · 当前第 ${legends.generation} 世代</p>
+  return `<div class="legend-screen"><p class="legend-summary">你建成 ${built} 座传说奇观 · 全世界已建成 ${legends.wonders.length}/${ids.length} 座 · 你的线索 ${legends.clues.length} · 当前第 ${legends.generation} 世代 ${civHint('wonder')}</p>
     ${groups.map(generation => `<section class="legend-generation"><h2>第 ${generation} 世代</h2><div class="legend-grid">${ids.filter(id => LEGEND_WONDERS[id].generation === generation).map(card).join('')}</div></section>`).join('')}</div>`;
 }
 

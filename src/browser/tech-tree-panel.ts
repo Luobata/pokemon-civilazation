@@ -12,6 +12,7 @@ import { missingPrerequisites } from '../core/tech-tree.ts';
 import { techUnlocks } from './tech-info.ts';
 import type { TechUnlock } from './tech-info.ts';
 import { drawTreeLinks } from './tree-links.ts';
+import { civHint } from './civ-hint.ts';
 
 const COLUMN_NAMES = ['启程', '探索', '发展', '联盟', '精英', '传说'];
 const UNLOCK_MARK: Record<TechUnlock['kind'], string> = { effect: '效', building: '建', district: '区', recruit: '招', class: '秘', improvement: '改' };
@@ -124,7 +125,7 @@ export function renderTechTree(root: HTMLElement, view: PlayerView, content: Con
   const percent = current ? Math.min(100, Math.round(research.progressByTech[current] * 100 / def(content, current).cost)) : 0;
   root.innerHTML = `<section class="research-box" aria-label="研究选择">
       <div class="research-summary"><div><small>当前研究</small><strong id="research-status">${current ? `${def(content, current).name} ${research.progressByTech[current]}/${def(content, current).cost}` : '未选课题，科研进入储备'}</strong>
-        <span>每轮科研 ${perRound} · 储备 ${research.reserve} · 已完成 ${research.unlockedIds.length}/${all.length}${found ? ` · 图鉴发现 ${found.length}/${all.length}` : ''}</span></div>
+        <span>每轮科研 ${perRound} · 储备 ${research.reserve} · 已完成 ${research.unlockedIds.length}/${all.length}${found ? ` · 图鉴发现 ${found.length}/${all.length} ${civHint('discovery')}` : ''}</span></div>
         <div class="research-controls"><label>研究课题<select id="research-topic" ${disabled ? 'disabled' : ''}><option value="">选择课题</option>${topics.map(id => `<option value="${id}" ${id === current ? 'selected' : ''}>第${def(content, id).tier}列 ${def(content, id).name} ${research.progressByTech[id]}/${def(content, id).cost}${found?.includes(id) ? ' ★' : ''}</option>`).join('')}</select></label>
         <button id="set-research" ${disabled || !topics.length ? 'disabled' : ''}>选择研究</button></div></div>
       ${current ? `<div class="research-progress" aria-hidden="true"><span style="width:${percent}%"></span></div>` : ''}

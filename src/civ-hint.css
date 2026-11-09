@@ -1,0 +1,8 @@
+/* "文明 6" hints (src/browser/civ-hint.ts): a quiet chip beside a heading, and one hover card on <body>. */
+.civ-hint { display: inline-block; margin: 0 0 0 4px; padding: 0 5px; border: 1px dashed #6E6243; border-radius: 3px; color: var(--ink-muted); font-size: 10px; font-weight: 500; line-height: 1.6; letter-spacing: 0; text-transform: none; vertical-align: 1px; white-space: nowrap; cursor: help; }
+.civ-hint:hover, .civ-hint:focus-visible { border-color: var(--gold); color: #F3E7C9; outline: none; }
+.unit-head .civ-hint { margin: 5px 0 0; }
+.civ-hint-card { position: fixed; top: 0; left: 0; z-index: 30; display: grid; gap: 3px; width: max-content; max-width: 280px; padding: 7px 9px; border: 1px solid var(--border-strong); border-left: 3px solid var(--gold); border-radius: var(--radius-md); background: #10201F; box-shadow: var(--shadow-md); color: var(--ink-secondary); font-size: 12px; font-weight: 400; line-height: 1.45; text-align: left; white-space: normal; pointer-events: none; }
+.civ-hint-card[hidden] { display: none; }
+.civ-hint-card b { color: #F3E7C9; }
+.civ-hint-card small { color: var(--ink-muted); font-size: 12px; }

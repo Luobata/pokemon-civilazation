@@ -16,6 +16,7 @@ import { WORLD_DEFINITIONS } from '../content/world-systems.ts';
 /** Display name of a berry or evolution stone id (falls back to the id). */
 const resourceName = (id: string): string => (WORLD_DEFINITIONS.berries as Record<string, { name: string }>)[id]?.name ?? (WORLD_DEFINITIONS.stones as Record<string, { name: string }>)[id]?.name ?? id;
 import { parseAuditAction } from '../audit/commands.ts';
+import { civHint } from './civ-hint.ts';
 
 const escape = (value: unknown) => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 export function renderExpansionPanel(view: PlayerView, selectedUnitId: number | null, selectedCityId: number | null,
@@ -43,14 +44,14 @@ export function renderExpansionPanel(view: PlayerView, selectedUnitId: number | 
       + button(`招募${unitDefinition({ kind: 'pokemon', speciesId: leaderUnitFor(CONTENT, player.leaderId!, leader.unit) }, CONTENT).name} · 100 金`, { type: 'RecruitLeaderUnit', cityId: city.id }, player.gold >= 100 && exp.leaders.recruited < 3 && player.research.unlockedIds.includes('training')) : ''));
   const world = exp.world, records = Object.values(world.player?.pokedex ?? {});
   html += card('s22-pokedex', '图鉴与探索胜利', `<p>完整记录 ${records.filter(record => record.observed && (record.battled || record.captured)).length}/${world.victory?.targetDocumentedSpecies ?? 18}。观察 ${records.filter(record => record.observed).length} · 对战 ${records.filter(record => record.battled).length} · 捕捉 ${records.filter(record => record.captured).length}。已观察且战斗或捕捉的物种计入完整记录。</p><p>${records.filter(record => record.observed).map(record => escape(CONTENT.species[record.speciesId].name)).join('、') || '尚未观察'}</p>`);
-  html += card('s18-nests', '暴走巢穴', '<p>靠近巢穴后派宝可梦清剿，消耗行动点；巢穴会周期性派出敌对野生单位。</p>'
+  html += card('s18-nests', `暴走巢穴 ${civHint('nest')}`, '<p>靠近巢穴后派宝可梦清剿，消耗行动点；巢穴会周期性派出敌对野生单位。</p>'
     + world.nests.map(nest => `<p>巢穴 #${nest.id} · (${nest.position.q},${nest.position.r}) · HP ${nest.hp}/${nest.maxHp} · 下次刷新 ${nest.nextSpawnRound}</p>`
       + (unit ? button(`以 #${unit.id} 清剿`, { type: 'ClearNest', unitId: unit.id, nestId: nest.id }, Boolean(unit.actionLeft) && hexDistance(unit.position, nest.position, view.map) <= (unit.kind === 'pokemon' ? CONTENT.species[unit.speciesId].range : 1)) : '')).join(''));
-  html += card('s19-overlords', '霸主与羁绊', '<p>附近城市可用 10 食物或 20 金币供奉，每轮一次。羁绊 15/40/75 解锁视野与本地产出。</p>'
+  html += card('s19-overlords', `霸主与羁绊 ${civHint('overlord')}`, '<p>附近城市可用 10 食物或 20 金币供奉，每轮一次。羁绊 15/40/75 解锁视野与本地产出。</p>'
     + world.overlords.map(site => `<p>${escape(CONTENT.species[site.speciesId].name)} #${site.id} · 羁绊 ${site.bond}</p>`
       + (city ? button('供奉食物', { type: 'OfferToOverlord', overlordId: site.id, cityId: city.id, currency: 'food' }, site.lastOfferRound !== view.round && city.food >= 10 && hexDistance(city.position, site.position, view.map) <= WORLD_DEFINITIONS.overlords.reach)
         + button('供奉金币', { type: 'OfferToOverlord', overlordId: site.id, cityId: city.id, currency: 'gold' }, site.lastOfferRound !== view.round && player.gold >= 20 && hexDistance(city.position, site.position, view.map) <= WORLD_DEFINITIONS.overlords.reach) : '')).join(''));
-  html += card('s20-berries', '树果、进化石与满意度', `<p>满意度 ${world.player?.satisfaction ?? 0}/100。移动到资源地块后采集；树果提供食物与满意度，石头存入库存。</p>`
+  html += card('s20-berries', `树果、进化石与满意度 ${civHint('satisfaction')}`, `<p>满意度 ${world.player?.satisfaction ?? 0}/100。移动到资源地块后采集；树果提供食物与满意度，石头存入库存。</p>`
     + world.resources.map(site => `<p>${escape(resourceName(site.definitionId))} · (${site.position.q},${site.position.r}) · 剩余 ${site.remaining}</p>`
       + (unit ? button('采集', { type: 'HarvestResource', unitId: unit.id, tileIndex: site.tileIndex }, Boolean(unit.actionLeft) && site.remaining > 0 && hexDistance(unit.position, site.position, view.map) === 0) : '')).join('')
     + `<p>进化石：${Object.entries(world.player?.stoneInventory ?? {}).map(([id, count]) => `${escape(resourceName(id))} ${count}`).join(' · ') || '无'}</p>`
@@ -58,7 +59,7 @@ export function renderExpansionPanel(view: PlayerView, selectedUnitId: number | 
   const rare = exp.rareBerries;
   if (rare) {
     const partners = exp.civilization.relations.filter(relation => relation.tradeSinceRound !== null && !relation.targetEliminated);
-    html += card('s38-rare-berries', `稀有树果 ${rare.distinct}/${RARE_BERRY_IDS.length}${rare.festival ? ' · 丰收节' : ''}`, `<p>城市耕作稀有树果地块即拥有该种类。每拥有一种：满意度每轮 +${RARE_BERRY_RULES.satisfactionPerType}、各城羁绊每轮 +${RARE_BERRY_RULES.bondPerType}；拥有 ${RARE_BERRY_RULES.festivalTypes} 种时进入丰收节，每城食物 +1。</p>`
+    html += card('s38-rare-berries', `稀有树果 ${rare.distinct}/${RARE_BERRY_IDS.length}${rare.festival ? ' · 丰收节' : ''} ${civHint('rareBerry')}`, `<p>城市耕作稀有树果地块即拥有该种类。每拥有一种：满意度每轮 +${RARE_BERRY_RULES.satisfactionPerType}、各城羁绊每轮 +${RARE_BERRY_RULES.bondPerType}；拥有 ${RARE_BERRY_RULES.festivalTypes} 种时进入丰收节，每城食物 +1。</p>`
       + `<ul class="rare-berry-list">${RARE_BERRY_IDS.map(id => `<li class="${rare.owned[id] ? 'owned' : ''}"><b>${RARE_BERRIES[id].mark}</b>${RARE_BERRIES[id].name} · ${({ forest: '森林', mountain: '山地', desert: '荒漠', grassland: '草原', snow: '雪原', ocean: '海洋' } as Record<string, string>)[RARE_BERRIES[id].biome]} · 拥有 ${rare.owned[id]}</li>`).join('')}</ul>`
       + (partners.length ? `<p>多余的一份可以赠送给贸易伙伴：信任 +${RARE_BERRY_RULES.giftTrust}，自己获得 ${RARE_BERRY_RULES.giftGold} 金币，同一伙伴每 ${RARE_BERRY_RULES.giftCooldown} 轮一次。</p>`
         + partners.map(relation => RARE_BERRY_IDS.filter(id => rare.owned[id] >= 2).map(id => button(`赠送${RARE_BERRIES[id].name}给文明 ${relation.targetPlayerId + 1}`, { type: 'GiftBerry', targetPlayerId: relation.targetPlayerId, berry: id })).join('')).join('')
@@ -67,7 +68,7 @@ export function renderExpansionPanel(view: PlayerView, selectedUnitId: number | 
   const contest = exp.contests;
   if (contest) {
     const leader = [...contest.rivals].sort((a, b) => b.appeal - a.appeal)[0];
-    html += card('s39-contests', `华丽大赛 · 人气 ${contest.own.appeal}/${contest.target}`, `<p>华丽大赛馆每轮产出人气：每座馆 +${CONTEST_RULES.perHall}，再按已登记物种、稀有物种、稀有树果种类和属性道馆加成（每座馆最多 +${CONTEST_RULES.hallCap}）。人气达到 ${victoryTargets(view).contestMinimum} 且为每个对手的 ${CONTEST_RULES.winRatio} 倍时获得华丽大赛胜利。</p>`
+    html += card('s39-contests', `华丽大赛 · 人气 ${contest.own.appeal}/${contest.target} ${civHint('contest')}`, `<p>华丽大赛馆每轮产出人气：每座馆 +${CONTEST_RULES.perHall}，再按已登记物种、稀有物种、稀有树果种类和属性道馆加成（每座馆最多 +${CONTEST_RULES.hallCap}）。人气达到 ${victoryTargets(view).contestMinimum} 且为每个对手的 ${CONTEST_RULES.winRatio} 倍时获得华丽大赛胜利。</p>`
       + `<p>当前每轮 +${contest.own.perRound} · 大赛馆 ${contest.own.halls.length} 座${Object.keys(contest.own.building).length ? ` · 建造中 ${Object.entries(contest.own.building).map(([id, progress]) => `城市 ${id} ${progress}/${CONTEST_RULES.hallCost}`).join('、')}` : ''}${leader ? ` · 最高对手：文明 ${leader.playerId + 1} ${leader.appeal}` : ''}</p>`
       + (!treeGateOpen(player, 'contestHall') ? `<p id="contest-hall-locked">建造大赛馆需要先研究「${techOf(contentForView(view), TREE_GATES.contestHall).name}」。</p>`
         : city ? button(`在城市 #${city.id} 建造大赛馆 · ${CONTEST_RULES.hallGold} 金`, { type: 'BuildContestHall', cityId: city.id }, player.gold >= CONTEST_RULES.hallGold && !contest.own.halls.includes(city.id) && contest.own.building[city.id] === undefined) : '')
@@ -94,10 +95,10 @@ export function renderExpansionPanel(view: PlayerView, selectedUnitId: number | 
         + (city && legendFaith.cityFaith[city.id] !== player.id ? button(`向城市 #${city.id} 传播（压力 ${legendFaith.ownPressure[city.id] ?? 0}/${FAITH_RULES.convertAt}）`, { type: 'SpreadFaith', cityId: city.id }, offeringNow.offeringPoints >= spreadPrice) : '');
     }
     body += `<ul class="faith-list">${legendFaith.faiths.map(item => `<li style="--legend:${LEGENDS[item.legend].color}"><b>${LEGENDS[item.legend].mark}</b>文明 ${item.founderId + 1} · ${LEGENDS[item.legend].name} · ${item.followers} 城</li>`).join('') || '<li>尚无信仰</li>'}</ul>`;
-    html += card('s40-faith', `传说信仰${mineFaith ? ` · ${LEGENDS[mineFaith.legend].name}` : ''}`, body);
+    html += card('s40-faith', `传说信仰${mineFaith ? ` · ${LEGENDS[mineFaith.legend].name}` : ''} ${civHint('faith')}`, body);
   }
   const civ = exp.civilization, faith = civ.player;
-  html += card('s23-faith', '供奉与传奇训练家', `<p>供奉点 ${faith.offeringPoints} · 下次召唤 ${faith.nextPhantomCost}。控制圣所后，每城每轮可用 10 食物或 20 金币换 5 点。</p>`
+  html += card('s23-faith', `供奉与幻影（传奇训练家） ${civHint('phantom')}`, `<p>供奉点 ${faith.offeringPoints} · 下次召唤 ${faith.nextPhantomCost}。控制圣所后，每城每轮可用 10 食物或 20 金币换 5 点。</p>`
     + (city ? button('供奉食物', { type: 'MakeOffering', cityId: city.id, resource: 'food' }, city.food >= 10 && !faith.offeredThisRoundByCity[city.id] && civ.sanctuaries.some(site => site.ownerId === player.id))
       + button('供奉金币', { type: 'MakeOffering', cityId: city.id, resource: 'gold' }, player.gold >= 20 && !faith.offeredThisRoundByCity[city.id] && civ.sanctuaries.some(site => site.ownerId === player.id)) : '')
     + '<p>幻影仅能使用一次，召唤费用每次 +15；效果与名人堂可在审计台逐项查看。</p>'

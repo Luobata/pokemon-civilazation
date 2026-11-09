@@ -58,6 +58,9 @@ td { color: var(--ink-secondary); }
 tbody tr:hover td { background: var(--surface); }
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 td.name { color: var(--ink); white-space: nowrap; }
+.civ-term { display: block; margin-top: 2px; color: var(--gold); font-size: 12px; font-weight: 500; }
+.civ6-glossary td:nth-child(3) { color: var(--gold); white-space: nowrap; }
+.civ6-glossary td:nth-child(4) { min-width: 220px; }
 
 .chip { display: inline-block; padding: 0 7px; margin: 1px 2px 1px 0; border-radius: 999px; font-size: 12px; line-height: 20px; background: var(--surface-muted); color: var(--ink); white-space: nowrap; }
 .chip.type { color: #10191C; font-weight: 600; }

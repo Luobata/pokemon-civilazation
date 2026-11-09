@@ -3,6 +3,7 @@
 import type { LeaderId } from '../content/leaders.ts';
 import * as T from './tables.ts';
 import { OVERVIEW_SECTIONS, SYSTEM_SECTIONS } from './systems.ts';
+import { civ6Section } from './civ6.ts';
 
 export type GuideSection = { id: string; group: string; title: string; badge?: string; html: string };
 
@@ -20,7 +21,7 @@ const LEADER_TIPS: Record<LeaderId, string> = {
   giovanni: '攻略：捕捉流。捕捉率 +15%，每次成功再拿 15 金；早期侦察/快速型移动 +1，适合满图搜捕补图鉴。',
 };
 
-export const SECTIONS: readonly GuideSection[] = [
+const CHAPTERS: readonly GuideSection[] = [
   { id: 'quickstart', group: '入门', title: '快速上手', html: `
     <p class="lead">你扮演一位宝可梦联盟领袖，在六角格地图上建城、研究、捕捉和训练宝可梦，与 1–3 个 AI 文明竞争。战斗单位都是宝可梦；三种不能战斗的职能单位也由固定的宝可梦担任：开拓队（肯泰罗）建新城，工匠（搬运小匠）修地块改良，商队（变隐龙）开商路。</p>
     <h3>开局设置</h3>
@@ -284,3 +285,6 @@ export const SECTIONS: readonly GuideSection[] = [
 
   ...SYSTEM_SECTIONS,
 ];
+
+/** Every chapter in order; the Civ VI glossary follows the systems overview. */
+export const SECTIONS: readonly GuideSection[] = CHAPTERS.flatMap(section => section.id === 'systems' ? [section, civ6Section(CHAPTERS)] : [section]);

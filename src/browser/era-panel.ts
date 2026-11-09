@@ -13,6 +13,7 @@ import { DEDICATION_IDS, DEDICATION_RULES, DEDICATIONS } from '../content/dedica
 import type { DedicationId } from '../content/dedications.ts';
 import type { Command } from '../core/model.ts';
 import '../leader-doctrines.css';
+import { civHint } from './civ-hint.ts';
 
 const ROLE_LABELS: Record<DoctrineDefinition['favoredRoles'][number], string> = {
   ranged: '远程',
@@ -88,8 +89,8 @@ function eraHonorMarkup(view: PlayerView, eraNames: (index: number) => string): 
   const pct = (value: number) => Math.min(100, Math.round(value * 100 / scale));
   const breakdown = ERA_MILESTONE_IDS.filter(id => honor.byMilestone[id]).map(id => `<li>${ERA_MILESTONES[id].name} ×${honor.byMilestone[id]} <b>+${ERA_MILESTONES[id].points * honor.byMilestone[id]!}</b></li>`).join('');
   return `<section class="era-honor age-${honor.age}" aria-label="世代荣誉">
-    <div class="era-honor-head"><strong>${honor.dedication?.heroic ? '英雄世代' : ERA_AGES[honor.age].name}</strong><span>${ageDescription(honor)}</span></div>
-    <p class="era-honor-score">本世代得分 <b>${honor.score}</b> · 已 ${rounds} 轮 · 平均每轮 <b>${rate.toFixed(2)}</b></p>
+    <div class="era-honor-head"><strong>${honor.dedication?.heroic ? '英雄世代' : ERA_AGES[honor.age].name} ${civHint('eraAge')}</strong><span>${ageDescription(honor)}</span></div>
+    <p class="era-honor-score">本世代得分 <b>${honor.score}</b> · 已 ${rounds} 轮 · 平均每轮 <b>${rate.toFixed(2)}</b> ${civHint('eraScore')}</p>
     <div class="era-honor-bar" role="img" aria-label="平均每轮 ${rate.toFixed(2)}，黄金线 ${golden}，黑暗线 ${dark}">
       <span class="fill" style="width:${pct(rate)}%"></span><i class="line dark" style="left:${pct(dark)}%"></i><i class="line golden" style="left:${pct(golden)}%"></i>
     </div>
@@ -131,14 +132,14 @@ function dedicationMarkup(view: PlayerView): string {
   if (ledger.pending) {
     const picked = draftIds(view, honor);
     return `<section class="dedications pending" aria-label="时代献礼">
-      <div class="dedication-head"><strong>选择时代献礼</strong><span>${ledger.heroic ? '英雄世代：选 3 张，3 张的黄金效果都生效。' : golden ? '黄金世代：选 1 张，获得它的黄金效果。' : `${ERA_AGES[honor.age].name}：选 1 张，本世代按它的承诺额外得世代分。`}</span></div>
+      <div class="dedication-head"><strong>选择时代献礼 ${civHint('dedication')}</strong><span>${ledger.heroic ? '英雄世代：选 3 张，3 张的黄金效果都生效。' : golden ? '黄金世代：选 1 张，获得它的黄金效果。' : `${ERA_AGES[honor.age].name}：选 1 张，本世代按它的承诺额外得世代分。`}</span></div>
       <div class="dedication-cards" role="group" aria-label="献礼卡">${DEDICATION_IDS.map(id => cardMarkup(id, { picked: picked.includes(id), button: true, golden })).join('')}</div>
       <div class="dedication-actions"><span>已选 ${picked.length} / ${ledger.pending}</span><button type="button" id="confirm-dedication"${picked.length === ledger.pending ? '' : ' disabled'}>确认献礼</button></div>
     </section>`;
   }
-  if (!ledger.chosen.length) return `<section class="dedications" aria-label="时代献礼"><div class="dedication-head"><strong>时代献礼</strong><span>进入下一个世代时选择献礼卡：普通、黑暗、黄金世代选 1 张，英雄世代（黑暗之后直接黄金）选 3 张。</span></div>
+  if (!ledger.chosen.length) return `<section class="dedications" aria-label="时代献礼"><div class="dedication-head"><strong>时代献礼 ${civHint('dedication')}</strong><span>进入下一个世代时选择献礼卡：普通、黑暗、黄金世代选 1 张，英雄世代（黑暗之后直接黄金）选 3 张。</span></div>
     <details><summary>全部献礼卡</summary><div class="dedication-cards compact">${DEDICATION_IDS.map(id => cardMarkup(id, {})).join('')}</div></details></section>`;
-  return `<section class="dedications" aria-label="时代献礼"><div class="dedication-head"><strong>本世代献礼</strong><span>${golden ? '黄金效果生效中；黄金世代里承诺不再额外得分。' : '承诺进度计入本世代得分。'}</span></div>
+  return `<section class="dedications" aria-label="时代献礼"><div class="dedication-head"><strong>本世代献礼 ${civHint('dedication')}</strong><span>${golden ? '黄金效果生效中；黄金世代里承诺不再额外得分。' : '承诺进度计入本世代得分。'}</span></div>
     <div class="dedication-cards">${ledger.chosen.map(id => cardMarkup(id, { golden, status: golden ? '黄金效果生效中' : `承诺进度 +${ledger.progress[id] ?? 0} 世代分` })).join('')}</div></section>`;
 }
 /** Wires the dedication cards after `renderEraPanel` filled `root`: a click marks a card, 确认献礼 sends the choice. */
@@ -178,7 +179,7 @@ export function renderEraPanel(view: PlayerView): string {
   const nextLabel = state.next === null
     ? '最终时代'
     : `${state.next.name}（还需 ${state.techsToNextEra} 项科技）`;
-  return `<div class="subpanel-head"><strong>时代进程</strong><span>${modeLabel} · ${state.current.name}</span></div>
+  return `<div class="subpanel-head"><strong>时代进程 ${civHint('era')}</strong><span>${modeLabel} · ${state.current.name}</span></div>
 <div class="era-body">
   <div class="era-progress" role="img" aria-label="时代进度 ${state.eraProgressPercent}%"><span style="width:${state.eraProgressPercent}%"></span></div>
   <p class="era-next">${nextLabel}</p>

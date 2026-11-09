@@ -34,6 +34,7 @@ import type { Command, CombatTarget, PlayerView } from '../core/model.ts';
 import { previewAttack, previewCapture } from '../core/preview.ts';
 import { pokemonSpritePath } from './sprites.ts';
 import { WORLD_DEFINITIONS } from '../content/world-systems.ts';
+import { civHint } from './civ-hint.ts';
 
 export type ActionMode = 'move' | 'attack' | 'capture' | null;
 export type PendingTarget = CombatTarget & { index: number };
@@ -75,7 +76,7 @@ export function renderUnitPanel(view: PlayerView, selected: number | null, mode:
     const repairs = viewRepairs(view, unit.id, CONTENT);
     const yieldText = (kind: ImprovementId) => Object.entries(improvementYield(kind, view.economy.player)).filter(([, amount]) => amount > 0)
       .map(([key, amount]) => `${({ food: '食', production: '产', gold: '金', research: '研' } as const)[key as 'food']}+${amount}`).join(' ');
-    root.innerHTML = `<div class="unit-card builder-card"><div class="unit-head"><div class="unit-portrait"><img src="${ROLE_POKEMON.builder.sprite}" alt="${ROLE_POKEMON.builder.species}" width="64" height="64"></div><div><strong>工匠 · ${ROLE_POKEMON.builder.species}</strong><small>地块改良 · 剩余 ${unit.charges ?? 0} 次 · 文明 ${view.playerId + 1}</small></div><span class="unit-ap ${unit.actionLeft ? '' : 'spent'}">${actionPointLabel(view, unit, CONTENT)}</span></div>
+    root.innerHTML = `<div class="unit-card builder-card"><div class="unit-head"><div class="unit-portrait"><img src="${ROLE_POKEMON.builder.sprite}" alt="${ROLE_POKEMON.builder.species}" width="64" height="64"></div><div><strong>工匠 · ${ROLE_POKEMON.builder.species}</strong><small>地块改良 · 剩余 ${unit.charges ?? 0} 次 · 文明 ${view.playerId + 1}</small>${civHint('builder')}</div><span class="unit-ap ${unit.actionLeft ? '' : 'spent'}">${actionPointLabel(view, unit, CONTENT)}</span></div>
       <p class="settler-intro">站到己方领地内的地块上（渔场可在相邻陆地施工），一次行动就建好一处改良。每个工匠能建 ${BUILDER_RULES.charges} 处，用完后离开。没有战斗力，被攻击会直接被打散。</p>
       ${unit.escortId && usesImprovementsV23(view) ? `<p class="unit-note" id="crew-note">随行：${CONTENT.species[unit.escortId].name} · 特长「${CREW_SPECIALTIES[crewSpecialtyFor(CONTENT.species[unit.escortId].typeId)].name}」：${CREW_SPECIALTIES[crewSpecialtyFor(CONTENT.species[unit.escortId].typeId)].label}（记在建成的地块上）</p>` : ''}
       ${repairs.length ? `<section class="improvement-box" id="repair-box" aria-label="修复改良">${repairs.map(tileIndex => `<button type="button" data-repair="${tileIndex}" ${busy ? 'disabled' : ''}>修复${IMPROVEMENTS[view.expansion!.improvements!.tiles.find(tile => tile.tileIndex === tileIndex)!.kind].name}（不消耗次数）</button>`).join('')}</section>` : ''}
@@ -93,7 +94,7 @@ export function renderUnitPanel(view: PlayerView, selected: number | null, mode:
   }
   if (unit.kind === 'logistics' && unit.role === 'trader') {
     const destinations = tradeDestinations(view, unit.id);
-    root.innerHTML = `<div class="unit-card trader-card"><div class="unit-head"><div class="unit-portrait"><img src="${ROLE_POKEMON.trader.sprite}" alt="${ROLE_POKEMON.trader.species}" width="64" height="64"></div><div><strong>商队 · ${ROLE_POKEMON.trader.species}</strong><small>出发城市 ${unit.homeCityId ?? '—'} · 文明 ${view.playerId + 1}</small></div><span class="unit-ap ${unit.actionLeft ? '' : 'spent'}">${actionPointLabel(view, unit, CONTENT)}</span></div>
+    root.innerHTML = `<div class="unit-card trader-card"><div class="unit-head"><div class="unit-portrait"><img src="${ROLE_POKEMON.trader.sprite}" alt="${ROLE_POKEMON.trader.species}" width="64" height="64"></div><div><strong>商队 · ${ROLE_POKEMON.trader.species}</strong><small>出发城市 ${unit.homeCityId ?? '—'} · 文明 ${view.playerId + 1}</small>${civHint('trader')}</div><span class="unit-ap ${unit.actionLeft ? '' : 'spent'}">${actionPointLabel(view, unit, CONTENT)}</span></div>
       <p class="settler-intro">走到另一座己方城市旁边，开通商路：目的城 食物 +2、生产 +1，出发城 金币 +3，一直有效（城市易主则中断）。路上被敌人攻击会被打散。</p>
       <ul class="trade-destinations">${destinations.map(item => `<li><button type="button" data-trade-route="${item.cityId}" ${busy || item.reason ? 'disabled' : ''}>通往城市 ${item.cityId}</button>${item.reason ? `<small>${item.reason}</small>` : ''}</li>`).join('') || '<li><small>还没有别的己方城市。</small></li>'}</ul>
       ${inBar ? '' : `<div class="unit-actions"><button id="move-unit" ${busy || !unit.actionLeft ? 'disabled' : ''}>${mode === 'move' ? '取消移动' : '移动'}</button></div>`}</div>`;
@@ -103,7 +104,7 @@ export function renderUnitPanel(view: PlayerView, selected: number | null, mode:
   }
   if (unit.kind === 'logistics') {
     const reason = foundingReason(view, unit);
-    root.innerHTML = `<div class="unit-card settler-card"><div class="unit-head"><div class="unit-portrait settler-portrait"><img src="${ROLE_POKEMON.settler.sprite}" alt="${ROLE_POKEMON.settler.species}" width="64" height="64"></div><div><strong>开拓队 · ${ROLE_POKEMON.settler.species}</strong><small>建立城市 · 文明 ${view.playerId + 1}</small></div><span class="unit-ap ${unit.actionLeft ? '' : 'spent'}">${actionPointLabel(view, unit, CONTENT)}</span></div>
+    root.innerHTML = `<div class="unit-card settler-card"><div class="unit-head"><div class="unit-portrait settler-portrait"><img src="${ROLE_POKEMON.settler.sprite}" alt="${ROLE_POKEMON.settler.species}" width="64" height="64"></div><div><strong>开拓队 · ${ROLE_POKEMON.settler.species}</strong><small>建立城市 · 文明 ${view.playerId + 1}</small>${civHint('settler')}</div><span class="unit-ap ${unit.actionLeft ? '' : 'spent'}">${actionPointLabel(view, unit, CONTENT)}</span></div>
       <p class="settler-intro">在新的土地上建立一座人口为 1 的城市。</p>
       ${unit.escortId ? `<p class="unit-note" id="escort-note">随行：${CONTENT.species[unit.escortId].name} · 建城时 ${ESCORT_BONUSES[escortBonusKind(CONTENT.species[unit.escortId].typeId)].label}</p>` : ''}
       <ol class="founding-steps"><li>移动到陆地，与其他城市至少相距 4 格。</li><li>${usesMovementPoints(view) ? '移动消耗移动力；还有移动力就能当回合建城。' : '移动会消耗行动点；下一回合再建城。'}</li><li>建城消耗这支开拓队，随后进入城市管理。</li></ol>

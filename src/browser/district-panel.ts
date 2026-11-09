@@ -6,6 +6,7 @@ import type { DistrictBreakdown, DistrictSite } from '../core/districts.ts';
 import { indexToHex } from '../core/hex.ts';
 import type { PlayerView } from '../core/model.ts';
 import { BIOME_DISPLAY } from './canvas.ts';
+import { civHint } from './civ-hint.ts';
 
 const EFFECT_LABELS: Record<keyof DistrictEffects, string> = {
   food: '食物', production: '生产', gold: '金币', research: '科研', trainedXp: '宝可梦出场经验', bondPressure: '每轮羁绊压力',
@@ -74,7 +75,7 @@ export function cityDistrictMarkup(view: PlayerView, cityId: number): string {
   const districts = view.expansion?.districts;
   if (!districts) return '';
   const completed = cityDistrictDetails(view, cityId), projects = districts.projects.filter(item => item.cityId === cityId);
-  return `<section id="city-districts" class="city-districts" aria-label="城市设施区"><p class="section-label">设施区 ${completed.length + projects.length}/2</p>
+  return `<section id="city-districts" class="city-districts" aria-label="城市设施区"><p class="section-label">设施区 ${completed.length + projects.length}/2 ${civHint('district')}</p>
     ${completed.map(item => {
       const definition = DISTRICTS[item.kind], position = indexToHex(item.tileIndex, view.map);
       return `<details class="district-detail" data-district-tile="${item.tileIndex}"><summary><span class="district-mark">${definition.mark}</span>${definition.name} · 地块 ${item.tileIndex}（${position.q},${position.r}）${item.active ? '' : ' · 停用'}</summary>

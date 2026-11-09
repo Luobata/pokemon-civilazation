@@ -29,6 +29,7 @@ import { buildingArtPath } from './building-art.ts';
 import { pokemonSpritePath } from './sprites.ts';
 import { cityDistrictMarkup, districtTypeCards } from './district-panel.ts';
 import type { DistrictId } from '../content/districts.ts';
+import { civHint } from './civ-hint.ts';
 
 let rendered = '';
 type LegacyProductionItem = Exclude<ProductionItem, { kind: 'district' }>;
@@ -168,7 +169,7 @@ export function renderEconomyPanel(view: PlayerView, selectedCity: number | null
   const gym = essences?.gyms.find(item => item.cityId === city.id)?.essence;
   const bondInfo = view.expansion?.bonds?.[city.id];
   const isHq = city.id === player.headquartersCityId;
-  const bondMarkup = bondInfo && isHq ? `<section id="city-bond" class="city-bond"><p class="section-label">城市羁绊 · 联盟总部始终稳定</p></section>` : bondInfo ? `<section id="city-bond" class="city-bond ${bondInfo.bond < 30 ? 'danger' : bondInfo.pressure.total < 0 ? 'warn' : ''}"><p class="section-label">城市羁绊 ${bondInfo.bond}/100 · 每轮 ${bondInfo.pressure.total >= 0 ? '+' : ''}${bondInfo.pressure.total}</p><div class="bond-bar" aria-hidden="true"><span style="width:${bondInfo.bond}%"></span></div><p class="unit-note">${bondInfo.pressure.parts.map(part => `${part.label} ${part.value >= 0 ? '+' : ''}${part.value}`).join(' · ')}${bondInfo.pressure.total < 0 ? '。降到 0 时城市会脱离成为中立营地；驻军、宝可梦中心和属性道馆可稳住羁绊。' : ''}</p></section>` : '';
+  const bondMarkup = bondInfo && isHq ? `<section id="city-bond" class="city-bond"><p class="section-label">城市羁绊 · 联盟总部始终稳定 ${civHint('bond')}</p></section>` : bondInfo ? `<section id="city-bond" class="city-bond ${bondInfo.bond < 30 ? 'danger' : bondInfo.pressure.total < 0 ? 'warn' : ''}"><p class="section-label">城市羁绊 ${bondInfo.bond}/100 · 每轮 ${bondInfo.pressure.total >= 0 ? '+' : ''}${bondInfo.pressure.total} ${civHint('bond')}</p><div class="bond-bar" aria-hidden="true"><span style="width:${bondInfo.bond}%"></span></div><p class="unit-note">${bondInfo.pressure.parts.map(part => `${part.label} ${part.value >= 0 ? '+' : ''}${part.value}`).join(' · ')}${bondInfo.pressure.total < 0 ? '。降到 0 时城市会脱离成为中立营地；驻军、宝可梦中心和属性道馆可稳住羁绊。' : ''}</p></section>` : '';
   // The bond lives in 详情, so a falling bond is flagged in the header where it cannot be missed.
   const bondAlert = bondInfo && !isHq && (bondInfo.bond < 30 || bondInfo.pressure.total < 0)
     ? ` · <button type="button" class="city-alert ${bondInfo.bond < 30 ? 'danger' : ''}" data-city-section="details" title="城市羁绊正在下降，详见「详情」">羁绊 ${bondInfo.bond} ↓</button>` : '';

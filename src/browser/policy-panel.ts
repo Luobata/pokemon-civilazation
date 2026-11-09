@@ -3,6 +3,7 @@ import type { CharterId, GovernmentId, PolicyId, SlotKind } from '../content/pol
 import { charterAvailable, fitsSlots } from '../core/policies.ts';
 import type { Command, PlayerView } from '../core/model.ts';
 import { drawTreeLinks } from './tree-links.ts';
+import { civHint } from './civ-hint.ts';
 
 const SLOT_LABEL: Record<SlotKind, string> = { military: '军事', economic: '经济', wild: '通配' };
 
@@ -103,20 +104,20 @@ export function renderPolicyPanel(view: PlayerView, issue: (action: Command['act
     </article>`;
   };
   const governments = ledger.government === undefined ? '' : `<section class="government-section" aria-label="联盟体制">
-      <div class="government-head"><p class="section-label">联盟体制</p><span>${government ? `当前：${GOVERNMENTS[government].name}` : (ledger.availableGovernments?.length ? '尚未采用体制，第一次采用免费' : '确立「道馆守则」后可以采用第一个体制')}${government && ledger.governmentSwapCost === 0 ? ' · 下次更换免费' : ''}</span></div>
+      <div class="government-head"><p class="section-label">联盟体制 ${civHint('government')}</p><span>${government ? `当前：${GOVERNMENTS[government].name}` : (ledger.availableGovernments?.length ? '尚未采用体制，第一次采用免费' : '确立「道馆守则」后可以采用第一个体制')}${government && ledger.governmentSwapCost === 0 ? ' · 下次更换免费' : ''}</span></div>
       <p class="policy-explain">体制同一时间只能有一个：提供额外方针槽和常驻加成。确立规章解锁新体制时，可以免费更换一次；其他时候更换花 ${ledger.governmentSwapCost || 60} 金。更换后方针卡放不下的会被取下。</p>
       <div class="government-grid">${GOVERNMENT_IDS.map(governmentCard).join('')}</div>
     </section>`;
   const idle = (charter === null && CHARTER_IDS.some(id => charterAvailable(ledger.adopted, id))) || (government === null && (ledger.availableGovernments?.length ?? 0) > 0);
   const emptySlots = ledger.slots.military + ledger.slots.economic + ledger.slots.wild - ledger.slotted.length;
-  root.innerHTML = `<div class="subpanel-head"><strong>联盟规章与训练方针${idle || (emptySlots > 0 && ledger.unlockedPolicies.length > ledger.slotted.length) ? ' <em class="needs-choice">待选择</em>' : ''}</strong><span>每轮 +${ledger.perRound} 规章点</span></div>
+  root.innerHTML = `<div class="subpanel-head"><strong>联盟规章与训练方针 ${civHint('charter')}${idle || (emptySlots > 0 && ledger.unlockedPolicies.length > ledger.slotted.length) ? ' <em class="needs-choice">待选择</em>' : ''}</strong><span>每轮 +${ledger.perRound} 规章点 ${civHint('charterPoints')}</span></div>
   <div class="policy-body">
     <p class="policy-status">${charter ? `正在制定「${CHARTERS[charter].name}」 ${ledger.progressByCharter[charter]}/${CHARTERS[charter].cost}` : ledger.adopted.length === CHARTER_IDS.length ? '全部规章已确立' : `请选择下一项规章（已暂存 ${ledger.points} 点）`}</p>
     <p class="policy-explain">规章点每轮来自：1 + 每座城市 1 + 每 3 人口 1 + 每 2 个改良 1 + 满意度 ≥50 时 2。确立规章会开放方针槽，并解锁新的方针卡；★ 是你的领袖偏好的卡，效果 +50%。</p>
     ${governments}
     <p class="tree-scroll-hint">← 左右滑动查看完整规章树 →</p>
     <div class="charter-tree-wrap"><div class="charter-tree" style="grid-template-columns:repeat(${depthCount}, minmax(170px, 1fr))"><svg class="charter-links" aria-hidden="true"></svg>${CHARTER_IDS.map(card).join('')}</div></div>
-    <details id="policy-cards" open><summary>方针卡 · 已用 ${current.length}/${ledger.slots.military + ledger.slots.economic + ledger.slots.wild}${changed ? ' · 未应用' : ''}</summary>
+    <details id="policy-cards" open><summary>方针卡 ${civHint('policyCard')} · 已用 ${current.length}/${ledger.slots.military + ledger.slots.economic + ledger.slots.wild}${changed ? ' · 未应用' : ''}</summary>
       ${board}
       ${cardGroups}
       <div class="policy-actions"><span>${ledger.swapCost ? `更换需 ${ledger.swapCost} 金币（确立新规章或进入新时代后免费一次）` : '本次更换免费'}</span>
