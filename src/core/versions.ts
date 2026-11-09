@@ -1,7 +1,8 @@
 import type { GameSetup } from './model.ts';
 /** Each state-shape change gets its own envelope; historic logs keep their original byte-for-byte envelope. */
 export function gameVersions(setup: Pick<GameSetup, 'gameplayVersion'>) {
-  return setup.gameplayVersion === 22 ? { schemaVersion: 17 as const, rulesVersion: 'world-v22' as const }
+  return setup.gameplayVersion === 23 ? { schemaVersion: 18 as const, rulesVersion: 'improvements-v23' as const }
+    : setup.gameplayVersion === 22 ? { schemaVersion: 17 as const, rulesVersion: 'world-v22' as const }
     : setup.gameplayVersion === 21 ? { schemaVersion: 16 as const, rulesVersion: 'opening-v21' as const }
     : setup.gameplayVersion === 20 ? { schemaVersion: 15 as const, rulesVersion: 'strength-v20' as const }
     : setup.gameplayVersion === 19 ? { schemaVersion: 14 as const, rulesVersion: 'classes-v19' as const }

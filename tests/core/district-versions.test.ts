@@ -14,7 +14,7 @@ const setup = { seed: 31, width: 24, height: 16, roundLimit: 100 as const, expan
   ] };
 
 test('v10 explicit setup, room and CLI are supported; new games default to the latest version (v22)', () => {
-  expect(LATEST_GAMEPLAY_VERSION).toBe(22); expect(isGameplayVersion(10)).toBe(true); expect(isGameplayVersion(22)).toBe(true); expect(isGameplayVersion(23)).toBe(false);
+  expect(LATEST_GAMEPLAY_VERSION).toBe(22); expect(isGameplayVersion(10)).toBe(true); expect(isGameplayVersion(23)).toBe(true); expect(isGameplayVersion(24)).toBe(false);
   expect(validateRoomCreateRequest({ seed: 31, gameplayVersion: 10 })?.gameplayVersion).toBe(10);
   expect(validateRoomCreateRequest({ seed: 31 })?.gameplayVersion).toBe(22);
   expect(validateRoomCreateRequest({ seed: 31, gameplayVersion: 10 })?.gameplayVersion).toBe(10);

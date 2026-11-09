@@ -91,7 +91,7 @@ export type KnowledgeState = {
   lastKnownCities: Record<number, { ownerId: number | null; position: Hex; lastSeenRound: number; headquartersOf?: number | null }>;
 };
 export type GameState = {
-  schemaVersion: 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17; rulesVersion: 'm5-v1' | 'districts-v10' | 'governments-v11' | 'eras-v12' | 'promotions-v13' | 'roster-v14' | 'legends-v15' | 'movement-v16' | 'cities-v17' | 'roles-v18' | 'classes-v19' | 'strength-v20' | 'opening-v21' | 'world-v22'; contentVersion: string;
+  schemaVersion: 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18; rulesVersion: 'm5-v1' | 'districts-v10' | 'governments-v11' | 'eras-v12' | 'promotions-v13' | 'roster-v14' | 'legends-v15' | 'movement-v16' | 'cities-v17' | 'roles-v18' | 'classes-v19' | 'strength-v20' | 'opening-v21' | 'world-v22' | 'improvements-v23'; contentVersion: string;
   expansion?: ExpansionState;
   setup: GameSetup; rng: RngState; nextEntityId: number; commandSeq: number;
   round: number; activePlayerId: number; turnOrder: number[];
