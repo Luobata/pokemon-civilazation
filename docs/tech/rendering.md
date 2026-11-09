@@ -37,6 +37,14 @@
 - v16 自动选中下一个待命单位时，相机要等这次行动的动画播完再移过去。
 - `tests/browser/performance.spec.ts` 在 dense 场景加测一组“四场战斗同时进行”的帧（`src/browser/render/benchmark.ts`：远程互射、击倒残影、占城扫色），平面地图和东西环绕各测一次。
 
+## 大事件、时代形态、奇观揭幕、昼夜过渡（第三批，评审 V8–V11）
+
+- **V8 大事件脉冲** `pulseTrack`（900 ms，`blocking: false`）：建城（阵营色 + 星）、设施区完成（设施区颜色 + 名称）、晋升（金色 V 字上升）、石头进化、野生刷新 / 巢穴出动 / 暴走袭城（红色 `!`）；商路建立用 `routeTrack`，金色短线沿商路跑一次（`nearestCopy` 走接缝短路）再在终点脉冲。事件到轨道的映射在 `src/browser/event-tracks.ts`，只读事件和 PlayerView。脉冲不阻塞事件队列，也不让按钮变灰：队列一空，面板立刻刷新（`panelsBusy`），脉冲结束后再刷新一次。屏幕外照 V7 规则不加轨道。
+- **V9 时代形态** `formTrack`（900 ms，跟随单位实时位置，和进化一样按顺序播放）：Mega = 白闪 + 旋转彩虹环 + 粒子；极巨化 = 单位在 `poses` 里放大到 1.5 倍（`UnitPose.scale`）+ 脉动红色光环；太晶化 = 太晶属性色的六面晶体成形、流光、碎裂；Z 招式 = 金色光柱落下。减少动态效果时极巨化不放大。音效仍是 A1 的 `formChange`。
+- **V10 奇观揭幕** `wonderRevealTrack`：只给自己的奇观（别人的奇观视图里没有城市）。城市在视口外时先 400 ms 平滑运镜到城市（`frame.camera`，主循环应用；这是唯一会移动相机的轨道），再 800 ms 金色光柱 + 粒子，号角在光柱开始时由轨道 cue 播放，光柱结束后才弹出传说卡；关闭卡片时相机回到玩家原来的位置。城市在视口内时只有光柱；减少动态效果时不运镜（城市在屏幕外就不播光柱）；关掉移动动画或点“跳过”时直接出卡，号角照响。揭幕轨道是 `paced`：主线程卡顿超过 100 ms 的帧间隔按一帧计，运镜不会被跳过。
+- **V11 昼夜和天气过渡** `AmbientTransitions`（`src/browser/ambient-transitions.ts`）：每帧比较 PlayerView，昼夜或天气场变化时加 1.2 s 的非阻塞渐变轨道，`frame.night`（0–1）缩放夜晚遮罩（仍是每帧一次整图遮罩），`frame.weather` 让天气场淡入，已结束的天气场按最后看到的样子淡出。读档、新局、回放这类跳变不渐变；减少动态效果或关掉移动动画时直接切换。
+- 帧预算：`tests/browser/performance.spec.ts` 的 dense 场景另测一组 `eventEffects`（`benchmark.ts` 的 `eventBenchmarkFrames`：四个脉冲、极巨化 + Mega、奇观光柱和夜晚渐变，环绕地图）。光柱用一个线性渐变 `fillRect`，粒子共用 `PARTICLE_CAP`，没有 `shadowBlur` / `filter`。
+
 ## 图层顺序与缓存
 
 顺序：`base`（地形、格线、海岸、领土边界）→ 改良、信仰、资源徽章、设施区、施工标记 → 城市 → 地块产出与耕作标记 → 天气、夜晚 → 单位（动画中的单位画在动画位置）→ 城市横幅 → 移动范围、攻击/捕捉目标、设施区选址 → `fog`（记忆地形斜线）→ 选中圈、光标 → 调试层 → 特效。
@@ -65,6 +73,7 @@
 
 - `tests/core/render-scene.test.ts`（Node）：在真实的 50 轮 v10 对局里，每个玩家的场景中，单位只出现在当前可见格，其他标记只出现在已知格，单位集合与 PlayerView 完全一致；产出图层开关；Timeline 的插值、并行、按 key 替换、持续轨道和跳过。
 - `tests/browser/map.spec.ts`、`districts.spec.ts`、`diplomacy.spec.ts`：拦截真实的 Canvas 调用，检查迷雾下不会画出隐藏的阵营徽章或边界。
+- `tests/browser/presentation-batch3.spec.ts`：真实 v23 AI 对局夹具（完整时代进程），V8 建城脉冲不阻塞、V9 时代形态（含四种形态的参考截图）、V10 奇观运镜 / 光柱 / 号角 / 出卡 / 复原相机（含减少动态效果）、V11 夜晚渐变且每帧一次遮罩；`tests/core/presentation-batch3.test.ts` 测纯函数部分。
 - `tests/browser/combat-presentation.spec.ts`：真实 v22 AI 对局夹具（东西环绕地图），每项战斗表现一个测试（描边数字和反击位置、血条、震屏不动相机且命中缓存、屏幕外 AI 战斗不占时间、弹道和粒子的属性色、击倒残影、占城扫色、按属性的音效）；效果截图保存在 `docs/design/review-2026-11/shots-combat/`。
 - 重构时用 26 个固定场景做了逐像素对比（见提交说明）。
 

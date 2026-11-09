@@ -5,7 +5,7 @@ import { nearestCopy } from '../../core/hex.ts';
 import type { Hex, MapShape } from '../../core/hex.ts';
 import { hexToWorld } from '../camera.ts';
 import type { Point } from '../camera.ts';
-import type { UnitMarkIdentity } from './scene.ts';
+import type { SceneWeather, UnitMarkIdentity } from './scene.ts';
 
 /** A hit landing on a tile: white flash, and with `burst` a ring and particles in the attack type's colour. */
 export type MapEffect = { kind: 'impact'; position: Hex; color: string; burst: boolean; progress: number }
@@ -20,19 +20,36 @@ export type MapEffect = { kind: 'impact'; position: Hex; color: string; burst: b
   | { kind: 'capture'; position: Hex; success: boolean; progress: number }
   | { kind: 'evolve'; position: Hex; progress: number }
   /** Click feedback: a ring expanding from the tapped tile; `error` for a rejected click. */
-  | { kind: 'tap'; position: Hex; progress: number; tone: 'ok' | 'error' };
+  | { kind: 'tap'; position: Hex; progress: number; tone: 'ok' | 'error' }
+  /** V8 big event: rings expanding from the tile in `color`, an optional rising icon and a floating label. */
+  | { kind: 'pulse'; position: Hex; color: string; label?: string; icon?: PulseIcon; progress: number }
+  /** V8 trade route established: a bright dash runs once along the route (world coordinates, the short way across the seam). */
+  | { kind: 'route'; from: Point; to: Point; progress: number }
+  /** V9 era form change on a unit: Mega rainbow ring, Dynamax red glow, Tera crystal (in `color`), Z-Move gold column. */
+  | { kind: 'form'; position: Hex; form: FormKind; color: string; progress: number }
+  /** V10 wonder reveal: a gold light pillar on the city, with rising particles when `burst`. */
+  | { kind: 'pillar'; position: Hex; burst: boolean; progress: number };
+export type PulseIcon = 'chevron' | 'alert' | 'star';
+export type FormKind = 'mega' | 'dynamax' | 'tera' | 'zMove';
 /** damage: the hit on the target; counter: the counter-attack, drawn on the attacker; super / weak: the type matchup; tag: 休养 / 击倒. */
 export type NumberTone = 'damage' | 'counter' | 'super' | 'weak' | 'tag';
 /**
  * A unit drawn at a world position instead of its tile; the scene unit with the same id is hidden.
  * `alpha` / `grey`: a knocked-down unit's fading afterimage (it is no longer in the scene).
  */
-export type UnitPose = { unit: UnitMarkIdentity; position: Point; alpha?: number; grey?: boolean };
+export type UnitPose = { unit: UnitMarkIdentity; position: Point; alpha?: number; grey?: boolean;
+  /** Drawn larger (V9 Dynamax), 1 = normal size. */
+  scale?: number };
+/** A weather field's opacity while it fades in or out (V11); `field` carries a field that has already left the scene. */
+export type WeatherFade = { key: string; alpha: number; field?: SceneWeather };
 /**
  * What the renderer applies on top of the scene for one frame. `shake` offsets the whole frame in CSS pixels
  * (cached layers included), so the camera and the layer caches are untouched.
+ * `night` (0..1) overrides the scene's night overlay strength while day and night cross-fade; `weather` fades fields.
+ * `camera` is the V10 wonder-reveal camera: the game loop applies it (the only track that moves the camera).
  */
-export type AnimationFrame = { poses: UnitPose[]; effects: MapEffect[]; shake?: Point };
+export type AnimationFrame = { poses: UnitPose[]; effects: MapEffect[]; shake?: Point; night?: number; weather?: WeatherFade[];
+  camera?: { x: number; y: number; zoom: number } };
 export const EMPTY_FRAME: AnimationFrame = { poses: [], effects: [] };
 
 /** Live lookups a track may need while it plays (e.g. where a captured unit now stands). */
@@ -51,7 +68,14 @@ export type Track = {
   onFinish?(): void;
   /** One-off callbacks at `at` ms, sorted by `at` (e.g. the hit sound on impact). Due cues still run when the track ends; never when it is skipped. */
   cues?: readonly { at: number; run(): void }[];
+  /**
+   * true: a stalled main thread pauses this track's clock instead of skipping its frames (a frame gap longer than
+   * MAX_FRAME_GAP_MS counts as one frame). For motion the player must see whole, like the wonder-reveal camera.
+   */
+  paced?: boolean;
 };
+/** Frame gaps longer than this (ms) count as a single frame for paced tracks. */
+export const MAX_FRAME_GAP_MS = 100;
 
 type Running = { track: Track; started: number; cued: number };
 
@@ -61,6 +85,7 @@ type Running = { track: Track; started: number; cued: number };
  */
 export class Timeline {
   private running: Running[] = [];
+  private lastNow: number | null = null;
 
   add(track: Track, now: number): void {
     this.running = this.running.filter(item => item.track.key !== track.key);
@@ -74,6 +99,9 @@ export class Timeline {
 
   /** Ends tracks whose time is up, calling their onFinish; runs due cues. Call before queueing follow-up tracks. */
   advance(now: number): void {
+    const gap = this.lastNow === null ? 0 : now - this.lastNow;
+    this.lastNow = now;
+    if (gap > MAX_FRAME_GAP_MS) for (const item of this.running) if (item.track.paced) item.started += gap - 1000 / 60;
     const ended = this.running.filter(item => now - item.started >= item.track.duration);
     this.running = this.running.filter(item => !ended.includes(item));
     for (const item of this.running) cue(item, now - item.started);
@@ -278,5 +306,90 @@ export function evolveTrack(key: string, unitId: number, onFinish?: () => void):
     sample(elapsed, context, frame) {
       const position = context.unitPosition(unitId);
       if (position) frame.effects.push({ kind: 'evolve', position, progress: Math.min(1, elapsed / EVOLVE_MS) });
+    } };
+}
+
+// ---------- Batch 3 (review 3-audio-visual V8–V11) ----------
+export const PULSE_MS = 900;
+export const FORM_MS = 900;
+/** V10: the camera glides to the city, then the pillar rises (the horn sounds with it). */
+export const WONDER_PAN_MS = 400;
+export const WONDER_PILLAR_MS = 800;
+/** V11: day / night and weather cross-fade. */
+export const AMBIENT_FADE_MS = 1200;
+const easeInOut = (t: number) => t < .5 ? 2 * t * t : 1 - 2 * (1 - t) * (1 - t);
+
+/**
+ * V8 big-event pulse on a tile (city founded, district completed, promotion, wild spawn...). `position` may be a
+ * live lookup (a unit that can still move). Non-blocking: it plays alongside the event queue and never holds input.
+ */
+export function pulseTrack(key: string, position: Hex | ((context: TrackContext) => Hex | undefined), color: string, label?: string, icon?: PulseIcon): Track {
+  return { key, duration: PULSE_MS, blocking: false,
+    sample(elapsed, context, frame) {
+      const at = typeof position === 'function' ? position(context) : position;
+      if (at) frame.effects.push({ kind: 'pulse', position: at, color, progress: Math.min(1, elapsed / PULSE_MS), ...(label ? { label } : {}), ...(icon ? { icon } : {}) });
+    } };
+}
+/** V8 trade route: a dash runs from one city to the other once (the destination's copy nearest the origin), with a pulse at each end. */
+export function routeTrack(key: string, from: Hex, to: Hex, map: MapShape = { width: 0 }): Track {
+  const a = hexToWorld(from), b = hexToWorld(nearestCopy(from, to, map));
+  return { key, duration: PULSE_MS, blocking: false,
+    sample(elapsed, _context, frame) {
+      const progress = Math.min(1, elapsed / PULSE_MS);
+      frame.effects.push({ kind: 'route', from: a, to: b, progress });
+      if (progress < .5) frame.effects.push({ kind: 'pulse', position: from, color: '#F2C14E', progress: progress * 2 });
+      else frame.effects.push({ kind: 'pulse', position: to, color: '#F2C14E', label: '商路', progress: (progress - .5) * 2 });
+    } };
+}
+
+/**
+ * V9 era form change on a unit (follows its live position). Dynamax also poses the unit at up to 1.5× size
+ * (growing in the first 35 %, settling back over the last 30 %). Without `motion` the unit does not grow; colours and fades stay.
+ */
+export function formTrack(key: string, unit: UnitMarkIdentity, form: FormKind, color: string, options: { motion?: boolean; onFinish?(): void } = {}): Track {
+  const motion = options.motion ?? true;
+  return { key, duration: FORM_MS, onFinish: options.onFinish,
+    sample(elapsed, context, frame) {
+      const position = context.unitPosition(unit.id);
+      if (!position) return;
+      const progress = Math.min(1, elapsed / FORM_MS);
+      frame.effects.push({ kind: 'form', position, form, color, progress });
+      if (form === 'dynamax' && motion) {
+        const grow = progress < .35 ? easeOut(progress / .35) : progress < .7 ? 1 : 1 - easeInOut((progress - .7) / .3);
+        if (grow > 0) frame.poses.push({ unit, position: hexToWorld(position), scale: 1 + .5 * grow });
+      }
+    } };
+}
+
+/**
+ * V10 wonder reveal: with `camera`, the camera glides from `camera.from` to `camera.to` (WONDER_PAN_MS) and holds while
+ * the gold pillar rises on the city; without it (reduced motion, or the city already in view) only the pillar plays.
+ * `onPillar` runs when the pillar starts (the horn); `onFinish` pops the story card.
+ */
+export function wonderRevealTrack(spec: { key: string; city: Hex; motion: boolean; camera?: { from: CameraPose; to: CameraPose }; onPillar?(): void; onFinish?(): void }): Track {
+  const pan = spec.camera ? WONDER_PAN_MS : 0, { camera } = spec;
+  return { key: spec.key, duration: pan + WONDER_PILLAR_MS, onFinish: spec.onFinish, paced: true,
+    ...(spec.onPillar ? { cues: [{ at: pan, run: spec.onPillar }] } : {}),
+    sample(elapsed, _context, frame) {
+      if (camera) {
+        const t = easeInOut(clamp01(elapsed / WONDER_PAN_MS)), lerp = (a: number, b: number) => a + (b - a) * t;
+        frame.camera = { x: lerp(camera.from.x, camera.to.x), y: lerp(camera.from.y, camera.to.y), zoom: lerp(camera.from.zoom, camera.to.zoom) };
+      }
+      if (elapsed >= pan) frame.effects.push({ kind: 'pillar', position: spec.city, burst: spec.motion, progress: Math.min(1, (elapsed - pan) / WONDER_PILLAR_MS) });
+    } };
+}
+type CameraPose = { x: number; y: number; zoom: number };
+
+/** V11: the night overlay cross-fades from `from` to `to` (0 day, 1 night). Non-blocking; one at a time. */
+export function nightTrack(from: number, to: number): Track {
+  return { key: 'ambient:night', duration: AMBIENT_FADE_MS, blocking: false,
+    sample(elapsed, _context, frame) { frame.night = from + (to - from) * easeInOut(Math.min(1, elapsed / AMBIENT_FADE_MS)); } };
+}
+/** V11: a weather field fades in (no `field`: it is in the scene) or out (`field`: as last seen, no longer in the scene). */
+export function weatherFadeTrack(key: string, direction: 'in' | 'out', field?: SceneWeather): Track {
+  return { key: `ambient:weather:${key}`, duration: AMBIENT_FADE_MS, blocking: false,
+    sample(elapsed, _context, frame) {
+      const t = easeInOut(Math.min(1, elapsed / AMBIENT_FADE_MS));
+      (frame.weather ??= []).push({ key, alpha: direction === 'in' ? t : 1 - t, ...(field ? { field } : {}) });
     } };
 }

@@ -41,7 +41,7 @@ test('measure Canvas2D draw time in four reachable late-game scenes including 10
       const mainPath = '/src/browser/main.ts', renderPath = '/src/browser/render/index.ts', benchmarkPath = '/src/browser/render/benchmark.ts';
       const { camera, developerAdapter } = await import(mainPath);
       const { createMapRenderer } = await import(renderPath);
-      const { combatBenchmarkFrames } = await import(benchmarkPath);
+      const { combatBenchmarkFrames, eventBenchmarkFrames } = await import(benchmarkPath);
       const canvas = document.querySelector<HTMLCanvasElement>('#map')!;
       const view = developerAdapter.getDebugView();
       const stats = (durations: number[]) => {
@@ -71,12 +71,20 @@ test('measure Canvas2D draw time in four reachable late-game scenes including 10
           direct: measure(false, false, view, frames), cachedStill: measure(true, false, view, frames),
           wrappedDirect: measure(false, false, wrapped, frames), wrappedCachedStill: measure(true, false, wrapped, frames) };
       }
+      // Batch 3 (V8–V11): big-event pulses, era forms, a wonder pillar and a night cross-fade, on the wrapped map.
+      let eventEffects;
+      if (combat) {
+        const frames = eventBenchmarkFrames(view.units, 260);
+        const wrapped = { ...view, map: { ...view.map, wrap: true as const } };
+        eventEffects = { effectsPerFrame: Math.max(...frames.map((frame: { effects: unknown[] }) => frame.effects.length)),
+          wrappedDirect: measure(false, false, wrapped, frames), wrappedCachedStill: measure(true, false, wrapped, frames) };
+      }
       return {
         mapTiles: view.map.tiles.length,
         visibleUnits: view.units.length,
         // Top-level figures stay comparable with earlier reports: every layer drawn directly.
         ...uncached,
-        cachedStill, cachedPan, ...(combatEffects ? { combatEffects } : {}),
+        cachedStill, cachedPan, ...(combatEffects ? { combatEffects } : {}), ...(eventEffects ? { eventEffects } : {}),
         dpr: window.devicePixelRatio,
         viewport: { width: window.innerWidth, height: window.innerHeight },
         userAgent: navigator.userAgent,
@@ -84,6 +92,7 @@ test('measure Canvas2D draw time in four reachable late-game scenes including 10
     }, Boolean(dense));
     if (dense) expect(measured.visibleUnits).toBeGreaterThanOrEqual(100);
     if (dense) expect(measured.combatEffects!.effectsPerFrame).toBeGreaterThan(4);
+    if (dense) expect(measured.eventEffects!.effectsPerFrame).toBeGreaterThanOrEqual(6);
     results.push({ scenario: scenario.name, seed: scenario.seed, round: peakState.round,
       commandSeq: peakState.commandSeq, expansionVersion: peakState.setup.expansionVersion,
       contentVersion: peakState.contentVersion, ...measured });

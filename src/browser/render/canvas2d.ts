@@ -13,12 +13,12 @@ const ROLE_MARK = { settler: '拓', builder: '工', trader: '商' } as const;
 import { drawTerrain } from '../terrain.ts';
 import { drawIcon, drawPixelNumber, drawYieldRow } from '../map-icons.ts';
 import type { IconName } from '../map-icons.ts';
-import type { MapScene, SceneCity, UnitMarkIdentity } from './scene.ts';
+import type { MapScene, SceneCity, SceneWeather, UnitMarkIdentity } from './scene.ts';
 import { EMPTY_FRAME, SWEEP_MS, SWEEP_RING_MS } from './animation.ts';
 import type { AnimationFrame, MapEffect, NumberTone } from './animation.ts';
 
 export const FACTIONS = ['#3BA68A', '#D3655C', '#9B83D0', '#D59A45'];
-const DISTRICT_COLORS: Record<keyof typeof DISTRICTS, string> = {
+export const DISTRICT_COLORS: Record<keyof typeof DISTRICTS, string> = {
   researchDistrict: '#83BCD0', gymDistrict: '#E07A6D', harborDistrict: '#4FA3B8', powerPlantDistrict: '#E6B85C', gardenDistrict: '#72C99E',
 };
 /** Yields are drawn on every known tile once a hex is at least this many CSS pixels in radius. */
@@ -351,32 +351,48 @@ function drawYields(d: Draw) {
   }
 }
 
-/** Weather tints its radius; night dims the whole map. */
-function drawWeather(d: Draw) {
+/** Weather tints its radius; night dims the whole map. V11: fields fading in or out are drawn at the frame's opacity. */
+function drawWeather(d: Draw, frame: AnimationFrame) {
   const { context, centers, radius, scene } = d;
-  for (const field of scene.weather) {
-    for (const index of field.tiles) {
+  const fades = frame.weather;
+  const field = (item: SceneWeather, alpha: number) => {
+    if (alpha <= 0) return;
+    context.save();
+    context.globalAlpha = Math.min(1, alpha);
+    for (const index of item.tiles) {
       if (!d.onscreen(centers[index])) continue;
-      polygon(d, centers[index]); context.fillStyle = `${field.color}33`; context.fill();
+      polygon(d, centers[index]); context.fillStyle = `${item.color}33`; context.fill();
     }
-    if (field.center !== null && d.onscreen(centers[field.center])) {
-      const p = { x: centers[field.center].x + radius * .6, y: centers[field.center].y + radius * .45 }, size = Math.max(9, radius * .32);
-      context.beginPath(); context.arc(p.x, p.y, size, 0, Math.PI * 2); context.fillStyle = field.color; context.fill();
+    if (item.center !== null && d.onscreen(centers[item.center])) {
+      const p = { x: centers[item.center].x + radius * .6, y: centers[item.center].y + radius * .45 }, size = Math.max(9, radius * .32);
+      context.beginPath(); context.arc(p.x, p.y, size, 0, Math.PI * 2); context.fillStyle = item.color; context.fill();
       context.strokeStyle = '#F6EACA'; context.lineWidth = 1; context.stroke();
-      centeredText(d, field.mark, p, '#10191B', size * 1.2);
+      centeredText(d, item.mark, p, '#10191B', size * 1.2);
     }
-  }
+    context.restore();
+  };
+  for (const item of scene.weather) field(item, fades?.find(fade => fade.key === item.key && !fade.field)?.alpha ?? 1);
+  // Fields that already left the scene (they ended this round), fading out as last seen.
+  if (fades) for (const fade of fades) if (fade.field && !scene.weather.some(item => item.key === fade.key)) field(fade.field, fade.alpha);
 }
-/** Night dims the whole frame once (not once per map copy); the margin covers the screen-shake offset. */
-function drawNight(d: Draw | undefined) {
-  if (!d?.scene.night) return;
+/**
+ * Night dims the whole frame once (not once per map copy); the margin covers the screen-shake offset.
+ * V11: while day and night cross-fade, `frame.night` (0..1) scales the overlay.
+ */
+function drawNight(d: Draw | undefined, frame: AnimationFrame) {
+  if (!d) return;
+  const level = Math.max(0, Math.min(1, frame.night ?? (d.scene.night ? 1 : 0)));
+  if (level <= 0) return;
+  d.context.save();
+  d.context.globalAlpha = level;
   d.context.fillStyle = '#0A143066'; d.context.fillRect(-8, -8, d.width + 16, d.height + 16);
+  d.context.restore();
 }
 
-function unitMark(d: Draw, unit: UnitMarkIdentity, point: Point, actionLeft?: number, enraged = false) {
+function unitMark(d: Draw, unit: UnitMarkIdentity, point: Point, actionLeft?: number, enraged = false, scale = 1) {
   if (!d.onscreen(point)) return;
   const { context } = d;
-  const size = Math.max(26, Math.min(54, d.radius * 1.75));
+  const size = Math.max(26, Math.min(54, d.radius * 1.75)) * scale;
   context.beginPath();
   context.ellipse(point.x, point.y + size * .32, size * .37, size * .15, 0, 0, Math.PI * 2);
   context.fillStyle = '#071114A6'; context.fill();
@@ -478,7 +494,7 @@ function drawUnits(d: Draw, frame: AnimationFrame, camera: Camera) {
       context.restore();
       continue;
     }
-    unitMark(d, pose.unit, point);
+    unitMark(d, pose.unit, point, undefined, false, pose.scale ?? 1);
     const hp = scene.units.find(item => item.unit.id === pose.unit.id)?.hp;
     if (hp) unitHpBar(d, point, hp);
   }
@@ -724,6 +740,167 @@ function drawFallingBanner(d: Draw, p: Point, effect: Extract<MapEffect, { kind:
   context.restore();
 }
 
+// ---------- Batch 3: big-event pulses, form changes, wonder pillar (review V8–V10) ----------
+/** Fade-out over the last `tail` of a 0..1 life. */
+const fadeTail = (t: number, tail = .3) => t > 1 - tail ? Math.max(0, (1 - t) / tail) : 1;
+/** V8: two hex rings expand from the tile (dark under-stroke for contrast), a brief tint, a rising icon and a floating label. */
+function drawPulse(d: Draw, p: Point, effect: Extract<MapEffect, { kind: 'pulse' }>) {
+  const { context, radius } = d, t = effect.progress;
+  context.save();
+  if (t < .4) { context.globalAlpha = .35 * (1 - t / .4); polygon(d, p); context.fillStyle = effect.color; context.fill(); }
+  for (const delay of [0, .2]) {
+    const local = (t - delay) / (1 - delay);
+    if (local <= 0 || local >= 1) continue;
+    const grow = .55 + easeOut(local) * 1.05;
+    context.globalAlpha = 1 - local;
+    context.beginPath();
+    for (let corner = 0; corner < 6; corner++) {
+      const x = p.x + radius * grow * corners[corner].x, y = p.y + radius * grow * corners[corner].y;
+      if (corner === 0) context.moveTo(x, y); else context.lineTo(x, y);
+    }
+    context.closePath();
+    context.strokeStyle = '#10191B'; context.lineWidth = Math.max(2, 5 * (1 - local)) + 2; context.stroke();
+    context.strokeStyle = effect.color; context.lineWidth = Math.max(2, 5 * (1 - local)); context.stroke();
+  }
+  context.globalAlpha = fadeTail(t);
+  const rise = easeOut(Math.min(1, t / .6)) * radius * .9;
+  if (effect.icon === 'chevron') {
+    // Promotion: three gold chevrons climbing out of the unit.
+    const w = Math.max(9, radius * .42);
+    for (let i = 0; i < 3; i++) {
+      const y = p.y - rise - i * w * .45 + w * .3;
+      context.beginPath(); context.moveTo(p.x - w / 2, y); context.lineTo(p.x, y - w * .42); context.lineTo(p.x + w / 2, y);
+      context.strokeStyle = '#10191B'; context.lineWidth = 6; context.stroke();
+      context.strokeStyle = effect.color; context.lineWidth = 3; context.stroke();
+    }
+  } else if (effect.icon === 'alert') {
+    // Warning: a red disc with "!" that pops in above the tile.
+    const pop = t < .15 ? .6 + t / .15 * .6 : t < .25 ? 1.2 - (t - .15) / .1 * .2 : 1, r = Math.max(8, radius * .3) * pop, q = { x: p.x, y: p.y - radius * .35 - rise * .4 };
+    context.beginPath(); context.arc(q.x, q.y, r, 0, Math.PI * 2); context.fillStyle = effect.color; context.fill();
+    context.strokeStyle = '#10191B'; context.lineWidth = 2; context.stroke();
+    centeredText(d, '!', q, '#FFF8E5', r * 1.5);
+  } else if (effect.icon === 'star') {
+    const r = Math.max(7, radius * .3), q = { x: p.x, y: p.y - rise * .6 };
+    context.beginPath();
+    for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, s = i % 2 ? r * .45 : r; context.lineTo(q.x + Math.cos(a) * s, q.y + Math.sin(a) * s); }
+    context.closePath(); context.fillStyle = effect.color; context.fill(); context.strokeStyle = '#10191B'; context.lineWidth = 1.5; context.stroke();
+  }
+  if (effect.label) {
+    const pop = t < .12 ? 1.3 - t / .12 * .3 : 1;
+    outlinedText(d, effect.label, { x: p.x, y: p.y - radius * (1.05 + t * .45) }, '#FFF8E5', Math.min(17, radius * .44) * pop, '#10191B');
+    context.fillStyle = effect.color;
+    const width = Math.min(60, radius * 1.4);
+    context.fillRect(Math.round(p.x - width / 2), Math.round(p.y - radius * (1.05 + t * .45) + Math.min(17, radius * .44) * .62), Math.round(width), 2);
+  }
+  context.restore();
+}
+/** V8 trade route: a gold dash (head and fading tail) runs once from origin to destination. */
+function drawRoute(d: Draw, effect: Extract<MapEffect, { kind: 'route' }>, camera: Camera) {
+  const { context, radius } = d, t = effect.progress;
+  const at = (s: number): Point => {
+    const q = toScreen({ x: effect.from.x + (effect.to.x - effect.from.x) * s, y: effect.from.y + (effect.to.y - effect.from.y) * s }, camera);
+    return { x: q.x + d.shift, y: q.y };
+  };
+  const head = at(Math.min(1, t * 1.25)), tail = at(Math.max(0, t * 1.25 - .3));
+  if (!d.onscreen(head) && !d.onscreen(tail)) return;
+  context.save();
+  context.globalAlpha = fadeTail(t, .2);
+  context.lineCap = 'round';
+  for (const pass of [{ color: '#10191B', width: Math.max(6, radius * .24) }, { color: '#FFE08A', width: Math.max(3, radius * .12) }]) {
+    context.beginPath(); context.moveTo(tail.x, tail.y); context.lineTo(head.x, head.y); context.strokeStyle = pass.color; context.lineWidth = pass.width; context.stroke();
+  }
+  context.beginPath(); context.arc(head.x, head.y, Math.max(3.5, radius * .14), 0, Math.PI * 2); context.fillStyle = '#FFFDF7'; context.fill();
+  context.restore();
+}
+const RAINBOW = ['#E5554A', '#F2A33C', '#F2D64E', '#72C99E', '#4FA3D8', '#9B83D0'];
+/** A vertical beam from the top of the view down to `p` (Z-Move, wonder pillar): soft gold edges, white core. */
+function lightColumn(d: Draw, p: Point, width: number, alpha: number, color: string) {
+  const { context } = d, top = -8;
+  if (alpha <= 0 || p.y < top) return;
+  context.save();
+  context.globalAlpha = alpha;
+  const gradient = context.createLinearGradient(p.x - width / 2, 0, p.x + width / 2, 0);
+  gradient.addColorStop(0, `${color}00`); gradient.addColorStop(.3, `${color}AA`); gradient.addColorStop(.5, '#FFFDF7EE'); gradient.addColorStop(.7, `${color}AA`); gradient.addColorStop(1, `${color}00`);
+  context.fillStyle = gradient;
+  context.fillRect(Math.round(p.x - width / 2), top, Math.round(width), Math.round(p.y - top));
+  context.beginPath(); context.ellipse(p.x, p.y, width * .75, width * .26, 0, 0, Math.PI * 2); context.fillStyle = `${color}99`; context.fill();
+  context.restore();
+}
+/** Pooled square particles rising around `p` (golden-angle table, shared frame budget). */
+function risingParticles(d: Draw, p: Point, t: number, colors: readonly string[], spread: number) {
+  const { context, radius } = d;
+  for (const [index, particle] of PARTICLES.entries()) {
+    if (d.budget.particles <= 0) break;
+    d.budget.particles--;
+    const phase = (t * particle.speed * 1.4 + index / PARTICLES.length) % 1, size = Math.max(2, radius * particle.size * (1 - phase * .5));
+    context.fillStyle = particle.white ? '#FFFDF7' : colors[index % colors.length];
+    context.fillRect(Math.round(p.x + particle.dx * radius * spread - size / 2), Math.round(p.y - phase * radius * 2.2 - size / 2), Math.ceil(size), Math.ceil(size));
+  }
+}
+/** V9: the era form change on a unit. */
+function drawForm(d: Draw, p: Point, effect: Extract<MapEffect, { kind: 'form' }>) {
+  const { context, radius } = d, t = effect.progress, fade = fadeTail(t, .35), center = { x: p.x, y: p.y - radius * .05 };
+  context.save();
+  if (effect.form === 'mega') {
+    // Mega Evolution: a white flash, then a rotating rainbow ring with sparkles.
+    if (t < .3) { context.globalCompositeOperation = 'lighter'; polygon(d, p); context.fillStyle = `rgb(255 253 247 / ${Math.round((1 - t / .3) * 55)}%)`; context.fill(); context.globalCompositeOperation = 'source-over'; }
+    const r = radius * (.5 + .45 * easeOut(Math.min(1, t / .4))), spin = t * Math.PI * 2.5;
+    context.globalAlpha = fade; context.lineWidth = Math.max(3, radius * .14); context.lineCap = 'round';
+    for (const [index, color] of RAINBOW.entries()) {
+      const start = spin + index * Math.PI / 3;
+      context.beginPath(); context.arc(center.x, center.y, r, start, start + Math.PI / 3 - .12); context.strokeStyle = color; context.stroke();
+    }
+    risingParticles(d, center, t, RAINBOW, .7);
+  } else if (effect.form === 'dynamax') {
+    // Dynamax: pulsing red glow rings around the (enlarged) unit, red clouds rising.
+    const beat = .5 + .5 * Math.sin(t * Math.PI * 6);
+    for (const [index, scale] of [1.15, .95, .75].entries()) {
+      context.globalAlpha = fade * (.22 + index * .12) * (.7 + .3 * beat);
+      context.beginPath(); context.arc(center.x, center.y, radius * scale * (1 + .2 * easeOut(Math.min(1, t / .35))), 0, Math.PI * 2);
+      context.strokeStyle = '#E5554A'; context.lineWidth = Math.max(4, radius * .22); context.stroke();
+    }
+    context.globalAlpha = fade;
+    risingParticles(d, center, t, ['#E5554A', '#B84D45', '#F28B6E'], 1);
+  } else if (effect.form === 'tera') {
+    // Terastallization: a faceted crystal in the Tera type's colour forms around the unit, shimmers, then shatters.
+    const form = easeOut(Math.min(1, t / .25)), shatter = t > .75 ? (t - .75) / .25 : 0, w = radius * .95 * form, h = radius * 1.2 * form;
+    const points = [[0, -1], [.75, -.45], [.75, .45], [0, 1], [-.75, .45], [-.75, -.45]].map(([x, y]) => ({ x: center.x + x * w * (1 + shatter * .6), y: center.y + y * h * (1 + shatter * .6) }));
+    context.globalAlpha = 1 - shatter;
+    context.beginPath(); points.forEach((q, i) => i ? context.lineTo(q.x, q.y) : context.moveTo(q.x, q.y)); context.closePath();
+    context.fillStyle = `${effect.color}55`; context.fill();
+    context.strokeStyle = '#10191B'; context.lineWidth = 3.5; context.stroke();
+    context.strokeStyle = effect.color; context.lineWidth = 2; context.stroke();
+    context.beginPath();
+    for (const q of points) { context.moveTo(center.x, center.y - h * .25); context.lineTo(q.x, q.y); }
+    context.strokeStyle = '#FFFDF7AA'; context.lineWidth = 1; context.stroke();
+    // A shimmer band sweeping across the crystal.
+    context.save();
+    context.beginPath(); points.forEach((q, i) => i ? context.lineTo(q.x, q.y) : context.moveTo(q.x, q.y)); context.closePath(); context.clip();
+    const band = center.x - w + (t * 2.4 % 1.2) * w * 2;
+    context.fillStyle = '#FFFDF766'; context.fillRect(Math.round(band - radius * .12), Math.round(center.y - h), Math.round(radius * .24), Math.round(h * 2));
+    context.restore();
+    if (shatter > 0) risingParticles(d, center, t, [effect.color], .9);
+  } else {
+    // Z-Move: a gold light column comes down on the unit.
+    const grow = easeOut(Math.min(1, t / .2));
+    lightColumn(d, center, radius * (.4 + .6 * grow) * (1 + .08 * Math.sin(t * Math.PI * 8)), fade, '#F2C14E');
+    context.globalAlpha = fade;
+    context.beginPath(); context.arc(center.x, center.y, radius * (.5 + .5 * easeOut(t)), 0, Math.PI * 2); context.strokeStyle = '#F2C14E'; context.lineWidth = 3; context.stroke();
+  }
+  context.restore();
+}
+/** V10: the wonder's gold pillar on the city, widening then fading, with gold particles rising from the base. */
+function drawPillar(d: Draw, p: Point, effect: Extract<MapEffect, { kind: 'pillar' }>) {
+  const { context, radius } = d, t = effect.progress, grow = easeOut(Math.min(1, t / .25));
+  lightColumn(d, p, radius * (.5 + 1 * grow), fadeTail(t, .35), '#F2C14E');
+  context.save();
+  context.globalAlpha = 1 - t;
+  context.beginPath(); context.arc(p.x, p.y, radius * (.6 + 1.2 * easeOut(t)), 0, Math.PI * 2); context.strokeStyle = '#FFE08A'; context.lineWidth = Math.max(2, 5 * (1 - t)); context.stroke();
+  context.globalAlpha = fadeTail(t, .35);
+  if (effect.burst) risingParticles(d, p, t, ['#F2C14E', '#FFE08A'], 1.1);
+  context.restore();
+}
+
 function drawEffects(d: Draw, frame: AnimationFrame, indexOf: (hex: Hex) => number | null, camera: Camera) {
   const { context, centers, radius } = d;
   // Territory sweeps first, under every other effect.
@@ -731,6 +908,7 @@ function drawEffects(d: Draw, frame: AnimationFrame, indexOf: (hex: Hex) => numb
   for (const effect of frame.effects) {
     if (effect.kind === 'sweep') continue;
     if (effect.kind === 'projectile') { drawProjectile(d, effect, camera); continue; }
+    if (effect.kind === 'route') { drawRoute(d, effect, camera); continue; }
     const index = indexOf(effect.position);
     if (index === null) continue;
     const p = centers[index];
@@ -742,6 +920,9 @@ function drawEffects(d: Draw, frame: AnimationFrame, indexOf: (hex: Hex) => numb
       context.strokeStyle = effect.tone === 'error' ? '#E07A6D' : '#FFF3C4'; context.lineWidth = 3; context.stroke();
       context.restore();
     } else if (effect.kind === 'impact') drawImpact(d, p, effect);
+    else if (effect.kind === 'pulse') drawPulse(d, p, effect);
+    else if (effect.kind === 'form') drawForm(d, p, effect);
+    else if (effect.kind === 'pillar') drawPillar(d, p, effect);
     else if (effect.kind === 'banner') drawFallingBanner(d, p, effect);
     else if (effect.kind === 'number') {
       // Pop (scale 1.4 → 1 in the first 15%; tags don't pop), float up, fade out over the last 40%.
@@ -851,8 +1032,8 @@ export function createCanvas2DRenderer(canvas: HTMLCanvasElement, options: Rende
       for (const item of all) drawTradeRoutes(item);
       for (const item of all) drawCities(item);
       for (const item of all) drawYields(item);
-      for (const item of all) drawWeather(item);
-      drawNight(all[0]);
+      for (const item of all) drawWeather(item, frame);
+      drawNight(all[0], frame);
       for (const item of all) drawUnits(item, frame, camera);
       for (const item of all) drawBanners(item);
       for (const item of all) drawInteraction(item);

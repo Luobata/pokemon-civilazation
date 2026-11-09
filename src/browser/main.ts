@@ -61,7 +61,9 @@ import { createMapRenderer, Timeline } from './render/index.ts';
 import type { DebugOverlay, RenderStats, Track } from './render/index.ts';
 import type { UnitMarkIdentity } from './render/scene.ts';
 import type { Hex } from '../core/hex.ts';
-import { battleTrack, captureTrack, evolveTrack, moveTrack, tapTrack } from './render/animation.ts';
+import { battleTrack, captureTrack, evolveTrack, moveTrack, tapTrack, wonderRevealTrack } from './render/animation.ts';
+import { bigEventTiles, bigEventTrack } from './event-tracks.ts';
+import { AmbientTransitions } from './ambient-transitions.ts';
 import type { BattleSpec } from './render/animation.ts';
 import { describeTile, tileSummary } from './tile-info.ts';
 import { renderTilePanel } from './tile-panel.ts';
@@ -120,7 +122,8 @@ export const developerAdapter = {
   getFrameMetrics: () => ({ ...frameMetrics() }),
   /** Last map frame's layer-cache stats and shake offset, and the recently presented events (animated or skipped). */
   getPresentation: () => ({ render: lastRenderStats && { ...lastRenderStats, shake: { ...lastRenderStats.shake } }, events: presentationLog.map(item => ({ ...item })),
-    frame: { effects: lastAnimation.effects.map(item => ({ ...item })), poses: lastAnimation.poses.map(item => ({ ...item })) } }),
+    frame: { effects: lastAnimation.effects.map(item => ({ ...item })), poses: lastAnimation.poses.map(item => ({ ...item })),
+      ...(lastAnimation.night !== undefined ? { night: lastAnimation.night } : {}), ...(lastAnimation.weather ? { weather: lastAnimation.weather.map(item => ({ ...item })) } : {}) } }),
 };
 export let camera: Camera = { x: 0, y: 0, zoom: 1 };
 let selected: number | null = null;
@@ -170,7 +173,7 @@ function eventTiles(payload: VisibleEvent['payload'], view: PlayerView): Hex[] {
     case 'BattleResolved': return payload.positions;
     case 'Captured': return [at(payload.targetUnitId), at(payload.unitId)].filter((hex): hex is Hex => hex !== undefined);
     case 'Evolved': return [at(payload.unitId)].filter((hex): hex is Hex => hex !== undefined);
-    default: return [];
+    default: return bigEventTiles(payload, view);
   }
 }
 /** Any of the tiles inside the map viewport (on a wrapping map: the copy nearest the centre, which is the visible one if any is). */
@@ -198,7 +201,8 @@ type PresentedEvent = { type: string; animated: boolean; effectiveness?: number 
 const presentationLog: PresentedEvent[] = [];
 let lastRenderStats: RenderStats | null = null;
 /** The last map frame's effects and poses, summarised (developer adapter, tests). */
-let lastAnimation: { effects: { kind: string; color?: string; text?: string; tone?: string; ownerId?: number | null; progress: number }[]; poses: { id: number; alpha?: number; grey?: boolean }[] } = { effects: [], poses: [] };
+let lastAnimation: { effects: { kind: string; color?: string; text?: string; tone?: string; ownerId?: number | null; label?: string; form?: string; progress: number }[];
+  poses: { id: number; alpha?: number; grey?: boolean; scale?: number }[]; night?: number; weather?: { key: string; alpha: number }[] } = { effects: [], poses: [] };
 /** Territory of a captured city that the viewer knows belongs to its new owner, by distance (0–3) from the city. */
 function captureTiles(view: PlayerView, tile: number, ownerId: number | null): { hex: Hex; ring: number }[] {
   const city = indexToHex(tile, view.map);
@@ -237,8 +241,42 @@ function presentationTrack(payload: VisibleEvent['payload']): Track | null {
   else if (payload.type === 'BattleResolved') track = battleTrack(battleSpec(payload, view, key, finish));
   else if (payload.type === 'Captured') track = captureTrack(key, payload.targetUnitId, payload.success, finish);
   else if (payload.type === 'Evolved') track = evolveTrack(key, payload.unitId, finish);
-  if (track) presenting.set(track.key, payload);
+  else if (payload.type === 'LegendWonderCompleted') track = wonderTrack(payload, view, key, finish);
+  else track = bigEventTrack(payload, view, key, { motion: !reducedMotion(), onFinish: finish });
+  // Non-blocking tracks (V8 pulses) never stand for an event the skip button must still report.
+  if (track && track.blocking !== false) presenting.set(track.key, payload);
   return track;
+}
+/** V10: the player's view before a wonder reveal moved the camera; restored when the story card closes. */
+let revealHome: Camera | null = null;
+/** The reveal playing now: on skip its story card still opens, and the horn sounds if the pillar had not risen yet. */
+let pendingReveal: { legendId: LegendWonderId; horn: boolean } | null = null;
+function restoreRevealCamera() {
+  if (!revealHome) return;
+  Object.assign(camera, revealHome); revealHome = null; requestFrame();
+}
+/**
+ * V10 wonder reveal for the viewer's own wonder: the camera glides to the city when it is out of view (not under
+ * reduced motion), the gold pillar rises with the horn, then the story card opens. Other players' wonders have no city.
+ */
+function wonderTrack(payload: Extract<VisibleEvent['payload'], { type: 'LegendWonderCompleted' }>, view: PlayerView, key: string, finish: () => void): Track | null {
+  if (payload.playerId !== view.playerId) return null;
+  const cityId = view.expansion?.legends?.wonders.find(wonder => wonder.legendId === payload.legendId)?.cityId;
+  const city = view.cities.find(item => item.id === cityId);
+  if (!city) return null;
+  const motion = !reducedMotion(), visible = onScreen([city.position], view);
+  if (!motion && !visible) return null;
+  let move: { from: Camera; to: Camera } | undefined;
+  if (motion && !visible) {
+    const width = canvas.clientWidth, height = canvas.clientHeight, p = tileToScreen(city.position, camera, view.map, width), zoom = Math.max(camera.zoom, 1.2);
+    // The copy of the city nearest the view (wrapping maps), centred at the new zoom.
+    const world = { x: (p.x - camera.x) / camera.zoom, y: (p.y - camera.y) / camera.zoom };
+    move = { from: { ...camera }, to: { x: width / 2 - world.x * zoom, y: height / 2 - world.y * zoom, zoom } };
+    revealHome ??= { ...camera };
+  }
+  const reveal: { legendId: LegendWonderId; horn: boolean } = pendingReveal = { legendId: payload.legendId, horn: false };
+  return wonderRevealTrack({ key, city: city.position, motion, ...(move ? { camera: move } : {}), onPillar: () => { reveal.horn = true; audio.play('wonder'); },
+    onFinish: () => { finish(); pendingReveal = null; legendArrivals.push(payload.legendId); controls(); } });
 }
 function summary(payload: VisibleEvent['payload']) {
   switch (payload.type) {
@@ -352,7 +390,8 @@ export function soundsFor(payload: VisibleEvent['payload'], view: PlayerView, an
     case 'TradeRouteEstablished': return own(payload.playerId, 'tradeRoute');
     case 'ObjectiveCompleted': case 'ItemBallClaimed': return own(payload.playerId, 'notify');
     case 'UnitPromoted': return own(payload.playerId, 'promotion');
-    case 'LegendWonderCompleted': return ['wonder'];
+    // V10: with the reveal track the horn sounds when the pillar rises (track cue) instead.
+    case 'LegendWonderCompleted': return animated && payload.playerId === me ? [] : ['wonder'];
     case 'LegendWonderLost': return own(payload.playerId, 'legendLost');
     case 'LegendClueFound': return own(payload.playerId, 'notify');
     case 'EraAgeBegan': return own(payload.playerId, 'eraChange');
@@ -369,7 +408,8 @@ export function soundsFor(payload: VisibleEvent['payload'], view: PlayerView, an
 function recordActivity(payload: VisibleEvent['payload'], animated = false) {
   for (const sound of soundsFor(payload, session.getView(), animated)) audio.play(sound);
   if (payload.type === 'DiplomacyChanged' || payload.type === 'GameEnded') syncMusic();
-  if (payload.type === 'LegendWonderCompleted' && payload.playerId === session.getView().playerId) legendArrivals.push(payload.legendId);
+  // V10: an animated reveal opens the story card when its pillar ends (or on skip).
+  if (payload.type === 'LegendWonderCompleted' && payload.playerId === session.getView().playerId && !animated) legendArrivals.push(payload.legendId);
   rail.push(toastFor(payload, session.getView(), { ownCityIds: knownOwnCityIds, unitName: id => knownUnitLabels.get(id)?.replace(/^(野生 |文明 \d+ 的 )/, '') }));
   const text = activityText(payload);
   if (!text || activityLog[0]?.text === text) return;
@@ -377,6 +417,7 @@ function recordActivity(payload: VisibleEvent['payload'], animated = false) {
   activityLog.splice(40);
 }
 function controls() {
+  panelsBusy = busy();
   const view = session.getView();
   const CONTENT = contentForView(view);
   const ended = view.outcome !== null, pendingPeace = hasPendingPeace(view);
@@ -657,7 +698,11 @@ function renderLegends(view: PlayerView) {
   const arrival = document.querySelector<HTMLElement>('#legend-arrival-root')!;
   if (legendArrivals.length && !arrival.childElementCount) {
     arrival.innerHTML = legendCompletionMarkup(legendArrivals[0]);
-    arrival.querySelector('#legend-arrival-close')!.addEventListener('click', () => { legendArrivals.shift(); arrival.innerHTML = ''; controls(); });
+    arrival.querySelector('#legend-arrival-close')!.addEventListener('click', () => {
+      legendArrivals.shift(); arrival.innerHTML = '';
+      if (!legendArrivals.length) restoreRevealCamera();
+      controls();
+    });
   }
 }
 function evolveSelected(intoSpeciesId?: SpeciesId) {
@@ -676,6 +721,7 @@ function finishPresentations() {
   const text = payloads.map(summary).filter(Boolean).at(-1);
   if (text) notice = text;
   timeline.clear(); presenting.clear();
+  if (pendingReveal) { if (!pendingReveal.horn) audio.play('wonder'); legendArrivals.push(pendingReveal.legendId); pendingReveal = null; }
   presentationIndex = 0;
   session.skipAnimations();
 }
@@ -697,12 +743,19 @@ function frame(now: number) {
     if (presentationLog.length > 80) presentationLog.shift();
   }
   const view = session.getView();
+  // V11: night and weather changes cross-fade (not with animation off or reduced motion: they switch at once).
+  const fades = ambient.update(view);
+  if (animate.checked && !reducedMotion()) for (const track of fades) timeline.add(track, now);
   if (deferredFocus && !busy()) focusHex(deferredFocus);
   const animation = timeline.sample(now, { unitPosition: id => view.units.find(unit => unit.id === id)?.position });
+  // V10: the wonder reveal is the one track that moves the camera (restored when its story card closes).
+  if (animation.camera) Object.assign(camera, animation.camera);
   lastAnimation = {
     effects: animation.effects.map(effect => ({ kind: effect.kind, progress: effect.progress,
-      ...('color' in effect ? { color: effect.color } : {}), ...('text' in effect ? { text: effect.text, tone: effect.tone } : {}), ...('ownerId' in effect ? { ownerId: effect.ownerId } : {}) })),
-    poses: animation.poses.map(pose => ({ id: pose.unit.id, ...(pose.alpha !== undefined ? { alpha: pose.alpha } : {}), ...(pose.grey ? { grey: true } : {}) })) };
+      ...('color' in effect ? { color: effect.color } : {}), ...('text' in effect ? { text: effect.text, tone: effect.tone } : {}), ...('ownerId' in effect ? { ownerId: effect.ownerId } : {}),
+      ...('label' in effect && effect.label ? { label: effect.label } : {}), ...('form' in effect ? { form: effect.form } : {}) })),
+    poses: animation.poses.map(pose => ({ id: pose.unit.id, ...(pose.alpha !== undefined ? { alpha: pose.alpha } : {}), ...(pose.grey ? { grey: true } : {}), ...(pose.scale ? { scale: pose.scale } : {}) })),
+    ...(animation.night !== undefined ? { night: animation.night } : {}), ...(animation.weather ? { weather: animation.weather.map(fade => ({ key: fade.key, alpha: fade.alpha })) } : {}) };
   const paths = selected === null ? {} : reachablePaths(view, selected);
   const targets = selected === null ? [] : actionTargets(view, selected, actionMode, selectedBall).map(target => hexToIndex(target.position, view.map)!);
   const drawStarted = performance.now();
@@ -724,9 +777,18 @@ function frame(now: number) {
   // Drop fully presented events so the queue (and its per-frame copy) stays small in long games.
   if (!timeline.busy && presentationIndex > 0 && presentationIndex >= queue.length) { session.skipAnimations(); presentationIndex = 0; }
   if (busy()) requestFrame();
-  // Non-blocking tracks (click ripples) only need the map redrawn; panels refresh once they end.
-  else if (timeline.animating) requestFrame();
-  else controls();
+  else {
+    // Panels refresh as soon as the queue drains (non-blocking pulses and fades may still be playing), and once more when they end.
+    if (panelsBusy || !timeline.animating) controls();
+    if (timeline.animating) requestFrame();
+  }
+}
+/** Whether the panels were last drawn in the busy (animation playing) state. */
+let panelsBusy = false;
+const ambient = new AmbientTransitions();
+/** New game, load, replay: no fades from the previous game, no reveal camera to restore. */
+function resetPresentationState() {
+  ambient.reset(); revealHome = null; pendingReveal = null;
 }
 function skip() { finishPresentations(); controls(); requestFrame(); }
 function fit() { camera = fitCamera(session.getView().map, canvas.clientWidth, canvas.clientHeight); requestFrame(); }
@@ -797,7 +859,7 @@ function newGame() {
       roundLimit: Number(document.querySelector<HTMLSelectElement>('#round-limit')!.value) as GameSetup['roundLimit'], players });
     session = driver.asPlayerSession();
     timeline.clear(); presenting.clear(); presentationIndex = 0; selected = null; selectedCity = session.getView().economy.player.headquartersCityId; neutralCity = null; inspectedTile = null; keyboardIndex = null; activityLog.length = 0; knownUnitLabels.clear(); knownUnits.clear(); knownCityOwners.clear(); deferredFocus = null;
-    rail.clear(); reviewedUnits.clear(); knownOwnCityIds.clear();
+    rail.clear(); reviewedUnits.clear(); knownOwnCityIds.clear(); resetPresentationState();
     frameDurations.length = 0;
     resetAction(); notice = ''; sequence.value = '0';
     canvas.hidden = false;
@@ -978,7 +1040,7 @@ document.querySelector('#export')!.addEventListener('click', () => {
 });
 document.querySelector('#replay')!.addEventListener('click', () => {
   if (transitionBlocked()) return;
-  try { driver.replayTo(Number(sequence.value)); selected = null; selectedCity = null; neutralCity = null; inspectedTile = null; keyboardIndex = null; knownUnitLabels.clear(); knownUnits.clear(); knownCityOwners.clear(); deferredFocus = null; resetAction(); notice = ''; skip(); }
+  try { driver.replayTo(Number(sequence.value)); selected = null; selectedCity = null; neutralCity = null; inspectedTile = null; keyboardIndex = null; knownUnitLabels.clear(); knownUnits.clear(); knownCityOwners.clear(); deferredFocus = null; resetAction(); resetPresentationState(); notice = ''; skip(); }
   catch (error) { notice = error instanceof Error ? error.message : String(error); controls(); }
 });
 document.querySelector('#resume')!.addEventListener('click', () => {
@@ -989,7 +1051,7 @@ const saveKey = 'pokemon-civilization-save';
 function load(text: string) {
   if (transitionBlocked()) return;
   driver.load(text); closeScreen(); timeline.clear(); presenting.clear(); selected = null; selectedCity = session.getView().economy.cities[0]?.id ?? null; neutralCity = null; inspectedTile = null; keyboardIndex = null; activityLog.length = 0; knownUnitLabels.clear(); knownUnits.clear(); knownCityOwners.clear(); deferredFocus = null; resetAction(); notice = '读档完成';
-  rail.clear(); reviewedUnits.clear(); knownOwnCityIds.clear();
+  rail.clear(); reviewedUnits.clear(); knownOwnCityIds.clear(); resetPresentationState();
   frameDurations.length = 0;
   fit();
   const focusCity = session.getView().economy.cities.find(city => city.id === selectedCity);

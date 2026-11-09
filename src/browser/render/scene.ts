@@ -67,7 +67,7 @@ export type SceneUnit = { key: string; unit: UnitMarkIdentity; index: number; wo
   /** Only while the unit is damaged (current < max); units in the scene are the visible ones. */
   hp?: { current: number; max: number } };
 export type SceneYield = { index: number; yields: Yield; workable: boolean; inFocus: boolean };
-export type SceneWeather = { color: string; mark: string; tiles: number[]; center: number | null };
+export type SceneWeather = { key: string; color: string; mark: string; tiles: number[]; center: number | null };
 
 export type MapScene = {
   width: number; height: number;
@@ -212,14 +212,7 @@ export function buildScene(input: MapRenderInput): MapScene {
   }
 
   const era = expansion?.eraAbilities;
-  const weather: SceneWeather[] = [];
-  for (const field of era?.fields ?? []) {
-    if (field.untilRound < view.round) continue;
-    const definition = WEATHERS[field.weather], center = indexOf(field.center);
-    weather.push({ color: definition.color, mark: definition.mark,
-      tiles: view.visibleTileIds.filter(index => hexDistance(indexToHex(index, view.map), field.center, view.map) <= ERA_ABILITY_RULES.weatherRadius),
-      center: center !== null && visible.has(center) ? center : null });
-  }
+  const weather = sceneWeather(view);
 
   // Only the authorized PlayerView supplies entities; hidden live units never reach the scene.
   const atWar = new Set(view.diplomacy.filter(pair => pair.status === 'war' && (pair.a === view.playerId || pair.b === view.playerId))
@@ -280,6 +273,19 @@ export function buildScene(input: MapRenderInput): MapScene {
     // The keyboard cursor duplicates the inspected tile after a click; draw only one of them.
     cursor: input.cursorIndex !== undefined && input.cursorIndex !== input.inspectedTile ? input.cursorIndex : null, debug, layers,
   };
+}
+
+/** Active weather fields as the viewer sees them (tinted tiles: visible ones only). `key` identifies a field across frames (V11 fades). */
+export function sceneWeather(view: PlayerView): SceneWeather[] {
+  const visible = new Set(view.visibleTileIds), weather: SceneWeather[] = [];
+  for (const field of view.expansion?.eraAbilities?.fields ?? []) {
+    if (field.untilRound < view.round) continue;
+    const definition = WEATHERS[field.weather], center = hexToIndex(field.center, view.map);
+    weather.push({ key: `${field.weather}@${field.center.q},${field.center.r}`, color: definition.color, mark: definition.mark,
+      tiles: view.visibleTileIds.filter(index => hexDistance(indexToHex(index, view.map), field.center, view.map) <= ERA_ABILITY_RULES.weatherRadius),
+      center: center !== null && visible.has(center) ? center : null });
+  }
+  return weather;
 }
 
 /** Every tile index the scene would put a mark on, for fog invariants. */

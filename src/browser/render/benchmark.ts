@@ -3,7 +3,7 @@
 import { TYPE_COLORS } from '../../content/type-colors.ts';
 import type { Hex, MapShape } from '../../core/hex.ts';
 import type { MapUnit } from '../../core/model.ts';
-import { BATTLE_MAX_MS, Timeline, battleTrack } from './animation.ts';
+import { AMBIENT_FADE_MS, BATTLE_MAX_MS, FORM_MS, PULSE_MS, Timeline, battleTrack, formTrack, nightTrack, pulseTrack, wonderRevealTrack } from './animation.ts';
 import type { AnimationFrame, BattleSpec } from './animation.ts';
 
 /** Every hex within three steps of `center`, with its distance (a captured city's territory sweep). */
@@ -38,6 +38,31 @@ export function combatBenchmarkFrames(units: readonly MapUnit[], map: MapShape, 
       cycles[index] = cycle;
       timeline.add(battleTrack(spec(index, attacker, target)), now);
     }
+    output.push(timeline.sample(now, context));
+  }
+  return output;
+}
+
+/**
+ * Batch 3 (V8–V11): `frames` frames of big-event feedback over the given units: four pulses (one per unit, restarted
+ * every PULSE_MS), two era forms (Dynamax with its enlarged unit, Mega), a wonder pillar with particles and a night cross-fade.
+ */
+export function eventBenchmarkFrames(units: readonly MapUnit[], frames: number): AnimationFrame[] {
+  const timeline = new Timeline(), output: AnimationFrame[] = [];
+  const context = { unitPosition: (id: number) => units.find(unit => unit.id === id)?.position };
+  const pulsed = units.slice(0, 4), formed = units.filter(unit => unit.kind === 'pokemon').slice(0, 2), city = units[4]?.position ?? units[0].position;
+  const started = new Map<string, number>();
+  const every = (key: string, period: number, now: number, make: () => Parameters<Timeline['add']>[0]) => {
+    if (started.has(key) && now - started.get(key)! < period) return;
+    started.set(key, now); timeline.add(make(), now);
+  };
+  const colors = ['#3BA68A', '#F2C14E', '#E07A6D', '#E5554A'];
+  for (let frame = 0; frame < frames; frame++) {
+    const now = frame * 1000 / 60;
+    for (const [index, unit] of pulsed.entries()) every(`pulse:${index}`, PULSE_MS, now, () => pulseTrack(`pulse:${index}`, unit.position, colors[index], index % 2 ? '晋升' : '建城', index % 2 ? 'chevron' : 'star'));
+    for (const [index, unit] of formed.entries()) every(`form:${index}`, FORM_MS, now, () => formTrack(`form:${index}`, unit, index ? 'mega' : 'dynamax', index ? '#FFFDF7' : '#E5554A'));
+    every('pillar', 800, now, () => wonderRevealTrack({ key: 'pillar', city, motion: true }));
+    every('night', AMBIENT_FADE_MS, now, () => nightTrack(0, 1));
     output.push(timeline.sample(now, context));
   }
   return output;
