@@ -10,6 +10,7 @@ import { step } from '../../src/core/step.ts';
 import { workedTileYield } from '../../src/core/city.ts';
 import { leaguePointsPerRound } from '../../src/core/policies.ts';
 import { viewPillage, viewRepairs } from '../../src/core/pillage.ts';
+import { buildScene } from '../../src/browser/render/scene.ts';
 import type { Command, GameSetup, GameState } from '../../src/core/model.ts';
 
 const duel = (gameplayVersion: GameplayVersion): GameSetup => ({ seed: 12345, width: 24, height: 16, expansionVersion: 1, multiplayer: true, eraProgression: 'simple-v1', gameplayVersion,
@@ -100,6 +101,17 @@ test('fog: a pillage you cannot see does not change your view of the improvement
   expect(view?.damaged).toBeUndefined();
   // The owner always sees its own territory live.
   expect(observe(state, 0, IMPROVEMENT_CONTENT).expansion!.improvements!.tiles.find(tile => tile.tileIndex === tileIndex)?.damaged).toBe(true);
+});
+
+test('map scene: a damaged improvement carries the damaged mark (drawn on every wrapped copy); intact ones do not', () => {
+  const { state, tileIndex } = raid();
+  const intact = buildScene({ view: observe(state, 0, IMPROVEMENT_CONTENT) }).improvements.find(item => item.index === tileIndex);
+  expect(intact).toMatchObject({ kind: 'berryFarm' });
+  expect(intact).not.toHaveProperty('damaged');
+  state.expansion!.improvements!.tiles[tileIndex].damaged = true;
+  const scene = buildScene({ view: observe(state, 0, IMPROVEMENT_CONTENT) });
+  expect(scene.wrap).toBe(true);
+  expect(scene.improvements.find(item => item.index === tileIndex)).toMatchObject({ kind: 'berryFarm', damaged: true });
 });
 
 test('v22 remembered tiles carry no improvement snapshot', () => {

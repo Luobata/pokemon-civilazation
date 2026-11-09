@@ -170,7 +170,10 @@ function drawFeatures(d: Draw) {
   const { context, centers, radius, scene } = d;
   for (const item of scene.improvements) {
     if (!d.onscreen(centers[item.index])) continue;
-    drawIcon(context, item.kind, centers[item.index].x - radius * .5, centers[item.index].y + radius * .08, Math.max(10, radius * .58), item.dim ? .6 : 1);
+    const x = centers[item.index].x - radius * .5, y = centers[item.index].y + radius * .08, size = Math.max(10, radius * .58);
+    // v23: a pillaged improvement is drawn greyed with a red cross over it (on every wrapped copy, like the icon itself).
+    drawIcon(context, item.kind, x, y, size, item.damaged ? (item.dim ? .35 : .5) : item.dim ? .6 : 1);
+    if (item.damaged) drawIcon(context, 'damaged', x, y, size * .8, item.dim ? .6 : 1);
   }
   for (const mark of scene.faith) {
     if (!d.onscreen(centers[mark.index])) continue;

@@ -76,7 +76,8 @@ export type MapScene = {
   tiles: SceneTile[];
   coastEdges: SceneEdge[];
   territoryEdges: SceneEdge[];
-  improvements: { index: number; kind: ImprovementId; dim: boolean }[];
+  /** `damaged`: v23, the improvement was pillaged (as the viewer last saw it). */
+  improvements: { index: number; kind: ImprovementId; dim: boolean; damaged?: true }[];
   faith: { index: number; color: string; mark: string }[];
   badges: SceneBadge[];
   districts: SceneDistrict[];
@@ -147,7 +148,7 @@ export function buildScene(input: MapRenderInput): MapScene {
   if (expansion) {
     for (const tile of expansion.improvements?.tiles ?? []) {
       const index = indexOf(tile.position);
-      if (index !== null && IMPROVEMENTS[tile.kind]) improvements.push({ index, kind: tile.kind, dim: !visible.has(index) });
+      if (index !== null && IMPROVEMENTS[tile.kind]) improvements.push({ index, kind: tile.kind, dim: !visible.has(index), ...(tile.damaged ? { damaged: true as const } : {}) });
     }
     if (expansion.faith) for (const city of view.cities) {
       const founder = expansion.faith.cityFaith[city.id];

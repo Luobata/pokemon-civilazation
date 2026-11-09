@@ -45,5 +45,6 @@ test('v23: at war, a Pokémon on an enemy improvement pillages it with the bar (
   await page.locator('#map').focus();
   await page.keyboard.press('p');
   await expect.poll(async () => (await state(page)).expansion!.improvements!.tiles[tileIndex].damaged).toBe(true);
+  await page.screenshot({ path: `${reports}/improvements-v23-damaged.png` });
   expect(errors).toEqual([]);
 });
