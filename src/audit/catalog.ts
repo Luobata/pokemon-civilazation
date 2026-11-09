@@ -27,6 +27,17 @@ export const AUDIT_SYSTEMS: readonly AuditSystem[] = [
     actionTypes: ['SetResearch'],
   }),
   system({
+    id: 's-research-tasks', name: '图鉴调查任务（v24）', status: 'implemented',
+    summary: 'gameplay v24 D：每个物种一张调查卡，5 项——看到、己方宝可梦击倒 2 只、收服、看到进化（己方，或视野内别人的）、特别条件（恶/幽灵夜里击倒；水/火/岩石/地面/钢在雨/晴/沙暴里击倒；其他在栖息地群系收服）。2 项科研 +4，4 项对该物种捕捉率 +10，5 项金币 +15、世代分 +1（里程碑 researchComplete，每世代最多 3 次）。不计入图鉴胜利。读取 v≤23 存档时不启用。',
+    rules: ['账本 expansion.researchTasks 与图鉴胜利记录（world.players[].pokedex）分开；图鉴胜利判定不读它。',
+      '每条命令最后由 recordExpansion 调用 recordResearchTasks：只读本条命令的事件、图鉴“观察”与当时的视野；“看到”只来自本人的图鉴，别人的进化只在视野内才算。',
+      '捕捉率 +10 走 researchCaptureBonus / viewResearchCaptureBonus，权威掷骰与捕捉预览同一数值；ResearchTaskCompleted 只发给本人，玩家视图只含自己的调查卡。',
+      '栖息地判定是 inResearchHabitat 一个函数（目前按群系），地形 A3 合入后只需细化它。'],
+    checks: ['v22、v23 固定 48 局改动前后逐文件一致；v24 两次运行一致。', 'tests/core/research-tasks.test.ts（五项判定、奖励、世代分上限、私有、预览 = 实际捕捉）；tests/browser/research-tasks.spec.ts。'],
+    sources: ['src/content/research-tasks.ts', 'src/core/research-tasks.ts', 'src/ai/research-plan.ts', 'src/browser/research-card.ts', 'docs/design/world-v24.md'],
+    actionTypes: ['Attack', 'Capture', 'Evolve', 'UseEvolutionStone'],
+  }),
+  system({
     id: 's-improvements-v23', name: '资源改良、掠夺与修复、工匠随行（v23）', status: 'implemented',
     summary: 'gameplay v23：树果丛 / 进化石矿脉 / 稀有树果只能建树果林 / 进化石矿场 / 种植园；新增牧场、甜蜜蜂巢、珍珠贝场（各需一项科技）；自己领地内和已开发的资源不能采集；交战时可掠夺敌方改良（损坏，一次性奖励），工匠修复不耗次数；工匠可带随行宝可梦，按第一属性获得记在地块上的特长。读取 v≤22 存档时不启用。',
     rules: ['improvementBlocker / harvestBlocker / pillageBlocker / repairBlocker 由权威、界面、AI 共用。',

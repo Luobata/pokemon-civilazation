@@ -37,6 +37,7 @@ import type { BiomeId } from '../content/rules.ts';
 import { SPECIES_NAMES } from '../content/species.ts';
 import type { SpeciesDefinition, SpeciesId, TypeId } from '../content/species.ts';
 import { TYPE_NAMES } from '../content/type-names.ts';
+import { RESEARCH_TASK_RULES_V24, researchSpecialLabel } from '../content/research-tasks.ts';
 import { contentFor, WORLD_CONTENT } from '../content/units.ts';
 import { SPAWN_WEIGHTS } from '../content/wild.ts';
 import { WORLD_DEFINITIONS } from '../content/world-systems.ts';
@@ -416,4 +417,20 @@ export function itemBallTable(): string {
 export function victoryTargetTable(): string {
   const rows = [100, 200, 300].map(roundLimit => { const v = victoryTargets({ gameplayVersion: 21, roundLimit }); return [`${roundLimit} 轮`, String(v.contestMinimum), `${v.faithMinimumCities} 座`, `${v.championshipTitles} 次`, `+${v.pokedexBonus} 种`]; });
   return table(['轮上限', '华丽大赛魅力', '信仰：有主城市至少', '冠军赛', '图鉴目标'], rows, [1, 2, 3, 4]);
+}
+
+/** v24 D: research cards — task 5 by first type, and the rewards (src/content/research-tasks.ts). */
+export function researchSpecialTable(): string {
+  const types = TYPE_ORDER;
+  const groups = new Map<string, TypeId[]>();
+  for (const type of types) groups.set(researchSpecialLabel(type), [...(groups.get(researchSpecialLabel(type)) ?? []), type]);
+  return table(['第 5 项（特别条件）', '第一属性'], [...groups].map(([label, list]) => [label, list.map(type => TYPE_NAMES[type]).join('、')]));
+}
+export function researchRewardTable(): string {
+  const R = RESEARCH_TASK_RULES_V24;
+  return table(['完成项数', '奖励（每张卡一次）'], [
+    [String(R.notesAt), `调查笔记：科研 +${R.notesResearch}`],
+    [String(R.captureAt), `你对这个物种的捕捉率 +${R.captureBonus}（捕捉预览与实际一致）`],
+    [String(R.completeAt), `调查完成：金币 +${R.completeGold}、世代分 +${R.completeEraScore}（每世代最多 ${R.eraScoreCapPerEra} 次）`],
+  ], [0]);
 }

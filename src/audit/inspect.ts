@@ -1,4 +1,5 @@
 import { gameVersions } from '../core/versions.ts';
+import { tasksDone } from '../core/research-tasks.ts';
 import { cityDistrictEffects, districtProjects } from '../core/districts.ts';
 import { slotCounts } from '../core/policies.ts';
 import { FLANK_MAX, FLANK_PER_UNIT, usesTactics } from '../core/tactics.ts';
@@ -705,6 +706,13 @@ export function inspectSystem(systemId: string, state: GameState): AuditSystemIn
     if (!opening) return { metrics: [metric('当前规则', '未启用（需 v21）')], data: {} };
     return { metrics: [metric('当前规则', '开局节奏 v21'), metric('地图上的道具球', Object.keys(opening.itemBalls).length),
       ...Object.entries(opening.objectives).map(([id, done]) => metric(`玩家 ${id} 开局目标`, `${done.length}/8`))], data: { itemBalls: opening.itemBalls, seenByPlayer: opening.seen } };
+  }
+  if (system.id === 's-research-tasks') {
+    const book = state.expansion?.researchTasks;
+    if (!book) return { metrics: [metric('当前规则', '未启用（需 v24）')], data: {} };
+    const count = (cards: object, at: number) => Object.values(cards).filter((card: { tasks: number }) => tasksDone(card.tasks) >= at).length;
+    return { metrics: [metric('当前规则', '图鉴调查任务 v24'), ...Object.entries(book).map(([id, cards]) =>
+      metric(`玩家 ${id} 调查卡`, `${Object.keys(cards).length} 种 · 2 项+ ${count(cards, 2)} · 4 项+ ${count(cards, 4)} · 完成 ${count(cards, 5)}`))], data: { researchTasks: book } };
   }
   if (system.id === 's-improvements-v23') {
     const on = (state.setup.gameplayVersion ?? 0) >= 23, tiles = Object.values(state.expansion?.improvements?.tiles ?? {});
