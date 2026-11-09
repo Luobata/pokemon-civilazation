@@ -261,7 +261,8 @@ export function runJobs(jobs: readonly BalanceJob[], workers: number, onDone?: (
           resolvePromise(results);
         } else dispatch(child);
       });
-      child.on('exit', code => { if (code !== 0 && !failed && done < jobs.length) fail(new Error(`worker exited with code ${code}`)); });
+      // Workers only leave after the final `exit` message, so any earlier exit (even code 0) loses a job.
+      child.on('exit', (code, signal) => { if (!failed && done < jobs.length) fail(new Error(`worker exited early (code ${code}, signal ${signal})`)); });
       child.on('error', fail);
       dispatch(child);
     }

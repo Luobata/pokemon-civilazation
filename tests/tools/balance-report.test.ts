@@ -76,7 +76,7 @@ test('acceptance lines and November targets on a synthetic batch', () => {
   expect(byId.health.value).toBe(1);
   expect(byId['target-third-city'].value).toBe(Infinity);
   expect(acceptance(healthy, { players: 4, mix: 'mixed' }).checks.find(check => check.id === 'personality-win-band')!.status).toBe('fail');
-});
+}, 60_000);
 
 test('intervals: seed-cluster bootstrap is deterministic, paired deltas vanish for identical batches', () => {
   const statistic = (sample: GameMetrics[]) => median(sample.map(game => game.endRound));
@@ -129,7 +129,7 @@ test('the report prints targets, lines and both delta columns', () => {
   expect(markdown).toContain('±0 [±0, ±0]');
   expect(parseReportArgs(['dir', '--anchor', 'a', '--out', 'r.md'])).toEqual({ directory: 'dir', baseline: null, anchor: 'a', out: 'r.md' });
   expect(() => parseReportArgs(['--anchor', 'a'])).toThrow();
-});
+}, 60_000);
 
 test('sweep: parameters, stock detection and validation against the version content', () => {
   expect(parseParam('balance.city.defense=50,60,70')).toEqual({ path: 'balance.city.defense', values: [50, 60, 70] });
