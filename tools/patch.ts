@@ -16,14 +16,16 @@ const species = { ...unit, maxHp: [4, 1000], attack: [1, 1000], defense: [1, 100
 const keyed = <T>(values: Record<string, T>, schema: (value: T) => Schema): Schema =>
   Object.fromEntries(Object.entries(values).map(([key, value]) => [key, schema(value)]));
 // Only these listed leaves are writable. Identity, unlocks and rule structure are not patches.
-export const PATCH_SCHEMA: Schema = {
-  species: keyed(CONTENT.species, value => ({ ...species, ...(value.evolution ? { evolution: { xp: amount, gold: amount } } : {}) })),
+// The keyed tables follow the content being patched (`CONTENT` by default; a gameplay version's table via `parsePatch(value, base)`).
+export function patchSchema(base: Content): Schema {
+  return {
+  species: keyed(base.species, value => ({ ...species, ...(value.evolution ? { evolution: { xp: amount, gold: amount } } : {}) })),
   settler: unit,
-  buildings: keyed(CONTENT.buildings, value => ({ ...(value.cost === null ? {} : { cost }), yields, trainedXp: amount })),
-  techs: keyed(CONTENT.techs, () => ({ cost })),
-  balls: keyed(CONTENT.balls, () => ({ goldCost: cost })),
-  biomes: keyed(CONTENT.biomes, () => yields),
-  moveCosts: keyed(CONTENT.moveCosts, () => [1, 12]),
+  buildings: keyed(base.buildings, value => ({ ...(value.cost === null ? {} : { cost }), yields, trainedXp: amount })),
+  techs: keyed(base.techs, () => ({ cost })),
+  balls: keyed(base.balls, () => ({ goldCost: cost })),
+  biomes: keyed(base.biomes, () => yields),
+  moveCosts: keyed(base.moveCosts, () => [1, 12]),
   balance: {
     city: { baseHp: [50, 1000], capturedHp: [1, 1000], buildingHp: [0, 1000], defense: [1, 1000], counterAttack: [0, 1000], squirtleCounterAttack: [0, 1000] },
     effects: { siegeMultiplier: [0, 5000], leagueScoreMultiplier: [0, 5000], meteorologyResearch: amount },
@@ -38,7 +40,9 @@ export const PATCH_SCHEMA: Schema = {
     expansionMaySiege: 'boolean', expansionSiegeStrength: [0, 10_000], expansionBorderDistance: [1, 24],
     conservativeSettlerInterval: [1, 300], peaceCitiesLost: [1, 100], expansionCaptureHpPercent: [1, 100],
   },
-};
+  };
+}
+export const PATCH_SCHEMA: Schema = patchSchema(CONTENT);
 function validate(value: unknown, schema: Schema, path: string): void {
   if (schema === 'boolean') {
     if (typeof value !== 'boolean') throw new Error(`${path}: expected boolean`);
@@ -63,10 +67,11 @@ function apply(target: object, patch: Record<string, unknown>): void {
     else apply(record[key] as object, value as Record<string, unknown>);
   }
 }
-export function parsePatch(value: unknown): Experiment {
-  validate(value, PATCH_SCHEMA, 'patch');
+/** Validates and applies a patch to a copy of `base` (default: the legacy `CONTENT`; pass `contentFor(setup)` for a gameplay version). */
+export function parsePatch(value: unknown, base: Content = CONTENT): Experiment {
+  validate(value, base === CONTENT ? PATCH_SCHEMA : patchSchema(base), 'patch');
   const patch = JSON.parse(JSON.stringify(value)) as Record<string, JsonValue>;
-  const content = structuredClone(CONTENT), ai = { ...AI_THRESHOLDS };
+  const content = structuredClone(base), ai = { ...AI_THRESHOLDS };
   apply({ ...content, settler: content.units.settler, ai }, patch);
   // A building-free city is the minimum maximum HP; buildingHp is nonnegative.
   if (content.balance.city.capturedHp > content.balance.city.baseHp) {

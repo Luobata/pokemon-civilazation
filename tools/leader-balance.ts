@@ -17,6 +17,7 @@ import type { Content } from '../src/content/units.ts';
 import { CLASSIC_LEADER_IDS, LEADER_IDS } from '../src/content/leaders.ts';
 import type { LeaderId } from '../src/content/leaders.ts';
 import { AI_THRESHOLDS } from '../src/ai/thresholds.ts';
+import type { AiThresholds } from '../src/ai/thresholds.ts';
 import { RULE_QUERIES } from '../src/ai/query.ts';
 import { rememberCityRejection } from '../src/ai/memory.ts';
 import type { RejectedCitySite } from '../src/ai/memory.ts';
@@ -269,8 +270,10 @@ function finalRanking(state: GameState, content: Content = CONTENT): Score[] {
     .map(id => scorePlayer(state, id, content)).sort((a, b) => compareScores(a, b) || a.playerId - b.playerId);
 }
 
-export function simulateLeaderCase(match: LeaderBalanceCase, onState?: (state: GameState) => void): LeaderGameResult {
-  const content = contentFor(match.setup);
+/** Optional rule/AI overrides for experiments (e.g. `parsePatch(patch, contentFor(match.setup))`); omitted = the stock rules. */
+export type LeaderCaseOverrides = { content?: Content; ai?: AiThresholds };
+export function simulateLeaderCase(match: LeaderBalanceCase, onState?: (state: GameState) => void, overrides: LeaderCaseOverrides = {}): LeaderGameResult {
+  const content = overrides.content ?? contentFor(match.setup), ai = overrides.ai ?? AI_THRESHOLDS;
   let state: GameState;
   try {
     state = createGame(match.setup, content);
@@ -309,7 +312,7 @@ export function simulateLeaderCase(match: LeaderBalanceCase, onState?: (state: G
     while (!state.outcome && state.commandSeq < 100_000) {
       onState?.(state);
       const view = observe(state, state.activePlayerId, content);
-      const command = planNext(view, { ...RULE_QUERIES, content, ai: AI_THRESHOLDS }, memory);
+      const command = planNext(view, { ...RULE_QUERIES, content, ai }, memory);
       const result = step(state, command, content);
       if (result.ok) {
         collectTelemetry(telemetry, state, result.state, command, result.events, content);
