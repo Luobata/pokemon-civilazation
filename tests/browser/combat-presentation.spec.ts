@@ -12,7 +12,9 @@ import { TYPE_COLORS } from '../../src/content/type-colors.ts';
 import { ATTACK_FAMILIES } from '../../src/browser/audio/sfx.ts';
 
 // Combat presentation (docs/design/handoff-combat-presentation.md): real v22 games on the wrapping map, real input.
-const shots = 'docs/design/review-2026-11/shots-combat';
+// Effect screenshots go to the usual test output; the reference copies in docs/design/review-2026-11/shots-combat/
+// were taken this way and are not overwritten by test runs.
+const shots = `${process.env.E2E_SCREENSHOT_DIR ?? 'test-results/screenshots'}/combat`;
 mkdirSync(shots, { recursive: true });
 // DPR 2, like the performance budget (and crisp effect screenshots).
 test.use({ deviceScaleFactor: 2 });
@@ -342,7 +344,7 @@ async function prepareShot(page: Page, hex: Hex) {
 /**
  * Waits, polling every animation frame, for a moment of the animation (an effect at least `progress` through its
  * life, or a unit's afterimage below some opacity), and in that same frame copies the map canvas crop into
- * `docs/.../shots-combat/<name>.png`: the real renderer's output at exactly that moment, whatever the page's latency.
+ * `<screenshot dir>/combat/<name>.png`: the real renderer's output at exactly that moment, whatever the page's latency.
  */
 async function captureMoment(page: Page, moment: Moment, clip: Awaited<ReturnType<typeof prepareShot>>, name: string) {
   await page.waitForFunction(({ moment, clip }) => {
