@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs';
 import { AI_THRESHOLDS } from '../../src/ai/thresholds.ts';
 import { expect, test } from 'vitest';
 import { parsePatch } from '../../tools/patch.ts';
-import { CONTENT, unitDefinition } from '../../src/content/units.ts';
+import { CONTENT, contentFor, unitDefinition } from '../../src/content/units.ts';
+import { LATEST_GAMEPLAY_VERSION } from '../../src/content/eras.ts';
 import { createGame } from '../../src/core/game.ts';
 import { createCity, maxCityHp, tileYield } from '../../src/core/city.ts';
 import { cityCounterDamage, cityDamage } from '../../src/core/combat-query.ts';
@@ -135,4 +136,21 @@ test('D46 production defaults equal the complete approved M2 configuration', () 
   const m2 = parsePatch(JSON.parse(readFileSync(new URL('../../tools/patches/b7-m2.json', import.meta.url), 'utf8')));
   expect(CONTENT).toEqual(m2.content);
   expect(AI_THRESHOLDS).toEqual(m2.ai);
+});
+
+test('a stock-valued patch on version content changes nothing; a real one is applied', () => {
+  const base = contentFor({ expansionVersion: 1, gameplayVersion: LATEST_GAMEPLAY_VERSION });
+  const same = parsePatch({ balance: { city: { defense: base.balance.city.defense } } }, base);
+  expect(JSON.stringify(same.content)).toBe(JSON.stringify(base));
+  const stronger = parsePatch({ balance: { city: { defense: 90 } }, ai: { aggressiveWarStrength: 1500 } }, base);
+  expect(stronger.content.balance.city.defense).toBe(90);
+  expect(stronger.content.version).toBe(base.version);
+  expect(stronger.ai.aggressiveWarStrength).toBe(1500);
+  expect(base.balance.city.defense).toBe(50);
+  // Version tables are validated against the version's own species / techs, not the legacy ones.
+  const rosterOnly = Object.keys(base.species).find(id => !Object.hasOwn(CONTENT.species, id))!;
+  expect(parsePatch({ species: { [rosterOnly]: { attack: 60 } } }, base).content.units[rosterOnly]).toMatchObject({ attack: 60 });
+  expect(() => parsePatch({ species: { [rosterOnly]: { attack: 60 } } })).toThrow(`patch.species.${rosterOnly}`);
+  expect(() => parsePatch({ techs: { [Object.keys(base.techs)[0]]: { cost: 20 } } }, base)).not.toThrow();
+  expect(() => parsePatch({ balance: { city: { defense: 0 } } }, base)).toThrow('patch.balance.city.defense');
 });
