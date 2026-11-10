@@ -22,6 +22,7 @@ import type { BerryId, StoneId, WorldDefinitions, WorldSystemContent } from '../
 import type { Hex } from './hex.ts';
 import type { MapShape } from './hex.ts';
 import { workRadius } from './city.ts';
+import { isEmbarked } from './terrain.ts';
 
 /**
  * Gameplay v23 harvesting (docs/design/improvements-v23.md §5), shared by authority, UI and AI:
@@ -733,7 +734,8 @@ export function planWorldAction(view: PlayerView, content: WorldSystemContent = 
   const world = view.expansion?.world;
   if (!world?.player) return null;
   const playerState = world.player;
-  const ownUnits = view.units.filter(unit => unit.ownerId === view.playerId && unit.kind === 'pokemon' && unit.actionLeft === 1);
+  // v24 A2: a unit carried on water cannot clear nests or harvest.
+  const ownUnits = view.units.filter(unit => unit.ownerId === view.playerId && unit.kind === 'pokemon' && unit.actionLeft === 1 && !isEmbarked(unit, view.map, content.base));
   for (const nest of world.nests) {
     const unit = ownUnits.filter(candidate => candidate.kind === 'pokemon')
       .find(candidate => hexDistance(candidate.position, nest.position, view.map) <= content.base.species[candidate.speciesId].range);

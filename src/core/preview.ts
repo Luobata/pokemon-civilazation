@@ -1,6 +1,6 @@
 import { wallBonus } from './opening.ts';
 import { viewResearchCaptureBonus } from './research-tasks.ts';
-import { cityCounterTerrain, cityStrikeTerrain, unitStrikeTerrain } from './terrain.ts';
+import { cityCounterTerrain, cityStrikeTerrain, isEmbarked, unitStrikeTerrain } from './terrain.ts';
 
 /** Same test as the authority (owner's headquarters is this city): a captured former capital still names its fallen founder in `headquartersOf`. */
 const isOwnCapital = (city: { ownerId: number | null; headquartersOf?: number | null } | undefined) => city?.headquartersOf != null && city.headquartersOf === city.ownerId;
@@ -35,6 +35,7 @@ export function previewAttack(view: PlayerView, unitId: number, target: CombatTa
   const unit = view.units.find(unit => unit.id === unitId && unit.ownerId === view.playerId);
   const defender = target.kind === 'unit' ? view.units.find(unit => unit.id === target.id) : view.cities.find(city => city.id === target.id);
   if (!unit || unit.kind !== 'pokemon' || !unit.actionLeft || view.outcome || view.activePlayerId !== view.playerId || !defender) return { ok: false, reason: 'attack-unavailable' };
+  if (isEmbarked(unit, view.map, content)) return { ok: false, reason: 'embarked' };
   if (defender.ownerId === view.playerId || (defender.ownerId !== null && !view.diplomacy.some(pair => pair.status === 'war'
     && pair.a === Math.min(view.playerId, defender.ownerId!) && pair.b === Math.max(view.playerId, defender.ownerId!)))) return { ok: false, reason: 'at-peace' };
   const distance = hexDistance(unit.position, defender.position, view.map), range = content.species[unit.speciesId].range;
@@ -106,7 +107,7 @@ export function previewCapture(view: PlayerView, unitId: number, targetUnitId: n
   if (!unit || unit.kind !== 'pokemon' || !unit.actionLeft || view.outcome || view.activePlayerId !== view.playerId || !target || target.kind !== 'pokemon'
     || target.ownerId !== null || hexDistance(unit.position, target.position, view.map) !== 1 || !Object.hasOwn(content.balls, ballId)
     || !player.research.unlockedIds.includes('domestication') || !player.research.unlockedIds.includes(content.balls[ballId].requiredTech)
-    || player.ballInventory[ballId] < 1) return { ok: false, reason: 'capture-unavailable' };
+    || player.ballInventory[ballId] < 1 || isEmbarked(unit, view.map, content)) return { ok: false, reason: 'capture-unavailable' };
   const definition = content.species[target.speciesId];
   return { ok: true, probability: Math.min(100, captureProbability(definition.maxHp, target.hp, ballId === 'greatBall' ? 1500 : 1000,
     player.research.unlockedIds.includes('fieldObservation'), definition.rare) + viewPolicyEffects(view).captureBonus + leaderEffects(player.leaderId).captureBonus

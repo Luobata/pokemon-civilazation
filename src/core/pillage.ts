@@ -1,3 +1,5 @@
+import { contentForView } from '../content/units.ts';
+import { isEmbarked } from './terrain.ts';
 // Gameplay v23 B (docs/design/improvements-v23.md §3): pillaging enemy improvements and repairing your own.
 import { IMPROVEMENT_RULES_V23, IMPROVEMENTS, PILLAGE_REWARD } from '../content/improvements.ts';
 import type { ImprovementId } from '../content/improvements.ts';
@@ -92,6 +94,7 @@ export function applyPillageAction(state: GameState, actorId: number, action: Pi
 export function viewPillage(view: PlayerView, unitId: number): { tileIndex: number; kind: ImprovementId; reward: PillageReward } | null {
   if (!usesImprovementsV23(view) || !view.expansion?.improvements) return null;
   const unit = view.units.find(item => item.id === unitId);
+  if (unit && isEmbarked(unit, view.map, contentForView(view))) return null; // v24 A2: not while carried on water
   const tiles = new Map(view.expansion.improvements.tiles.map(tile => [tile.tileIndex, tile]));
   const cities = [...view.economy.cities, ...view.cities.filter(city => city.ownerId !== view.playerId).map(city => ({ ...city, population: 1 }))];
   if (!unit || pillageBlocker({ map: view.map, cities, relations: view.diplomacy, actorId: view.playerId, unit, improvementAt: index => tiles.get(index) })) return null;
@@ -103,7 +106,7 @@ export function viewPillage(view: PlayerView, unitId: number): { tileIndex: numb
 export function viewRepairs(view: PlayerView, unitId: number, content: Content): number[] {
   if (!usesImprovementsV23(view) || !view.expansion?.improvements) return [];
   const unit = view.units.find(item => item.id === unitId && item.ownerId === view.playerId);
-  if (!unit || unit.kind !== 'logistics' || unit.role !== 'builder' || !unit.actionLeft) return [];
+  if (!unit || unit.kind !== 'logistics' || unit.role !== 'builder' || !unit.actionLeft || isEmbarked(unit, view.map, content)) return [];
   const tiles = new Map(view.expansion.improvements.tiles.map(tile => [tile.tileIndex, tile]));
   return view.expansion.improvements.tiles.filter(tile => tile.damaged).map(tile => tile.tileIndex).filter(tileIndex => repairBlocker({ map: view.map, cities: view.economy.cities,
     actorId: view.playerId, unitPosition: unit.position, reach: oceanReach(builderCrew(unit, content, view)), tileIndex, improvementAt: index => tiles.get(index) }) === null);

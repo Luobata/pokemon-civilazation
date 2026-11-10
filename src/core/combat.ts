@@ -28,7 +28,7 @@ import { promotionCityMultiplier, promotionStrikeMultiplier, scalePermille } fro
 import { registerSpecies } from './unit.ts';
 import { visibleTiles } from './vision.ts';
 import { researchCaptureBonus } from './research-tasks.ts';
-import { cityCounterTerrain, cityStrikeTerrain, unitStrikeTerrain } from './terrain.ts';
+import { cityCounterTerrain, cityStrikeTerrain, isEmbarked, unitStrikeTerrain } from './terrain.ts';
 
 type Rejection = Extract<StepResult, { ok: false }>['reason'];
 const hasTech = (state: GameState, owner: number | null, tech: TechId) => owner !== null && state.players[owner].research.unlockedIds.includes(tech);
@@ -53,6 +53,8 @@ export function validateCombatAction(state: GameState, actor: number, action: Co
   const target = action.type === 'Capture' ? state.units[action.targetUnitId]
     : action.target.kind === 'unit' ? state.units[action.target.id] : state.cities[action.target.id];
   const unavailable = action.type === 'Capture' ? 'capture-unavailable' : 'attack-unavailable';
+  // v24 A2: a land unit carried on water cannot attack or capture.
+  if (isEmbarked(unit, state.map, content)) return unavailable;
   if (!target || ('location' in target && !isMapUnit(target)) || !target.position
     || !visibleTiles(state, actor, content).has(hexToIndex(target.position, state.map)!)) return unavailable;
   const distance = hexDistance(unit.position, target.position, state.map);

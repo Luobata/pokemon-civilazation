@@ -1,3 +1,4 @@
+import { isEmbarked } from './terrain.ts';
 import { districtOccupiedTiles } from './districts.ts';
 import { leaderEffects } from '../content/leaders.ts';
 import { CREW_SPECIALTIES, IMPROVEMENT_IDS, IMPROVEMENT_IDS_V23, IMPROVEMENT_RULES_V23, IMPROVEMENT_WORK, IMPROVEMENTS, crewSpecialtyFor, improvementIdsFor } from '../content/improvements.ts';
@@ -282,7 +283,7 @@ export function improvementOptions(view: PlayerView, unitId: number, content: Co
   const unit = view.units.find(item => item.id === unitId && item.ownerId === view.playerId);
   const improvements = view.expansion?.improvements;
   const worker = usesBuilders(view) ? unit?.kind === 'logistics' && unit.role === 'builder' : unit?.kind === 'pokemon';
-  if (!unit || !worker || !unit.actionLeft || !improvements) return [];
+  if (!unit || !worker || !unit.actionLeft || !improvements || isEmbarked(unit, view.map, content)) return [];
   const improved = new Set([...improvements.tiles.map(tile => tile.tileIndex),
     ...(view.expansion?.districts?.tiles.map(tile => tile.tileIndex) ?? []), ...(view.expansion?.districts?.projects.map(tile => tile.tileIndex) ?? []),
     ...(view.expansion?.districts?.constructionSites?.filter(site => site.category === 'district').map(site => site.tileIndex) ?? [])]), visible = new Set(view.visibleTileIds);

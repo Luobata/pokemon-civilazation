@@ -43,7 +43,7 @@ import { planDedicationAction } from './dedication-plan.ts';
 import { gymMoveTargets, planGymAction } from './gym-plan.ts';
 import { rivalThreatenedCityIds } from './rival-plan.ts';
 import { researchCaptureScore } from './research-plan.ts';
-import { travelCloser, travelDistance } from './travel.ts';
+import { embarkResearchBonus, isBoarding, nearestTravel, safeToBoard, travelCloser, travelDistance } from './travel.ts';
 import { featureVision } from '../core/terrain.ts';
 import type { Goal } from './strategies.ts';
 type Candidate = { action: Command['action']; goal: Goal; benefit: number; ownId: number; targetId: number };
@@ -193,7 +193,7 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
   if (player.research.techId === null) for (const [i, techId] of (Object.keys(content.techs) as TechId[]).entries()) {
     const unlocksLeaderUnit = view.expansion && player.leaderId && techId === 'training' && view.expansion.leaders.recruited === 0;
     if (query.research(player, techId, content)) add({ type: 'SetResearch', techId }, 'research', unlocksLeaderUnit ? 1000
-      : content.techTree ? treeResearchBenefit(view, techId, content) : 100 - techOf(content, techId).cost + leaderResearchBonus(view, techId), 0, i);
+      : content.techTree ? treeResearchBenefit(view, techId, content) + embarkResearchBonus(view, techId, content, citySite) : 100 - techOf(content, techId).cost + leaderResearchBonus(view, techId), 0, i);
   }
   // v15: one legendary wonder at a time, in the most productive eligible city that is not threatened.
   const { cityId: wonderCity, legendId: wonder } = planLegendWonder(view, threatened);
@@ -274,37 +274,42 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
     const paths = query.paths(view, unit.id, content);
     if (workers.has(unit.id)) for (const suggestion of improvementSuggestions(view, unit, content, paths)) add(suggestion.action, 'economy', suggestion.benefit, unit.id);
     const sites = unit.kind === 'logistics' && unit.role === 'settler' ? view.map.tiles.flatMap((_, index) => citySite(indexToHex(index, view.map)) ? [indexToHex(index, view.map)] : []) : [];
-    const targetHq = eraCampaign?.target ?? [...objectives.hqs].sort((a, b) => hexDistance(unit.position, a.position, view.map) - hexDistance(unit.position, b.position, view.map) || a.id - b.id)[0];
+    // v24 A2: progress is measured on the unit's travel field (water, peaks, hills); before v24 it is the straight hex distance.
+    const far = (from: MapUnit['position'], target: MapUnit['position']) => travelDistance(view, unit, from, target);
+    const targetHq = eraCampaign?.target ?? [...objectives.hqs].sort((a, b) => far(unit.position, a.position) - far(unit.position, b.position) || a.id - b.id)[0];
     const seek = unit.kind === 'pokemon' && objectives.searching ? seekUnknownHeadquarters(view, unit, paths) : null;
     for (const [indexText, path] of Object.entries(paths)) {
       // A visible route cannot hit a hidden first-step blocker and be rejected.
       if (!path.every(position => visible.has(hexToIndex(position, view.map)!))) continue;
       const index = Number(indexText), to = indexToHex(index, view.map), action = { type: 'Move' as const, unitId: unit.id, to };
-      if (trader.destination && hexDistance(to, trader.destination, view.map) < hexDistance(unit.position, trader.destination, view.map)) add(action, 'economy', 110 - hexDistance(to, trader.destination, view.map), unit.id, index);
+      // v24 A2: board only when it is safe (no sea threat nearby, escorted), and never just to look around.
+      const boarding = isBoarding(view, unit, to, content);
+      if (boarding && !safeToBoard(view, unit, to, content)) continue;
+      if (trader.destination && far(to, trader.destination) < far(unit.position, trader.destination)) add(action, 'economy', 110 - far(to, trader.destination), unit.id, index);
       if (unit.kind === 'logistics' && sites.length) {
-        const before = Math.min(...sites.map(site => hexDistance(unit.position, site, view.map))), after = Math.min(...sites.map(site => hexDistance(to, site, view.map)));
+        const before = nearestTravel(view, unit, unit.position, sites), after = nearestTravel(view, unit, to, sites);
         const ring = view.map.tiles.filter((_, tile) => hexDistance(indexToHex(tile, view.map), to, view.map) <= 2);
         const ringTiles = new Set(view.map.tiles.flatMap((_, tile) => hexDistance(indexToHex(tile, view.map), to, view.map) <= 2 ? [tile] : []));
         if (after < before) add(action, 'found', 100 - after + (citySite(to) ? siteEssenceBonus(view, content, ring) + siteRareBerryBonus(view, ringTiles) : 0), unit.id, index);
-      } else if ((unit.kind === 'pokemon' || !usesBuilders(view)) && targetHq && hexDistance(to, targetHq.position, view.map) < hexDistance(unit.position, targetHq.position, view.map)) {
-        add(action, 'military', 100 - hexDistance(to, targetHq.position, view.map), unit.id, index);
+      } else if ((unit.kind === 'pokemon' || !usesBuilders(view)) && targetHq && far(to, targetHq.position) < far(unit.position, targetHq.position)) {
+        add(action, 'military', 100 - far(to, targetHq.position), unit.id, index);
       }
       const trace = traceTargets.get(unit.id);
-      if (trace && hexDistance(to, trace, view.map) < hexDistance(unit.position, trace, view.map)) add(action, 'explore', 120 - hexDistance(to, trace, view.map), unit.id, index);
+      if (trace && far(to, trace) < far(unit.position, trace)) add(action, 'explore', 120 - far(to, trace), unit.id, index);
       const ball = ballTargets.get(unit.id);
-      if (ball && hexDistance(to, ball, view.map) < hexDistance(unit.position, ball, view.map)) add(action, 'explore', 125 - hexDistance(to, ball, view.map), unit.id, index);
+      if (ball && far(to, ball) < far(unit.position, ball)) add(action, 'explore', 125 - far(to, ball), unit.id, index);
       const gym = gymTargets.get(unit.id);
       if (gym && travelCloser(view, unit, to, gym)) add(action, 'military', 90 - travelDistance(view, unit, to, gym), unit.id, index);
-      if (seek && hexDistance(to, seek, view.map) < hexDistance(unit.position, seek, view.map)) {
-        add(action, 'military', 100 - hexDistance(to, seek, view.map), unit.id, index);
+      if (seek && far(to, seek) < far(unit.position, seek)) {
+        add(action, 'military', 100 - far(to, seek), unit.id, index);
       }
       if (unit.kind === 'pokemon' && threatened.size && !atWar) {
         const city = view.economy.cities.filter(item => threatened.has(item.id)).sort((a, b) => hexDistance(unit.position, a.position, view.map) - hexDistance(unit.position, b.position, view.map) || a.id - b.id)[0];
         const garrisoned = city && view.units.some(other => other.ownerId === actorId && other.id !== unit.id && hexDistance(other.position, city.position, view.map) <= 1);
-        if (city && !garrisoned && hexDistance(to, city.position, view.map) < hexDistance(unit.position, city.position, view.map)) add(action, 'economy', 90 - hexDistance(to, city.position, view.map), unit.id, index);
+        if (city && !garrisoned && far(to, city.position) < far(unit.position, city.position)) add(action, 'economy', 90 - far(to, city.position), unit.id, index);
       }
       if (sanctuary && sanctuaryTeam.includes(unit.id)) {
-        const before = hexDistance(unit.position, sanctuary.position, view.map), after = hexDistance(to, sanctuary.position, view.map);
+        const before = far(unit.position, sanctuary.position), after = far(to, sanctuary.position);
         const holdsSite = combat.some(other => other.id !== unit.id && hexDistance(other.position, sanctuary.position, view.map) === 0);
         if (after < before && (!holdsSite || before > 2)) add(action, 'military', 90 - after, unit.id, index);
       }
@@ -312,18 +317,18 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
         const war = view.diplomacy.some(pair => pair.status === 'war' && ((pair.a === actorId && pair.b === target.ownerId) || (pair.b === actorId && pair.a === target.ownerId)));
         const defensive = cities.some(city => hexDistance(city.position, target.position, view.map) <= workRadius(city));
         if (war && (!strategy.defendTerritoryOnly || defensive || canSiege(view, target.ownerId, ai))
-          && hexDistance(to, target.position, view.map) < hexDistance(unit.position, target.position, view.map)) add(action, 'military', 150 - hexDistance(to, target.position, view.map)
+          && far(to, target.position) < far(unit.position, target.position)) add(action, 'military', 150 - far(to, target.position)
             + (usesTactics(view) && hexDistance(to, target.position, view.map) === 1 ? 5 * units.filter(own => own.id !== unit.id && hexDistance(own.position, target.position, view.map) === 1).length : 0), unit.id, index);
       }
       if (unit.kind === 'pokemon') for (const target of wild) {
         if (!canCaptureByPersonality(view, target, query) || !player.research.unlockedIds.includes('domestication') || player.ballInventory.pokeBall + player.ballInventory.greatBall === 0) continue;
-        const distance = hexDistance(to, target.position, view.map);
-        if (distance < hexDistance(unit.position, target.position, view.map)) add(action, 'capture', 10 - distance
+        const distance = far(to, target.position);
+        if (distance < far(unit.position, target.position)) add(action, 'capture', 10 - distance
           + captureBonus(target) + siegeCaptureBonus(target) + (target.kind === 'pokemon' ? roleCaptureBonus(view, target.speciesId, content) : 0), unit.id, index);
       }
       const radius = unitDefinition(unit, content).vision + (view.map.tiles[index] === 'mountain' ? 1 : 0) + featureVision(view.map, index);
       const gain = view.map.tiles.reduce((sum, _, tile) => sum + (!explored.has(tile) && hexDistance(to, indexToHex(tile, view.map), view.map) <= radius ? 1 : 0), 0);
-      if (gain > 0) add(action, 'explore', gain, unit.id, index);
+      if (gain > 0 && !boarding) add(action, 'explore', gain, unit.id, index);
     }
   }
   add({ type: 'EndTurn' }, 'end');
