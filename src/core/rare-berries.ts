@@ -1,3 +1,4 @@
+import { worldSiteAllowed } from './terrain.ts';
 import { RARE_BERRIES, RARE_BERRY_IDS, RARE_BERRY_RULES } from '../content/rare-berries.ts';
 import type { RareBerryId } from '../content/rare-berries.ts';
 import { gameplayAtLeast } from '../content/eras.ts';
@@ -27,6 +28,7 @@ export function initializeRareBerries(state: GameState): void {
   for (const berry of RARE_BERRY_IDS) {
     const biome = RARE_BERRIES[berry].biome;
     const candidates = state.map.tiles.flatMap((tile, index) => tile === biome && !taken.has(index) && edgeDistance(indexToHex(index, state.map), state.map) >= 1
+      && worldSiteAllowed(state.map, index, 'land')
       && !Object.values(state.cities).some(city => hexDistance(city.position, indexToHex(index, state.map), state.map) === 0) ? [index] : [])
       .sort((a, b) => hash(state.setup.seed, a * 7 + RARE_BERRY_IDS.indexOf(berry)) - hash(state.setup.seed, b * 7 + RARE_BERRY_IDS.indexOf(berry)) || a - b);
     const chosen: number[] = [];

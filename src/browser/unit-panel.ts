@@ -1,3 +1,4 @@
+import { isEmbarked } from '../core/terrain.ts';
 import { strengthMarkup } from './strength-panel.ts';
 import { captureBlocker, evolutionState, foundingReason } from './unit-action-bar.ts';
 import { classModifierLabels, hasAffinity, usesUnitClasses } from '../core/unit-classes.ts';
@@ -50,6 +51,11 @@ type Callbacks = {
 
 /** v16: remaining movement points (a unit can still attack while it has any); older rules: one action per round. */
 function actionPointLabel(view: PlayerView, unit: MapUnit, content: Content): string {
+  // v24 A2: a land unit carried on water.
+  const embarked = isEmbarked(unit, view.map, content) ? ' · 乘浪中：防守 −10，不能攻击' : '';
+  return actionPoints(view, unit, content) + embarked;
+}
+function actionPoints(view: PlayerView, unit: MapUnit, content: Content): string {
   if (!usesMovementPoints(view)) return `行动点 ${unit.actionLeft}`;
   if (!unit.actionLeft) return '本轮已行动';
   const budget = movementBudget(view, unit, content);

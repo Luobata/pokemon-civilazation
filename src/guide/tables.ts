@@ -1,3 +1,4 @@
+import { LANDMARKS, LANDMARK_IDS, TERRAIN_RULES_V24 } from '../content/terrain.ts';
 import { discoveryText } from '../content/discoveries.ts';
 import { ITEM_BALLS, ITEM_BALL_KINDS, OBJECTIVES, OBJECTIVE_IDS, OPENING_RULES, victoryTargets } from '../content/opening.ts';
 import { STRENGTH_RULES, strengthFromPermille } from '../core/strength.ts';
@@ -81,6 +82,25 @@ export function yieldText(value: Partial<Yield & DistrictEffects>): string {
 }
 
 // ---------- Map ----------
+/** v24 terrain features (world-v24 §2.2). */
+export function terrainFeatureTable(): string {
+  const r = TERRAIN_RULES_V24;
+  return table(['要素', '产出', '移动', '战斗', '其他'], [
+    ['丘陵（叠在草原/森林/荒漠/雪原上）', `生产 +${r.hillProduction}`, `花费 +${r.hillMoveCost}`, `防守 +${r.hillDefense}「丘陵掩护」（不与森林/山地 +5 叠加）；丘陵上的城市 +${r.hillCityDefense}「高地城池」`, '站在上面视野 +1'],
+    ['高山', '不可耕作', '不可通行（飞行宝可梦除外）', '—', '山脊上的一部分；不会把大陆切成两半'],
+    ['河流（记在格子上）', `金币 +${r.riverGold}`, `从无河格进入 +${r.riverCrossingCost}（沿河不加）`, `近战/快速从无河格攻击河上目标 ${r.riverCrossingAttack}「渡河」`, `城市中心在河上或挨着河/湖 = 淡水城市：食物 +${r.freshWaterFood}`],
+    ['湖', '同浅海 2/0/1/0', '同浅海', '—', '淡水'],
+    ['浅海（挨着陆地）', '2/0/1/0', '陆地单位要「近海航行」', '乘浪单位防守 ' + r.embarkedDefense, '渔场、珍珠贝场、港口照旧'],
+    ['深海', `${r.deepOcean.food}/${r.deepOcean.production}/${r.deepOcean.gold}/${r.deepOcean.research}`, '陆地单位要「远洋航行」', '同上', '最外一行是极地冰海（深海、不可耕作）'],
+    ['自然地标', '本格不可耕作', '不可通行', '—', '效果给城市耕作的相邻格'],
+  ]);
+}
+/** v24 landmarks (world-v24 §2.5). */
+export function landmarkTable(): string {
+  const site = { desert: '荒漠', lake: '湖', forest: '森林', grasslandHill: '草原丘陵', mountain: '内陆山地', coastalMountain: '海岸山地', snow: '雪原', volcano: '火山' } as const;
+  return table(['地标', '地形', '效果', '常驻物种（附近刷新 ×5）'], LANDMARK_IDS.map(id => [LANDMARKS[id].name, site[LANDMARKS[id].site], LANDMARKS[id].effect,
+    LANDMARKS[id].residents.map(species => SPECIES_NAMES[species]).join('、')]));
+}
 export function biomeTable(): string {
   const total = BIOME_WEIGHTS.reduce((sum, item) => sum + item.weight, 0);
   const weight = (biome: BiomeId) => BIOME_WEIGHTS.find(item => item.id === biome)?.weight;

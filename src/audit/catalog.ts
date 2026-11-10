@@ -37,6 +37,18 @@ export const AUDIT_SYSTEMS: readonly AuditSystem[] = [
     actionTypes: ['ImproveTile', 'PillageImprovement', 'RepairImprovement', 'HarvestResource'],
   }),
   system({
+    id: 's-terrain-v24', name: '大陆与地形、乘浪、自然地标（v24）', status: 'implemented',
+    summary: 'gameplay v24：新地图生成器（每块大陆两个文明、岛链、气候带、山脊与高山、丘陵、格子河流、湖、深浅海、公平出生点）；丘陵/河流/深海/淡水的产出、移动与战斗项；近海航行后陆地单位乘浪下浅海，远洋航行后下深海，下水/上岸结束移动，乘浪防守 −10 且不能攻击；高山只有飞行能越过；8 种原创地标与按格子的栖息地；世界设施只放在大陆的可通行陆地上。读取 v≤23 存档时不启用。',
+    rules: ['map.features 只在 v24 写入，全部是按格子编号排序的数组；视图只含已探索格的要素。',
+      '通行（canEnter 的 passage、waterAccess）、移动花费、战斗项（featureStrikeFactors）由权威、预览与 AI 共用。',
+      'AI 用 src/ai/travel.ts 的距离场判断远近（未探索格乐观视为可通行、花费 2），v≤23 等于直线格数。',
+      '地标的种类与落点用 stableSeed；首个发现的科研奖励只告诉发现者本人。'],
+    checks: ['v22、v23 固定 48 局改动前后逐文件一致；v24 两次运行逐字节一致、0 次被拒命令。',
+      'tests/core/map-v24.test.ts、terrain-v24.test.ts、embark.test.ts、landmarks.test.ts、tests/ai/travel.test.ts、tests/browser/terrain-v24.spec.ts。'],
+    sources: ['src/content/terrain.ts', 'src/core/map-v24.ts', 'src/core/terrain.ts', 'src/core/movement.ts', 'src/core/landmarks.ts', 'src/ai/travel.ts', 'docs/design/world-v24.md'],
+    actionTypes: ['Move', 'Attack', 'FoundCity'],
+  }),
+  system({
     id: 's-opening', name: '开局节奏（开局目标、道具球、城墙）', status: 'implemented',
     summary: 'gameplay v21：8 个开局目标发奖励；道具球（探索奖励）按稳定种子摆放；城市中心产科研、首都生产 +2；一阶/二阶科技降价、开拓队 24；城市 HP 100、每轮恢复、城墙随轮数成长；胜利门槛随轮上限变化；驯化发现改为“初次交手”。读取 v≤20 存档时不启用。',
     rules: ['开局目标与道具球只读取本条命令产生的事件与单位位置，摆放不消耗 state.rng。',

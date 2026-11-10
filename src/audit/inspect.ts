@@ -10,7 +10,8 @@ import { cityYield, growthThreshold, maxCityHp, workRadius } from '../core/city.
 import { relationFor } from '../core/diplomacy.ts';
 import { isMapUnit } from '../core/model.ts';
 import type { GameState, MapUnit, UnitState } from '../core/model.ts';
-import { reachablePaths } from '../core/movement.ts';
+import { reachablePaths, waterAccess } from '../core/movement.ts';
+import { isEmbarked } from '../core/terrain.ts';
 import { previewCapture } from '../core/preview.ts';
 import { canonicalSerialize, stateDigest } from '../core/snapshot.ts';
 import { maxUnitHp } from '../core/unit.ts';
@@ -712,6 +713,16 @@ export function inspectSystem(systemId: string, state: GameState): AuditSystemIn
     return { metrics: [metric('当前规则', '改良升级 v23'), metric('已建改良', tiles.length), metric('已损坏', tiles.filter(tile => tile.damaged).length),
       metric('资源改良', tiles.filter(tile => ['berryGrove', 'stoneQuarry', 'plantation'].includes(tile.kind)).length), metric('带随行特长', tiles.filter(tile => tile.crew).length)],
       data: { improvements: state.expansion?.improvements?.tiles ?? {} } };
+  }
+  if (system.id === 's-terrain-v24') {
+    const features = state.map.features;
+    if (!features) return { metrics: [metric('当前规则', '未启用（需 v24）')], data: {} };
+    const land = state.map.tiles.filter(tile => tile !== 'ocean').length;
+    const embarked = Object.values(state.units).filter(unit => unit.position && isEmbarked(unit as never, state.map, contentOf(state))).length;
+    return { metrics: [metric('当前规则', '大陆与地形 v24'), metric('陆地', `${Math.round(land * 100 / state.map.tiles.length)}%`), metric('丘陵 / 高山', `${features.hills.length} / ${features.peaks.length}`),
+      metric('河流格', features.rivers.length), metric('湖 / 深海', `${features.lakes.length} / ${features.deep.length}`), metric('自然地标', features.landmarks.length), metric('乘浪中的单位', embarked),
+      ...Object.values(state.players).map(player => metric(`玩家 ${player.id} 下水`, ['不能', '浅海', '深海'][waterAccess(player, contentOf(state))]))],
+      data: { landmarks: features.landmarks, discovered: state.expansion?.landmarks?.discovered ?? {}, firstDiscovery: state.expansion?.landmarks?.first ?? {} } };
   }
   if (system.id === 's-tech-tree') {
     const tree = contentOf(state).techTree === true;

@@ -22,7 +22,7 @@ import type { BerryId, StoneId, WorldDefinitions, WorldSystemContent } from '../
 import type { Hex } from './hex.ts';
 import type { MapShape } from './hex.ts';
 import { workRadius } from './city.ts';
-import { isEmbarked } from './terrain.ts';
+import { isEmbarked, worldSiteAllowed } from './terrain.ts';
 
 /**
  * Gameplay v23 harvesting (docs/design/improvements-v23.md §5), shared by authority, UI and AI:
@@ -186,7 +186,7 @@ function specialPlacementCandidates(state: GameState, minimumCityDistance: numbe
   const cities = Object.values(state.cities);
   return state.map.tiles.flatMap((_, index) => {
     const position = indexToHex(index, state.map);
-    return edgeDistance(position, state.map) >= 1 && !occupied.has(index)
+    return edgeDistance(position, state.map) >= 1 && !occupied.has(index) && worldSiteAllowed(state.map, index, 'continent')
       && cities.every(city => hexDistance(position, city.position, state.map) >= minimumCityDistance) ? [index] : [];
   });
 }
@@ -259,7 +259,9 @@ export function initializeWorld(state: GameState, content: Content = WORLD_CONTE
     };
   });
 
-  const resourceCandidates = state.map.tiles.flatMap((_, index) => edgeDistance(indexToHex(index, state.map), state.map) >= 1 && !used.has(index) ? [index] : []);
+  // v24 A3: resources only on passable land (islands included); nests and overlords stay on continents (specialPlacementCandidates).
+  const resourceCandidates = state.map.tiles.flatMap((_, index) => edgeDistance(indexToHex(index, state.map), state.map) >= 1 && !used.has(index)
+    && worldSiteAllowed(state.map, index, 'land') ? [index] : []);
   const berryIds = Object.keys(definitions.berries) as BerryId[];
   const berryTiles = takePlacement(state, resourceCandidates, used, definitions.berryDeposits);
   berryTiles.forEach((tileIndex, index) => {

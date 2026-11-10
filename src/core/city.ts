@@ -10,6 +10,7 @@ import { gameplayAtLeast } from '../content/eras.ts';
 import { doctrineEffects } from './leader-doctrines.ts';
 import { tileImprovementYield } from './improvements.ts';
 import { applyFeatureYield, freshWater, workableFeature } from './terrain.ts';
+import { applyLandmarkYield } from './landmarks.ts';
 import { TERRAIN_RULES_V24 } from '../content/terrain.ts';
 import { playerPolicyEffects } from './policies.ts';
 import { worldCityYield } from './world-systems.ts';
@@ -42,7 +43,7 @@ export function tileYield(biome: keyof Content['biomes'], player: PlayerState, c
 }
 /** Biome yield, v24 terrain features (deep water, hills, rivers) and any completed improvement (gameplay v2); identical to tileYield otherwise. */
 export function workedTileYield(state: GameState, index: number, player: PlayerState, content: Content = CONTENT): Yield {
-  const result = applyFeatureYield(state.map, index, tileYield(state.map.tiles[index], player, content)), bonus = tileImprovementYield(state, index, player);
+  const result = applyLandmarkYield(state.map, index, applyFeatureYield(state.map, index, tileYield(state.map.tiles[index], player, content))), bonus = tileImprovementYield(state, index, player);
   if (bonus) for (const key of ['food', 'production', 'gold', 'research'] as const) result[key] += bonus[key];
   return result;
 }

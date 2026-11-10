@@ -13,6 +13,9 @@ import { hexToIndex } from '../../src/core/hex.ts';
 import type { Hex } from '../../src/core/hex.ts';
 import type { GameSetup, GameState } from '../../src/core/model.ts';
 import type { MapFeatures } from '../../src/core/terrain.ts';
+import { describeTile } from '../../src/browser/tile-info.ts';
+import { tileYieldReader } from '../../src/browser/tile-yields.ts';
+import { buildScene } from '../../src/browser/render/scene.ts';
 
 const duel = (gameplayVersion: 23 | 24): GameSetup => ({ seed: 12345, width: 24, height: 16, expansionVersion: 1, multiplayer: true, eraProgression: 'simple-v1', gameplayVersion,
   players: [{ id: 0, controller: 'human', starterId: 'bulbasaur', leaderId: 'oak' }, { id: 1, controller: 'human', starterId: 'charmander', leaderId: 'misty' }] });
@@ -114,4 +117,24 @@ test('v24 vision and views: a hill sees one tile further; the view carries featu
   expect(view.knowledge.exploredTileIds).not.toContain(far);
   expect(view.map.features!.hills).not.toContain(far);
   expect(view.map.features!.rivers).toEqual([]);
+});
+
+test('v24 tile info and scene: feature names, passage text, yields with features; v23 tiles unchanged', () => {
+  const state = arena({}), tile = at(state, { q: 9, r: 6 }), water = at(state, { q: 10, r: 5 });
+  state.map.tiles[water] = 'ocean';
+  state.map.features = { ...empty(), hills: [tile], rivers: [tile], deep: [water] };
+  refreshKnowledge(state);
+  const view = observe(state, 0);
+  const info = describeTile(view, tile);
+  expect(info.terrain!.name).toContain('丘陵');
+  expect(info.terrain!.name).toContain('河流');
+  expect(info.terrain!.moveCost).toBe(2);
+  expect(describeTile(view, water).terrain!.access).toContain('远洋航行');
+  expect(tileYieldReader(view)(tile)!.yields).toEqual({ food: 2, production: 2, gold: 1, research: 0 });
+  const scene = buildScene({ view });
+  expect(scene.terrain!.hills).toContain(tile);
+  expect(scene.terrain!.rivers.find(river => river.index === tile)!.links.length).toBeGreaterThan(0);
+  const old = arena({}, 'machop', 'rattata', 23), oldView = observe(old, 0);
+  expect(describeTile(oldView, tile).terrain!.name).toBe('草原');
+  expect(buildScene({ view: oldView }).terrain).toBeUndefined();
 });

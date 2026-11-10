@@ -2,7 +2,9 @@
 // hills, rivers and fair starts. Integer-only and deterministic from the map seed (one xorshift stream, every choice over index-sorted
 // lists); wrap-aware (columns wrap east-west). Distance questions are answered with BFS fields and precomputed neighbour / disk tables,
 // so a 56×36 map takes a few tens of milliseconds. Called by createGame only when `content.terrain`; `generateMap` is untouched.
-import { CLIMATE_BANDS_V24, MAP_GENERATION_V24, START_TILE_VALUES_V24 } from '../content/terrain.ts';
+import { CLIMATE_BANDS_V24, LANDMARKS, LANDMARK_IDS, LANDMARK_RULES_V24, MAP_GENERATION_V24, START_TILE_VALUES_V24 } from '../content/terrain.ts';
+import type { LandmarkId, LandmarkSite } from '../content/terrain.ts';
+import { stableSeed } from './civilization-systems.ts';
 import { DEFAULT_MAP, START_DISTANCES } from '../content/rules.ts';
 import type { BiomeId } from '../content/rules.ts';
 import { hexDistance, hexToIndex, indexToHex, neighbors } from './hex.ts';
@@ -316,6 +318,49 @@ function chooseStarts(w: World, relief: Relief, civsOn: readonly number[]): { ti
   return null;
 }
 
+/** §2.5: one landmark per 110 land tiles, ≥ 4 from starts and ≥ 6 apart, each kind at most once, on tiles that already have its terrain. */
+function placeLandmarks(w: World, relief: Relief, C: number, seed: number, starts: readonly number[]): { tileIndex: number; id: LandmarkId }[] {
+  const { tiles, hill, river, peak } = relief;
+  let land = 0;
+  for (let i = 0; i < w.n; i++) if (tiles[i] !== 'ocean') land++;
+  const count = Math.floor(land / P.landTilesPerLandmark);
+  const placed: { tileIndex: number; id: LandmarkId }[] = [];
+  const blocked = new Uint8Array(w.n);
+  const hexOf = (i: number) => indexToHex(i, w.size);
+  const continental = (i: number) => w.owner[i] >= 0 && w.owner[i] < C;
+  const seaside = (i: number) => around(w, i).some(j => tiles[j] === 'ocean' && !w.lake[j]);
+  const fits: Record<LandmarkSite, (i: number) => boolean> = {
+    desert: i => tiles[i] === 'desert' && !hill[i], lake: i => w.lake[i] === 1, forest: i => tiles[i] === 'forest' && !hill[i],
+    grasslandHill: i => tiles[i] === 'grassland' && hill[i] === 1, mountain: i => tiles[i] === 'mountain' && !peak[i] && !seaside(i),
+    coastalMountain: i => tiles[i] === 'mountain' && !peak[i] && seaside(i), snow: i => tiles[i] === 'snow' && !hill[i], volcano: i => tiles[i] === 'volcano',
+  };
+  // A land landmark must not split its continent (walkable land = not peak, not landmark).
+  const keepsConnected = (i: number) => {
+    const c = w.owner[i], open = (j: number) => w.owner[j] === c && !peak[j] && !blocked[j] && j !== i;
+    const start = around(w, i).find(open);
+    if (start === undefined) return true;
+    let total = 0;
+    for (let j = 0; j < w.n; j++) if (open(j)) total++;
+    const seen = new Uint8Array(w.n), stack = [start]; seen[start] = 1; let reached = 1;
+    while (stack.length) { const at = stack.pop()!; for (const j of around(w, at)) if (!seen[j] && open(j)) { seen[j] = 1; reached++; stack.push(j); } }
+    return reached === total;
+  };
+  const kinds = [...LANDMARK_IDS].sort((a, b) => stableSeed(seed, a, 'landmark') - stableSeed(seed, b, 'landmark') || (a < b ? -1 : 1));
+  for (const id of kinds) {
+    if (placed.length >= count) break;
+    const site = LANDMARKS[id].site;
+    const order = Array.from({ length: w.n }, (_, i) => i).filter(i => fits[site](i) && !river[i] && (site === 'lake' || continental(i)))
+      .sort((a, b) => stableSeed(seed, id, a, 'landmark-site') - stableSeed(seed, id, b, 'landmark-site') || a - b);
+    const tile = order.find(i => starts.every(start => hexDistance(hexOf(start), hexOf(i), w.size) >= LANDMARK_RULES_V24.minStartDistance)
+      && placed.every(other => hexDistance(hexOf(other.tileIndex), hexOf(i), w.size) >= LANDMARK_RULES_V24.spacing)
+      && (site === 'lake' || keepsConnected(i)));
+    if (tile === undefined) continue;
+    blocked[tile] = 1;
+    placed.push({ tileIndex: tile, id });
+  }
+  return placed.sort((a, b) => a.tileIndex - b.tileIndex);
+}
+
 export function generateWorldMap({ seed, width = DEFAULT_MAP.width, height = DEFAULT_MAP.height,
   playerCount = DEFAULT_MAP.playerCount }: Partial<MapSetup> & { seed: number }): MapState {
   if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width < 1 || height < 1
@@ -346,5 +391,7 @@ export function generateWorldMap({ seed, width = DEFAULT_MAP.width, height = DEF
   const placed = chosen
     ? { starts: shuffled(chosen.tiles, w.rng).map((tileIndex, playerId) => ({ playerId, tileIndex })), startDistance: chosen.distance }
     : selectStarts(terrain, playerCount, w.rng);
+  // §2.5 landmarks: after the starts, from stableSeed orders (no draws from the map stream).
+  features.landmarks = placeLandmarks(w, relief, continents, seed, placed.starts.map(start => start.tileIndex));
   return { generationVersion: 1, seed, ...terrain, features, ...placed, rng: w.rng };
 }

@@ -1,3 +1,5 @@
+import { landmarkEssences } from './landmarks.ts';
+import type { MapFeatures } from './terrain.ts';
 import { BIOME_ESSENCE, ESSENCE_IDS, ESSENCE_RULES, ESSENCES, TYPE_ESSENCE } from '../content/essences.ts';
 import type { EssenceId } from '../content/essences.ts';
 import { gameplayAtLeast } from '../content/eras.ts';
@@ -36,7 +38,7 @@ export function identityEssences(identity: UnitIdentity, content: Content): Esse
   return [...new Set([TYPE_ESSENCE[species.typeId], ...(species.secondaryTypeId ? [TYPE_ESSENCE[species.secondaryTypeId]] : [])])];
 }
 /** Essence a city produces per round: its center tile, each worked tile, its gym and leader affinity. */
-export function cityEssenceYield(tiles: readonly (BiomeId | null)[], size: { width: number; height: number },
+export function cityEssenceYield(tiles: readonly (BiomeId | null)[], size: { width: number; height: number; features?: MapFeatures },
   city: Pick<CityState, 'position' | 'workedTileIds' | 'id'>, gym: EssenceId | undefined, leaderId: LeaderId | undefined): Record<EssenceId, number> {
   const out = emptyEssences();
   const center = hexToIndex(city.position, size);
@@ -44,6 +46,8 @@ export function cityEssenceYield(tiles: readonly (BiomeId | null)[], size: { wid
     const biome = tiles[index];
     if (biome) out[BIOME_ESSENCE[biome]]++;
   }
+  // v24 A3: worked tiles beside Singing Dunes / Thunder Mesa (no landmarks before v24).
+  landmarkEssences({ ...size, tiles }, city.workedTileIds, out);
   if (gym) out[gym] += ESSENCE_RULES.gymEssenceYield;
   if (leaderId && out[LEADER_ESSENCE[leaderId]] > 0) out[LEADER_ESSENCE[leaderId]]++;
   return out;

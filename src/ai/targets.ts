@@ -11,7 +11,9 @@ export function seekUnknownHeadquarters(view: PlayerView, unit: MapUnit, paths: 
   const visible = new Set(view.visibleTileIds), explored = new Set(view.knowledge.exploredTileIds);
   const destinations = Object.entries(paths).filter(([, path]) => path.every(position => visible.has(hexToIndex(position, view.map)!)))
     .map(([index]) => indexToHex(Number(index), view.map));
-  const targets = new Set(view.map.tiles.flatMap((_, index) => explored.has(index) ? [] : [index]));
+  // v24: the two polar rows at each end are always sea (no headquarters can stand there), so they are never search targets.
+  const polar = (index: number) => view.map.features !== undefined && (Math.floor(index / view.map.width) < 2 || Math.floor(index / view.map.width) >= view.map.height - 2);
+  const targets = new Set(view.map.tiles.flatMap((_, index) => explored.has(index) || polar(index) ? [] : [index]));
   for (const city of knownCities(view)) {
     const index = hexToIndex(city.position, view.map);
     if (index !== null && !visible.has(index) && city.ownerId !== null && city.ownerId !== view.playerId

@@ -44,7 +44,7 @@ import { gymMoveTargets, planGymAction } from './gym-plan.ts';
 import { rivalThreatenedCityIds } from './rival-plan.ts';
 import { researchCaptureScore } from './research-plan.ts';
 import { embarkResearchBonus, isBoarding, nearestTravel, safeToBoard, travelCloser, travelDistance } from './travel.ts';
-import { featureVision } from '../core/terrain.ts';
+import { featureVision, isEmbarked } from '../core/terrain.ts';
 import type { Goal } from './strategies.ts';
 type Candidate = { action: Command['action']; goal: Goal; benefit: number; ownId: number; targetId: number };
 export const CANDIDATE_BUDGET = 256; // 32 representatives for each of eight goals, never a time budget.
@@ -236,6 +236,8 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
     add({ type: 'BuyBall', cityId: cities[0].id, ballId: 'pokeBall', quantity: 1 }, 'capture', 20, cities[0].id);
   }
   const visible = new Set(view.visibleTileIds), explored = new Set(view.knowledge.exploredTileIds);
+  // v24: the polar sea rows hold nothing to find; exploring them only strands units on the ice.
+  const polarRow = (tile: number) => view.map.features !== undefined && (Math.floor(tile / view.map.width) < 2 || Math.floor(tile / view.map.width) >= view.map.height - 2);
   const atWar = view.diplomacy.some(pair => pair.status === 'war' && (pair.a === actorId || pair.b === actorId));
   const workers = designatedWorkers(view, content, atWar || campaignActive || preparingSiege);
   const traceTargets = legendTraceTargets(view, content), ballTargets = itemBallTargets(view), gymTargets = gymMoveTargets(view, content);
@@ -278,6 +280,8 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
     const far = (from: MapUnit['position'], target: MapUnit['position']) => travelDistance(view, unit, from, target);
     const targetHq = eraCampaign?.target ?? [...objectives.hqs].sort((a, b) => far(unit.position, a.position) - far(unit.position, b.position) || a.id - b.id)[0];
     const seek = unit.kind === 'pokemon' && objectives.searching ? seekUnknownHeadquarters(view, unit, paths) : null;
+    // v24 A2: a unit left on the water with nothing better to do heads back to the nearest own city (lowest goal, so any real target wins).
+    const homes = isEmbarked(unit, view.map, content) ? cities.map(city => city.position) : [], homeBefore = homes.length ? nearestTravel(view, unit, unit.position, homes) : Infinity;
     for (const [indexText, path] of Object.entries(paths)) {
       // A visible route cannot hit a hidden first-step blocker and be rejected.
       if (!path.every(position => visible.has(hexToIndex(position, view.map)!))) continue;
@@ -327,8 +331,9 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
           + captureBonus(target) + siegeCaptureBonus(target) + (target.kind === 'pokemon' ? roleCaptureBonus(view, target.speciesId, content) : 0), unit.id, index);
       }
       const radius = unitDefinition(unit, content).vision + (view.map.tiles[index] === 'mountain' ? 1 : 0) + featureVision(view.map, index);
-      const gain = view.map.tiles.reduce((sum, _, tile) => sum + (!explored.has(tile) && hexDistance(to, indexToHex(tile, view.map), view.map) <= radius ? 1 : 0), 0);
+      const gain = view.map.tiles.reduce((sum, _, tile) => sum + (!explored.has(tile) && !polarRow(tile) && hexDistance(to, indexToHex(tile, view.map), view.map) <= radius ? 1 : 0), 0);
       if (gain > 0 && !boarding) add(action, 'explore', gain, unit.id, index);
+      if (homes.length) { const home = nearestTravel(view, unit, to, homes); if (home < homeBefore) add(action, 'explore', 60 - home, unit.id, index); }
     }
   }
   add({ type: 'EndTurn' }, 'end');

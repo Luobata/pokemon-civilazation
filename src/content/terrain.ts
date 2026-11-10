@@ -1,5 +1,8 @@
 // Gameplay v24 A (docs/design/world-v24.md §2): map generation parameters, terrain feature rules, natural landmarks and habitats.
 import type { BiomeId } from './rules.ts';
+import type { Yield } from './economy.ts';
+import type { EssenceId } from './essences.ts';
+import type { SpeciesId } from './species.ts';
 
 /** §2.1 generation (A1). All values are integers (percentages, permille latitudes, 0–999 moisture). */
 export const MAP_GENERATION_V24 = {
@@ -46,3 +49,52 @@ export const EMBARK_TECHS = { shallow: 'seafaring', deep: 'oceanography' } as co
 /** §2.5 natural landmarks (A3), all original. */
 export type LandmarkId = 'singingDunes' | 'stardustMere' | 'elderCanopy' | 'thunderMesa' | 'mistlockGorge' | 'tidesongGrotto' | 'everfrostHollow' | 'emberCaldera';
 export const LANDMARK_IDS: readonly LandmarkId[] = ['singingDunes', 'stardustMere', 'elderCanopy', 'thunderMesa', 'mistlockGorge', 'tidesongGrotto', 'everfrostHollow', 'emberCaldera'];
+
+/** Where a landmark may stand (the generator picks a tile that already has this terrain). */
+export type LandmarkSite = 'desert' | 'lake' | 'forest' | 'grasslandHill' | 'mountain' | 'coastalMountain' | 'snow' | 'volcano';
+export type LandmarkDefinition = {
+  name: string; site: LandmarkSite;
+  /** Added to each worked tile beside the landmark; `waterOnly`: only to water tiles beside it. */
+  adjacent: Partial<Yield>; waterOnly?: true;
+  /** Essences per worked adjacent tile. */
+  essences?: Partial<Record<EssenceId, number>>;
+  /** Round-end healing of own units ending the round beside it: Pokémon +hp, or naval units back to full. */
+  healing?: { units: 'pokemon' | 'naval'; hp?: number; full?: true };
+  /** Stardust Mere: a moon-stone deposit beside it that regrows this many rounds after being harvested. */
+  moonStoneRegrowRounds?: number;
+  residents: readonly SpeciesId[]; effect: string;
+};
+/** §2.5 the eight original landmarks. */
+export const LANDMARKS: Record<LandmarkId, LandmarkDefinition> = {
+  singingDunes: { name: '鸣沙回廊', site: 'desert', adjacent: { gold: 1 }, essences: { spark: 1 }, residents: ['sandshrew', 'trapinch', 'drilbur'],
+    effect: '相邻格金币 +1、雷金精华 +1' },
+  stardustMere: { name: '星屑湖', site: 'lake', adjacent: { research: 1 }, moonStoneRegrowRounds: 30, residents: ['clefairy'],
+    effect: '相邻格科研 +1；旁边有一处月之石矿脉，被采集后 30 轮再生' },
+  elderCanopy: { name: '长老古树', site: 'forest', adjacent: { food: 1 }, healing: { units: 'pokemon', hp: 10 }, residents: ['bulbasaur', 'caterpie', 'scyther'],
+    effect: '相邻格食物 +1；己方宝可梦在相邻格结束回合额外恢复 10 HP' },
+  thunderMesa: { name: '雷鸣台地', site: 'grasslandHill', adjacent: { production: 1 }, essences: { spark: 1 }, residents: ['pikachu', 'magnemite'],
+    effect: '相邻格生产 +1、雷金精华 +1' },
+  mistlockGorge: { name: '雾锁峡谷', site: 'mountain', adjacent: { production: 1, research: 1 }, residents: ['gastly', 'abra'],
+    effect: '相邻格生产 +1、科研 +1' },
+  tidesongGrotto: { name: '潮音洞', site: 'coastalMountain', adjacent: { food: 1 }, waterOnly: true, healing: { units: 'naval', full: true }, residents: ['horsea', 'lapras'],
+    effect: '相邻浅海食物 +1；水面单位在相邻格结束回合回满 HP' },
+  everfrostHollow: { name: '永冻冰窟', site: 'snow', adjacent: { research: 2 }, residents: ['swinub', 'sneasel', 'dratini'],
+    effect: '相邻格科研 +2' },
+  emberCaldera: { name: '余烬火口', site: 'volcano', adjacent: { production: 2 }, residents: ['charmander', 'ponyta'],
+    effect: '相邻格生产 +2' },
+};
+/** §2.5 placement and discovery. */
+export const LANDMARK_RULES_V24 = { minStartDistance: 4, spacing: 6, firstDiscoveryResearch: 15, residentMultiplier: 5, residentBaseWeight: 10 } as const;
+
+/** §2.6 habitats: weights added on top of the biome's table for tiles with a feature (base species of the v14 roster only). */
+export const HABITAT_OVERLAYS_V24: Record<'hill' | 'river' | 'peakside', Partial<Record<SpeciesId, number>>> = {
+  hill: { geodude: 15, machop: 10, sandshrew: 10 },
+  river: { squirtle: 20, ekans: 10, caterpie: 10 },
+  peakside: { onix: 10, beldum: 10, zubat: 10 },
+};
+/** §2.6 deep water: Lapras ×3, Squirtle removed (the open sea is for the big ones). */
+export const DEEP_WATER_HABITAT_V24: { multiply: Partial<Record<SpeciesId, number>>; remove: readonly SpeciesId[] } = { multiply: { lapras: 3 }, remove: ['squirtle'] };
+/** §2.6 at night dark and ghost species are twice as common. */
+export const NIGHT_SPAWN_MULTIPLIER_V24 = 2;
+/** §2.7 a land mass of at least this many tiles is a continent (islands and island-chain islets are smaller). */
+export const CONTINENT_MIN_TILES_V24 = 20;

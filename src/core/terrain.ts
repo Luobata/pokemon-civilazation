@@ -2,7 +2,7 @@
 // Every query reads `map.features`, which only the v24 generator writes: on a v≤23 map (or a view without features) each one answers
 // "no feature", so older games keep their exact rules. Authority passes the state map, previews and the AI pass the view map (which
 // carries the features of explored tiles only), so a preview always equals the resolution on the tiles it can see.
-import { TERRAIN_RULES_V24 } from '../content/terrain.ts';
+import { CONTINENT_MIN_TILES_V24, TERRAIN_RULES_V24 } from '../content/terrain.ts';
 import type { LandmarkId } from '../content/terrain.ts';
 import type { BiomeId } from '../content/rules.ts';
 import type { Yield } from '../content/economy.ts';
@@ -135,6 +135,37 @@ export const cityStrikeTerrain = (map: FeatureMap, attacker: UnitIdentity & { po
 /** Terrain terms of a city shooting back at the unit that attacked it (the unit's hill cover, 乘浪). */
 export const cityCounterTerrain = (map: FeatureMap, city: Hex, defender: UnitIdentity & { position: Hex }, content: Content) =>
   featureStrikeFactors(map, city, defender.position, { attacker: defender, city: false, counter: true, embarked: isEmbarked(defender, map, content) }, content);
+
+const continentCache = new WeakMap<MapFeatures, Int32Array>();
+/** Size of the land mass (peaks included, landmarks included) each tile belongs to; 0 for water. */
+function landMassSizes(map: FeatureMap & { features: MapFeatures }): Int32Array {
+  let sizes = continentCache.get(map.features);
+  if (sizes) return sizes;
+  sizes = new Int32Array(map.width * map.height);
+  const seen = new Uint8Array(sizes.length);
+  for (let i = 0; i < sizes.length; i++) {
+    if (seen[i] || map.tiles[i] === 'ocean' || map.tiles[i] === null) continue;
+    const group = [i]; seen[i] = 1;
+    for (let k = 0; k < group.length; k++) for (const next of neighborIndexes(map, group[k])) {
+      if (!seen[next] && map.tiles[next] !== 'ocean' && map.tiles[next] !== null) { seen[next] = 1; group.push(next); }
+    }
+    for (const index of group) sizes[index] = group.length;
+  }
+  continentCache.set(map.features, sizes);
+  return sizes;
+}
+/** A tile of a continent (a land mass of at least CONTINENT_MIN_TILES_V24 tiles; islands and islets are smaller). */
+export const onContinent = (map: FeatureMap, index: number) => !map.features || landMassSizes(map as FeatureMap & { features: MapFeatures })[index] >= CONTINENT_MIN_TILES_V24;
+/**
+ * §2.7 world-site placement on v24 maps: passable land only (no water, peaks or landmarks); `continent` sites (nests, overlords,
+ * item balls, legend traces, sanctuaries) also stay off islands, which get only resources and rare berries. Always true before v24,
+ * so older placements are unchanged. Continents are sized by the civilizations on them, so uniform draws give each its share.
+ */
+export function worldSiteAllowed(map: FeatureMap, index: number, scope: 'land' | 'continent'): boolean {
+  if (!map.features) return true;
+  if (map.tiles[index] === 'ocean' || isPeak(map, index) || isLandmarkTile(map, index)) return false;
+  return scope === 'land' || onContinent(map, index);
+}
 
 /** The features a player's view carries: only explored tiles (features are static, so seeing a tile once reveals them). */
 export function viewFeatures(map: GridSize & { features?: MapFeatures }, exploredTileIds: readonly number[]): MapFeatures | undefined {

@@ -7,7 +7,7 @@ import type { TileEntity } from './tile-info.ts';
 const esc = (text: string | number) => String(text).replace(/[&<>"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[char]!);
 const TONE_LABEL = { own: '己方', peace: '和平', enemy: '敌对', neutral: '中立', wild: '野生', info: '' } as const;
 const KIND_LABEL: Record<TileEntity['kind'], string> = { city: '城市', unit: '单位', resource: '资源', luxury: '奢侈品', nest: '巢穴',
-  overlord: '霸主', sanctuary: '圣所', legend: '传说', improvement: '改良', district: '设施区', construction: '施工' };
+  overlord: '霸主', sanctuary: '圣所', legend: '传说', improvement: '改良', district: '设施区', construction: '施工', landmark: '地标' };
 
 export type TilePanelOptions = {
   onSelectUnit(id: number): void;
