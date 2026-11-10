@@ -41,7 +41,8 @@ import { planContestAction } from './contest-plan.ts';
 import { planFaithAction } from './faith-plan.ts';
 import { planDedicationAction } from './dedication-plan.ts';
 import { gymMoveTargets, planGymAction } from './gym-plan.ts';
-import { rivalThreatenedCityIds } from './rival-plan.ts';
+import { ownRivalHunters, rivalAttackBonus, rivalThreatenedCityIds, rivalTrainingBonus } from './rival-plan.ts';
+import { viewIsRivalUnit } from '../core/rivals.ts';
 import { researchCaptureScore } from './research-plan.ts';
 import { travelCloser, travelDistance } from './travel.ts';
 import type { Goal } from './strategies.ts';
@@ -53,7 +54,7 @@ export function knownCombatCount(view: PlayerView, ownerId: number): number {
   return [...known.values()].filter(unit => unit.ownerId === ownerId && unit.kind === 'pokemon').length;
 }
 export function canCaptureByPersonality(view: PlayerView, target: MapUnit, query: RuleQueries = RULE_QUERIES): boolean {
-  if (target.kind !== 'pokemon' || target.ownerId !== null) return false;
+  if (target.kind !== 'pokemon' || target.ownerId !== null || viewIsRivalUnit(view, target.id)) return false;
   const strategy = AI_STRATEGIES[view.economy.player.personality], ai = query.ai ?? AI_THRESHOLDS;
   const content = query.content === CONTENT ? contentForView(view) : query.content;
   if (strategy.captureHpPercent !== null && target.hp * 100 >= content.species[target.speciesId].maxHp * ai[strategy.captureHpPercent]) return false;
@@ -225,7 +226,7 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
         if (classTrainingBlocker(view, player, view.eraProgression, badges, id, content)) continue;
         queue({ kind: 'pokemon', defId: id }, 'military', species.attack + species.defense - species.trainCost
           + (preparingSiege && species.role === 'siege' && strategy.siegeTrainingBonus !== null ? ai[strategy.siegeTrainingBonus] : 0)
-          + roleTrainingBonus(view, id, content, preparingSiege) + typeCounterBonus(view, id, content) + classTrainingBonus(view, id, content), i);
+          + roleTrainingBonus(view, id, content, preparingSiege) + typeCounterBonus(view, id, content) + classTrainingBonus(view, id, content) + rivalTrainingBonus(view, id, content), i);
       }
     }
   }
@@ -237,7 +238,7 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
   const visible = new Set(view.visibleTileIds), explored = new Set(view.knowledge.exploredTileIds);
   const atWar = view.diplomacy.some(pair => pair.status === 'war' && (pair.a === actorId || pair.b === actorId));
   const workers = designatedWorkers(view, content, atWar || campaignActive || preparingSiege);
-  const traceTargets = legendTraceTargets(view, content), ballTargets = itemBallTargets(view), gymTargets = gymMoveTargets(view, content);
+  const traceTargets = legendTraceTargets(view, content), ballTargets = itemBallTargets(view), gymTargets = gymMoveTargets(view, content), rivalHunters = ownRivalHunters(view);
   for (const unit of units.filter(unit => unit.actionLeft)) {
     const trader = traderPlan(view, unit);
     if (trader.action) add(trader.action, 'economy', 900, unit.id);
@@ -255,12 +256,14 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
           if (preview.ok) add({ type: 'Capture', unitId: unit.id, targetUnitId: target.id, ballId }, 'capture', preview.probability
             + captureBonus(target) + siegeCaptureBonus(target) + (target.kind === 'pokemon' ? roleCaptureBonus(view, target.speciesId, content) : 0) + researchCaptureScore(view, target), unit.id, target.id);
         }
+        // v24 C: the own rival's Pokémon are worth +50 (a reward); another civilization's rival is left alone.
+        const rival = rivalAttackBonus(view, target);
         const preview = query.attack(view, unit.id, { kind: 'unit', id: target.id }, content);
-        if (preview.ok && preview.damage.min > 0 && (target.ownerId === null || !strategy.defendTerritoryOnly || canSiege(view, target.ownerId, ai)
+        if (rival !== null && preview.ok && preview.damage.min > 0 && (target.ownerId === null || !strategy.defendTerritoryOnly || canSiege(view, target.ownerId, ai)
           || cities.some(city => hexDistance(city.position, target.position, view.map) <= workRadius(city)))) add({ type: 'Attack', unitId: unit.id, target: { kind: 'unit', id: target.id } },
           // Wild-target weakening competes with capture; it is neither military training nor civilization defense.
-          target.ownerId === null ? strategy.wildAttackGoal : 'military',
-          preview.damage.min - preview.counter.damage + (target.ownerId !== null ? 200 : 0), unit.id, target.id);
+          target.ownerId === null && !rival ? strategy.wildAttackGoal : 'military',
+          preview.damage.min - preview.counter.damage + (target.ownerId !== null ? 200 : 0) + (rival ?? 0), unit.id, target.id);
       }
       // v23: pillage an enemy improvement the unit already stands on (attacks score higher and win).
       const pillage = viewPillage(view, unit.id);
@@ -313,6 +316,11 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
         if (war && (!strategy.defendTerritoryOnly || defensive || canSiege(view, target.ownerId, ai))
           && hexDistance(to, target.position, view.map) < hexDistance(unit.position, target.position, view.map)) add(action, 'military', 150 - hexDistance(to, target.position, view.map)
             + (usesTactics(view) && hexDistance(to, target.position, view.map) === 1 ? 5 * units.filter(own => own.id !== unit.id && hexDistance(own.position, target.position, view.map) === 1).length : 0), unit.id, index);
+      }
+      // v24 C: close in on the own rival's Pokémon near own cities (they only hunt this civilization).
+      if (unit.kind === 'pokemon') for (const hunter of rivalHunters) {
+        const distance = hexDistance(to, hunter.position, view.map);
+        if (distance < hexDistance(unit.position, hunter.position, view.map)) add(action, 'military', 140 - distance, unit.id, index);
       }
       if (unit.kind === 'pokemon') for (const target of wild) {
         if (!canCaptureByPersonality(view, target, query) || !player.research.unlockedIds.includes('domestication') || player.ballInventory.pokeBall + player.ballInventory.greatBall === 0) continue;

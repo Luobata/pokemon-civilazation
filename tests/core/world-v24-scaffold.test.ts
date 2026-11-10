@@ -19,12 +19,15 @@ test('v24 envelope: schema 19, its own content with six flags; v23 has none of t
   expect(flags.map(flag => IMPROVEMENT_CONTENT[flag])).toEqual(flags.map(() => undefined));
 });
 
-test('v24 scaffolding: until the features land, a v24 game is the v23 game with a new envelope', () => {
+test('v24 scaffolding: until terrain lands, a v24 game is the v23 game plus the gym circuit (B) and rival ledgers (C)', () => {
   const v23 = createGame(setup(23)), v24 = createGame(setup(24));
   expect(v24.map).toEqual(v23.map);
   expect(v24.map.features).toBeUndefined();
-  expect(Object.keys(v24.expansion!).sort()).toEqual(Object.keys(v23.expansion!).sort());
-  expect({ ...observe(v24, 0), gameplayVersion: 23 }).toEqual(observe(v23, 0));
+  expect(Object.keys(v24.expansion!).sort()).toEqual([...Object.keys(v23.expansion!), 'gymCircuit', 'rivals'].sort());
+  const { gymCircuit, rivals, ...rest } = observe(v24, 0).expansion!;
+  expect(gymCircuit).toBeDefined();
+  expect(rivals).toBeDefined();
+  expect({ ...observe(v24, 0), expansion: rest, gameplayVersion: 23 }).toEqual(observe(v23, 0));
   const challenge = { actorId: 0, expectedSeq: 0, action: { type: 'ChallengeGym' as const, gymId: 1, unitIds: [1] } };
   expect(step(v24, challenge)).toEqual({ ok: false, reason: 'invalid-command' });
   expect(step(v23, challenge)).toEqual({ ok: false, reason: 'invalid-command' });

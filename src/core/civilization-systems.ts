@@ -725,6 +725,22 @@ function championshipMatch(label: ChampionshipMatch['label'], first: Championshi
   const secondScore = second.roster.reduce((total, combatant) => total + combatant.hp, 0);
   return { label, entrantIds: [first.entrantId, second.entrantId], winnerEntrantId: winner.entrantId, scores: [firstScore, secondScore], battle };
 }
+/** Championship titles needed for the victory (v21+: by map size). */
+const titlesNeeded = (state: CivilizationHost, content: CivilizationContent) =>
+  (state.setup?.gameplayVersion ?? 0) >= 21 ? victoryTargets(state.setup).championshipTitles : content.championship.titlesNeededForVictory;
+/** v24 B (world-v24 §3.2): the Elite Four adds one championship title, judged by the same victory test as a won season. */
+export function grantChampionshipTitle(state: CivilizationHost, playerId: number, content: CivilizationContent = CIVILIZATION_CONTENT): EventPayload[] {
+  const civilizationState = civilization(state);
+  if (!civilizationState || civilizationState.victory) return [];
+  const championship = civilizationState.championship;
+  championship.titlesByPlayer[playerId] = (championship.titlesByPlayer[playerId] ?? 0) + 1;
+  if (championship.titlesByPlayer[playerId] >= titlesNeeded(state, content)) {
+    const season = championship.nextSeason - 1;
+    championship.victory = { playerId, season, round: state.round };
+    civilizationState.victory = { kind: 'championship', playerId, round: state.round, season };
+  }
+  return checkCivilizationVictory(state, content);
+}
 function resolveChampionship(state: CivilizationHost, content: CivilizationContent, events: EventPayload[]): void {
   const civilizationState = civilization(state)!;
   const championship = civilizationState.championship;
@@ -779,7 +795,7 @@ function resolveChampionship(state: CivilizationHost, content: CivilizationConte
   championship.history.push(season);
   if (champion.playerId !== null) {
     championship.titlesByPlayer[champion.playerId] = (championship.titlesByPlayer[champion.playerId] ?? 0) + 1;
-    if (championship.titlesByPlayer[champion.playerId] >= ((state.setup?.gameplayVersion ?? 0) >= 21 ? victoryTargets(state.setup).championshipTitles : content.championship.titlesNeededForVictory)) {
+    if (championship.titlesByPlayer[champion.playerId] >= titlesNeeded(state, content)) {
       championship.victory = { playerId: champion.playerId, season: season.season, round: state.round };
       civilizationState.victory = { kind: 'championship', playerId: champion.playerId, round: state.round, season: season.season };
     }

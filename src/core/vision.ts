@@ -132,7 +132,7 @@ export function observe(state: GameState, playerId: number, content: Content = c
       ...(state.expansion.opening ? { opening: observeOpening(state, playerId, visible) } : {}),
       ...(state.expansion.landmarks ? { landmarks: observeLandmarks(state, playerId) } : {}),
       ...(state.expansion.gymCircuit ? { gymCircuit: observeGymCircuit(state, playerId) } : {}),
-      ...(state.expansion.rivals ? { rivals: observeRivals(state, playerId) } : {}),
+      ...(state.expansion.rivals ? { rivals: observeRivals(state, playerId, visible) } : {}),
       ...(state.expansion.researchTasks ? { researchTasks: observeResearchTasks(state, playerId) } : {}),
       ...(state.expansion.promotions ? { promotions: observePromotions(state, playerId, visible, hex => hexToIndex(hex, state.map)) } : {}),
       ...(state.expansion.faith ? { faith: observeFaith(state, playerId) } : {}),

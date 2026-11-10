@@ -3,7 +3,8 @@ import type { PolicyEffects } from './policies.ts';
 /** Gameplay v12: era score milestones (Civilization era score) and the golden/dark ages they lead to. */
 export type EraAge = 'normal' | 'golden' | 'dark';
 export type EraMilestone = 'documentedSpecies' | 'cityFounded' | 'evolution' | 'capture' | 'charterAdopted' | 'districtCompleted'
-  | 'nestCleared' | 'sanctuaryEstablished' | 'guardianDefeated' | 'faithFounded' | 'contestHallBuilt' | 'discovery' | 'cityCaptured' | 'legendWonder';
+  | 'nestCleared' | 'sanctuaryEstablished' | 'guardianDefeated' | 'faithFounded' | 'contestHallBuilt' | 'discovery' | 'cityCaptured' | 'legendWonder'
+  | 'gymBadge' | 'eliteFour' | 'rivalDefeated';
 export const ERA_MILESTONES: Record<EraMilestone, { name: string; points: number }> = {
   documentedSpecies: { name: '图鉴新记录物种', points: 1 },
   cityFounded: { name: '建立新城市', points: 3 },
@@ -20,6 +21,10 @@ export const ERA_MILESTONES: Record<EraMilestone, { name: string; points: number
   cityCaptured: { name: '攻占城市', points: 3 },
   /** Gameplay v15 only (the event does not exist before). */
   legendWonder: { name: '建成传说奇观', points: 4 },
+  /** Gameplay v24 only (the events do not exist before): circuit badges 1 / 4 / 8, the Elite Four, a rival beaten (once per visit number). */
+  gymBadge: { name: '巡回徽章', points: 1 },
+  eliteFour: { name: '战胜四天王', points: 3 },
+  rivalDefeated: { name: '击退劲敌', points: 1 },
 };
 export const ERA_MILESTONE_IDS = Object.keys(ERA_MILESTONES) as EraMilestone[];
 export const ERA_HONOR_RULES = {

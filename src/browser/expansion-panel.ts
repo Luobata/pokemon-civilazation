@@ -16,6 +16,7 @@ import { WORLD_DEFINITIONS } from '../content/world-systems.ts';
 /** Display name of a berry or evolution stone id (falls back to the id). */
 const resourceName = (id: string): string => (WORLD_DEFINITIONS.berries as Record<string, { name: string }>)[id]?.name ?? (WORLD_DEFINITIONS.stones as Record<string, { name: string }>)[id]?.name ?? id;
 import { parseAuditAction } from '../audit/commands.ts';
+import { v24PanelCards } from './gym-panel.ts';
 
 const escape = (value: unknown) => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 export function renderExpansionPanel(view: PlayerView, selectedUnitId: number | null, selectedCityId: number | null,
@@ -118,6 +119,8 @@ export function renderExpansionPanel(view: PlayerView, selectedUnitId: number | 
         + (site.ownerId === null && onSite ? button('建立圣所 · 80 金', { type: 'EstablishSanctuary', siteId: site.id, unitId: onSite.id }, player.gold >= 80 && Boolean(onSite.actionLeft)) : '')
         + (site.ownerId === player.id && !site.guardianDefeated ? button('挑战守卫', { type: 'ChallengeGuardian', siteId: site.id, unitIds: team.map(unit => unit.id) }, Boolean(onSite?.actionLeft) && team.length > 0) : '');
     }).join('') + `<p>已知石板：${Object.entries(civ.tabletOwners).map(([tablet, owner]) => `${escape(tablet)} → 文明 ${owner + 1}`).join('、') || '无'}</p>`);
+  // v24 B / C: badge box, circuit gyms, the Elite Four, the own rival.
+  html += v24PanelCards(view, button, card);
   const peaceful = !view.diplomacy.some(pair => pair.status === 'war' && [pair.a, pair.b].includes(player.id));
   html += card('s27-championship', '六只队伍与联盟大会', `<p>下一届：第 ${civ.championship.nextRound} 轮。六只宝可梦报名，六队锦标赛、前两名轮空，获得两届冠军即胜利。大会战损会写回参赛单位，HP 至少保留 1，并消耗行动。</p><p>当前冠军数 ${civ.championship.titlesByPlayer[player.id] ?? 0} · ${civ.championship.registration ? '已报名' : '未报名'}</p>`
     + button('报名当前六只宝可梦', { type: 'RegisterChampionshipTeam', unitIds: own.slice(0, 6).map(unit => unit.id) }, peaceful && own.length >= 6 && !civ.championship.registration)

@@ -152,4 +152,6 @@ export type VisibleEvent = { seq: number; payload:
   | Exclude<EventPayload, { type: 'Moved' }>
 };
 export type StepResult = { ok: true; state: GameState; events: GameEvent[] }
-  | { ok: false; reason: 'game-ended' | 'diplomacy-unavailable' | 'not-your-turn' | 'stale-command' | 'invalid-command' | 'unit-unavailable' | 'no-action' | 'unreachable' | 'city-unavailable' | 'invalid-production' | 'contested-territory' | 'invalid-work' | 'research-unavailable' | 'purchase-unavailable' | 'invalid-city-site' | 'attack-unavailable' | 'capture-unavailable' | 'evolution-unavailable' };
+  | { ok: false; reason: 'game-ended' | 'diplomacy-unavailable' | 'not-your-turn' | 'stale-command' | 'invalid-command' | 'unit-unavailable' | 'no-action' | 'unreachable' | 'city-unavailable' | 'invalid-production' | 'contested-territory' | 'invalid-work' | 'research-unavailable' | 'purchase-unavailable' | 'invalid-city-site' | 'attack-unavailable' | 'capture-unavailable' | 'evolution-unavailable'
+    /** v24 C: a rival trainer's Pokémon cannot be caught. */
+    | 'capture-rival' };

@@ -28,6 +28,7 @@ import { promotionCityMultiplier, promotionStrikeMultiplier, scalePermille } fro
 import { registerSpecies } from './unit.ts';
 import { visibleTiles } from './vision.ts';
 import { researchCaptureBonus } from './research-tasks.ts';
+import { isRivalUnit, rivalSpirit } from './rivals.ts';
 
 type Rejection = Extract<StepResult, { ok: false }>['reason'];
 const hasTech = (state: GameState, owner: number | null, tech: TechId) => owner !== null && state.players[owner].research.unlockedIds.includes(tech);
@@ -56,6 +57,8 @@ export function validateCombatAction(state: GameState, actor: number, action: Co
     || !visibleTiles(state, actor, content).has(hexToIndex(target.position, state.map)!)) return unavailable;
   const distance = hexDistance(unit.position, target.position, state.map);
   if (action.type === 'Capture') {
+    // v24 C: a rival trainer's Pokémon cannot be caught.
+    if ('kind' in target && isRivalUnit(state, target.id)) return 'capture-rival';
     return 'kind' in target && target.kind === 'pokemon' && target.ownerId === null && distance === 1
       && hasTech(state, actor, 'domestication') && Object.hasOwn(content.balls, action.ballId)
       && hasTech(state, actor, content.balls[action.ballId].requiredTech) && player.ballInventory[action.ballId] > 0 ? null : unavailable;
@@ -99,7 +102,7 @@ function unitStrike(state: GameState, attacker: MapUnit, defender: MapUnit, coun
       zealot: counter ? 1000 : zealotMultiplier(state, attacker.ownerId, attacker.position),
       assault: promotionStrikeMultiplier(state, attacker.id, -1, counter), bulwark: promotionStrikeMultiplier(state, -1, defender.id, counter),
       classCounter: classCounterPermille(state, attacker, defender, content), affinity: affinityPermille(state, attacker, content) }),
-    teraTypes(era, defender.id)), roll, counter, defender.hp) : unitDamage(attacker, defender, state.map.tiles[hexToIndex(attacker.position, state.map)!],
+    teraTypes(era, defender.id), { attacker: rivalSpirit(state, attacker.id), defender: rivalSpirit(state, defender.id) }), roll, counter, defender.hp) : unitDamage(attacker, defender, state.map.tiles[hexToIndex(attacker.position, state.map)!],
     state.map.tiles[hexToIndex(defender.position, state.map)!], hasTech(state, attacker.ownerId, 'typeResearch'), roll, counter, content,
     leaderAttackMultiplier(state, attacker.ownerId, leaderEffects(attacker.ownerId === null ? undefined : state.players[attacker.ownerId].leaderId).activeAttackMultiplier), Boolean(state.expansion),
     counter ? 0 : flankBonus(state.setup, attacker, defender, Object.values(state.units).filter(isMapUnit), state.map),

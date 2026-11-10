@@ -706,6 +706,20 @@ export function inspectSystem(systemId: string, state: GameState): AuditSystemIn
     return { metrics: [metric('当前规则', '开局节奏 v21'), metric('地图上的道具球', Object.keys(opening.itemBalls).length),
       ...Object.entries(opening.objectives).map(([id, done]) => metric(`玩家 ${id} 开局目标`, `${done.length}/8`))], data: { itemBalls: opening.itemBalls, seenByPlayer: opening.seen } };
   }
+  if (system.id === 's-gym-circuit') {
+    const circuit = state.expansion?.gymCircuit;
+    if (!circuit) return { metrics: [metric('当前规则', '未启用（需 v24）')], data: {} };
+    return { metrics: [metric('当前规则', '道馆巡回 v24'), metric('道馆', circuit.gyms.length), metric('过海道馆', circuit.gyms.filter(gym => gym.overseas).length),
+      ...Object.entries(circuit.badges).map(([id, list]) => metric(`玩家 ${id} 徽章`, `${list.length}${circuit.eliteFour[Number(id)]?.won ? ' · 已胜四天王' : ''}`))],
+      data: { gyms: circuit.gyms, badges: circuit.badges, eliteFour: circuit.eliteFour } };
+  }
+  if (system.id === 's-rivals') {
+    const rivals = state.expansion?.rivals;
+    if (!rivals) return { metrics: [metric('当前规则', '未启用（需 v24）')], data: {} };
+    return { metrics: [metric('当前规则', '劲敌训练家 v24'), ...Object.entries(rivals.byPlayer).map(([id, ledger]) => metric(`玩家 ${id} 的劲敌${ledger.name}`,
+      `${ledger.pending ? `第 ${ledger.pending.round} 轮登场` : ledger.activeUnitIds.length ? `在场 ${ledger.activeUnitIds.length} 只` : '未在场'} · ${ledger.outcomes.join('/') || '尚未登场'}`))],
+      data: { byPlayer: rivals.byPlayer, unitTargets: rivals.unitTargets, spirit: rivals.spirit } };
+  }
   if (system.id === 's-improvements-v23') {
     const on = (state.setup.gameplayVersion ?? 0) >= 23, tiles = Object.values(state.expansion?.improvements?.tiles ?? {});
     if (!on) return { metrics: [metric('当前规则', '未启用（需 v23）')], data: {} };

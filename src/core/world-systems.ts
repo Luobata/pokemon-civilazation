@@ -1,4 +1,5 @@
 import { victoryTargets } from '../content/opening.ts';
+import { isRivalUnit } from './rivals.ts';
 import { nestPriorityFor, speciesGeneration, stoneEvolutionsFor } from '../content/roster.ts';
 import { generationAllows, maxGeneration } from './roster.ts';
 import { gameplayAtLeast } from '../content/eras.ts';
@@ -655,10 +656,11 @@ export function updateWorldRecords(before: GameState, next: GameState, command: 
           || visibleAfter.has(hexToIndex(position, next.map)!));
         if (!visible) continue;
         const attacker = before.units[event.attackerId] ?? next.units[event.attackerId];
-        if (attacker?.kind === 'pokemon') markRecord(next, playerId, attacker.speciesId, 'battled', events);
+        // v24 C: a rival trainer's Pokémon only counts as seen (world-v24 §4.1).
+        if (attacker?.kind === 'pokemon' && !isRivalUnit(before, attacker.id)) markRecord(next, playerId, attacker.speciesId, 'battled', events);
         if (event.target.kind === 'unit') {
           const defender = before.units[event.target.id] ?? next.units[event.target.id];
-          if (defender?.kind === 'pokemon') markRecord(next, playerId, defender.speciesId, 'battled', events);
+          if (defender?.kind === 'pokemon' && !isRivalUnit(before, defender.id)) markRecord(next, playerId, defender.speciesId, 'battled', events);
         }
       } else if (event.type === 'Captured' && event.success && event.playerId === playerId) {
         const captured = before.units[event.targetUnitId] ?? next.units[event.targetUnitId];

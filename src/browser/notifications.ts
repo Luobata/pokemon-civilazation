@@ -17,6 +17,9 @@ import { ERA_AGES } from '../content/era-honors.ts';
 import { DEDICATION_RULES } from '../content/dedications.ts';
 import { PROMOTION_TRAITS } from '../content/promotions.ts';
 import { LEGEND_WONDERS } from '../content/legend-wonders.ts';
+import { ESSENCES } from '../content/essences.ts';
+import { GYM_LEADERS } from '../content/gym-circuit.ts';
+import { rivalSays } from './gym-panel.ts';
 
 export type ToastTarget = { kind: 'screen'; screen: 'research' | 'legends' | 'era' | 'diplomacy' } | { kind: 'city'; cityId: number } | { kind: 'unit'; unitId: number } | null;
 export type ToastTone = 'research' | 'production' | 'growth' | 'wonder' | 'war' | 'info';
@@ -146,6 +149,33 @@ export function toastFor(payload: VisibleEvent['payload'], view: PlayerView, mem
       return toast('war', '✖', `${name}被击倒`, `回到城市 ${payload.cityId} 休养，${payload.roundsLeft} 轮后归队。`, { kind: 'city', cityId: payload.cityId }, '查看城市',
         decision({ kind: 'unit-recovered', unitId: payload.unitId }));
     }
+    // v24 B: gym circuit and Elite Four (public events: only the viewer's own are notified).
+    case 'GymChallenged': {
+      if (payload.playerId !== me) return null;
+      const gym = view.expansion?.gymCircuit?.gyms.find(item => item.id === payload.gymId);
+      const name = gym ? `${ESSENCES[gym.essence].name}徽章` : '徽章';
+      return payload.victory
+        ? toast('growth', '◆', `你赢得了${name}（第 ${payload.badges} 枚）`, `${gym ? `${GYM_LEADERS[gym.leader].name}：` : ''}队伍战力 ${payload.teamPower} 对馆主 ${payload.leaderPower}，${payload.battle.rounds.length} 回合获胜。`, null, undefined, decision())
+        : toast('war', '◇', `道馆挑战失败${gym ? `：${GYM_LEADERS[gym.leader].name}` : ''}`, `队伍战力 ${payload.teamPower} 对馆主 ${payload.leaderPower}。宝可梦恢复后 3 轮可再挑战。`, null);
+    }
+    case 'EliteFourChallenged':
+      if (payload.playerId !== me) return null;
+      return payload.victory ? toast('wonder', '♛', '你战胜了四天王与冠军！', '冠军赛头衔 +1、金币 +100。', null, undefined, decision())
+        : toast('war', '♚', `四天王挑战止步第 ${payload.reached + 1} 场`, '10 轮后可以再挑战。', null);
+    // v24 C: the own rival (these events reach only their target).
+    case 'RivalAnnounced':
+      return toast('war', '!', `劲敌${view.expansion?.rivals?.name ?? ''}将在第 ${payload.round} 轮出现`, `目标：${view.economy.player.headquartersCityId === payload.cityId ? '首都' : `城市 ${payload.cityId}`}。地图上的红色“!”是它的登场地点。`,
+        { kind: 'city', cityId: payload.cityId }, '查看城市', decision(undefined, 'rival-warning'));
+    case 'RivalArrived':
+      return toast('war', '!', `劲敌${view.expansion?.rivals?.name ?? ''}登场！`, `“${rivalSays(payload.encounter, 'arrive')}” 劲敌气势 ${payload.spirit >= 0 ? '+' : ''}${payload.spirit}。`,
+        payload.unitIds.length ? { kind: 'unit', unitId: payload.unitIds[0] } : null, '查看', decision(undefined, 'rival-warning'));
+    case 'RivalStruckCity':
+      return toast('war', '⚔', `劲敌攻击城市 ${payload.cityId}`, `造成 ${payload.damage} 伤害，城防剩余 ${payload.cityHpAfter}（劲敌不会把城市打到 1 HP 以下）。`, { kind: 'city', cityId: payload.cityId }, '查看城市',
+        decision(undefined, `city-attacked:${payload.cityId}`));
+    case 'RivalDefeated':
+      return toast('growth', '★', `击退了劲敌${view.expansion?.rivals?.name ?? ''}！`, `“${rivalSays(payload.encounter, 'beaten')}” 金币 +${payload.gold}${payload.pokeBalls ? `、精灵球 +${payload.pokeBalls}` : ''}${payload.research ? `、科研 +${payload.research}` : ''}${payload.xpUnitIds.length ? `、${payload.xpUnitIds.length} 只参战宝可梦经验 +50` : ''}。`, null, undefined, decision());
+    case 'RivalDeparted':
+      return toast('info', '…', `劲敌${view.expansion?.rivals?.name ?? ''}离开了`, `“${rivalSays(payload.encounter, 'leave')}”`, null);
     case 'BattleResolved': return battleToast(payload, view, memory);
     case 'CivilizationEliminated':
       return toast('war', '☠', `文明 ${payload.eliminatedPlayerId + 1} 出局`, '', null);

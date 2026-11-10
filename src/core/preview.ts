@@ -1,5 +1,6 @@
 import { wallBonus } from './opening.ts';
 import { viewResearchCaptureBonus } from './research-tasks.ts';
+import { viewIsRivalUnit, viewRivalSpirit } from './rivals.ts';
 
 /** Same test as the authority (owner's headquarters is this city): a captured former capital still names its fallen founder in `headquartersOf`. */
 const isOwnCapital = (city: { ownerId: number | null; headquartersOf?: number | null } | undefined) => city?.headquartersOf != null && city.headquartersOf === city.ownerId;
@@ -60,13 +61,15 @@ export function previewAttack(view: PlayerView, unitId: number, target: CombatTa
         misty: mistyWaterMultiplier(mapView, unit.ownerId, unit, content), home: home(defendingUnit, to), eraAttack: eraAttackMultiplier(era, unit, content, false, false),
         eraDefense: eraDefenseMultiplier(era, defendingUnit), zealot: viewZealotMultiplier(view, unit.position),
         assault: promotionStrikeMultiplier(view, unit.id, -1, false), bulwark: promotionStrikeMultiplier(view, -1, defendingUnit.id, false),
-        classCounter: classCounterPermille(view, unit, defendingUnit, content), affinity: affinityPermille(view, unit, content) }), teraTypes(era, defendingUnit.id));
+        classCounter: classCounterPermille(view, unit, defendingUnit, content), affinity: affinityPermille(view, unit, content) }), teraTypes(era, defendingUnit.id),
+        { attacker: 0, defender: viewRivalSpirit(view, defendingUnit.id) });
       min = strengthDamage(strength, 85, false, hp); max = strengthDamage(strength, 100, false, hp);
       if (canCounter) counter = strengthDamage(unitStrengthBreakdown(defendingUnit, unit, to, from, view.combat.units[defendingUnit.id].typeResearch, content, strikeFactors({ leader: 1000,
         enraged: defendingUnit.enraged, flank: 0, misty: mistyWaterMultiplier(mapView, defendingUnit.ownerId, defendingUnit, content), home: home(unit, from),
         eraAttack: eraAttackMultiplier(era, defendingUnit, content, false, true), eraDefense: eraDefenseMultiplier(era, unit), zealot: 1000,
         assault: promotionStrikeMultiplier(view, defendingUnit.id, -1, true), bulwark: promotionStrikeMultiplier(view, -1, unit.id, true),
-        classCounter: classCounterPermille(view, defendingUnit, unit, content), affinity: affinityPermille(view, defendingUnit, content) }), teraTypes(era, unit.id)), 100, true, unit.hp);
+        classCounter: classCounterPermille(view, defendingUnit, unit, content), affinity: affinityPermille(view, defendingUnit, content) }), teraTypes(era, unit.id),
+        { attacker: viewRivalSpirit(view, defendingUnit.id), defender: 0 }), 100, true, unit.hp);
     } else {
     min = unitDamage(unit, defendingUnit, from, to, techs.includes('typeResearch'), 85, false, content, attackMultiplier, Boolean(view.expansion), flank, side, teraTypes(era, defendingUnit.id));
     max = unitDamage(unit, defendingUnit, from, to, techs.includes('typeResearch'), 100, false, content, attackMultiplier, Boolean(view.expansion), flank, side, teraTypes(era, defendingUnit.id));
@@ -103,6 +106,8 @@ export function previewCapture(view: PlayerView, unitId: number, targetUnitId: n
     || target.ownerId !== null || hexDistance(unit.position, target.position, view.map) !== 1 || !Object.hasOwn(content.balls, ballId)
     || !player.research.unlockedIds.includes('domestication') || !player.research.unlockedIds.includes(content.balls[ballId].requiredTech)
     || player.ballInventory[ballId] < 1) return { ok: false, reason: 'capture-unavailable' };
+  // v24 C: a rival trainer's Pokémon cannot be caught (same test as the authority).
+  if (viewIsRivalUnit(view, target.id)) return { ok: false, reason: 'capture-rival' };
   const definition = content.species[target.speciesId];
   return { ok: true, probability: Math.min(100, captureProbability(definition.maxHp, target.hp, ballId === 'greatBall' ? 1500 : 1000,
     player.research.unlockedIds.includes('fieldObservation'), definition.rare) + viewPolicyEffects(view).captureBonus + leaderEffects(player.leaderId).captureBonus

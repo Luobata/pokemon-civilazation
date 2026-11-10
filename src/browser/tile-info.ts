@@ -26,11 +26,15 @@ import { maxUnitHp } from '../core/unit.ts';
 import type { Yield } from '../content/economy.ts';
 import { BIOME_DISPLAY } from './canvas.ts';
 import { tileYieldReader } from './tile-yields.ts';
+import { rivalUnitNote, v24TileEntities } from './gym-panel.ts';
+import type { Command } from '../core/model.ts';
 
 /** own = yours; ally/peace/enemy = another civilization by relation; wild = wild Pokémon; neutral = no owner. */
 export type Tone = 'own' | 'peace' | 'enemy' | 'neutral' | 'wild' | 'info';
-export type TileEntity = { kind: 'city' | 'unit' | 'resource' | 'luxury' | 'nest' | 'overlord' | 'sanctuary' | 'legend' | 'improvement' | 'district' | 'construction';
-  tone: Tone; title: string; subtitle: string; lines: string[]; hint?: string; unitId?: number; cityId?: number };
+export type TileEntity = { kind: 'city' | 'unit' | 'resource' | 'luxury' | 'nest' | 'overlord' | 'sanctuary' | 'legend' | 'improvement' | 'district' | 'construction' | 'gym' | 'rival';
+  tone: Tone; title: string; subtitle: string; lines: string[]; hint?: string; unitId?: number; cityId?: number;
+  /** v24: an order the inspector offers (null command = shown disabled with `reason`). */
+  action?: { label: string; command: Command['action'] | null; reason?: string } };
 export type TileInfo = {
   index: number;
   /** null: never explored. */
@@ -64,7 +68,8 @@ export function describeTile(view: PlayerView, index: number): TileInfo {
   const at = (position: { q: number; r: number }) => hexToIndex(position, view.map) === index;
   const empty: TileInfo = { index, terrain: null, visible: false, yields: null, workable: false,
     territory: { tone: 'info', text: '尚未探索' }, workedBy: null, entities: [] };
-  if (!biome) return empty;
+  // v24 C: the own rival's warning is shown even on a tile not explored yet (the red “!” is drawn there).
+  if (!biome) return { ...empty, entities: v24TileEntities(view, index).filter(entity => entity.kind === 'rival') };
 
   const essence = ESSENCES[BIOME_ESSENCE[biome]];
   const defense = biome === 'forest' || biome === 'mountain' ? `防守方受伤 ×0.8${biome === 'mountain' ? '；从山地出手 ×1.2' : ''}` : null;
@@ -117,7 +122,10 @@ export function describeTile(view: PlayerView, index: number): TileInfo {
     const promotion = promotionLine(view, unit.id);
     if (promotion) lines.push(promotion);
     let subtitle: string, hint: string | undefined;
-    if (unit.ownerId === null) {
+    const rival = rivalUnitNote(view, unit.id);
+    if (rival) {
+      subtitle = rival.subtitle; hint = rival.hint; lines.push(rival.line);
+    } else if (unit.ownerId === null) {
       subtitle = rampaging.has(unit.id) ? '暴走宝可梦（来自巢穴）' : '野生宝可梦';
       hint = rampaging.has(unit.id) ? '会主动攻击任何文明附近的单位和城市。击倒或捕捉它。'
         : `相邻时可用精灵球捕捉，HP 越低越容易${species.rare ? '（稀有，成功率减半）' : ''}；也可以攻击。`;
@@ -174,6 +182,8 @@ export function describeTile(view: PlayerView, index: number): TileInfo {
       lines: [`守卫：${sanctuary.guardianName}（${SPECIES_NAMES[sanctuary.guardianSpeciesId]}）${sanctuary.guardianDefeated ? ' · 已击败' : ''}`, `击败守卫获得${sanctuary.tabletName}；集齐 ${CIVILIZATION_CONTENT.sanctuaries.definitions.length} 块即起源胜利。`],
       hint: owner === null ? `单位站在上面花 ${CIVILIZATION_CONTENT.sanctuaries.establishmentCost} 金即可建立，永久归你。` : owner === view.playerId && !sanctuary.guardianDefeated ? '带 1–3 只宝可梦（2 格内）挑战守卫。' : undefined });
   }
+  // v24 B / C: a circuit gym, and the viewer's own rival warning.
+  entities.push(...v24TileEntities(view, index));
   // v15: a legend's trace site (shared by everyone; walking a Pokémon onto it yields that civilization's clue).
   const trace = expansion?.legends?.sites.find(site => site.tileIndex === index);
   if (trace && !expansion!.legends!.wonders.some(wonder => wonder.legendId === trace.legendId)) {

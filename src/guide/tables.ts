@@ -49,6 +49,8 @@ import { ERA_AGES, ERA_HONOR_RULES, ERA_HONOR_RULES_V22, ERA_MILESTONES, ERA_MIL
 import { DEDICATION_IDS, DEDICATION_RULES, DEDICATIONS } from '../content/dedications.ts';
 import { PROMOTION_RULES, PROMOTION_TRAITS, PROMOTION_TRAIT_IDS } from '../content/promotions.ts';
 import { techUnlocks } from '../browser/tech-info.ts';
+import { ELITE_FOUR, GYM_LEADERS, GYM_LEADER_ORDER, GYM_RULES_V24, GYM_TYPES, HOME_GYMS, STAGE_NAMES } from '../content/gym-circuit.ts';
+import { RIVAL_COUNTERS, RIVAL_RULES_V24, RIVAL_TEAMS } from '../content/rivals.ts';
 
 const content = contentFor({ expansionVersion: 1, gameplayVersion: LATEST_GAMEPLAY_VERSION });
 
@@ -416,4 +418,33 @@ export function itemBallTable(): string {
 export function victoryTargetTable(): string {
   const rows = [100, 200, 300].map(roundLimit => { const v = victoryTargets({ gameplayVersion: 21, roundLimit }); return [`${roundLimit} 轮`, String(v.contestMinimum), `${v.faithMinimumCities} 座`, `${v.championshipTitles} 次`, `+${v.pokedexBonus} 种`]; });
   return table(['轮上限', '华丽大赛魅力', '信仰：有主城市至少', '冠军赛', '图鉴目标'], rows, [1, 2, 3, 4]);
+}
+
+// ---------- v24 B gym circuit / C rival trainers (docs/design/world-v24.md §3, §4) ----------
+export const gymRules = GYM_RULES_V24;
+export const rivalRules = RIVAL_RULES_V24;
+export function gymLeaderTable(): string {
+  return table(['精华', '馆主', '属性（按种子在组内选一种）', '家门口道馆'], GYM_LEADER_ORDER.map(id => [id === 'dragon' ? '（第 8 座）' : ESSENCES[id].name, GYM_LEADERS[id].name,
+    GYM_TYPES[id].map(type => TYPE_NAMES[type]).join(' / '),
+    (Object.entries(HOME_GYMS) as [SpeciesId, { leader: string; typeId: TypeId }][]).filter(([, home]) => home.leader === id).map(([starter, home]) => `${SPECIES_NAMES[starter]}开局（${TYPE_NAMES[home.typeId]}）`).join('、') || '—']));
+}
+export function gymTeamTable(): string {
+  return table(['挑战者已有徽章', '馆主队伍', '队伍总战力', '胜利奖励金币'], GYM_RULES_V24.teams.map((row, badges) => [String(badges), `${row.members} 只${STAGE_NAMES[row.stage]}`, String(row.power),
+    String(GYM_RULES_V24.reward.goldPerBadge * (badges + 1))]), [0, 2, 3]);
+}
+export function eliteFourTable(): string {
+  return table(['场次', '对手', '属性', '队伍', '战力'], ELITE_FOUR.map((member, index) => [String(index + 1), `${member.title} ${member.name}`, member.typeIds.map(type => TYPE_NAMES[type]).join(' / '),
+    `${member.members} 只三阶`, String(member.power)]), [0, 4]);
+}
+export function rivalTable(): string {
+  return table(['登场', '轮次（提前 2 轮预告）', '队伍', '劲敌气势偏移', '击退奖励'], RIVAL_RULES_V24.arrivals.map((round, index) => {
+    const reward = RIVAL_RULES_V24.rewards[index] as { gold: number; pokeBalls?: number; research?: number; xp?: number; eraScore: number };
+    return [`第 ${index + 1} 次`, `第 ${round} 轮`, RIVAL_TEAMS[index].map(slot => `${slot.list === 'primary' ? '主克制' : '副克制'}${STAGE_NAMES[slot.stage]}`).join(' + '),
+      `${RIVAL_RULES_V24.strengthOffsets[index] > 0 ? '+' : ''}${RIVAL_RULES_V24.strengthOffsets[index]}`,
+      [`金币 ${reward.gold}`, reward.pokeBalls ? `精灵球 +${reward.pokeBalls}` : '', reward.research ? `科研 +${reward.research}` : '', reward.xp ? `参战宝可梦经验 +${reward.xp}` : '', `世代分 +${reward.eraScore}`].filter(Boolean).join('、')];
+  }));
+}
+export function rivalCounterTable(): string {
+  return table(['你的御三家', '主克制', '副克制'], (Object.entries(RIVAL_COUNTERS) as [SpeciesId, { primary: readonly SpeciesId[]; secondary: readonly SpeciesId[] }][]).map(([starter, counters]) =>
+    [SPECIES_NAMES[starter], counters.primary.map(id => SPECIES_NAMES[id]).join('、'), counters.secondary.map(id => SPECIES_NAMES[id]).join('、')]));
 }
