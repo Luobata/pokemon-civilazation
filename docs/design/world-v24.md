@@ -660,3 +660,20 @@ v23 对照（`improvements-v23.md` 第 10 节，同一组 36 局）：第一项�
 
 - 测试：`tests/core/world-v24-scaffold.test.ts`（v24 信封与六个标记；v23 没有标记；脚手架期间 v24 新局的地图、扩展账本、玩家视图与 v23 相同；`ChallengeGym` 两版都被拒）。
 - 验收：改动前在 3288e69 生成基线 `/tmp/v23-baseline-v24work`、`/tmp/v22-baseline-v24work`（`tools/district-smoke.ts`，各 49 个文件）。改动后 v23、v22 各 **49/49 逐字节一致**；v24 固定 48 局两次 **49/49 一致**、48 局全部完成，且与 v23 除版本字段外完全相同。门禁：`npm run build`、`npm run lint`、`npm run lint:tools` 通过；`npx vitest run` 692 项中 691 通过，唯一失败是 `tests/tools/district-preview-check.test.ts` 在机器满载（同时跑着两组 48 局基线）时超过 30 s 上限，单独重跑通过（v10 对局，脚手架不改它的规则）。未改 `src/browser/`，没有跑 Playwright。
+
+### D：图鉴调查任务（2026-11-10）
+
+- 规则（`src/content/research-tasks.ts`、`src/core/research-tasks.ts`）：账本 `expansion.researchTasks[玩家][物种] = { tasks 位掩码, knockouts }`，只在 v24（`content.researchTasks`）创建；与图鉴胜利记录 `world.players[].pokedex` 分开，图鉴胜利判定不读它（第 5.1 节写的 `PokedexRecord.tasks?` 改为独立账本，效果相同、旧存档结构不动）。开局已登记的物种记为“看到”。
+  - 每条命令最后由 `recordExpansion` 调用 `recordResearchTasks`，按事件顺序记：`BattleResolved.knockdowns`（来源是己方宝可梦、目标是宝可梦；城市反击与野生击倒不算）、成功的 `Captured`、`Evolved` / `WorldStoneEvolution`（进化前后两种都记；别人的进化只在该单位处于本人视野时算）、最后是本人图鉴的“观察”（所以“看到”只算本人真正看见的）。
+  - 特别条件（按第一属性）：恶/幽灵夜里击倒（`isNight`）；水/火/岩石/地面/钢在雨/大晴天/沙暴里击倒（`weatherAt`，按被击倒单位的位置、命令前的天气）；其他在栖息地收服。栖息地 = 物种或其进化前形态 `spawnBiomes` 中权重 > 0 的群系，判定只在 `inResearchHabitat(map, content, speciesId, tileIndex)` 一个函数里，A3 合入后在这里加要素叠加即可。
+  - 奖励按卡上完成项数，各一次：2 项科研储备 +4；4 项对该物种捕捉率 +10（`researchCaptureBonus` 权威掷骰、`viewResearchCaptureBonus` 预览，同一数值）；5 项金币 +15、世代分 +1（里程碑 `researchComplete`，每世代最多 3 次，之后只给金币）。时代献礼的触发表也加了这一项名称。
+  - 事件 `ResearchTaskCompleted { playerId, speciesId, task, tasksDone, reward? }` 不带 `public`，只投递给本人；玩家视图只含自己的账本。全部整数、无随机数、按玩家编号与事件顺序迭代。
+- AI（`src/ai/research-plan.ts`）：捕捉打分在“收服能完成第 3 项，或在栖息地收服能完成第 5 项”时 +15，只读视图。
+- 界面（`src/browser/research-card.ts`，样式在单独的 `src/research-tasks.css`）：单位面板里一张可折叠的调查卡（瞄准攻击/捕捉目标时显示目标物种，否则显示本单位物种；刷新时保留展开状态；“再击倒 1 只得调查笔记”）；世界页「图鉴与探索胜利」里的调查卡总表；完成提示只占通知栏一个位置（同一 key，后一条替换前一条）；时代页的得分表只在 v24 显示该里程碑。没有改 `render/`、`audio/`、`main.ts`。
+- 手册：新章节「图鉴调查任务」（特别条件表、奖励表）与系统总览一行；审计：`s-research-tasks`（规则、来源、每人调查卡统计）。
+- 测试：`tests/core/research-tasks.test.ts`（v23 无账本、开局“看到”、看到只算本人视野、击倒 2 只与调查笔记一次、野生/城市击倒不算、收服与栖息地、进化与他人视野、夜晚/下雨/错误天气、捕捉率 +10 预览 = 实际掷骰、完成奖励与世代分上限、AI 打分、私有与事件投递）；`tests/browser/research-tasks.spec.ts`（真实 v24 AI 对局种子 2 的存档，真实点击瞄准与确认攻击，单位面板卡片、通知、世界页总表，Shift+点击结束回合）；`world-v24-scaffold.test.ts` 改为“除已合入的 `researchTasks` 外与 v23 相同”。
+- 验收：
+  - v22、v23 固定 48 局与 `/tmp/v22-baseline-v24work`、`/tmp/v23-baseline-v24work` **各 49/49 逐字节一致**；v24 两次 **49/49 一致**，48 局全部完成、0 异常，被拒命令只有 12 次迷雾选址（与 v23 相同）。
+  - 固定 48 局（v23 → v24，只有 D 生效）：征服 18 → 18、信仰 11 → 10、华丽大赛 10 → 7、图鉴 3 → 6、计分 6 → 6、冠军赛 0 → 1；中位结束 80.5 → 76。
+  - 大地图同一组 36 局（40×26、200 轮、精简世代、种子 31–42 × 三种性格、轮换 0；v23 结果与 improvements-v23.md 第 10 节完全一致）：图鉴胜利 2 → 5（5.6% → 13.9%），华丽大赛 15 → 16、征服 9 → 9、冠军赛 4 → 3、信仰 4 → 2、计分 2 → 1；中位结束 138 → 142.5；100 轮内结束 4 → 3；捕捉 1310/2617 → 1317/2604；0 异常、0 缺陷拒绝。每个文明（中位）有进度的卡 34 张、拿到调查笔记的 20 张（约 +80 科研）、捕捉率加成 2 张、完成 0 张；144 个文明合计完成 45 张。
+  - 读法：调查任务本身不计入图鉴胜利，但 AI 的 +15 让它更常去收服**还没收服过**的物种（捕捉总数几乎不变），于是“已记录”物种变多，图鉴胜利两组都约翻倍（+6.3 / +8.3 个百分点，在 20 个百分点门槛内）。若要压回去，可把 AI 加分只给第 5 项，或降到 +5（需用户决定）。
