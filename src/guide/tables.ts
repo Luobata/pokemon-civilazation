@@ -13,6 +13,7 @@ import { leaderUnitFor, spawnWeightsFor, stoneEvolutionsFor } from '../content/r
 import { evolutionOptions } from '../core/roster.ts';
 import type { EvolutionOption } from '../content/species.ts';
 import { LATEST_GAMEPLAY_VERSION } from '../content/eras.ts';
+import { gymTeamPower } from '../content/world24-tuning.ts';
 // Handbook tables are rendered from the live content modules, so numbers cannot drift from the rules.
 // Only the default new-game setup (expansion v1 + era mode + LATEST_GAMEPLAY_VERSION) is described.
 import { FULL_TYPE_CHART } from '../content/combat.ts';
@@ -465,7 +466,7 @@ export function gymLeaderTable(): string {
     (Object.entries(HOME_GYMS) as [SpeciesId, { leader: string; typeId: TypeId }][]).filter(([, home]) => home.leader === id).map(([starter, home]) => `${SPECIES_NAMES[starter]}开局（${TYPE_NAMES[home.typeId]}）`).join('、') || '—']));
 }
 export function gymTeamTable(): string {
-  return table(['挑战者已有徽章', '馆主队伍', '队伍总战力', '胜利奖励金币'], GYM_RULES_V24.teams.map((row, badges) => [String(badges), `${row.members} 只${STAGE_NAMES[row.stage]}`, String(row.power),
+  return table(['挑战者已有徽章', '馆主队伍', '队伍总战力', '胜利奖励金币'], GYM_RULES_V24.teams.map((row, badges) => [String(badges), `${row.members} 只${STAGE_NAMES[row.stage]}`, String(gymTeamPower(undefined, badges)),
     String(GYM_RULES_V24.reward.goldPerBadge * (badges + 1))]), [0, 2, 3]);
 }
 export function eliteFourTable(): string {

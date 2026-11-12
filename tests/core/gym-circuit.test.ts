@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { ESSENCE_IDS } from '../../src/content/essences.ts';
 import { ELITE_FOUR, GYM_RULES_V24, HOME_GYMS } from '../../src/content/gym-circuit.ts';
 import { WORLD24_CONTENT } from '../../src/content/units.ts';
+import { gymTeamPower } from '../../src/content/world24-tuning.ts';
 import type { SpeciesId } from '../../src/content/species.ts';
 import { dualEffectiveness } from '../../src/core/combat-math.ts';
 import { createGame } from '../../src/core/game.ts';
@@ -115,7 +116,7 @@ describe('v24 B gym circuit: challenges', () => {
       const team = leaderTeam(gym, badges, state.setup.seed, content);
       expect(team.length).toBe(row.members);
       const power = team.reduce((sum, member) => sum + member.maxHp + member.attack + member.defense, 0);
-      expect(Math.abs(power - row.power)).toBeLessThanOrEqual(3 * row.members);
+      expect(Math.abs(power - gymTeamPower(content, badges))).toBeLessThanOrEqual(3 * row.members);
       expect(team.every(member => content.species[member.speciesId].typeId === gym.typeId || content.species[member.speciesId].secondaryTypeId === gym.typeId)).toBe(true);
     }
   });

@@ -23,7 +23,7 @@ export const WORLD24_TUNING: World24Tuning = {
   landPercent: MAP_GENERATION_V24.landPercent,
   rivalArrivals: [...RIVAL_RULES_V24.arrivals], rivalStrengthOffsets: [...RIVAL_RULES_V24.strengthOffsets],
   rivalStepsPerRound: RIVAL_RULES_V24.stepsPerRound,
-  gymTeamPower: GYM_RULES_V24.teams.map(row => row.power), gymLatePowerPercent: 100,
+  gymTeamPower: GYM_RULES_V24.teams.map(row => row.power), gymLatePowerPercent: 70,
   eliteFourPower: ELITE_FOUR.map(member => member.power),
 };
 /** The tuning a content carries (the stock values when it has none, e.g. a view built without the v24 content). */

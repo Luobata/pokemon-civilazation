@@ -11,7 +11,7 @@ export const RIVAL_RULES_V24 = {
   /** The AI treats its own cities this close to one of its rival's Pokémon as threatened (§4.3). */
   threatRadius: 4,
   /** 劲敌气势: clamp(S + offset − species attack, −cap, +cap), S = the target's second-highest attack strength. */
-  strengthOffsets: [-6, -2, 2], strengthCap: 12,
+  strengthOffsets: [-10, -2, 2], strengthCap: 12,
   rewards: [{ gold: 25, pokeBalls: 2, eraScore: 1 }, { gold: 50, research: 20, eraScore: 2 }, { gold: 80, xp: 50, eraScore: 3 }],
 } as const;
 /** Primary and secondary counters to each starter (§4.1), whole evolution lines so every visit finds its stage. */
