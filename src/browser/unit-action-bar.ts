@@ -17,7 +17,9 @@ import { WORLD_DEFINITIONS } from '../content/world-systems.ts';
 import { hexDistance, hexToIndex } from '../core/hex.ts';
 import type { Command, MapUnit, PlayerView } from '../core/model.ts';
 import { actionTargets } from './action-targets.ts';
+import { viewGymBlocksCity } from '../core/gym-circuit.ts';
 import type { ActionMode } from './unit-panel.ts';
+import { gymBarState, gymTitle, nextLeaderText, openGymCard, refreshGymCard } from './gym-panel.ts';
 
 type Pokemon = Extract<MapUnit, { kind: 'pokemon' }>;
 
@@ -50,6 +52,7 @@ export function foundingReason(view: PlayerView, unit: MapUnit): string | null {
   const biome = view.map.tiles[hexToIndex(unit.position, view.map)!];
   return !unit.actionLeft ? '本回合已行动。结束回合后，开拓队恢复行动点。'
     : biome === 'ocean' ? '海洋上无法建城，请选择陆地。'
+    : viewGymBlocksCity(view, hexToIndex(unit.position, view.map)!) ? '巡回道馆所在的地块不能建城，请移到旁边的格子。'
     : nearest < 4 ? `距最近已知城市 ${nearest} 格，至少需要 4 格。请继续向外探索。` : null;
 }
 
@@ -78,6 +81,7 @@ const ICONS = {
   improve: pixelIcon(['kkkkkk...', 'kssssk...', 'kssssskk.', 'kkkkbkk..', '...kbk...', '...kbk...', '...kbk...', '...kbk...', '...kkk...'], { s: '#B3C2BA', b: '#A0703A' }),
   pillage: pixelIcon(['k.......k', 'kk..k..kk', '.kkkrkkk.', '..krrrk..', '.krroorrk', '..krrrk..', '.kkkrkkk.', 'kk..k..kk', 'k.......k'], { r: '#E0483A', o: '#F2A93B' }),
   repair: pixelIcon(['.kk...kk.', 'kssk.kssk', 'ksssksssk', '.kssssk..', '..kssk...', '.kbbk....', 'kbbk.....', 'kbk......', 'kk.......'], { s: '#B3C2BA', b: '#A0703A' }),
+  gym: pixelIcon(['..kkkkk..', '.krrrrrk.', 'kkkkwkkkk', 'kwwkwkwwk', '.kssssk..', '.kskkskk.', '.kskkskk.', '.kssssssk', 'kkkkkkkkk'], { r: '#D9495B', s: '#B9A57F' }),
   skip: pixelIcon(['k...k....', 'kk..kk...', 'kwk.kwk..', 'kwwkkwwk.', 'kwwwkwwwk', 'kwwkkwwk.', 'kwk.kwk..', 'kk..kk...', 'k...k....'], {}),
 } as const;
 type IconName = keyof typeof ICONS;
@@ -103,7 +107,7 @@ type BarAction = {
 };
 const escapeHtml = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 /** Hotkeys of the bar (lower-case `event.key`; Space is ' '). Chosen to avoid C (city), F (fit), R/T, Y, Enter, Esc, +/−. */
-export const UNIT_BAR_HOTKEYS = { move: 'm', attack: 'a', capture: 'q', evolve: 'e', found: 'b', improve: 'i', pillage: 'p', repair: 'x', skip: ' ' } as const;
+export const UNIT_BAR_HOTKEYS = { move: 'm', attack: 'a', capture: 'q', evolve: 'e', found: 'b', improve: 'i', pillage: 'p', repair: 'x', gym: 'g', skip: ' ' } as const;
 
 type ImproveOption = { tileIndex: number; kind: ImprovementId; label: string };
 function barActions(view: PlayerView, unit: MapUnit, mode: ActionMode, lock: string | null): { actions: BarAction[]; options: ImproveOption[] } {
@@ -186,6 +190,13 @@ function barActions(view: PlayerView, unit: MapUnit, mode: ActionMode, lock: str
       detail: '修复花掉本回合行动，不消耗工匠次数（随行「巧手」不占行动）。',
     });
   }
+  // v24 B: a Pokémon standing on a circuit gym can open the challenge card.
+  const gym = gymBarState(view, unit);
+  if (gym) actions.push({
+    id: 'gym-unit', action: 'gym', icon: 'gym', label: '道馆', hotkey: 'G', key: UNIT_BAR_HOTKEYS.gym, tone: 'primary',
+    title: `挑战道馆 · ${gymTitle(gym.gym)}`, reason: lock ?? gym.reason,
+    detail: `带上 2 格内最多 3 只宝可梦。你的下一位馆主：${nextLeaderText(view)}。`,
+  });
   const others = view.units.some(other => other.ownerId === view.playerId && other.actionLeft && other.id !== unit.id);
   actions.push({
     id: 'skip-unit', action: 'skip', icon: 'skip', label: '跳过', hotkey: '空格', key: UNIT_BAR_HOTKEYS.skip,
@@ -195,6 +206,7 @@ function barActions(view: PlayerView, unit: MapUnit, mode: ActionMode, lock: str
 }
 
 let rendered = '';
+let lastView: PlayerView | null = null;
 let current: { callbacks: UnitBarCallbacks; options: ImproveOption[]; unitId: number | null } = { callbacks: null!, options: [], unitId: null };
 let menuOpen = false;
 
@@ -205,6 +217,8 @@ export function renderUnitActionBar(view: PlayerView, selected: number | null, m
   const unit = view.units.find(candidate => candidate.id === selected && candidate.ownerId === view.playerId);
   if (unit?.id !== current.unitId) menuOpen = false;
   current = { callbacks, options: [], unitId: unit?.id ?? null };
+  refreshGymCard(view, unit?.id ?? null, lock !== null);
+  lastView = view;
   if (!unit) { root.hidden = true; if (rendered) { root.innerHTML = ''; rendered = ''; } return; }
   const { actions, options } = barActions(view, unit, mode, lock);
   current.options = options;
@@ -239,6 +253,7 @@ function run(button: HTMLButtonElement) {
     case 'improve-option': menuOpen = false; callbacks.improve(Number(button.dataset.tile), button.dataset.kind as ImprovementId); return;
     case 'pillage': if (current.unitId !== null) callbacks.order?.({ type: 'PillageImprovement', unitId: current.unitId }); return;
     case 'repair': if (current.unitId !== null && button.dataset.species) callbacks.order?.({ type: 'RepairImprovement', unitId: current.unitId, tileIndex: Number(button.dataset.species) }); return;
+    case 'gym': if (current.unitId !== null && lastView && callbacks.order) openGymCard(lastView, current.unitId, callbacks.order); return;
     case 'skip': callbacks.skip(); return;
   }
 }

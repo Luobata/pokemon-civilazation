@@ -12,6 +12,7 @@ import type { Hex, GridSize } from './hex.ts';
 import type { RngState } from './rng.ts';
 import type { MapTerrain } from './map.ts';
 import type { TileImprovement } from './improvements.ts';
+import type { MapFeatures } from './terrain.ts';
 
 export type AiPersonality = 'expansion' | 'aggressive' | 'conservative';
 export type Score = { playerId: number; total: number; cities: number; population: number; species: number; techs: number; knockdowns: number };
@@ -93,7 +94,7 @@ export type KnowledgeState = {
   lastKnownCities: Record<number, { ownerId: number | null; position: Hex; lastSeenRound: number; headquartersOf?: number | null }>;
 };
 export type GameState = {
-  schemaVersion: 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18; rulesVersion: 'm5-v1' | 'districts-v10' | 'governments-v11' | 'eras-v12' | 'promotions-v13' | 'roster-v14' | 'legends-v15' | 'movement-v16' | 'cities-v17' | 'roles-v18' | 'classes-v19' | 'strength-v20' | 'opening-v21' | 'world-v22' | 'improvements-v23'; contentVersion: string;
+  schemaVersion: 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19; rulesVersion: 'm5-v1' | 'districts-v10' | 'governments-v11' | 'eras-v12' | 'promotions-v13' | 'roster-v14' | 'legends-v15' | 'movement-v16' | 'cities-v17' | 'roles-v18' | 'classes-v19' | 'strength-v20' | 'opening-v21' | 'world-v22' | 'improvements-v23' | 'world-v24'; contentVersion: string;
   expansion?: ExpansionState;
   setup: GameSetup; rng: RngState; nextEntityId: number; commandSeq: number;
   round: number; activePlayerId: number; turnOrder: number[];
@@ -109,7 +110,8 @@ export type PlayerView = {
   gameplayVersion?: GameplayVersion;
   expansion?: ExpansionView;
   playerId: number; seed: number; round: number; activePlayerId: number; commandSeq: number;
-  map: GridSize & { tiles: (BiomeId | null)[] };
+  /** `features` (v24): terrain features of explored tiles only. */
+  map: GridSize & { tiles: (BiomeId | null)[]; features?: MapFeatures };
   /** Per tile: sorted civilization IDs, [] observed unclaimed, null ownership never observed. */
   territoryOwnerIds: (number[] | null)[];
   visibleTileIds: number[]; knowledge: KnowledgeState;
@@ -150,4 +152,6 @@ export type VisibleEvent = { seq: number; payload:
   | Exclude<EventPayload, { type: 'Moved' }>
 };
 export type StepResult = { ok: true; state: GameState; events: GameEvent[] }
-  | { ok: false; reason: 'game-ended' | 'diplomacy-unavailable' | 'not-your-turn' | 'stale-command' | 'invalid-command' | 'unit-unavailable' | 'no-action' | 'unreachable' | 'city-unavailable' | 'invalid-production' | 'contested-territory' | 'invalid-work' | 'research-unavailable' | 'purchase-unavailable' | 'invalid-city-site' | 'attack-unavailable' | 'capture-unavailable' | 'evolution-unavailable' };
+  | { ok: false; reason: 'game-ended' | 'diplomacy-unavailable' | 'not-your-turn' | 'stale-command' | 'invalid-command' | 'unit-unavailable' | 'no-action' | 'unreachable' | 'city-unavailable' | 'invalid-production' | 'contested-territory' | 'invalid-work' | 'research-unavailable' | 'purchase-unavailable' | 'invalid-city-site' | 'attack-unavailable' | 'capture-unavailable' | 'evolution-unavailable'
+    /** v24 C: a rival trainer's Pokémon cannot be caught. */
+    | 'capture-rival' };

@@ -1,4 +1,5 @@
 import { gameVersions } from '../core/versions.ts';
+import { tasksDone } from '../core/research-tasks.ts';
 import { cityDistrictEffects, districtProjects } from '../core/districts.ts';
 import { slotCounts } from '../core/policies.ts';
 import { FLANK_MAX, FLANK_PER_UNIT, usesTactics } from '../core/tactics.ts';
@@ -10,7 +11,8 @@ import { cityYield, growthThreshold, maxCityHp, workRadius } from '../core/city.
 import { relationFor } from '../core/diplomacy.ts';
 import { isMapUnit } from '../core/model.ts';
 import type { GameState, MapUnit, UnitState } from '../core/model.ts';
-import { reachablePaths } from '../core/movement.ts';
+import { reachablePaths, waterAccess } from '../core/movement.ts';
+import { isEmbarked } from '../core/terrain.ts';
 import { previewCapture } from '../core/preview.ts';
 import { canonicalSerialize, stateDigest } from '../core/snapshot.ts';
 import { maxUnitHp } from '../core/unit.ts';
@@ -706,12 +708,43 @@ export function inspectSystem(systemId: string, state: GameState): AuditSystemIn
     return { metrics: [metric('当前规则', '开局节奏 v21'), metric('地图上的道具球', Object.keys(opening.itemBalls).length),
       ...Object.entries(opening.objectives).map(([id, done]) => metric(`玩家 ${id} 开局目标`, `${done.length}/8`))], data: { itemBalls: opening.itemBalls, seenByPlayer: opening.seen } };
   }
+  if (system.id === 's-research-tasks') {
+    const book = state.expansion?.researchTasks;
+    if (!book) return { metrics: [metric('当前规则', '未启用（需 v24）')], data: {} };
+    const count = (cards: object, at: number) => Object.values(cards).filter((card: { tasks: number }) => tasksDone(card.tasks) >= at).length;
+    return { metrics: [metric('当前规则', '图鉴调查任务 v24'), ...Object.entries(book).map(([id, cards]) =>
+      metric(`玩家 ${id} 调查卡`, `${Object.keys(cards).length} 种 · 2 项+ ${count(cards, 2)} · 4 项+ ${count(cards, 4)} · 完成 ${count(cards, 5)}`))], data: { researchTasks: book } };
+  }
+  if (system.id === 's-gym-circuit') {
+    const circuit = state.expansion?.gymCircuit;
+    if (!circuit) return { metrics: [metric('当前规则', '未启用（需 v24）')], data: {} };
+    return { metrics: [metric('当前规则', '道馆巡回 v24'), metric('道馆', circuit.gyms.length), metric('过海道馆', circuit.gyms.filter(gym => gym.overseas).length),
+      ...Object.entries(circuit.badges).map(([id, list]) => metric(`玩家 ${id} 徽章`, `${list.length}${circuit.eliteFour[Number(id)]?.won ? ' · 已胜四天王' : ''}`))],
+      data: { gyms: circuit.gyms, badges: circuit.badges, eliteFour: circuit.eliteFour } };
+  }
+  if (system.id === 's-rivals') {
+    const rivals = state.expansion?.rivals;
+    if (!rivals) return { metrics: [metric('当前规则', '未启用（需 v24）')], data: {} };
+    return { metrics: [metric('当前规则', '劲敌训练家 v24'), ...Object.entries(rivals.byPlayer).map(([id, ledger]) => metric(`玩家 ${id} 的劲敌${ledger.name}`,
+      `${ledger.pending ? `第 ${ledger.pending.round} 轮登场` : ledger.activeUnitIds.length ? `在场 ${ledger.activeUnitIds.length} 只` : '未在场'} · ${ledger.outcomes.join('/') || '尚未登场'}`))],
+      data: { byPlayer: rivals.byPlayer, unitTargets: rivals.unitTargets, spirit: rivals.spirit } };
+  }
   if (system.id === 's-improvements-v23') {
     const on = (state.setup.gameplayVersion ?? 0) >= 23, tiles = Object.values(state.expansion?.improvements?.tiles ?? {});
     if (!on) return { metrics: [metric('当前规则', '未启用（需 v23）')], data: {} };
     return { metrics: [metric('当前规则', '改良升级 v23'), metric('已建改良', tiles.length), metric('已损坏', tiles.filter(tile => tile.damaged).length),
       metric('资源改良', tiles.filter(tile => ['berryGrove', 'stoneQuarry', 'plantation'].includes(tile.kind)).length), metric('带随行特长', tiles.filter(tile => tile.crew).length)],
       data: { improvements: state.expansion?.improvements?.tiles ?? {} } };
+  }
+  if (system.id === 's-terrain-v24') {
+    const features = state.map.features;
+    if (!features) return { metrics: [metric('当前规则', '未启用（需 v24）')], data: {} };
+    const land = state.map.tiles.filter(tile => tile !== 'ocean').length;
+    const embarked = Object.values(state.units).filter(unit => unit.position && isEmbarked(unit as never, state.map, contentOf(state))).length;
+    return { metrics: [metric('当前规则', '大陆与地形 v24'), metric('陆地', `${Math.round(land * 100 / state.map.tiles.length)}%`), metric('丘陵 / 高山', `${features.hills.length} / ${features.peaks.length}`),
+      metric('河流格', features.rivers.length), metric('湖 / 深海', `${features.lakes.length} / ${features.deep.length}`), metric('自然地标', features.landmarks.length), metric('乘浪中的单位', embarked),
+      ...Object.values(state.players).map(player => metric(`玩家 ${player.id} 下水`, ['不能', '浅海', '深海'][waterAccess(player, contentOf(state))]))],
+      data: { landmarks: features.landmarks, discovered: state.expansion?.landmarks?.discovered ?? {}, firstDiscovery: state.expansion?.landmarks?.first ?? {} } };
   }
   if (system.id === 's-tech-tree') {
     const tree = contentOf(state).techTree === true;

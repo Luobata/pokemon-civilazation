@@ -1,3 +1,4 @@
+import { worldSiteAllowed } from './terrain.ts';
 // Gameplay v15: legendary wonders (docs/design/legend-collection-v15.md). Clues are per civilization; each wonder is
 // unique in the world, built with city production, and follows its city when the city changes hands.
 import { LEGEND_RULES, LEGEND_WONDERS, LEGEND_WONDER_IDS, legendCost } from '../content/legend-wonders.ts';
@@ -66,7 +67,7 @@ export function initializeLegends(state: GameState): void {
     const placed = Object.values(ledger.sites) as number[];
     const ok = (index: number, cityDistance: number, biomes: readonly BiomeId[] | null) => {
       const biome = state.map.tiles[index], hex = indexToHex(index, state.map);
-      return biome !== 'ocean' && inner(index) && !taken.has(index) && (biomes === null || biomes.includes(biome)) && (!clue.coastal || coastal(index))
+      return biome !== 'ocean' && inner(index) && !taken.has(index) && worldSiteAllowed(state.map, index, 'continent') && (biomes === null || biomes.includes(biome)) && (!clue.coastal || coastal(index))
         && starts.every(start => hexDistance(start, hex, state.map) >= cityDistance) && placed.every(other => hexDistance(indexToHex(other, state.map), hex, state.map) >= LEGEND_RULES.siteSpacing);
     };
     const order = state.map.tiles.map((_, index) => index).sort((a, b) => stableSeed(state.setup.seed, id, a, 'legend-site') - stableSeed(state.setup.seed, id, b, 'legend-site') || a - b);

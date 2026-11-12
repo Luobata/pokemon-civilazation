@@ -12,6 +12,7 @@ import type { TreeTechId } from '../content/tech-tree.ts';
 import { BUILDER_RULES } from '../content/roles.ts';
 import { SPECIES_NAMES } from '../content/species.ts';
 import { IMPROVEMENTS, IMPROVEMENT_IDS_V23 } from '../content/improvements.ts';
+import { EMBARK_TECHS } from '../content/terrain.ts';
 import { ERA_SIEGE_TECH_MULTIPLIER, ERA_TECH_RECRUITS } from '../core/role-tactics.ts';
 
 export const TECH_EFFECTS: Record<LegacyTechId, string> = {
@@ -58,6 +59,9 @@ export function techUnlocks(id: TechId, content?: Content, gameplayVersion?: num
     ...DISTRICT_IDS.filter(district => districtTech(district, tree) === id).map(district => ({ kind: 'district' as const, text: `设施区「${DISTRICTS[district].name}」` })),
     ...(hm ? [{ kind: 'class' as const, text: `学会秘传「${hm[1].hm}」：可训练${CLASS_NAMES[hm[0]]}宝可梦` }] : []),
     ...(recruit ? [{ kind: 'recruit' as const, text: `各城可招募${SPECIES_NAMES[recruit]}` }] : []),
+    // v24 A2: the two water-access technologies (from content.embark).
+    ...(content?.embark && id === EMBARK_TECHS.shallow ? [{ kind: 'effect' as const, text: '乘浪：陆地单位可下浅海与湖（下水 / 上岸结束移动，防守 −10，不能攻击）' }] : []),
+    ...(content?.embark && id === EMBARK_TECHS.deep ? [{ kind: 'effect' as const, text: '远洋冲浪：陆地单位可下深海' }] : []),
     // v23: improvements that need this technology, and the new improvements it boosts.
     ...(content?.resourceImprovements ? IMPROVEMENT_IDS_V23.filter(kind => IMPROVEMENTS[kind].requiredTech === id).map(kind => ({ kind: 'improvement' as const, text: `可建改良「${IMPROVEMENTS[kind].name}」` })) : []),
     ...(content?.resourceImprovements ? IMPROVEMENT_IDS_V23.filter(kind => IMPROVEMENTS[kind].requiredTech && IMPROVEMENTS[kind].boostTech === id)

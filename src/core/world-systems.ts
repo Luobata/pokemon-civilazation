@@ -1,4 +1,5 @@
 import { victoryTargets } from '../content/opening.ts';
+import { isRivalUnit } from './rivals.ts';
 import { nestPriorityFor, speciesGeneration, stoneEvolutionsFor } from '../content/roster.ts';
 import { generationAllows, maxGeneration } from './roster.ts';
 import { gameplayAtLeast } from '../content/eras.ts';
@@ -10,7 +11,7 @@ import { isMapUnit } from './model.ts';
 import type { Command, EventPayload, GameState, MapUnit, PlayerView } from './model.ts';
 
 export type PokemonMapUnit = Extract<MapUnit, { kind: 'pokemon' }>;
-import { canEnter } from './movement.ts';
+import { canEnterTile } from './movement.ts';
 import { randomBelow, shuffled } from './rng.ts';
 import { createMapUnit, registerSpecies } from './unit.ts';
 import { visibleTiles } from './vision.ts';
@@ -22,6 +23,7 @@ import type { BerryId, StoneId, WorldDefinitions, WorldSystemContent } from '../
 import type { Hex } from './hex.ts';
 import type { MapShape } from './hex.ts';
 import { workRadius } from './city.ts';
+import { isEmbarked, worldSiteAllowed } from './terrain.ts';
 
 /**
  * Gameplay v23 harvesting (docs/design/improvements-v23.md §5), shared by authority, UI and AI:
@@ -185,7 +187,7 @@ function specialPlacementCandidates(state: GameState, minimumCityDistance: numbe
   const cities = Object.values(state.cities);
   return state.map.tiles.flatMap((_, index) => {
     const position = indexToHex(index, state.map);
-    return edgeDistance(position, state.map) >= 1 && !occupied.has(index)
+    return edgeDistance(position, state.map) >= 1 && !occupied.has(index) && worldSiteAllowed(state.map, index, 'continent')
       && cities.every(city => hexDistance(position, city.position, state.map) >= minimumCityDistance) ? [index] : [];
   });
 }
@@ -258,7 +260,9 @@ export function initializeWorld(state: GameState, content: Content = WORLD_CONTE
     };
   });
 
-  const resourceCandidates = state.map.tiles.flatMap((_, index) => edgeDistance(indexToHex(index, state.map), state.map) >= 1 && !used.has(index) ? [index] : []);
+  // v24 A3: resources only on passable land (islands included); nests and overlords stay on continents (specialPlacementCandidates).
+  const resourceCandidates = state.map.tiles.flatMap((_, index) => edgeDistance(indexToHex(index, state.map), state.map) >= 1 && !used.has(index)
+    && worldSiteAllowed(state.map, index, 'land') ? [index] : []);
   const berryIds = Object.keys(definitions.berries) as BerryId[];
   const berryTiles = takePlacement(state, resourceCandidates, used, definitions.berryDeposits);
   berryTiles.forEach((tileIndex, index) => {
@@ -484,7 +488,7 @@ function freeSpawnTile(state: GameState, nest: NestSite, identity: { kind: 'poke
     .filter((position, index, all) => all.findIndex(other => other.q === position.q && other.r === position.r) === index)
     .filter(position => {
       const tileIndex = hexToIndex(position, state.map);
-      return tileIndex !== null && !occupied.has(tileIndex) && canEnter(identity, state.map.tiles[tileIndex], content);
+      return tileIndex !== null && !occupied.has(tileIndex) && canEnterTile(identity, state.map, tileIndex, content);
     })
     .sort((a, b) => hexDistance(nest.position, a, state.map) - hexDistance(nest.position, b, state.map)
       || (hexToIndex(a, state.map)! - hexToIndex(b, state.map)!));
@@ -555,7 +559,7 @@ export function resolveWorldRound(state: GameState, content: Content = WORLD_CON
     const steps = neighbors(attacker.position, state.map)
       .filter(position => {
         const tileIndex = hexToIndex(position, state.map);
-        return tileIndex !== null && !occupied.has(tileIndex) && canEnter(attacker, state.map.tiles[tileIndex], content)
+        return tileIndex !== null && !occupied.has(tileIndex) && canEnterTile(attacker, state.map, tileIndex, content)
           && hexDistance(position, target.position, state.map) < distance;
       })
       .sort((a, b) => hexDistance(a, target.position, state.map) - hexDistance(b, target.position, state.map)
@@ -655,10 +659,11 @@ export function updateWorldRecords(before: GameState, next: GameState, command: 
           || visibleAfter.has(hexToIndex(position, next.map)!));
         if (!visible) continue;
         const attacker = before.units[event.attackerId] ?? next.units[event.attackerId];
-        if (attacker?.kind === 'pokemon') markRecord(next, playerId, attacker.speciesId, 'battled', events);
+        // v24 C: a rival trainer's Pokémon only counts as seen (world-v24 §4.1).
+        if (attacker?.kind === 'pokemon' && !isRivalUnit(before, attacker.id)) markRecord(next, playerId, attacker.speciesId, 'battled', events);
         if (event.target.kind === 'unit') {
           const defender = before.units[event.target.id] ?? next.units[event.target.id];
-          if (defender?.kind === 'pokemon') markRecord(next, playerId, defender.speciesId, 'battled', events);
+          if (defender?.kind === 'pokemon' && !isRivalUnit(before, defender.id)) markRecord(next, playerId, defender.speciesId, 'battled', events);
         }
       } else if (event.type === 'Captured' && event.success && event.playerId === playerId) {
         const captured = before.units[event.targetUnitId] ?? next.units[event.targetUnitId];
@@ -733,7 +738,8 @@ export function planWorldAction(view: PlayerView, content: WorldSystemContent = 
   const world = view.expansion?.world;
   if (!world?.player) return null;
   const playerState = world.player;
-  const ownUnits = view.units.filter(unit => unit.ownerId === view.playerId && unit.kind === 'pokemon' && unit.actionLeft === 1);
+  // v24 A2: a unit carried on water cannot clear nests or harvest.
+  const ownUnits = view.units.filter(unit => unit.ownerId === view.playerId && unit.kind === 'pokemon' && unit.actionLeft === 1 && !isEmbarked(unit, view.map, content.base));
   for (const nest of world.nests) {
     const unit = ownUnits.filter(candidate => candidate.kind === 'pokemon')
       .find(candidate => hexDistance(candidate.position, nest.position, view.map) <= content.base.species[candidate.speciesId].range);

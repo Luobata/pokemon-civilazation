@@ -5,7 +5,9 @@ import type { Content } from '../content/units.ts';
 import { crewPoints, improvementOptions, improvementYield, resourceLookup } from '../core/improvements.ts';
 import { viewRepairs } from '../core/pillage.ts';
 import { workRadius } from '../core/city.ts';
-import { hexDistance, indexToHex } from '../core/hex.ts';
+import { hexDistance, hexToIndex, indexToHex, neighbors } from '../core/hex.ts';
+import type { Hex } from '../core/hex.ts';
+import { isBoarding, nearestTravel, travelDistance } from './travel.ts';
 import type { CityState, Command, MapUnit, PlayerView } from '../core/model.ts';
 
 type Suggestion = { action: Command['action']; benefit: number };
@@ -107,12 +109,19 @@ export function improvementSuggestions(view: PlayerView, unit: MapUnit, content:
   }
   const destinations = [...damaged.map(tileIndex => ({ tileIndex })), ...goals];
   if (out.length || !destinations.length) return out;
-  const nearest = [...destinations].sort((a, b) => hexDistance(unit.position, indexToHex(a.tileIndex, view.map), view.map) - hexDistance(unit.position, indexToHex(b.tileIndex, view.map), view.map) || a.tileIndex - b.tileIndex)[0];
-  const goal = indexToHex(nearest.tileIndex, view.map), offset = view.map.tiles[nearest.tileIndex] === 'ocean' ? 1 : 0;
-  const before = hexDistance(unit.position, goal, view.map);
+  // v24 A2: distances on the builder's travel field (straight hex distance before v24); unreachable goals are skipped.
+  const far = (from: Hex, target: Hex) => travelDistance(view, unit, from, target);
+  const nearest = [...destinations].sort((a, b) => far(unit.position, indexToHex(a.tileIndex, view.map)) - far(unit.position, indexToHex(b.tileIndex, view.map)) || a.tileIndex - b.tileIndex)[0];
+  const ocean = view.map.tiles[nearest.tileIndex] === 'ocean', offset = ocean ? 1 : 0;
+  const goal = indexToHex(nearest.tileIndex, view.map);
+  // A sea tile is improved from the shore: aim at its land neighbours on v24 maps (the builder does not board for it).
+  const approach = (from: Hex) => ocean && view.map.features ? nearestTravel(view, unit, from, neighbors(goal, view.map).filter(hex => view.map.tiles[hexToIndex(hex, view.map) ?? -1] !== 'ocean'))
+    : far(from, goal);
+  const before = approach(unit.position);
   for (const indexText of Object.keys(paths)) {
-    const to = indexToHex(Number(indexText), view.map), after = hexDistance(to, goal, view.map);
-    if (after < before && after >= offset) out.push({ action: { type: 'Move', unitId: unit.id, to }, benefit: 80 - after });
+    const to = indexToHex(Number(indexText), view.map), after = approach(to);
+    if (isBoarding(view, unit, to, content)) continue;
+    if (after < before && (view.map.features ? true : after >= offset)) out.push({ action: { type: 'Move', unitId: unit.id, to }, benefit: 80 - after });
   }
   return out;
 }

@@ -40,6 +40,13 @@ import { planRareBerryAction, siteRareBerryBonus } from './rare-berry-plan.ts';
 import { planContestAction } from './contest-plan.ts';
 import { planFaithAction } from './faith-plan.ts';
 import { planDedicationAction } from './dedication-plan.ts';
+import { gymMoveTargets, planGymAction } from './gym-plan.ts';
+import { ownRivalHunters, rivalAttackBonus, rivalThreatenedCityIds, rivalTrainingBonus } from './rival-plan.ts';
+import { viewIsRivalUnit } from '../core/rivals.ts';
+import { researchCaptureScore } from './research-plan.ts';
+import { embarkResearchBonus, isBoarding, nearestTravel, safeToBoard, travelCloser, travelDistance, walkerTravel } from './travel.ts';
+import { waterAccess } from '../core/movement.ts';
+import { featureVision, isEmbarked } from '../core/terrain.ts';
 import type { Goal } from './strategies.ts';
 type Candidate = { action: Command['action']; goal: Goal; benefit: number; ownId: number; targetId: number };
 export const CANDIDATE_BUDGET = 256; // 32 representatives for each of eight goals, never a time budget.
@@ -49,7 +56,7 @@ export function knownCombatCount(view: PlayerView, ownerId: number): number {
   return [...known.values()].filter(unit => unit.ownerId === ownerId && unit.kind === 'pokemon').length;
 }
 export function canCaptureByPersonality(view: PlayerView, target: MapUnit, query: RuleQueries = RULE_QUERIES): boolean {
-  if (target.kind !== 'pokemon' || target.ownerId !== null) return false;
+  if (target.kind !== 'pokemon' || target.ownerId !== null || viewIsRivalUnit(view, target.id)) return false;
   const strategy = AI_STRATEGIES[view.economy.player.personality], ai = query.ai ?? AI_THRESHOLDS;
   const content = query.content === CONTENT ? contentForView(view) : query.content;
   if (strategy.captureHpPercent !== null && target.hp * 100 >= content.species[target.speciesId].maxHp * ai[strategy.captureHpPercent]) return false;
@@ -120,7 +127,11 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
   if (contestAction) return result(contestAction);
   const faithAction = planFaithAction(view);
   if (faithAction) return result(faithAction);
-  const threatened = new Set(threatenedCityIds(view));
+  // v24 C: a rival's warned / attacked cities count as threatened too.
+  // Rivals never strike logistics units or take a city, so their threat only moves garrisons and pauses wonders;
+  // the training-ground rush and the builder pause stay for bond threats (else the opening settler waits).
+  const bondThreatened = new Set(threatenedCityIds(view));
+  const threatened = new Set([...bondThreatened, ...rivalThreatenedCityIds(view)]);
   const leaderAction = planLeaderAction(view, content);
   if (leaderAction) return result(leaderAction);
   const worldAction = planWorldAction(view, { base: content, world: WORLD_DEFINITIONS });
@@ -129,6 +140,9 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
     ? planCivilizationAction(view.expansion.civilization, { ...CIVILIZATION_CONTENT, world: content }, eraCivilizationPolicy(view), view.map)
     : null;
   if (civilizationAction) return result(civilizationAction);
+  // v24 B: gym circuit and Elite Four challenges (null before v24).
+  const gymAction = planGymAction(view, content);
+  if (gymAction) return result(gymAction);
   const units = view.units.filter(unit => unit.ownerId === actorId).sort((a, b) => a.id - b.id);
   const combat = units.filter(unit => unit.kind === 'pokemon');
   const cities = [...view.economy.cities].sort((a, b) => a.id - b.id), known = knownCities(view);
@@ -184,7 +198,7 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
   if (player.research.techId === null) for (const [i, techId] of (Object.keys(content.techs) as TechId[]).entries()) {
     const unlocksLeaderUnit = view.expansion && player.leaderId && techId === 'training' && view.expansion.leaders.recruited === 0;
     if (query.research(player, techId, content)) add({ type: 'SetResearch', techId }, 'research', unlocksLeaderUnit ? 1000
-      : content.techTree ? treeResearchBenefit(view, techId, content) : 100 - techOf(content, techId).cost + leaderResearchBonus(view, techId), 0, i);
+      : content.techTree ? treeResearchBenefit(view, techId, content) + embarkResearchBonus(view, techId, content, citySite) : 100 - techOf(content, techId).cost + leaderResearchBonus(view, techId), 0, i);
   }
   // v15: one legendary wonder at a time, in the most productive eligible city that is not threatened.
   const { cityId: wonderCity, legendId: wonder } = planLegendWonder(view, threatened);
@@ -200,14 +214,14 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
     if (district) queue({ kind: 'district', defId: district.kind, tileIndex: district.tileIndex }, 'economy', district.score, district.tileIndex);
     if (canProduceSettler(view, ai, Boolean(content.opening))) { const escortId = pickEscort(view, content); queue({ kind: 'logistics', defId: 'settler', ...(escortId ? { escortId } : {}) }, 'found', content.opening && cities.length < 3 ? 900 : 50); }
     // The first 工匠 early (improvements compound); later ones only after the army is fed.
-    if (wantsBuilder(view) && !threatened.has(city.id)) { const escortId = pickBuilderEscort(view, city.id, content); queue({ kind: 'logistics', defId: 'builder', ...(escortId ? { escortId } : {}) }, 'economy', units.some(unit => unit.kind === 'logistics' && unit.role === 'builder') ? 70 : 400); }
+    if (wantsBuilder(view) && !bondThreatened.has(city.id)) { const escortId = pickBuilderEscort(view, city.id, content); queue({ kind: 'logistics', defId: 'builder', ...(escortId ? { escortId } : {}) }, 'economy', units.some(unit => unit.kind === 'logistics' && unit.role === 'builder') ? 70 : 400); }
     if (wantsTrader(view, city.id)) { const escortId = pickEscort(view, content); queue({ kind: 'logistics', defId: 'trader', ...(escortId ? { escortId } : {}) }, 'economy', 140); }
     for (const [i, id] of (Object.keys(content.buildings) as BuildingId[]).entries()) {
       const building = content.buildings[id];
       if (building.cost === null || city.buildingIds.includes(id) || (building.requiredTech && !player.research.unlockedIds.includes(building.requiredTech))) continue;
       const y = building.yields;
       queue({ kind: 'building', defId: id }, 'economy', (y.food + y.production * 2 + y.gold * 2 + y.research * 2) * 100 - building.cost
-        + (id === 'trainingGround' && threatened.has(city.id) ? 1000 : 0), i);
+        + (id === 'trainingGround' && bondThreatened.has(city.id) ? 1000 : 0), i);
     }
     if (combat.length < Math.max(4, cities.length * 2) && (income > upkeep || player.gold >= 80)) {
       const badges = viewBadges(view);
@@ -217,7 +231,7 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
         if (classTrainingBlocker(view, player, view.eraProgression, badges, id, content)) continue;
         queue({ kind: 'pokemon', defId: id }, 'military', species.attack + species.defense - species.trainCost
           + (preparingSiege && species.role === 'siege' && strategy.siegeTrainingBonus !== null ? ai[strategy.siegeTrainingBonus] : 0)
-          + roleTrainingBonus(view, id, content, preparingSiege) + typeCounterBonus(view, id, content) + classTrainingBonus(view, id, content), i);
+          + roleTrainingBonus(view, id, content, preparingSiege) + typeCounterBonus(view, id, content) + classTrainingBonus(view, id, content) + rivalTrainingBonus(view, id, content), i);
       }
     }
   }
@@ -227,9 +241,28 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
     add({ type: 'BuyBall', cityId: cities[0].id, ballId: 'pokeBall', quantity: 1 }, 'capture', 20, cities[0].id);
   }
   const visible = new Set(view.visibleTileIds), explored = new Set(view.knowledge.exploredTileIds);
+  // v24: the polar sea rows hold nothing to find; exploring them only strands units on the ice.
+  const polarRow = (tile: number) => view.map.features !== undefined && (Math.floor(tile / view.map.width) < 2 || Math.floor(tile / view.map.width) >= view.map.height - 2);
   const atWar = view.diplomacy.some(pair => pair.status === 'war' && (pair.a === actorId || pair.b === actorId));
   const workers = designatedWorkers(view, content, atWar || campaignActive || preparingSiege);
-  const traceTargets = legendTraceTargets(view, content), ballTargets = itemBallTargets(view);
+  const traceTargets = legendTraceTargets(view, content), ballTargets = itemBallTargets(view), gymTargets = gymMoveTargets(view, content), rivalHunters = ownRivalHunters(view);
+  // Known city sites (computed once per plan; settlers and the v24 overseas checks share the list).
+  let siteCache: MapUnit['position'][] | null = null;
+  const allSites = () => siteCache ??= view.map.tiles.flatMap((_, index) => citySite(indexToHex(index, view.map)) ? [indexToHex(index, view.map)] : []);
+  // v24 integration fix (crowded continent): with no known site reachable over land from the capital and water access, Pokémon may board
+  // to explore and stay out instead of heading home; a settler whose sites all lie across water gets the nearest Pokémon as its escort.
+  const seaPlans = Boolean(content.embark && view.map.features) && waterAccess(player, content) >= 1 && cities.length > 0;
+  const landSettler = { kind: 'logistics', role: 'settler' } as const;
+  const crowded = seaPlans && walkerTravel(view, landSettler, cities[0].position, allSites(), content) === Infinity;
+  const escortTargets = new Map<number, MapUnit['position']>();
+  if (seaPlans) for (const settler of units.filter(unit => unit.kind === 'logistics' && unit.role === 'settler')) {
+    const overseas = isEmbarked(settler, view.map, content)
+      || (allSites().length > 0 && walkerTravel(view, settler, settler.position, allSites(), content) === Infinity && nearestTravel(view, settler, settler.position, allSites()) < Infinity);
+    if (!overseas) continue;
+    const escort = units.filter(unit => unit.kind === 'pokemon' && !escortTargets.has(unit.id))
+      .sort((a, b) => hexDistance(a.position, settler.position, view.map) - hexDistance(b.position, settler.position, view.map) || a.id - b.id)[0];
+    if (escort) escortTargets.set(escort.id, settler.position);
+  }
   for (const unit of units.filter(unit => unit.actionLeft)) {
     const trader = traderPlan(view, unit);
     if (trader.action) add(trader.action, 'economy', 900, unit.id);
@@ -245,14 +278,16 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
         if (canCaptureByPersonality(view, target, query)) for (const ballId of ['pokeBall', 'greatBall'] as BallId[]) {
           const preview = query.capture(view, unit.id, target.id, ballId, content);
           if (preview.ok) add({ type: 'Capture', unitId: unit.id, targetUnitId: target.id, ballId }, 'capture', preview.probability
-            + captureBonus(target) + siegeCaptureBonus(target) + (target.kind === 'pokemon' ? roleCaptureBonus(view, target.speciesId, content) : 0), unit.id, target.id);
+            + captureBonus(target) + siegeCaptureBonus(target) + (target.kind === 'pokemon' ? roleCaptureBonus(view, target.speciesId, content) : 0) + researchCaptureScore(view, target), unit.id, target.id);
         }
+        // v24 C: the own rival's Pokémon are worth +50 (a reward); another civilization's rival is left alone.
+        const rival = rivalAttackBonus(view, target);
         const preview = query.attack(view, unit.id, { kind: 'unit', id: target.id }, content);
-        if (preview.ok && preview.damage.min > 0 && (target.ownerId === null || !strategy.defendTerritoryOnly || canSiege(view, target.ownerId, ai)
+        if (rival !== null && preview.ok && preview.damage.min > 0 && (target.ownerId === null || !strategy.defendTerritoryOnly || canSiege(view, target.ownerId, ai)
           || cities.some(city => hexDistance(city.position, target.position, view.map) <= workRadius(city)))) add({ type: 'Attack', unitId: unit.id, target: { kind: 'unit', id: target.id } },
           // Wild-target weakening competes with capture; it is neither military training nor civilization defense.
-          target.ownerId === null ? strategy.wildAttackGoal : 'military',
-          preview.damage.min - preview.counter.damage + (target.ownerId !== null ? 200 : 0), unit.id, target.id);
+          target.ownerId === null && !rival ? strategy.wildAttackGoal : 'military',
+          preview.damage.min - preview.counter.damage + (target.ownerId !== null ? 200 : 0) + (rival ?? 0), unit.id, target.id);
       }
       // v23: pillage an enemy improvement the unit already stands on (attacks score higher and win).
       const pillage = viewPillage(view, unit.id);
@@ -264,36 +299,48 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
     }
     const paths = query.paths(view, unit.id, content);
     if (workers.has(unit.id)) for (const suggestion of improvementSuggestions(view, unit, content, paths)) add(suggestion.action, 'economy', suggestion.benefit, unit.id);
-    const sites = unit.kind === 'logistics' && unit.role === 'settler' ? view.map.tiles.flatMap((_, index) => citySite(indexToHex(index, view.map)) ? [indexToHex(index, view.map)] : []) : [];
-    const targetHq = eraCampaign?.target ?? [...objectives.hqs].sort((a, b) => hexDistance(unit.position, a.position, view.map) - hexDistance(unit.position, b.position, view.map) || a.id - b.id)[0];
+    const sites = unit.kind === 'logistics' && unit.role === 'settler' ? allSites() : [];
+    // v24: a settler with a site reachable over land walks there (it never waits at the shore for a sea route it may not take).
+    const settlerLand = seaPlans && sites.length > 0 && walkerTravel(view, unit, unit.position, sites, content) < Infinity;
+    const siteTravel = (from: MapUnit['position']) => settlerLand ? walkerTravel(view, unit, from, sites, content) : nearestTravel(view, unit, from, sites);
+    // v24 A2: progress is measured on the unit's travel field (water, peaks, hills); before v24 it is the straight hex distance.
+    const far = (from: MapUnit['position'], target: MapUnit['position']) => travelDistance(view, unit, from, target);
+    const targetHq = eraCampaign?.target ?? [...objectives.hqs].sort((a, b) => far(unit.position, a.position) - far(unit.position, b.position) || a.id - b.id)[0];
     const seek = unit.kind === 'pokemon' && objectives.searching ? seekUnknownHeadquarters(view, unit, paths) : null;
+    // v24 A2: a unit left on the water with nothing better to do heads back to the nearest own city (lowest goal, so any real target wins).
+    const homes = isEmbarked(unit, view.map, content) && !crowded && !escortTargets.has(unit.id) ? cities.map(city => city.position) : [], homeBefore = homes.length ? nearestTravel(view, unit, unit.position, homes) : Infinity;
     for (const [indexText, path] of Object.entries(paths)) {
       // A visible route cannot hit a hidden first-step blocker and be rejected.
       if (!path.every(position => visible.has(hexToIndex(position, view.map)!))) continue;
       const index = Number(indexText), to = indexToHex(index, view.map), action = { type: 'Move' as const, unitId: unit.id, to };
-      if (trader.destination && hexDistance(to, trader.destination, view.map) < hexDistance(unit.position, trader.destination, view.map)) add(action, 'economy', 110 - hexDistance(to, trader.destination, view.map), unit.id, index);
+      // v24 A2: board only when it is safe (no sea threat nearby, escorted), and never just to look around.
+      const boarding = isBoarding(view, unit, to, content);
+      if (boarding && !safeToBoard(view, unit, to, content)) continue;
+      if (trader.destination && far(to, trader.destination) < far(unit.position, trader.destination)) add(action, 'economy', 110 - far(to, trader.destination), unit.id, index);
       if (unit.kind === 'logistics' && sites.length) {
-        const before = Math.min(...sites.map(site => hexDistance(unit.position, site, view.map))), after = Math.min(...sites.map(site => hexDistance(to, site, view.map)));
+        const before = siteTravel(unit.position), after = siteTravel(to);
         const ring = view.map.tiles.filter((_, tile) => hexDistance(indexToHex(tile, view.map), to, view.map) <= 2);
         const ringTiles = new Set(view.map.tiles.flatMap((_, tile) => hexDistance(indexToHex(tile, view.map), to, view.map) <= 2 ? [tile] : []));
         if (after < before) add(action, 'found', 100 - after + (citySite(to) ? siteEssenceBonus(view, content, ring) + siteRareBerryBonus(view, ringTiles) : 0), unit.id, index);
-      } else if ((unit.kind === 'pokemon' || !usesBuilders(view)) && targetHq && hexDistance(to, targetHq.position, view.map) < hexDistance(unit.position, targetHq.position, view.map)) {
-        add(action, 'military', 100 - hexDistance(to, targetHq.position, view.map), unit.id, index);
+      } else if ((unit.kind === 'pokemon' || !usesBuilders(view)) && targetHq && far(to, targetHq.position) < far(unit.position, targetHq.position)) {
+        add(action, 'military', 100 - far(to, targetHq.position), unit.id, index);
       }
       const trace = traceTargets.get(unit.id);
-      if (trace && hexDistance(to, trace, view.map) < hexDistance(unit.position, trace, view.map)) add(action, 'explore', 120 - hexDistance(to, trace, view.map), unit.id, index);
+      if (trace && far(to, trace) < far(unit.position, trace)) add(action, 'explore', 120 - far(to, trace), unit.id, index);
       const ball = ballTargets.get(unit.id);
-      if (ball && hexDistance(to, ball, view.map) < hexDistance(unit.position, ball, view.map)) add(action, 'explore', 125 - hexDistance(to, ball, view.map), unit.id, index);
-      if (seek && hexDistance(to, seek, view.map) < hexDistance(unit.position, seek, view.map)) {
-        add(action, 'military', 100 - hexDistance(to, seek, view.map), unit.id, index);
+      if (ball && far(to, ball) < far(unit.position, ball)) add(action, 'explore', 125 - far(to, ball), unit.id, index);
+      const gym = gymTargets.get(unit.id);
+      if (gym && travelCloser(view, unit, to, gym)) add(action, 'military', 90 - travelDistance(view, unit, to, gym), unit.id, index);
+      if (seek && far(to, seek) < far(unit.position, seek)) {
+        add(action, 'military', 100 - far(to, seek), unit.id, index);
       }
       if (unit.kind === 'pokemon' && threatened.size && !atWar) {
-        const city = view.economy.cities.filter(item => threatened.has(item.id)).sort((a, b) => hexDistance(unit.position, a.position, view.map) - hexDistance(unit.position, b.position, view.map) || a.id - b.id)[0];
+        const city = view.economy.cities.filter(item => threatened.has(item.id)).sort((a, b) => far(unit.position, a.position) - far(unit.position, b.position) || a.id - b.id)[0];
         const garrisoned = city && view.units.some(other => other.ownerId === actorId && other.id !== unit.id && hexDistance(other.position, city.position, view.map) <= 1);
-        if (city && !garrisoned && hexDistance(to, city.position, view.map) < hexDistance(unit.position, city.position, view.map)) add(action, 'economy', 90 - hexDistance(to, city.position, view.map), unit.id, index);
+        if (city && !garrisoned && far(to, city.position) < far(unit.position, city.position)) add(action, 'economy', 90 - far(to, city.position), unit.id, index);
       }
       if (sanctuary && sanctuaryTeam.includes(unit.id)) {
-        const before = hexDistance(unit.position, sanctuary.position, view.map), after = hexDistance(to, sanctuary.position, view.map);
+        const before = far(unit.position, sanctuary.position), after = far(to, sanctuary.position);
         const holdsSite = combat.some(other => other.id !== unit.id && hexDistance(other.position, sanctuary.position, view.map) === 0);
         if (after < before && (!holdsSite || before > 2)) add(action, 'military', 90 - after, unit.id, index);
       }
@@ -301,18 +348,28 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
         const war = view.diplomacy.some(pair => pair.status === 'war' && ((pair.a === actorId && pair.b === target.ownerId) || (pair.b === actorId && pair.a === target.ownerId)));
         const defensive = cities.some(city => hexDistance(city.position, target.position, view.map) <= workRadius(city));
         if (war && (!strategy.defendTerritoryOnly || defensive || canSiege(view, target.ownerId, ai))
-          && hexDistance(to, target.position, view.map) < hexDistance(unit.position, target.position, view.map)) add(action, 'military', 150 - hexDistance(to, target.position, view.map)
+          && far(to, target.position) < far(unit.position, target.position)) add(action, 'military', 150 - far(to, target.position)
             + (usesTactics(view) && hexDistance(to, target.position, view.map) === 1 ? 5 * units.filter(own => own.id !== unit.id && hexDistance(own.position, target.position, view.map) === 1).length : 0), unit.id, index);
+      }
+      // v24: escort a settler bound across water (stay next to it; it boards once an escort is within 2).
+      const escorted = escortTargets.get(unit.id);
+      if (escorted && hexDistance(unit.position, escorted, view.map) > 1 && hexDistance(to, escorted, view.map) < hexDistance(unit.position, escorted, view.map)) {
+        add(action, 'found', 60 - hexDistance(to, escorted, view.map), unit.id, index);
+      }
+      // v24 C: close in on the own rival's Pokémon near own cities (they only hunt this civilization).
+      if (unit.kind === 'pokemon') for (const hunter of rivalHunters) {
+        if (travelCloser(view, unit, to, hunter.position)) add(action, 'military', 140 - travelDistance(view, unit, to, hunter.position), unit.id, index);
       }
       if (unit.kind === 'pokemon') for (const target of wild) {
         if (!canCaptureByPersonality(view, target, query) || !player.research.unlockedIds.includes('domestication') || player.ballInventory.pokeBall + player.ballInventory.greatBall === 0) continue;
-        const distance = hexDistance(to, target.position, view.map);
-        if (distance < hexDistance(unit.position, target.position, view.map)) add(action, 'capture', 10 - distance
+        const distance = far(to, target.position);
+        if (distance < far(unit.position, target.position)) add(action, 'capture', 10 - distance
           + captureBonus(target) + siegeCaptureBonus(target) + (target.kind === 'pokemon' ? roleCaptureBonus(view, target.speciesId, content) : 0), unit.id, index);
       }
-      const radius = unitDefinition(unit, content).vision + (view.map.tiles[index] === 'mountain' ? 1 : 0);
-      const gain = view.map.tiles.reduce((sum, _, tile) => sum + (!explored.has(tile) && hexDistance(to, indexToHex(tile, view.map), view.map) <= radius ? 1 : 0), 0);
-      if (gain > 0) add(action, 'explore', gain, unit.id, index);
+      const radius = unitDefinition(unit, content).vision + (view.map.tiles[index] === 'mountain' ? 1 : 0) + featureVision(view.map, index);
+      const gain = view.map.tiles.reduce((sum, _, tile) => sum + (!explored.has(tile) && !polarRow(tile) && hexDistance(to, indexToHex(tile, view.map), view.map) <= radius ? 1 : 0), 0);
+      if (gain > 0 && (!boarding || crowded)) add(action, 'explore', gain, unit.id, index);
+      if (homes.length) { const home = nearestTravel(view, unit, to, homes); if (home < homeBefore) add(action, 'explore', 60 - home, unit.id, index); }
     }
   }
   add({ type: 'EndTurn' }, 'end');

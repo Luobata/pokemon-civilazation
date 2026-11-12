@@ -4,8 +4,10 @@ import { edgeDistance, hexDistance, hexToIndex, indexToHex, neighbors } from './
 import type { GridSize, Hex } from './hex.ts';
 import { createRng, randomBelow, shuffled } from './rng.ts';
 import type { RngState } from './rng.ts';
+import type { MapFeatures } from './terrain.ts';
 
-export type MapTerrain = GridSize & { tiles: BiomeId[] };
+/** `features`: gameplay v24 terrain features (docs/design/world-v24.md §2.1); absent on v≤23 maps. */
+export type MapTerrain = GridSize & { tiles: BiomeId[]; features?: MapFeatures };
 export type MapSetup = GridSize & { seed: number; playerCount: number };
 export type MapState = MapTerrain & {
   generationVersion: 1;

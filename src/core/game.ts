@@ -10,6 +10,7 @@ import { assignNewWorkers, createCity } from './city.ts';
 import { STARTER_IDS, contentFor } from '../content/units.ts';
 import type { Content, StarterId } from '../content/units.ts';
 import { generateMap } from './map.ts';
+import { generateWorldMap } from './map-v24.ts';
 import { indexToHex } from './hex.ts';
 import { randomBelow } from './rng.ts';
 import { initialUnitPosition } from './movement.ts';
@@ -34,11 +35,14 @@ export function createGame(setup: GameSetup, content: Content = contentFor(setup
     || setup.players.some(player => player.controller === 'human' && !STARTER_IDS.includes(player.starterId))) {
     throw new Error('Expected 2–4 distinct players and at most one human with a chosen starter.');
   }
-  const generated = generateMap({ ...setup, playerCount: setup.players.length, ...(content.wrap ? { wrap: true } : {}) });
+  // v24 (world-v24 §2.1): continents and terrain features come from their own generator.
+  const generated = content.terrain ? generateWorldMap({ ...setup, playerCount: setup.players.length, ...(content.world24 ? { landPercent: content.world24.landPercent } : {}) })
+    : generateMap({ ...setup, playerCount: setup.players.length, ...(content.wrap ? { wrap: true } : {}) });
   const state: GameState = {
     ...gameVersions(setup), contentVersion: content.version,
     setup: JSON.parse(JSON.stringify(setup)) as GameSetup,
-    map: { width: generated.width, height: generated.height, tiles: generated.tiles, ...(generated.wrap ? { wrap: true as const } : {}) },
+    map: { width: generated.width, height: generated.height, tiles: generated.tiles, ...(generated.wrap ? { wrap: true as const } : {}),
+      ...(generated.features ? { features: generated.features } : {}) },
     rng: generated.rng, nextEntityId: 1, commandSeq: 0, round: 1,
     activePlayerId: setup.players[0].id, turnOrder: setup.players.map(player => player.id),
     diplomacy: setup.players.flatMap(a => setup.players.filter(b => a.id < b.id).map(b => ({ a: a.id, b: b.id, status: 'peace' as const, changedAtRound: 1, declaredBy: null, cooldownUntilRound: 0, rejectedAtRound: {}, citiesLostSinceWar: {}, proposal: null }))),

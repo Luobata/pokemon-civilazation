@@ -1,3 +1,5 @@
+import { LANDMARKS, TERRAIN_RULES_V24 } from '../content/terrain.ts';
+import { freshWater, isDeep, isHill, isLake, isLandmarkTile, isPeak, isPolarIce, isRiver, landmarkAt } from '../core/terrain.ts';
 import { ROLE_POKEMON } from '../content/roles.ts';
 import { LEGEND_WONDERS } from '../content/legend-wonders.ts';
 import { legendEffectText } from './legend-panel.ts';
@@ -27,11 +29,15 @@ import { maxUnitHp } from '../core/unit.ts';
 import type { Yield } from '../content/economy.ts';
 import { BIOME_DISPLAY } from './canvas.ts';
 import { tileYieldReader } from './tile-yields.ts';
+import { rivalUnitNote, v24TileEntities } from './gym-panel.ts';
+import type { Command } from '../core/model.ts';
 
 /** own = yours; ally/peace/enemy = another civilization by relation; wild = wild Pokémon; neutral = no owner. */
 export type Tone = 'own' | 'peace' | 'enemy' | 'neutral' | 'wild' | 'info';
-export type TileEntity = { kind: 'city' | 'unit' | 'resource' | 'luxury' | 'nest' | 'overlord' | 'sanctuary' | 'legend' | 'improvement' | 'district' | 'construction';
-  tone: Tone; title: string; subtitle: string; lines: string[]; hint?: string; unitId?: number; cityId?: number };
+export type TileEntity = { kind: 'city' | 'unit' | 'resource' | 'luxury' | 'nest' | 'overlord' | 'sanctuary' | 'legend' | 'improvement' | 'district' | 'construction' | 'landmark' | 'gym' | 'rival';
+  tone: Tone; title: string; subtitle: string; lines: string[]; hint?: string; unitId?: number; cityId?: number;
+  /** v24: an order the inspector offers (null command = shown disabled with `reason`). */
+  action?: { label: string; command: Command['action'] | null; reason?: string } };
 export type TileInfo = {
   index: number;
   /** null: never explored. */
@@ -65,13 +71,17 @@ export function describeTile(view: PlayerView, index: number): TileInfo {
   const at = (position: { q: number; r: number }) => hexToIndex(position, view.map) === index;
   const empty: TileInfo = { index, terrain: null, visible: false, yields: null, workable: false,
     territory: { tone: 'info', text: '尚未探索' }, workedBy: null, entities: [] };
-  if (!biome) return empty;
+  // v24 C: the own rival's warning is shown even on a tile not explored yet (the red “!” is drawn there).
+  if (!biome) return { ...empty, entities: v24TileEntities(view, index).filter(entity => entity.kind === 'rival') };
 
   const essence = ESSENCES[BIOME_ESSENCE[biome]];
   const defense = biome === 'forest' || biome === 'mountain' ? `防守方受伤 ×0.8${biome === 'mountain' ? '；从山地出手 ×1.2' : ''}` : null;
   const access = biome === 'ocean' ? '水面、杰尼龟一系和飞行宝可梦可进入' : biome === 'volcano' ? '火系与飞行宝可梦可进入，开拓队不能' : '陆地单位和开拓队可进入';
-  const terrain = { name: BIOME_DISPLAY[biome].label, moveCost: content.moveCosts[biome], defense,
-    essence: `${essence.name}精华（${essence.types.map(type => TYPE_NAMES[type]).join('、')}系在此防守受伤 ×0.9）`, access };
+  // v24: terrain features of explored tiles (hills, rivers, peaks, deep water, lakes, fresh water).
+  const feature = terrainFeatureText(view, index);
+  const terrain = { name: [BIOME_DISPLAY[biome].label, ...feature.names].join(' · '), moveCost: content.moveCosts[biome] + feature.moveExtra,
+    defense: [defense, ...feature.defense].filter(Boolean).join('；') || null,
+    essence: `${essence.name}精华（${essence.types.map(type => TYPE_NAMES[type]).join('、')}系在此防守受伤 ×0.9）`, access: feature.access ?? access };
   const yieldInfo = tileYieldReader(view)(index);
 
   const owners = view.territoryOwnerIds[index];
@@ -82,6 +92,13 @@ export function describeTile(view: PlayerView, index: number): TileInfo {
   const workedBy = view.economy.cities.find(city => city.workedTileIds.includes(index))?.id ?? null;
 
   const entities: TileEntity[] = [];
+  const landmark = landmarkAt(view.map, index);
+  if (landmark) {
+    const definition = LANDMARKS[landmark];
+    entities.push({ kind: 'landmark', tone: 'info', title: definition.name, subtitle: '自然地标',
+      lines: [definition.effect, `常驻：${definition.residents.map(id => SPECIES_NAMES[id]).join('、')}（附近刷新更常见）`],
+      hint: '地标格不可通行、不可耕作、不能建城；效果给城市耕作的相邻格。' });
+  }
   const city = view.cities.find(item => at(item.position));
   if (city) {
     const tone = relationTone(view, city.ownerId), own = view.economy.cities.find(item => item.id === city.id);
@@ -118,7 +135,10 @@ export function describeTile(view: PlayerView, index: number): TileInfo {
     const promotion = promotionLine(view, unit.id);
     if (promotion) lines.push(promotion);
     let subtitle: string, hint: string | undefined;
-    if (unit.ownerId === null) {
+    const rival = rivalUnitNote(view, unit.id);
+    if (rival) {
+      subtitle = rival.subtitle; hint = rival.hint; lines.push(rival.line);
+    } else if (unit.ownerId === null) {
       subtitle = rampaging.has(unit.id) ? `暴走宝可梦 · 来自巢穴${civAside('rampaging')}` : '野生宝可梦';
       hint = rampaging.has(unit.id) ? '会主动攻击任何文明附近的单位和城市。击倒或捕捉它。'
         : `相邻时可用精灵球捕捉，HP 越低越容易${species.rare ? '（稀有，成功率减半）' : ''}；也可以攻击。`;
@@ -175,6 +195,8 @@ export function describeTile(view: PlayerView, index: number): TileInfo {
       lines: [`守卫：${sanctuary.guardianName}（${SPECIES_NAMES[sanctuary.guardianSpeciesId]}）${sanctuary.guardianDefeated ? ' · 已击败' : ''}`, `击败守卫获得${sanctuary.tabletName}；集齐 ${CIVILIZATION_CONTENT.sanctuaries.definitions.length} 块即起源胜利。`],
       hint: owner === null ? `单位站在上面花 ${CIVILIZATION_CONTENT.sanctuaries.establishmentCost} 金即可建立，永久归你。` : owner === view.playerId && !sanctuary.guardianDefeated ? '带 1–3 只宝可梦（2 格内）挑战守卫。' : undefined });
   }
+  // v24 B / C: a circuit gym, and the viewer's own rival warning.
+  entities.push(...v24TileEntities(view, index));
   // v15: a legend's trace site (shared by everyone; walking a Pokémon onto it yields that civilization's clue).
   const trace = expansion?.legends?.sites.find(site => site.tileIndex === index);
   if (trace && !expansion!.legends!.wonders.some(wonder => wonder.legendId === trace.legendId)) {
@@ -216,6 +238,21 @@ export function describeTile(view: PlayerView, index: number): TileInfo {
   return { index, terrain, visible, yields: yieldInfo?.yields ?? null, workable: yieldInfo?.workable ?? false, territory, workedBy, entities };
 }
 
+/** v24 feature names, extra move cost, combat terms and passage text of a tile (all empty before v24). */
+export function terrainFeatureText(view: PlayerView, index: number): { names: string[]; moveExtra: number; defense: string[]; access: string | null } {
+  const map = view.map, out = { names: [] as string[], moveExtra: 0, defense: [] as string[], access: null as string | null };
+  if (!map.features) return out;
+  const rules = TERRAIN_RULES_V24;
+  if (isHill(map, index)) { out.names.push('丘陵'); out.moveExtra += rules.hillMoveCost; out.defense.push(`丘陵：生产 +${rules.hillProduction}，防守 +${rules.hillDefense}（城市 +${rules.hillCityDefense}「高地城池」），视野 +1`); }
+  if (isRiver(map, index)) { out.names.push('河流'); out.defense.push(`河流：金币 +${rules.riverGold}；从无河格进入 +${rules.riverCrossingCost} 移动；近战/快速从无河格攻击这里 ${rules.riverCrossingAttack}「渡河」`); }
+  if (isPeak(map, index)) { out.names.push('高山'); out.access = '高山：不可通行，只有飞行宝可梦能越过；不可耕作'; }
+  if (isLake(map, index)) out.names.push('湖（淡水）');
+  else if (isDeep(map, index)) { out.names.push(isPolarIce(map, index) ? '极地冰海' : '深海'); out.access = '深海：陆地单位学会「远洋航行」后才能乘浪；水面、杰尼龟一系、飞行宝可梦照常'; }
+  else if (map.tiles[index] === 'ocean') out.access = '浅海：陆地单位学会「近海航行」后可乘浪（下水 / 上岸结束移动，乘浪时防守 −10、不能攻击）';
+  if (map.tiles[index] !== 'ocean' && freshWater(map, indexToHex(index, map))) out.names.push('淡水（建城食物 +1）');
+  if (isLandmarkTile(map, index)) out.access = '自然地标：不可通行';
+  return out;
+}
 /** One-line hover text: the most important thing on the tile, then the terrain. */
 export function tileSummary(info: TileInfo): string {
   if (!info.terrain) return '未探索区域';

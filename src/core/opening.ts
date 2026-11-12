@@ -1,3 +1,4 @@
+import { worldSiteAllowed } from './terrain.ts';
 // Gameplay v21 opening pace: objectives, item balls, city healing and walls. All no-ops without `state.expansion.opening`.
 import { ITEM_BALLS, ITEM_BALL_KINDS, OBJECTIVES, OBJECTIVE_IDS, OPENING_RULES } from '../content/opening.ts';
 import type { ItemBallKind, ObjectiveId } from '../content/opening.ts';
@@ -35,7 +36,7 @@ export function initializeOpening(state: GameState): void {
   for (const index of order) {
     if (Object.keys(itemBalls).length >= count) break;
     const hex = indexToHex(index, state.map);
-    if (taken.has(index) || neighbors(hex, state.map).some(next => hexToIndex(next, state.map) === null)) continue;
+    if (taken.has(index) || !worldSiteAllowed(state.map, index, 'continent') || neighbors(hex, state.map).some(next => hexToIndex(next, state.map) === null)) continue;
     if (starts.some(start => hexDistance(start, hex, state.map) < OPENING_RULES.ballCityDistance)) continue;
     if (Object.keys(itemBalls).some(other => hexDistance(indexToHex(Number(other), state.map), hex, state.map) < OPENING_RULES.ballSpacing)) continue;
     itemBalls[index] = ITEM_BALL_KINDS[stableSeed(state.setup.seed, index, 'item-ball-kind') % ITEM_BALL_KINDS.length];

@@ -2,6 +2,7 @@
 // already produced by other systems; the age of a new era is decided by the previous era's average.
 import { ERA_AGES, ERA_HONOR_RULES, ERA_HONOR_RULES_V22, ERA_MILESTONES } from '../content/era-honors.ts';
 import type { AgeLines, EraAge, EraMilestone } from '../content/era-honors.ts';
+import { GYM_RULES_V24 } from '../content/gym-circuit.ts';
 import { eraState, gameplayAtLeast } from '../content/eras.ts';
 import type { PolicyEffects } from '../content/policies.ts';
 import type { SpeciesId } from '../content/species.ts';
@@ -65,6 +66,10 @@ function milestones(before: GameState, after: GameState, events: readonly EventP
       case 'ContestHallBuilt': found.push([event.playerId, 'contestHallBuilt']); break;
       case 'DiscoveryMade': found.push([event.playerId, 'discovery']); break;
       case 'LegendWonderCompleted': found.push([event.playerId, 'legendWonder']); break;
+      // v24 B / C: badges 1, 4 and 8; the Elite Four; a rival's n-th visit beaten scores n points.
+      case 'GymChallenged': if (event.victory && (GYM_RULES_V24.eraBadges as readonly number[]).includes(event.badges)) found.push([event.playerId, 'gymBadge']); break;
+      case 'EliteFourChallenged': if (event.victory) found.push([event.playerId, 'eliteFour']); break;
+      case 'RivalDefeated': for (let visit = 0; visit < event.encounter; visit++) found.push([event.playerId, 'rivalDefeated']); break;
       case 'BattleResolved':
         if (event.capturedCity && event.target.kind === 'city') { const id = owner(event.target.id); if (id !== null) found.push([id, 'cityCaptured']); }
         break;

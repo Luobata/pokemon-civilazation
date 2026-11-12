@@ -24,6 +24,10 @@ import { maxUnitHp } from '../../core/unit.ts';
 import { hexToWorld } from '../camera.ts';
 import type { Point } from '../camera.ts';
 import { tileYieldReader } from '../tile-yields.ts';
+import type { SceneTerrain } from './terrain-features.ts';
+import { ESSENCES } from '../../content/essences.ts';
+import { RIVAL_COUNTERS } from '../../content/rivals.ts';
+import { viewRivalSighting } from '../../core/rivals.ts';
 
 export type DebugOverlay = 'none' | 'tiles' | 'vision' | 'wild' | 'ai';
 /** Optional presentation layers; they never add information beyond the PlayerView. */
@@ -74,6 +78,8 @@ export type MapScene = {
   /** v22: the map wraps east-west; the renderer draws side-by-side copies. */
   wrap?: true;
   tiles: SceneTile[];
+  /** v24: hills, peaks, rivers, deep water, lakes and landmarks of explored tiles (absent before v24). */
+  terrain?: SceneTerrain;
   coastEdges: SceneEdge[];
   territoryEdges: SceneEdge[];
   /** `damaged`: v23, the improvement was pillaged (as the viewer last saw it). */
@@ -171,6 +177,12 @@ export function buildScene(input: MapRenderInput): MapScene {
     // v15 trace sites: a gold-ringed badge with the legend's sprite, where the viewer sees or remembers the tile.
     for (const site of expansion.legends?.sites ?? []) if (!expansion.legends!.wonders.some(wonder => wonder.legendId === site.legendId))
       badges.push({ kind: 'legend', index: site.tileIndex, path: legendSprite(site.legendId), ring: '#F2C14E', luxury: false, dim: !visible.has(site.tileIndex) });
+    // v24 B / C: circuit gyms (explored; ticked once won) and the own rival's warning, drawn like a nest's alarm.
+    for (const gym of expansion.gymCircuit?.gyms ?? []) badges.push({ kind: 'icon', index: gym.tileIndex, icon: expansion.gymCircuit!.badges[view.playerId]?.includes(gym.id) ? 'gymWon' : 'gym',
+      ring: ESSENCES[gym.essence].color, luxury: false, dim: !visible.has(gym.tileIndex) });
+    const rivalWarning = expansion.rivals?.pending;
+    if (rivalWarning) badges.push({ kind: 'sprite', index: rivalWarning.tileIndex, speciesId: RIVAL_COUNTERS[view.economy.player.starterId].primary[0], fallback: '劲',
+      crown: false, ring: '#D3655C', luxury: false, dim: false, warning: true });
     for (const site of expansion.civilization.sanctuaries) {
       const index = indexOf(site.position);
       if (index !== null && visible.has(index)) badges.push({ kind: 'icon', index, icon: site.guardianDefeated ? 'tablet' : 'sanctuary', ring: '#B58AD6', luxury: false, dim: false });
@@ -223,7 +235,9 @@ export function buildScene(input: MapRenderInput): MapScene {
     const label = !status ? undefined : status.mega ? 'M' : (status.dynamaxUntilRound ?? 0) >= view.round ? '极' : status.tera ? '晶' : status.zPrimed ? 'Z' : undefined;
     const promotion = view.expansion?.promotions?.units[unit.id];
     return { key: `unit:${unit.id}`, unit, index, world: world[index], actionLeft: unit.actionLeft, enraged: unit.enraged ?? false,
-      hostile: unit.ownerId !== null && atWar.has(unit.ownerId), ...(label ? { status: label } : {}),
+      // v24 C: the viewer's own rival is hostile and marked 劲.
+      hostile: (unit.ownerId !== null && atWar.has(unit.ownerId)) || viewRivalSighting(view, unit.id)?.targetPlayerId === view.playerId,
+      ...(label ?? (viewRivalSighting(view, unit.id) ? '劲' : undefined) ? { status: label ?? '劲' } : {}),
       ...(promotion?.traits.length ? { rank: promotion.traits.length } : {}),
       ...(unit.ownerId === view.playerId && pendingPromotions(promotion) ? { promotable: true } : {}),
       ...(unit.hp < maxHp ? { hp: { current: Math.max(0, unit.hp), max: maxHp } } : {}) };
@@ -259,8 +273,15 @@ export function buildScene(input: MapRenderInput): MapScene {
     debug.labels.push({ index: indexOf(unit.position)!, text: `#${unit.id} A${unit.actionLeft}${unit.enraged ? ' 暴走' : ''}`, offset: true });
   }
 
+  const features = view.map.features, riverTiles = new Set(features?.rivers ?? []);
+  const terrain: SceneTerrain | undefined = features ? {
+    hills: [...features.hills], peaks: [...features.peaks], deep: [...features.deep], lakes: [...features.lakes],
+    landmarks: features.landmarks.map(site => ({ index: site.tileIndex, id: site.id })),
+    rivers: features.rivers.map(index => ({ index, links: neighbors(indexToHex(index, view.map), view.map).map(indexOf)
+      .flatMap((next, direction) => next !== null && (riverTiles.has(next) || view.map.tiles[next] === 'ocean') ? [direction] : []) })),
+  } : undefined;
   return {
-    width: view.map.width, height: view.map.height, ...(view.map.wrap ? { wrap: true as const } : {}), tiles, coastEdges, territoryEdges, improvements, faith, badges, districts, constructionSites,
+    width: view.map.width, height: view.map.height, ...(view.map.wrap ? { wrap: true as const } : {}), tiles, ...(terrain ? { terrain } : {}), coastEdges, territoryEdges, improvements, faith, badges, districts, constructionSites,
     cities, yields, workedTiles: focusCity ? [...focusCity.workedTileIds] : [],
     tradeRoutes: (expansion?.cityNetwork?.routes ?? []).flatMap(route => {
       const from = view.cities.find(city => city.id === route.fromCityId), to = view.cities.find(city => city.id === route.toCityId);

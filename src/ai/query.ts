@@ -4,9 +4,11 @@ import type { Content } from '../content/units.ts';
 import { canResearch } from '../core/economy-commands.ts';
 import { reachablePaths } from '../core/movement.ts';
 import { previewAttack, previewCapture } from '../core/preview.ts';
+import { viewGymBlocksCity } from '../core/gym-circuit.ts';
 import { hexDistance, hexToIndex } from '../core/hex.ts';
 import type { Hex } from '../core/hex.ts';
 import type { PlayerView } from '../core/model.ts';
+import { isLandmarkTile, isPeak } from '../core/terrain.ts';
 
 export function knownCities(view: PlayerView) {
   const known = new Map(Object.entries(view.knowledge.lastKnownCities).map(([id, city]) => [Number(id), { ...city, id: Number(id) }]));
@@ -15,7 +17,7 @@ export function knownCities(view: PlayerView) {
 }
 export function isCitySite(view: PlayerView, position: Hex): boolean {
   const index = hexToIndex(position, view.map);
-  if (index === null || view.map.tiles[index] === null || view.map.tiles[index] === 'ocean'
+  if (index === null || view.map.tiles[index] === null || view.map.tiles[index] === 'ocean' || isPeak(view.map, index) || isLandmarkTile(view.map, index) || viewGymBlocksCity(view, index)
     || knownCities(view).some(city => hexDistance(city.position, position, view.map) < 4)) return false;
   // An unobserved tile inside the exclusion radius may contain an undiscovered city.
   // Explore it first; never query authoritative hidden city positions.

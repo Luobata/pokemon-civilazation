@@ -1,3 +1,4 @@
+import { LANDMARKS, LANDMARK_IDS, TERRAIN_RULES_V24 } from '../content/terrain.ts';
 import { discoveryText } from '../content/discoveries.ts';
 import { ITEM_BALLS, ITEM_BALL_KINDS, OBJECTIVES, OBJECTIVE_IDS, OPENING_RULES, victoryTargets } from '../content/opening.ts';
 import { STRENGTH_RULES, strengthFromPermille } from '../core/strength.ts';
@@ -37,6 +38,7 @@ import type { BiomeId } from '../content/rules.ts';
 import { SPECIES_NAMES } from '../content/species.ts';
 import type { SpeciesDefinition, SpeciesId, TypeId } from '../content/species.ts';
 import { TYPE_NAMES } from '../content/type-names.ts';
+import { RESEARCH_TASK_RULES_V24, researchSpecialLabel } from '../content/research-tasks.ts';
 import { contentFor, WORLD_CONTENT } from '../content/units.ts';
 import { SPAWN_WEIGHTS } from '../content/wild.ts';
 import { WORLD_DEFINITIONS } from '../content/world-systems.ts';
@@ -49,6 +51,8 @@ import { ERA_AGES, ERA_HONOR_RULES, ERA_HONOR_RULES_V22, ERA_MILESTONES, ERA_MIL
 import { DEDICATION_IDS, DEDICATION_RULES, DEDICATIONS } from '../content/dedications.ts';
 import { PROMOTION_RULES, PROMOTION_TRAITS, PROMOTION_TRAIT_IDS } from '../content/promotions.ts';
 import { techUnlocks } from '../browser/tech-info.ts';
+import { ELITE_FOUR, GYM_LEADERS, GYM_LEADER_ORDER, GYM_RULES_V24, GYM_TYPES, HOME_GYMS, STAGE_NAMES } from '../content/gym-circuit.ts';
+import { RIVAL_COUNTERS, RIVAL_RULES_V24, RIVAL_TEAMS } from '../content/rivals.ts';
 
 const content = contentFor({ expansionVersion: 1, gameplayVersion: LATEST_GAMEPLAY_VERSION });
 
@@ -81,6 +85,25 @@ export function yieldText(value: Partial<Yield & DistrictEffects>): string {
 }
 
 // ---------- Map ----------
+/** v24 terrain features (world-v24 §2.2). */
+export function terrainFeatureTable(): string {
+  const r = TERRAIN_RULES_V24;
+  return table(['要素', '产出', '移动', '战斗', '其他'], [
+    ['丘陵（叠在草原/森林/荒漠/雪原上）', `生产 +${r.hillProduction}`, `花费 +${r.hillMoveCost}`, `防守 +${r.hillDefense}「丘陵掩护」（不与森林/山地 +5 叠加）；丘陵上的城市 +${r.hillCityDefense}「高地城池」`, '站在上面视野 +1'],
+    ['高山', '不可耕作', '不可通行（飞行宝可梦除外）', '—', '山脊上的一部分；不会把大陆切成两半'],
+    ['河流（记在格子上）', `金币 +${r.riverGold}`, `从无河格进入 +${r.riverCrossingCost}（沿河不加）`, `近战/快速从无河格攻击河上目标 ${r.riverCrossingAttack}「渡河」`, `城市中心在河上或挨着河/湖 = 淡水城市：食物 +${r.freshWaterFood}`],
+    ['湖', '同浅海 2/0/1/0', '同浅海', '—', '淡水'],
+    ['浅海（挨着陆地）', '2/0/1/0', '陆地单位要「近海航行」', '乘浪单位防守 ' + r.embarkedDefense, '渔场、珍珠贝场、港口照旧'],
+    ['深海', `${r.deepOcean.food}/${r.deepOcean.production}/${r.deepOcean.gold}/${r.deepOcean.research}`, '陆地单位要「远洋航行」', '同上', '最外一行是极地冰海（深海、不可耕作）'],
+    ['自然地标', '本格不可耕作', '不可通行', '—', '效果给城市耕作的相邻格'],
+  ]);
+}
+/** v24 landmarks (world-v24 §2.5). */
+export function landmarkTable(): string {
+  const site = { desert: '荒漠', lake: '湖', forest: '森林', grasslandHill: '草原丘陵', mountain: '内陆山地', coastalMountain: '海岸山地', snow: '雪原', volcano: '火山' } as const;
+  return table(['地标', '地形', '效果', '常驻物种（附近刷新 ×5）'], LANDMARK_IDS.map(id => [LANDMARKS[id].name, site[LANDMARKS[id].site], LANDMARKS[id].effect,
+    LANDMARKS[id].residents.map(species => SPECIES_NAMES[species]).join('、')]));
+}
 export function biomeTable(): string {
   const total = BIOME_WEIGHTS.reduce((sum, item) => sum + item.weight, 0);
   const weight = (biome: BiomeId) => BIOME_WEIGHTS.find(item => item.id === biome)?.weight;
@@ -416,4 +439,48 @@ export function itemBallTable(): string {
 export function victoryTargetTable(): string {
   const rows = [100, 200, 300].map(roundLimit => { const v = victoryTargets({ gameplayVersion: 21, roundLimit }); return [`${roundLimit} 轮`, String(v.contestMinimum), `${v.faithMinimumCities} 座`, `${v.championshipTitles} 次`, `+${v.pokedexBonus} 种`]; });
   return table(['轮上限', '华丽大赛魅力', '信仰：有主城市至少', '冠军赛', '图鉴目标'], rows, [1, 2, 3, 4]);
+}
+
+/** v24 D: research cards — task 5 by first type, and the rewards (src/content/research-tasks.ts). */
+export function researchSpecialTable(): string {
+  const types = TYPE_ORDER;
+  const groups = new Map<string, TypeId[]>();
+  for (const type of types) groups.set(researchSpecialLabel(type), [...(groups.get(researchSpecialLabel(type)) ?? []), type]);
+  return table(['第 5 项（特别条件）', '第一属性'], [...groups].map(([label, list]) => [label, list.map(type => TYPE_NAMES[type]).join('、')]));
+}
+export function researchRewardTable(): string {
+  const R = RESEARCH_TASK_RULES_V24;
+  return table(['完成项数', '奖励（每张卡一次）'], [
+    [String(R.notesAt), `调查笔记：科研 +${R.notesResearch}`],
+    [String(R.captureAt), `你对这个物种的捕捉率 +${R.captureBonus}（捕捉预览与实际一致）`],
+    [String(R.completeAt), `调查完成：金币 +${R.completeGold}、世代分 +${R.completeEraScore}（每世代最多 ${R.eraScoreCapPerEra} 次）`],
+  ], [0]);
+}
+// ---------- v24 B gym circuit / C rival trainers (docs/design/world-v24.md §3, §4) ----------
+export const gymRules = GYM_RULES_V24;
+export const rivalRules = RIVAL_RULES_V24;
+export function gymLeaderTable(): string {
+  return table(['精华', '馆主', '属性（按种子在组内选一种）', '家门口道馆'], GYM_LEADER_ORDER.map(id => [id === 'dragon' ? '（第 8 座）' : ESSENCES[id].name, GYM_LEADERS[id].name,
+    GYM_TYPES[id].map(type => TYPE_NAMES[type]).join(' / '),
+    (Object.entries(HOME_GYMS) as [SpeciesId, { leader: string; typeId: TypeId }][]).filter(([, home]) => home.leader === id).map(([starter, home]) => `${SPECIES_NAMES[starter]}开局（${TYPE_NAMES[home.typeId]}）`).join('、') || '—']));
+}
+export function gymTeamTable(): string {
+  return table(['挑战者已有徽章', '馆主队伍', '队伍总战力', '胜利奖励金币'], GYM_RULES_V24.teams.map((row, badges) => [String(badges), `${row.members} 只${STAGE_NAMES[row.stage]}`, String(row.power),
+    String(GYM_RULES_V24.reward.goldPerBadge * (badges + 1))]), [0, 2, 3]);
+}
+export function eliteFourTable(): string {
+  return table(['场次', '对手', '属性', '队伍', '战力'], ELITE_FOUR.map((member, index) => [String(index + 1), `${member.title} ${member.name}`, member.typeIds.map(type => TYPE_NAMES[type]).join(' / '),
+    `${member.members} 只三阶`, String(member.power)]), [0, 4]);
+}
+export function rivalTable(): string {
+  return table(['登场', '轮次（提前 2 轮预告）', '队伍', '劲敌气势偏移', '击退奖励'], RIVAL_RULES_V24.arrivals.map((round, index) => {
+    const reward = RIVAL_RULES_V24.rewards[index] as { gold: number; pokeBalls?: number; research?: number; xp?: number; eraScore: number };
+    return [`第 ${index + 1} 次`, `第 ${round} 轮`, RIVAL_TEAMS[index].map(slot => `${slot.list === 'primary' ? '主克制' : '副克制'}${STAGE_NAMES[slot.stage]}`).join(' + '),
+      `${RIVAL_RULES_V24.strengthOffsets[index] > 0 ? '+' : ''}${RIVAL_RULES_V24.strengthOffsets[index]}`,
+      [`金币 ${reward.gold}`, reward.pokeBalls ? `精灵球 +${reward.pokeBalls}` : '', reward.research ? `科研 +${reward.research}` : '', reward.xp ? `参战宝可梦经验 +${reward.xp}` : '', `世代分 +${reward.eraScore}`].filter(Boolean).join('、')];
+  }));
+}
+export function rivalCounterTable(): string {
+  return table(['你的御三家', '主克制', '副克制'], (Object.entries(RIVAL_COUNTERS) as [SpeciesId, { primary: readonly SpeciesId[]; secondary: readonly SpeciesId[] }][]).map(([starter, counters]) =>
+    [SPECIES_NAMES[starter], counters.primary.map(id => SPECIES_NAMES[id]).join('、'), counters.secondary.map(id => SPECIES_NAMES[id]).join('、')]));
 }

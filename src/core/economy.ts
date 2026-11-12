@@ -13,7 +13,7 @@ import { TREE_RULES } from '../content/tech-tree.ts';
 import { onTechTree, treeGateOpen } from './tech-tree.ts';
 import type { Content, UnitIdentity } from '../content/units.ts';
 import { hexToIndex, neighbors } from './hex.ts';
-import { canEnter } from './movement.ts';
+import { canEnterTile } from './movement.ts';
 import { playerPolicyEffects } from './policies.ts';
 import { assignNewWorkers, cityYield, cleanWork, growthThreshold, productionCost, releaseWorker } from './city.ts';
 import type { CityState, EconomyEvent, GameState, PendingDeployment } from './model.ts';
@@ -27,7 +27,7 @@ function deploy(state: GameState, city: CityState, pending: PendingDeployment, c
     .map(entity => hexToIndex(entity.position, state.map)));
   const position = neighbors(city.position, state.map).filter(hex => {
     const index = hexToIndex(hex, state.map);
-    return index !== null && !occupied.has(index) && canEnter(identity, state.map.tiles[index], content);
+    return index !== null && !occupied.has(index) && canEnterTile(identity, state.map, index, content);
   }).sort((a, b) => hexToIndex(a, state.map)! - hexToIndex(b, state.map)!)[0];
   if (!position) return false;
   const id = state.nextEntityId++;

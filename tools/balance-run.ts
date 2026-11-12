@@ -19,6 +19,8 @@ import { scorePlayer } from '../src/core/victory.ts';
 import { canonicalSerialize } from '../src/core/snapshot.ts';
 import type { JsonValue } from '../src/core/snapshot.ts';
 import type { AiPersonality, GameState } from '../src/core/model.ts';
+import { isMapUnit } from '../src/core/model.ts';
+import { isEmbarked } from '../src/core/terrain.ts';
 import { isGameplayVersion, LATEST_GAMEPLAY_VERSION } from '../src/content/eras.ts';
 import type { GameplayVersion } from '../src/content/eras.ts';
 import type { LeaderId } from '../src/content/leaders.ts';
@@ -173,13 +175,35 @@ export type RoundSample = { r: number; c: number[]; s: number[]; t: number[]; e:
 export type CurveSeat = { seat: number; alive: boolean; cities: number; population: number; food: number; production: number; gold: number; research: number;
   techs: number; score: number; treasury: number; era: number | null; army: number; roles: Record<CombatRole, number> };
 export type CurvePoint = { round: number; seats: CurveSeat[] };
-export type BalanceGameRecord = { schemaVersion: 1; case: BalanceCase; result: LeaderGameResult; samples: RoundSample[]; curves: CurvePoint[] };
+/**
+ * Gameplay v24 only (absent before, so older records are unchanged): per seat the circuit badges, the round of the first badge, Elite Four
+ * runs and wins, rival visit outcomes; per game the own Pokémon knocked out while embarked (on water, not a water species).
+ */
+export type World24Record = { badges: number[]; firstBadgeRound: (number | null)[]; eliteFourRuns: number[]; eliteFourWon: boolean[];
+  rivalOutcomes: string[][]; seaKnockouts: number };
+export type BalanceGameRecord = { schemaVersion: 1; case: BalanceCase; result: LeaderGameResult; samples: RoundSample[]; curves: CurvePoint[]; world24?: World24Record };
 export const CURVE_INTERVAL = 10;
 
 /** Read-only observer for `simulateLeaderCase`: samples every end of round, snapshots every 10 rounds (on a copy of the state). */
 export function createObserver(content: Content) {
   const samples: RoundSample[] = [], curves: CurvePoint[] = [];
   let lastRound = 0;
+  // v24 bookkeeping (read-only): embarked own Pokémon of the previous call, Elite Four runs seen, first badge rounds.
+  const v24 = Boolean(content.gymCircuit || content.rivals);
+  let embarked = new Set<number>(), seaKnockouts = 0, latest: GameState | null = null;
+  const eliteRuns = new Map<number, number>(), eliteSeen = new Map<number, number>(), firstBadge = new Map<number, number>();
+  const track = (state: GameState) => {
+    latest = state;
+    for (const id of embarked) { const unit = state.units[id]; if (!unit || !isMapUnit(unit)) seaKnockouts++; }
+    embarked = new Set(Object.values(state.units).filter(isMapUnit).filter(unit => unit.ownerId !== null && unit.kind === 'pokemon' && isEmbarked(unit, state.map, content))
+      .map(unit => unit.id));
+    const circuit = state.expansion?.gymCircuit;
+    if (!circuit) return;
+    for (const [id, run] of Object.entries(circuit.eliteFour)) if (eliteSeen.get(Number(id)) !== run.lastRound) {
+      eliteSeen.set(Number(id), run.lastRound); eliteRuns.set(Number(id), (eliteRuns.get(Number(id)) ?? 0) + 1);
+    }
+    for (const [id, list] of Object.entries(circuit.badges)) if (list.length && !firstBadge.has(Number(id))) firstBadge.set(Number(id), state.round);
+  };
   const sample = (round: number, state: GameState, final: boolean) => {
     if (samples.at(-1)?.r === round) samples.pop();
     const players = Object.values(state.players), scores = players.map(player => scorePlayer(state, player.id, content));
@@ -199,7 +223,16 @@ export function createObserver(content: Content) {
   };
   return {
     samples, curves,
+    world24(): World24Record | undefined {
+      if (!v24 || !latest) return undefined;
+      const state: GameState = latest, seats = Object.keys(state.players).map(Number).sort((a, b) => a - b);
+      const circuit = state.expansion?.gymCircuit, rivals = state.expansion?.rivals;
+      return { badges: seats.map(seat => circuit?.badges[seat]?.length ?? 0), firstBadgeRound: seats.map(seat => firstBadge.get(seat) ?? null),
+        eliteFourRuns: seats.map(seat => eliteRuns.get(seat) ?? 0), eliteFourWon: seats.map(seat => circuit?.eliteFour[seat]?.won ?? false),
+        rivalOutcomes: seats.map(seat => [...(rivals?.byPlayer[seat]?.outcomes ?? [])]), seaKnockouts };
+    },
     onState(state: GameState) {
+      if (v24) track(state);
       if (lastRound > 0 && state.round !== lastRound) sample(lastRound, state, false);
       lastRound = state.round;
       if (state.outcome) sample(state.round, state, true);
@@ -222,7 +255,8 @@ function overridesFor(job: BalanceJob): LeaderCaseOverrides {
 export function playJob(job: BalanceJob): { status: LeaderGameResult['status'] } {
   const overrides = overridesFor(job), observer = createObserver(overrides.content ?? contentFor(job.case.setup));
   const result = simulateLeaderCase(job.case, observer.onState, overrides);
-  const record: BalanceGameRecord = { schemaVersion: 1, case: job.case, result, samples: observer.samples, curves: observer.curves };
+  const world24 = observer.world24();
+  const record: BalanceGameRecord = { schemaVersion: 1, case: job.case, result, samples: observer.samples, curves: observer.curves, ...(world24 ? { world24 } : {}) };
   writeFileSync(job.file, JSON.stringify(record) + '\n');
   return { status: result.status };
 }

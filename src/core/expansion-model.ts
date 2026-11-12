@@ -19,6 +19,10 @@ import type { CityNetworkAction, CityNetworkEvent, CityNetworkState, CityNetwork
 import type { OpeningEvent, OpeningState, OpeningView } from './opening.ts';
 import type { DedicationAction, DedicationEvent } from './dedications.ts';
 import type { PillageAction, PillageEvent } from './pillage.ts';
+import type { LandmarkEvent, LandmarkState, LandmarkView } from './landmarks.ts';
+import type { GymCircuitAction, GymCircuitEvent, GymCircuitState, GymCircuitView } from './gym-circuit.ts';
+import type { RivalEvent, RivalState, RivalView } from './rivals.ts';
+import type { ResearchTaskEvent, ResearchTaskState, ResearchTaskView } from './research-tasks.ts';
 
 /** Opt-in rules pack. Absence preserves the legacy m5-v1 game and replay. */
 export type ExpansionState = {
@@ -56,7 +60,14 @@ export type ExpansionState = {
   cityNetwork?: CityNetworkState;
   /** gameplayVersion >= 21 only. */
   opening?: OpeningState;
+  /** gameplayVersion >= 24 only (docs/design/world-v24.md): A3 landmarks, B gym circuit, C rival trainers, D research tasks. */
+  landmarks?: LandmarkState;
+  gymCircuit?: GymCircuitState;
+  rivals?: RivalState;
+  researchTasks?: ResearchTaskState;
 };
-export type ExpansionView = { version: 1; world: WorldView; civilization: CivilizationView; leaders: LeaderSystemsView; improvements?: ImprovementView; discoveries?: TechId[]; policies?: PolicyView; essences?: EssenceView; eraAbilities?: EraAbilityView; bonds?: Record<number, { bond: number; pressure: BondBreakdown }>; rareBerries?: RareBerryView; contests?: ContestView; faith?: FaithView; districts?: DistrictView; eraHonors?: EraHonorView; promotions?: PromotionView; legends?: LegendView; cityNetwork?: CityNetworkView; opening?: OpeningView };
-export type ExpansionAction = WorldAction | CivilizationAction | LeaderAction | ImprovementAction | PolicyAction | EssenceAction | EraAbilityAction | BondAction | RareBerryAction | ContestAction | FaithAction | PromotionAction | CityNetworkAction | DedicationAction | PillageAction;
-export type ExpansionEvent = WorldEvent | CivilizationEvent | LeaderEvent | ImprovementEvent | DiscoveryEvent | PolicyEvent | EssenceEvent | EraAbilityEvent | BondEvent | RareBerryEvent | ContestEvent | FaithEvent | EraHonorEvent | PromotionEvent | LegendEvent | CityNetworkEvent | OpeningEvent | DedicationEvent | PillageEvent;
+export type ExpansionView = { version: 1; world: WorldView; civilization: CivilizationView; leaders: LeaderSystemsView; improvements?: ImprovementView; discoveries?: TechId[]; policies?: PolicyView; essences?: EssenceView; eraAbilities?: EraAbilityView; bonds?: Record<number, { bond: number; pressure: BondBreakdown }>; rareBerries?: RareBerryView; contests?: ContestView; faith?: FaithView; districts?: DistrictView; eraHonors?: EraHonorView; promotions?: PromotionView; legends?: LegendView; cityNetwork?: CityNetworkView; opening?: OpeningView;
+  landmarks?: LandmarkView; gymCircuit?: GymCircuitView; rivals?: RivalView; researchTasks?: ResearchTaskView };
+export type ExpansionAction = WorldAction | CivilizationAction | LeaderAction | ImprovementAction | PolicyAction | EssenceAction | EraAbilityAction | BondAction | RareBerryAction | ContestAction | FaithAction | PromotionAction | CityNetworkAction | DedicationAction | PillageAction | GymCircuitAction;
+export type ExpansionEvent = WorldEvent | CivilizationEvent | LeaderEvent | ImprovementEvent | DiscoveryEvent | PolicyEvent | EssenceEvent | EraAbilityEvent | BondEvent | RareBerryEvent | ContestEvent | FaithEvent | EraHonorEvent | PromotionEvent | LegendEvent | CityNetworkEvent | OpeningEvent | DedicationEvent | PillageEvent
+  | LandmarkEvent | GymCircuitEvent | RivalEvent | ResearchTaskEvent;

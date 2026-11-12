@@ -7,7 +7,7 @@ import type { TileEntity } from './tile-info.ts';
 const esc = (text: string | number) => String(text).replace(/[&<>"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[char]!);
 const TONE_LABEL = { own: '己方', peace: '和平', enemy: '敌对', neutral: '中立', wild: '野生', info: '' } as const;
 const KIND_LABEL: Record<TileEntity['kind'], string> = { city: '城市', unit: '单位', resource: '资源', luxury: '奢侈品', nest: '巢穴',
-  overlord: '霸主', sanctuary: '圣所', legend: '传说', improvement: '改良', district: '设施区', construction: '施工' };
+  overlord: '霸主', sanctuary: '圣所', legend: '传说', improvement: '改良', district: '设施区', construction: '施工', landmark: '地标', gym: '道馆', rival: '劲敌' };
 
 export type TilePanelOptions = {
   onSelectUnit(id: number): void;
@@ -25,7 +25,8 @@ export function renderTilePanel(view: PlayerView, index: number | null, options:
   const info = describeTile(view, index);
   const head = `<div class="subpanel-head"><strong>${info.terrain ? `${esc(info.terrain.name)}${info.visible ? '' : ' · 记忆地形'}` : '未探索区域'}</strong><span>地块 ${index}</span></div>`;
   if (!info.terrain) {
-    root.innerHTML = `${head}<p class="tile-note">还没有单位到过这里。派侦察型宝可梦探索，就能看到地形和资源。</p>`;
+    root.innerHTML = `${head}${info.entities.map(item => `<article class="tile-entity tone-${item.tone}" data-entity="${item.kind}"><header><span class="tile-kind">${KIND_LABEL[item.kind]}</span><strong>${esc(item.title)}</strong></header>
+      <p class="tile-sub">${esc(item.subtitle)}</p>${item.lines.map(line => `<p>${esc(line)}</p>`).join('')}${item.hint ? `<p class="tile-hint">${esc(item.hint)}</p>` : ''}</article>`).join('')}<p class="tile-note">还没有单位到过这里。派侦察型宝可梦探索，就能看到地形和资源。</p>`;
     return;
   }
   const y = info.yields;
@@ -48,6 +49,7 @@ export function renderTilePanel(view: PlayerView, index: number | null, options:
       ${item.lines.map(line => `<p>${esc(line)}</p>`).join('')}
       ${item.hint ? `<p class="tile-hint">${esc(item.hint)}</p>` : ''}
       ${previewMarkup(item)}
+      ${item.action ? `<button type="button" class="primary" ${item.action.command ? `data-tile-action="${actions.push(item.action.command) - 1}"` : ''} ${options.disabled || !item.action.command ? 'disabled' : ''}>${esc(item.action.label)}</button>${item.action.reason ? `<small class="tile-hint">${esc(item.action.reason)}</small>` : ''}` : ''}
       ${item.kind === 'unit' && item.tone === 'own' && item.unitId !== undefined ? `<button type="button" data-select-unit="${item.unitId}">选中这只宝可梦</button>` : ''}
     </article>`;
   root.innerHTML = `${head}
