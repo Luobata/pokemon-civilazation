@@ -10,6 +10,7 @@ import type { Hex } from '../../src/core/hex.ts';
 import type { AiPersonality, GameSetup, GameState } from '../../src/core/model.ts';
 import { canProduceSettler, planNext } from '../../src/ai/plan.ts';
 import { RULE_QUERIES } from '../../src/ai/query.ts';
+import { rivalResponseTeam } from '../../src/ai/rival-plan.ts';
 
 const setup = (gameplayVersion: 23 | 24): GameSetup => ({ seed: 12345, width: 24, height: 16, expansionVersion: 1, multiplayer: true, eraProgression: 'simple-v1', gameplayVersion,
   players: [{ id: 0, controller: 'human', starterId: 'bulbasaur', leaderId: 'oak' }, { id: 1, controller: 'human', starterId: 'charmander', leaderId: 'misty' }] });
@@ -71,4 +72,19 @@ test('v24: a settler never steps next to a wild Pokémon that strikes, and steps
   const { state: next, actions } = playTurn(state), after = next.units[9100];
   expect(actions.some(action => action.includes('"unitId":9100'))).toBe(true);
   expect(after.location === 'map' && hexDistance(after.position, at(6, 4), state.map)).toBeGreaterThan(1);
+});
+test.each([24, 23] as const)('rival response team: favourable matchups within reach, never busy units (v%i)', version => {
+  const state = open(version, 'conservative'), content = contentFor(state.setup);
+  // Player 0 started with Bulbasaur, so its rival brings fire: Squirtle is the counter, a Bulbasaur is not.
+  state.units[9300] = createMapUnit({ kind: 'pokemon', speciesId: 'charmander' }, 9300, null, at(8, 4), content, 0, 1);
+  if (state.expansion?.rivals) { state.expansion.rivals.unitTargets[9300] = 0; state.expansion.rivals.spirit[9300] = 0; }
+  state.units[9100] = createMapUnit({ kind: 'pokemon', speciesId: 'squirtle' }, 9100, 0, at(6, 4), content, 0, 1);
+  state.units[9101] = createMapUnit({ kind: 'pokemon', speciesId: 'bulbasaur' }, 9101, 0, at(6, 5), content, 0, 1);
+  state.units[9102] = createMapUnit({ kind: 'pokemon', speciesId: 'squirtle' }, 9102, 0, at(6, 6), content, 0, 1);
+  state.units[9103] = createMapUnit({ kind: 'pokemon', speciesId: 'squirtle' }, 9103, 0, at(22, 14), content, 0, 1);
+  refreshKnowledge(state);
+  const view = observe(state, 0, content);
+  const team = rivalResponseTeam(view, content, unit => unit.id === 9102);
+  if (version === 23) expect([...team.keys()]).toEqual([]);
+  else expect([...team.keys()]).toEqual([9100]);
 });

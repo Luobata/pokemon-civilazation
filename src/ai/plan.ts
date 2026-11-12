@@ -41,7 +41,7 @@ import { planContestAction } from './contest-plan.ts';
 import { planFaithAction } from './faith-plan.ts';
 import { planDedicationAction } from './dedication-plan.ts';
 import { gymMoveTargets, planGymAction } from './gym-plan.ts';
-import { ownRivalHunters, rivalAttackBonus, rivalThreatenedCityIds, rivalTrainingBonus } from './rival-plan.ts';
+import { ownRivalHunters, rivalAttackBonus, rivalResponseTeam, rivalThreatenedCityIds, rivalTrainingBonus } from './rival-plan.ts';
 import { viewIsRivalUnit } from '../core/rivals.ts';
 import { researchCaptureScore } from './research-plan.ts';
 import { embarkResearchBonus, isBoarding, nearestTravel, safeToBoard, travelCloser, travelDistance, walkerTravel } from './travel.ts';
@@ -288,6 +288,13 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
   const wanderers = wanderersFor(content);
   const strikers = v24Ai ? view.units.filter(other => other.kind === 'pokemon' && (other.ownerId === null ? !wanderers.includes(other.speciesId) && !viewIsRivalUnit(view, other.id) : warEnemies.has(other.ownerId))) : [];
   const exposed = (position: MapUnit['position']) => strikers.some(other => hexDistance(other.position, position, view.map) <= (other.ownerId === null ? 1 : 3));
+  // v24 AI (rival chasing): a response team — favourable matchups only, at most half of the Pokémon, none from another front (an enemy
+  // at war within 3), escorts and the sanctuary team stay — goes after the own rival's Pokémon, under the personality's first of
+  // economy / military so capture, garrison and gym moves do not pull it away. Empty before v24.
+  const rivalGoal = strategy.priorities.find(goal => goal === 'economy' || goal === 'military')!;
+  const rivalTeam = rivalResponseTeam(view, content, unit => escortTargets.has(unit.id) || sanctuaryTeam.includes(unit.id)
+    || view.units.some(other => other.ownerId !== null && warEnemies.has(other.ownerId) && hexDistance(other.position, unit.position, view.map) <= 3)
+    || known.some(city => city.ownerId !== null && warEnemies.has(city.ownerId) && hexDistance(city.position, unit.position, view.map) <= 3));
   for (const unit of units.filter(unit => unit.actionLeft)) {
     const trader = traderPlan(view, unit);
     if (trader.action) add(trader.action, 'economy', 900, unit.id);
@@ -313,6 +320,8 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
           // Wild-target weakening competes with capture; it is neither military training nor civilization defense.
           target.ownerId === null && !rival ? strategy.wildAttackGoal : 'military',
           preview.damage.min - preview.counter.damage + (target.ownerId !== null ? 200 : 0) + (rival ?? 0), unit.id, target.id);
+        if (rival && rivalTeam.has(unit.id) && preview.ok && preview.damage.min > 0) add({ type: 'Attack', unitId: unit.id, target: { kind: 'unit', id: target.id } }, rivalGoal,
+          400 + preview.damage.min - preview.counter.damage, unit.id, target.id);
       }
       // v23: pillage an enemy improvement the unit already stands on (attacks score higher and win).
       const pillage = viewPillage(view, unit.id);
@@ -383,6 +392,8 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
       if (escorted && hexDistance(unit.position, escorted, view.map) > 1 && hexDistance(to, escorted, view.map) < hexDistance(unit.position, escorted, view.map)) {
         add(action, 'found', 60 - hexDistance(to, escorted, view.map), unit.id, index);
       }
+      const chase = rivalTeam.get(unit.id);
+      if (chase && travelCloser(view, unit, to, chase.position)) add(action, rivalGoal, 150 - travelDistance(view, unit, to, chase.position), unit.id, index);
       // v24 C: close in on the own rival's Pokémon near own cities (they only hunt this civilization).
       if (unit.kind === 'pokemon') for (const hunter of rivalHunters) {
         if (travelCloser(view, unit, to, hunter.position)) add(action, 'military', 140 - travelDistance(view, unit, to, hunter.position), unit.id, index);
