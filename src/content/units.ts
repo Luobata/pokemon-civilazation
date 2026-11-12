@@ -153,7 +153,7 @@ export const WORLD_CONTENT: Content = { ...OPENING_CONTENT, version: 'world-v22'
 export const IMPROVEMENT_CONTENT: Content = { ...WORLD_CONTENT, version: 'improvements-v23', resourceImprovements: true, pillage: true, builderCrews: true };
 /** v24: v23 content plus the six world flags (spec docs/design/world-v24.md). */
 export const WORLD24_CONTENT: Content = { ...IMPROVEMENT_CONTENT, version: 'world-v24', terrain: true, embark: true, landmarks: true, gymCircuit: true, rivals: true, researchTasks: true,
-  world24: structuredClone(WORLD24_TUNING) };
+  world24: JSON.parse(JSON.stringify(WORLD24_TUNING)) as typeof WORLD24_TUNING };
 /** A technology of this content (throws for ids the content does not define, e.g. a v22 id in an older game). */
 export function techOf(content: Content, id: TechId): TechDefinition {
   const tech = content.techs[id];
