@@ -125,7 +125,8 @@ test('work locking, queue reorder/cancel, purchases and version refusal use UI',
   await expect(page.locator('[data-production-option="logistics:settler"] .production-option-cost b')).toHaveText('24');
   await page.locator('[data-production-option="logistics:settler"]').click();
   await page.locator('[data-production-kind="pokemon"]').click();
-  await expect(page.locator('[data-production-option="pokemon:bulbasaur"]')).toContainText('【远程】妙蛙种子');
+  await expect(page.locator('[data-production-option="pokemon:bulbasaur"]')).toContainText('妙蛙种子');
+  await expect(page.locator('[data-production-option="pokemon:bulbasaur"]').getByRole('img', { name: '远程', exact: true })).toHaveCount(1);
   await expect(page.locator('[data-production-option="pokemon:bulbasaur"] .production-option-cost b')).toHaveText('19');
   await page.locator('[data-production-option="pokemon:bulbasaur"]').click();
   await page.locator('[data-up="1"]').click(); await expect(page.locator('#production-queue li').first()).toContainText('妙蛙种子');

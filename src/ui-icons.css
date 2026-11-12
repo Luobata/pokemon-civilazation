@@ -121,4 +121,18 @@
 .policy-card .policy-icon { margin-top: 1px; }
 .slot-board .slot { display: inline-flex; align-items: center; gap: 4px; }
 .slot-chip:has(img) { display: inline-grid; place-items: center; padding: 1px 4px; }
+/* ---------- City: yields, production list, districts ---------- */
+.yield-grid .yield-item { align-items: center; justify-content: flex-start; gap: 5px; }
+.yield-grid .yield-item small { display: none; }
+.yield-grid .yield-item strong { margin-left: auto; }
+.production-pic { position: relative; display: grid; place-items: center; width: 40px; height: 40px; }
+.production-pic .production-class-badge { position: absolute; right: -5px; bottom: -4px; }
+.production-option .production-effect { display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; }
+.production-option .production-effect .icon-stat { font-size: 11px; }
+.production-option-cost { grid-template-columns: auto auto; align-items: center; column-gap: 3px; }
+.production-option-cost b::after { content: none; }
+.production-option-cost small { grid-column: 1 / -1; display: inline-flex; align-items: center; gap: 2px; }
+.district-icon { padding: 2px; border: 1px solid #5A4F78; border-radius: 6px; background: #1D1A2C; }
+.district-mark.has-icon { width: auto; height: auto; padding: 1px; border-color: #5A4F78; background: #1D1A2C; }
+.district-project { display: flex; align-items: center; gap: 4px; }
 .icon-stat.effect-stat { padding: 1px 5px 1px 3px; border-radius: 999px; background: #1B2E30; }

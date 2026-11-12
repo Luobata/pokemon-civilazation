@@ -93,7 +93,7 @@ test('a completed training ground opens unit production in its own city', async 
   const trainingGround = page.locator('[data-production-option="building:trainingGround"]');
   await expect(trainingGround).toContainText('宝可梦中心');
   await expect(trainingGround.locator('.production-option-cost b')).toHaveText('60');
-  await expect(trainingGround.locator('img')).toHaveAttribute('src', '/buildings/trainingGround.svg');
+  await expect(trainingGround.locator('img.production-icon')).toHaveAttribute('src', '/buildings/trainingGround.svg');
   await trainingGround.click();
   for (let turn = 0; turn < 35 && !(await state(page)).cities[cityId].buildingIds.includes('trainingGround'); turn++) await page.locator('#end-turn').click({ modifiers: ['Shift'] });
   // P0-1: the building strip lives in the city's 详情 tab.
@@ -104,7 +104,7 @@ test('a completed training ground opens unit production in its own city', async 
   await expect(page.locator('[data-production-kind="pokemon"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('.building-detail-head img')).toHaveAttribute('src', '/buildings/trainingGround.svg');
   await expect(page.locator('#building-detail')).toContainText('经验 +20');
-  await expect(page.locator('[data-production-option="pokemon:bulbasaur"] img')).toHaveAttribute('src', pokemonSpritePath('bulbasaur'));
+  await expect(page.locator('[data-production-option="pokemon:bulbasaur"] img.production-icon')).toHaveAttribute('src', pokemonSpritePath('bulbasaur'));
   await page.screenshot({ path: 'test-results/screenshots/context-training-ground.png', fullPage: false });
   await page.locator('[data-production-option="pokemon:bulbasaur"]').click();
   const queued = await state(page);

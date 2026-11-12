@@ -40,6 +40,16 @@ test('icon-first panels: research tree, civics, city, era, world, unit and rail 
   await page.locator('#city-select').selectOption(String(fixture.state.players[0].headquartersCityId));
   await expect(page.locator('#production-list [data-production-option]').first()).toBeVisible();
   await shot(page, 'city-production');
+  await page.locator('[data-production-kind="pokemon"]').click();
+  await expect(page.locator('#production-list [data-production-option^="pokemon:"]').first()).toBeVisible();
+  await shot(page, 'city-training');
+  if (phase !== 'before') {
+    // Cost and stats are icon + number; the row keeps the cost number as text.
+    const row = page.locator('#production-list [data-production-option^="pokemon:"]').first();
+    await expect(row.getByRole('img', { name: /攻击 \d+/ })).toHaveCount(1);
+    await expect(row.getByRole('img', { name: /^防御 \d+/ })).toHaveCount(1);
+    await expect(row.locator('.production-option-cost b')).toHaveText(/^\d+$/);
+  }
 
   await openScreen(page, 'research');
   await page.locator('[data-tree-node="electricity"]').click();

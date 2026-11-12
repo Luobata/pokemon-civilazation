@@ -6,6 +6,8 @@ import type { DistrictBreakdown, DistrictSite } from '../core/districts.ts';
 import { indexToHex } from '../core/hex.ts';
 import type { PlayerView } from '../core/model.ts';
 import { BIOME_DISPLAY } from './canvas.ts';
+import { uiIcon } from './ui-icons.ts';
+import type { UiIconName } from './ui-icons.ts';
 import { civHint } from './civ-hint.ts';
 
 const EFFECT_LABELS: Record<keyof DistrictEffects, string> = {
@@ -56,7 +58,7 @@ export function districtTypeCards(view: PlayerView, cityId: number, disabled: bo
     const queueFull = (city?.queue.length ?? 0) >= 5, blocked = disabled || !available || queueFull;
     const reasonText = queueFull ? '生产队列已满 5 项，请先完成或取消订单。' : districtReason(reason, kind, view.gameplayVersion);
     return `<button type="button" class="district-type-card" data-district-kind="${kind}" aria-label="${definition.name}，${definition.cost} 生产${reasonText ? `，${reasonText}` : ''}" ${blocked ? 'disabled' : ''}>
-      <span class="district-mark">${definition.mark}</span><strong>${definition.name}</strong><span>${definition.cost} 生产</span>
+      <span class="district-mark has-icon">${uiIcon(kind as UiIconName, { size: 28 })}</span><strong>${definition.name}</strong><span>${uiIcon('production', { size: 14 })}${definition.cost} 生产</span>
       <small>${definition.biomes.map(biome => BIOME_DISPLAY[biome].label).join('、')}${definition.coastal ? ' · 须临岸' : ''} · ${effectText(definition.base)}</small>
       ${reasonText ? `<small class="district-reason">${reasonText}</small>` : ''}</button>`;
   }).join('')}</div>`;
@@ -78,10 +80,10 @@ export function cityDistrictMarkup(view: PlayerView, cityId: number): string {
   return `<section id="city-districts" class="city-districts" aria-label="城市设施区"><p class="section-label">设施区 ${completed.length + projects.length}/2 ${civHint('district')}</p>
     ${completed.map(item => {
       const definition = DISTRICTS[item.kind], position = indexToHex(item.tileIndex, view.map);
-      return `<details class="district-detail" data-district-tile="${item.tileIndex}"><summary><span class="district-mark">${definition.mark}</span>${definition.name} · 地块 ${item.tileIndex}（${position.q},${position.r}）${item.active ? '' : ' · 停用'}</summary>
+      return `<details class="district-detail" data-district-tile="${item.tileIndex}"><summary><span class="district-mark has-icon">${uiIcon(item.kind as UiIconName, { size: 20 })}</span>${definition.name} · 地块 ${item.tileIndex}（${position.q},${position.r}）${item.active ? '' : ' · 停用'}</summary>
         ${item.ownerId === null ? '<p class="district-reason">当前停用</p>' : ''}${breakdownMarkup(item.effects)}</details>`;
     }).join('')}
-    ${projects.map(item => `<p class="district-project" data-district-project="${item.orderId}">${DISTRICTS[item.kind].mark} ${DISTRICTS[item.kind].name} · 地块 ${item.tileIndex} · 在建 ${item.progress}/${DISTRICTS[item.kind].cost}</p>`).join('')}
+    ${projects.map(item => `<p class="district-project" data-district-project="${item.orderId}">${uiIcon(item.kind as UiIconName, { size: 18 })}${uiIcon('construction', { size: 12, label: '在建' })} ${DISTRICTS[item.kind].name} · 地块 ${item.tileIndex} · 在建 ${item.progress}/${DISTRICTS[item.kind].cost}</p>`).join('')}
     ${completed.length + projects.length ? '' : '<p class="empty-note">尚未建造设施区。</p>'}</section>`;
 }
 
