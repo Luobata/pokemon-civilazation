@@ -118,11 +118,12 @@ export function eraState(player: EraPlayer, mode?: EraProgression): EraState | n
  * 22: world: east-west map wrap, a branching tech tree (~30 techs, explicit prerequisites), era dedications.
  * 23: improvements: resource improvements, pillage and repair, builder escorts (crew specialties).
  * 24: world: continents and terrain features with embarking, natural landmarks, gym circuit, rival trainers, Pokédex research tasks.
+ * 25: roster: a regional Pokédex drawn per game from species tags (coverage constraints, recruit slots, scaled Pokédex target).
  */
-export type GameplayVersion = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24;
+export type GameplayVersion = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25;
 export const LATEST_GAMEPLAY_VERSION: GameplayVersion = 24;
 export function isGameplayVersion(value: unknown): value is GameplayVersion {
-  return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 24;
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 25;
 }
 export function gameplayAtLeast(source: { gameplayVersion?: GameplayVersion }, version: GameplayVersion): boolean {
   return (source.gameplayVersion ?? 0) >= version;

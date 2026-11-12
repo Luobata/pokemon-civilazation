@@ -45,6 +45,8 @@ export type Content = {
   world24?: World24Tuning;
   /** Gameplay v14 only: species-keyed tables that older contents read from their global constants. */
   roster?: RosterTables;
+  /** Gameplay v25 (docs/design/roster-v25.md): this game's regional Pokédex (`size` species of a `pool`-species mode pool). Absent = every species. */
+  regionalDex?: { speciesIds: readonly SpeciesId[]; size: number; pool: number };
 };
 /** A stone evolution path (same shape as `WORLD_DEFINITIONS.stoneEvolutions`). */
 export type RosterStoneEvolution = { fromSpeciesId: SpeciesId; intoSpeciesId: SpeciesId; stoneId: 'fireStone' | 'waterStone' | 'leafStone' | 'thunderStone' | 'moonStone'; requiredXp: number };
@@ -154,6 +156,13 @@ export const IMPROVEMENT_CONTENT: Content = { ...WORLD_CONTENT, version: 'improv
 /** v24: v23 content plus the six world flags (spec docs/design/world-v24.md). */
 export const WORLD24_CONTENT: Content = { ...IMPROVEMENT_CONTENT, version: 'world-v24', terrain: true, embark: true, landmarks: true, gymCircuit: true, rivals: true, researchTasks: true,
   world24: JSON.parse(JSON.stringify(WORLD24_TUNING)) as typeof WORLD24_TUNING };
+/** v25: v24 content as the regional-Pokédex base (spec docs/design/roster-v25.md); a game's own content narrows it to its regional Pokédex. */
+export const REGIONAL_CONTENT: Content = { ...WORLD24_CONTENT, version: 'roster-v25', world24: JSON.parse(JSON.stringify(WORLD24_CONTENT.world24)) as World24Tuning };
+/** v25: the content of one game's regional Pokédex (scaffolding: the full pool, same rules as v24). */
+export function regionalContentFor(setup: ContentSetup): Content {
+  void setup;
+  return REGIONAL_CONTENT;
+}
 /** A technology of this content (throws for ids the content does not define, e.g. a v22 id in an older game). */
 export function techOf(content: Content, id: TechId): TechDefinition {
   const tech = content.techs[id];
@@ -161,13 +170,13 @@ export function techOf(content: Content, id: TechId): TechDefinition {
   return tech;
 }
 export function contentFor(setup: ContentSetup): Content {
-  return setup.expansionVersion !== 1 ? CONTENT : (setup.gameplayVersion ?? 0) >= 24 ? WORLD24_CONTENT : (setup.gameplayVersion ?? 0) >= 23 ? IMPROVEMENT_CONTENT : (setup.gameplayVersion ?? 0) >= 22 ? WORLD_CONTENT : (setup.gameplayVersion ?? 0) >= 21 ? OPENING_CONTENT : (setup.gameplayVersion ?? 0) >= 20 ? BATTLE_CONTENT : (setup.gameplayVersion ?? 0) >= 14 ? ROSTER_CONTENT : EXPANSION_CONTENT;
+  return setup.expansionVersion !== 1 ? CONTENT : (setup.gameplayVersion ?? 0) >= 25 ? regionalContentFor(setup) : (setup.gameplayVersion ?? 0) >= 24 ? WORLD24_CONTENT : (setup.gameplayVersion ?? 0) >= 23 ? IMPROVEMENT_CONTENT : (setup.gameplayVersion ?? 0) >= 22 ? WORLD_CONTENT : (setup.gameplayVersion ?? 0) >= 21 ? OPENING_CONTENT : (setup.gameplayVersion ?? 0) >= 20 ? BATTLE_CONTENT : (setup.gameplayVersion ?? 0) >= 14 ? ROSTER_CONTENT : EXPANSION_CONTENT;
 }
 /** Same choice from a player's view (views carry `expansion` and `gameplayVersion` but not the setup). */
 export function contentForView(view: { expansion?: unknown; gameplayVersion?: number }): Content {
   return view.expansion ? contentFor({ expansionVersion: 1, gameplayVersion: view.gameplayVersion }) : CONTENT;
 }
-export const STOCK_CONTENTS: readonly Content[] = [CONTENT, EXPANSION_CONTENT, ROSTER_CONTENT, BATTLE_CONTENT, OPENING_CONTENT, WORLD_CONTENT, IMPROVEMENT_CONTENT, WORLD24_CONTENT];
+export const STOCK_CONTENTS: readonly Content[] = [CONTENT, EXPANSION_CONTENT, ROSTER_CONTENT, BATTLE_CONTENT, OPENING_CONTENT, WORLD_CONTENT, IMPROVEMENT_CONTENT, WORLD24_CONTENT, REGIONAL_CONTENT];
 export function unitDefinition(unit: UnitIdentity, content: Content = CONTENT): UnitDefinition {
   const base = content.units[unit.kind === 'pokemon' ? unit.speciesId : unit.role];
   return unit.kind === 'pokemon' && unit.uniqueLeader ? { ...base, name: `${base.name}·${unit.uniqueLeader}`, vision: base.vision + 1 } : base;
