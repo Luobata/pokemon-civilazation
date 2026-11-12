@@ -14,6 +14,17 @@ import type { DedicationId } from '../content/dedications.ts';
 import type { Command } from '../core/model.ts';
 import '../leader-doctrines.css';
 import { civHint } from './civ-hint.ts';
+import { statChip, uiIcon } from './ui-icons.ts';
+import type { UiIconName } from './ui-icons.ts';
+import type { EraAbilityId } from '../content/era-abilities.ts';
+
+/** Icon per era-score milestone (docs/design/ui-icons/README.md). */
+const MILESTONE_ICONS: Record<(typeof ERA_MILESTONE_IDS)[number], UiIconName> = {
+  documentedSpecies: 'pokedex', cityFounded: 'building', evolution: 'essence', capture: 'pokeBall', charterAdopted: 'civics', districtCompleted: 'district',
+  nestCleared: 'nest', sanctuaryEstablished: 'sanctuary', guardianDefeated: 'swords', faithFounded: 'faith', contestHallBuilt: 'ribbon', discovery: 'pokedex',
+  cityCaptured: 'crown', legendWonder: 'wonder', landmarkDiscovered: 'map', researchComplete: 'clipboard', gymBadge: 'badge', eliteFour: 'trophy', rivalDefeated: 'swords',
+};
+const ABILITY_ICONS: Record<EraAbilityId, UiIconName> = { dayNight: 'star', weather: 'cloud', mega: 'essence:mind', zMove: 'attack', dynamax: 'essence:blaze', tera: 'essence:spark' };
 
 const ROLE_LABELS: Record<DoctrineDefinition['favoredRoles'][number], string> = {
   ranged: '远程',
@@ -87,17 +98,17 @@ function eraHonorMarkup(view: PlayerView, eraNames: (index: number) => string): 
   const rate = rounds ? honor.score / rounds : 0, golden = honor.goldenRatePermille / 1000, dark = honor.darkRatePermille / 1000;
   const projected = ageFor(honor.score, rounds, honor), scale = golden * 1.5;
   const pct = (value: number) => Math.min(100, Math.round(value * 100 / scale));
-  const breakdown = ERA_MILESTONE_IDS.filter(id => honor.byMilestone[id]).map(id => `<li>${ERA_MILESTONES[id].name} ×${honor.byMilestone[id]} <b>+${ERA_MILESTONES[id].points * honor.byMilestone[id]!}</b></li>`).join('');
+  const breakdown = ERA_MILESTONE_IDS.filter(id => honor.byMilestone[id]).map(id => `<li>${uiIcon(MILESTONE_ICONS[id], { size: 22 })}<span>${ERA_MILESTONES[id].name} ×${honor.byMilestone[id]}</span> <b>+${ERA_MILESTONES[id].points * honor.byMilestone[id]!}</b></li>`).join('');
   return `<section class="era-honor age-${honor.age}" aria-label="世代荣誉">
     <div class="era-honor-head"><strong>${honor.dedication?.heroic ? '英雄世代' : ERA_AGES[honor.age].name} ${civHint('eraAge')}</strong><span>${ageDescription(honor)}</span></div>
-    <p class="era-honor-score">本世代得分 <b>${honor.score}</b> · 已 ${rounds} 轮 · 平均每轮 <b>${rate.toFixed(2)}</b> ${civHint('eraScore')}</p>
+    <p class="era-honor-score">${uiIcon('eraScore', { size: 22 })}本世代得分 <b>${honor.score}</b> · 已 ${rounds} 轮 · 平均每轮 <b>${rate.toFixed(2)}</b> ${civHint('eraScore')}</p>
     <div class="era-honor-bar" role="img" aria-label="平均每轮 ${rate.toFixed(2)}，黄金线 ${golden}，黑暗线 ${dark}">
       <span class="fill" style="width:${pct(rate)}%"></span><i class="line dark" style="left:${pct(dark)}%"></i><i class="line golden" style="left:${pct(golden)}%"></i>
     </div>
-    <p class="era-honor-legend"><span class="dark">黑暗线 ${dark}</span><span class="golden">黄金线 ${golden}</span></p>
+    <p class="era-honor-legend"><span class="dark">${uiIcon('type:dark', { size: 14 })}黑暗线 ${dark}</span><span class="golden">${uiIcon('eraScore', { size: 14 })}黄金线 ${golden}</span></p>
     <p class="era-honor-projection">${rounds < honor.minimumRounds ? `本世代还不到 ${honor.minimumRounds} 轮：现在进入下个世代会是普通世代。` : `按现在的速度，进入下个世代时将是 <b class="age-${projected}">${ERA_AGES[projected].name}</b>。`}</p>
     ${breakdown ? `<ul class="era-honor-breakdown">${breakdown}</ul>` : '<p class="unit-note">本世代还没有得分。建城、进化、捕捉、确立规章、建设施区、清巢穴都能得分。</p>'}
-    <details><summary>怎么得分</summary><ul class="era-honor-table">${ERA_MILESTONE_IDS.filter(id => (id !== 'legendWonder' || view.expansion?.legends) && (id !== 'landmarkDiscovered' || view.expansion?.landmarks) && (id !== 'researchComplete' || view.expansion?.researchTasks) && ((id !== 'gymBadge' && id !== 'eliteFour') || view.expansion?.gymCircuit) && (id !== 'rivalDefeated' || view.expansion?.rivals)).map(id => `<li>${ERA_MILESTONES[id].name}<b>+${ERA_MILESTONES[id].points}</b></li>`).join('')}</ul></details>
+    <details><summary>怎么得分</summary><ul class="era-honor-table">${ERA_MILESTONE_IDS.filter(id => (id !== 'legendWonder' || view.expansion?.legends) && (id !== 'landmarkDiscovered' || view.expansion?.landmarks) && (id !== 'researchComplete' || view.expansion?.researchTasks) && ((id !== 'gymBadge' && id !== 'eliteFour') || view.expansion?.gymCircuit) && (id !== 'rivalDefeated' || view.expansion?.rivals)).map(id => `<li>${uiIcon(MILESTONE_ICONS[id], { size: 18 })}<span>${ERA_MILESTONES[id].name}</span><b>+${ERA_MILESTONES[id].points}</b></li>`).join('')}</ul></details>
     ${honor.history.length ? `<details><summary>以往世代</summary><ul class="era-honor-history">${honor.history.map(item => `<li>${eraNames(item.eraIndex)} · ${item.heroic ? '英雄世代' : ERA_AGES[item.age].name} · ${item.score} 分 / ${item.rounds} 轮${item.dedications?.length ? ` · 献礼：${item.dedications.map(id => DEDICATIONS[id].name).join('、')}` : ''}</li>`).join('')}</ul></details>` : ''}
   </section>${dedicationMarkup(view)}`;
 }
@@ -118,8 +129,8 @@ function cardMarkup(id: DedicationId, options: { picked?: boolean; button?: bool
   const card = DEDICATIONS[id];
   const body = `<span class="dedication-art"><img src="${dedicationSprite(id)}" alt="" width="56" height="56"></span>
     <span class="dedication-name">${card.name}</span><span class="dedication-style">${card.style}</span>
-    <span class="dedication-line promise${options.golden ? ' inactive' : ''}"><b>承诺</b>${card.promiseText}</span>
-    <span class="dedication-line golden${options.golden === false ? ' inactive' : ''}"><b>黄金</b>${card.goldenText}</span>
+    <span class="dedication-line promise${options.golden ? ' inactive' : ''}"><b>${uiIcon('eraScore', { size: 14 })}承诺</b>${card.promiseText}</span>
+    <span class="dedication-line golden${options.golden === false ? ' inactive' : ''}"><b>${uiIcon('crown', { size: 14 })}黄金</b>${card.goldenText}</span>
     ${options.status ? `<span class="dedication-status">${options.status}</span>` : `<span class="dedication-flavor">${card.flavor}</span>`}`;
   return options.button
     ? `<button type="button" class="dedication-card${options.picked ? ' picked' : ''}" data-dedication="${id}" aria-pressed="${options.picked ? 'true' : 'false'}">${body}</button>`
@@ -181,11 +192,12 @@ export function renderEraPanel(view: PlayerView): string {
     : `${state.next.name}（还需 ${state.techsToNextEra} 项科技）`;
   return `<div class="subpanel-head"><strong>时代进程 ${civHint('era')}</strong><span>${modeLabel} · ${state.current.name}</span></div>
 <div class="era-body">
+  <p class="era-stats">${statChip('research', `${state.completedTechs}`, '已完成科技')}${statChip('turns', `${state.overallProgressPercent}%`, '整体进程')}</p>
   <div class="era-progress" role="img" aria-label="时代进度 ${state.eraProgressPercent}%"><span style="width:${state.eraProgressPercent}%"></span></div>
   <p class="era-next">${nextLabel}</p>
   ${eraHonorMarkup(view, index => ERA_DEFINITIONS[state.mode][index]?.name ?? `第 ${index + 1} 世代`)}
   <dl class="era-summary"><dt>已完成科技</dt><dd>${state.completedTechs} 项</dd><dt>整体进程</dt><dd>${state.overallProgressPercent}%</dd></dl>
-  ${view.expansion?.eraAbilities ? `<section class="era-abilities"><strong>时代能力 · ${view.expansion.eraAbilities.night ? '夜晚' : '白天'}</strong><ul>${ERA_ABILITY_IDS.filter(id => state.mode === 'full-v1' || ERA_ABILITIES[id].generation <= 3).map(id => `<li class="${view.expansion!.eraAbilities!.unlocked.includes(id) ? 'done' : ''}">${view.expansion!.eraAbilities!.unlocked.includes(id) ? '✓' : '○'} ${ERA_ABILITIES[id].era} · ${ERA_ABILITIES[id].name}<small>${ERA_ABILITIES[id].description}</small></li>`).join('')}</ul></section>` : ''}
+  ${view.expansion?.eraAbilities ? `<section class="era-abilities"><strong>时代能力 · ${view.expansion.eraAbilities.night ? '夜晚' : '白天'}</strong><ul>${ERA_ABILITY_IDS.filter(id => state.mode === 'full-v1' || ERA_ABILITIES[id].generation <= 3).map(id => `<li class="${view.expansion!.eraAbilities!.unlocked.includes(id) ? 'done' : 'locked'}"><span class="era-ability-icon">${uiIcon(ABILITY_ICONS[id], { size: 26 })}${uiIcon(view.expansion!.eraAbilities!.unlocked.includes(id) ? 'check' : 'lock', { size: 12, label: view.expansion!.eraAbilities!.unlocked.includes(id) ? '已解锁' : '未解锁', className: 'era-ability-state' })}</span><span>${ERA_ABILITIES[id].era} · ${ERA_ABILITIES[id].name}</span><small>${ERA_ABILITIES[id].description}</small></li>`).join('')}</ul></section>` : ''}
   <section class="era-doctrine"><strong>${leader ? `${leader.name} · ${PHASE_LABELS[state.phase]}战术` : '无领袖战术'}</strong>${definition ? `<p>${definition.description}</p>` : '<p>此局未选择领袖，时代只推进，不提供额外战术加成。</p>'}</section>
   ${leader ? `<details class="era-windows-toggle"><summary>查看早 / 中 / 后期战术窗口</summary><ul class="era-windows">${windows.map(item => windowMarkup(item, item.phase === state.phase, EXPANSION_CONTENT)).join('')}</ul></details>` : ''}
 </div>`;

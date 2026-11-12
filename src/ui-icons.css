@@ -121,6 +121,24 @@
 .policy-card .policy-icon { margin-top: 1px; }
 .slot-board .slot { display: inline-flex; align-items: center; gap: 4px; }
 .slot-chip:has(img) { display: inline-grid; place-items: center; padding: 1px 4px; }
+/* ---------- Era: score, milestones, abilities, dedications ---------- */
+.era-stats { display: flex; gap: 12px; margin: 0; }
+.era-honor-score { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.era-honor-legend span { display: inline-flex; align-items: center; gap: 3px; }
+.era-honor-breakdown { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px 10px; }
+.era-honor-breakdown li, .era-honor-table li { display: flex; align-items: center; gap: 5px; }
+.era-honor-breakdown li { padding: 3px 6px; border: 1px solid #3E4A3A; border-radius: 6px; background: #17251F; }
+.era-honor-breakdown b, .era-honor-table b { margin-left: auto; }
+.era-honor-table { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 3px 12px; }
+.era-abilities ul { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px 10px; }
+.era-abilities li { display: grid; grid-template-columns: 34px minmax(0, 1fr); grid-template-areas: "icon name" "icon text"; column-gap: 7px; align-items: center; }
+.era-abilities li > span:not(.era-ability-icon) { grid-area: name; font-size: 11px; }
+.era-abilities li small { grid-area: text; }
+.era-ability-icon { grid-area: icon; position: relative; display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid #5A4C70; border-radius: 8px; background: #241D33; }
+.era-abilities li.locked .era-ability-icon > img:first-child { filter: grayscale(.8) brightness(.75); }
+.era-ability-state { position: absolute; right: -4px; bottom: -4px; padding: 1px; border-radius: 50%; background: #0D1D21; }
+.dedication-line b { display: inline-flex; align-items: center; gap: 2px; }
+
 /* ---------- City: yields, production list, districts ---------- */
 .yield-grid .yield-item { align-items: center; justify-content: flex-start; gap: 5px; }
 .yield-grid .yield-item small { display: none; }
