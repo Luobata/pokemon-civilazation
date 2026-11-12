@@ -12,7 +12,7 @@ import { planWorldAction } from '../core/world-systems.ts';
 import { WORLD_DEFINITIONS } from '../content/world-systems.ts';
 import { planLeaderAction } from '../core/leader-systems.ts';
 import type { Command, MapUnit, PlayerView, ProductionItem } from '../core/model.ts';
-import { hexDistance, hexToIndex, indexToHex } from '../core/hex.ts';
+import { hexDistance, hexToIndex, indexToHex, neighbors } from '../core/hex.ts';
 import { workRadius } from '../core/city.ts';
 import { CONTENT, unitDefinition, contentForView, techOf } from '../content/units.ts';
 import type { BallId, BuildingId, TechId } from '../content/economy.ts';
@@ -45,7 +45,8 @@ import { ownRivalHunters, rivalAttackBonus, rivalThreatenedCityIds, rivalTrainin
 import { viewIsRivalUnit } from '../core/rivals.ts';
 import { researchCaptureScore } from './research-plan.ts';
 import { embarkResearchBonus, isBoarding, nearestTravel, safeToBoard, travelCloser, travelDistance, walkerTravel } from './travel.ts';
-import { waterAccess } from '../core/movement.ts';
+import { canEnterTile, waterAccess } from '../core/movement.ts';
+import { wanderersFor } from '../content/roster.ts';
 import { featureVision, isEmbarked } from '../core/terrain.ts';
 import type { Goal } from './strategies.ts';
 type Candidate = { action: Command['action']; goal: Goal; benefit: number; ownId: number; targetId: number };
@@ -66,10 +67,17 @@ export function canCaptureByPersonality(view: PlayerView, target: MapUnit, query
   }
   return true;
 }
-export function canProduceSettler(view: PlayerView, ai: AiThresholds = AI_THRESHOLDS, opening = false): boolean {
+/**
+ * Whether a city may queue a settler now. Normally one settler at a time (queued, pending or on the map). `openingSites` (v24 AI only):
+ * the number of known city sites; during the opening (fewer than 3 cities) settlers overlap — cities + settlers stay under 3 and every
+ * settler has a known site of its own — so the third city's settler is built while the second one is still walking.
+ */
+export function canProduceSettler(view: PlayerView, ai: AiThresholds = AI_THRESHOLDS, opening = false, openingSites: number | null = null): boolean {
   const player = view.economy.player, cities = view.economy.cities;
-  const queued = cities.some(city => [...city.queue, ...city.pendingDeployments].some(order => order.item.kind === 'logistics' && order.item.defId === 'settler'));
-  if (queued || view.units.some(unit => unit.ownerId === view.playerId && unit.kind === 'logistics' && unit.role === 'settler')) return false;
+  const queuedCount = cities.reduce((sum, city) => sum + [...city.queue, ...city.pendingDeployments].filter(order => order.item.kind === 'logistics' && order.item.defId === 'settler').length, 0);
+  const fieldCount = view.units.filter(unit => unit.ownerId === view.playerId && unit.kind === 'logistics' && unit.role === 'settler').length;
+  if (openingSites !== null && opening && cities.length < 3 && queuedCount + fieldCount > 0) return cities.length + queuedCount + fieldCount < 3 && openingSites > queuedCount + fieldCount;
+  if (queuedCount || fieldCount) return false;
   const strategy = AI_STRATEGIES[player.personality];
   // v21 opening: every personality expands to 3 cities first.
   if (opening && cities.length < 3) return true;
@@ -200,6 +208,17 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
     if (query.research(player, techId, content)) add({ type: 'SetResearch', techId }, 'research', unlocksLeaderUnit ? 1000
       : content.techTree ? treeResearchBenefit(view, techId, content) + embarkResearchBonus(view, techId, content, citySite) : 100 - techOf(content, techId).cost + leaderResearchBonus(view, techId), 0, i);
   }
+  // Known city sites (computed once per plan; settlers and the v24 overseas checks share the list).
+  let siteCache: MapUnit['position'][] | null = null;
+  const allSites = () => siteCache ??= view.map.tiles.flatMap((_, index) => citySite(indexToHex(index, view.map)) ? [indexToHex(index, view.map)] : []);
+  // v24 AI (expansion): during the opening the settler is the city's first choice, whatever the personality's goal order — it is queued
+  // under the personality's first goal after diplomacy, in the most productive idle city, while a known site waits for it (not in a city
+  // under a bond threat). Before v24 the settler keeps the 'found' goal everywhere.
+  const v24Ai = Boolean(content.terrain && view.map.features);
+  const openingRush = v24Ai && Boolean(content.opening) && cities.length < 3;
+  const openingSites = openingRush ? allSites().length : null;
+  const settlerCity = openingRush && openingSites ? cities.filter(city => !city.queue.length && !city.pendingDeployments.length && !bondThreatened.has(city.id))
+    .sort((a, b) => b.yields.production - a.yields.production || a.id - b.id)[0]?.id ?? null : null;
   // v15: one legendary wonder at a time, in the most productive eligible city that is not threatened.
   const { cityId: wonderCity, legendId: wonder } = planLegendWonder(view, threatened);
   const income = cities.reduce((sum, city) => sum + city.yields.gold, 0);
@@ -209,10 +228,11 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
     if (work.length > city.workedTileIds.length) add({ type: 'AssignWork', cityId: city.id, workedTileIds: work, lockedTileIds: [...city.lockedTileIds] }, 'economy', 500, city.id);
     if (city.queue.length || city.pendingDeployments.length) continue;
     const queue = (item: ProductionItem, goal: Goal, benefit: number, targetId = 0) => add({ type: 'SetProductionQueue', cityId: city.id, orders: [{ item }] }, goal, benefit, city.id, targetId);
-    if (wonderCity === city.id && wonder) queue({ kind: 'legend', defId: wonder }, 'economy', 260, LEGEND_WONDERS[wonder].dex);
-    const district = districtCandidates(view, city.id, content)[0];
+    // v24 AI: no legendary wonder or district (long builds) before the third city, so a settler never waits behind one.
+    if (wonderCity === city.id && wonder && !openingRush) queue({ kind: 'legend', defId: wonder }, 'economy', 260, LEGEND_WONDERS[wonder].dex);
+    const district = openingRush ? undefined : districtCandidates(view, city.id, content)[0];
     if (district) queue({ kind: 'district', defId: district.kind, tileIndex: district.tileIndex }, 'economy', district.score, district.tileIndex);
-    if (canProduceSettler(view, ai, Boolean(content.opening))) { const escortId = pickEscort(view, content); queue({ kind: 'logistics', defId: 'settler', ...(escortId ? { escortId } : {}) }, 'found', content.opening && cities.length < 3 ? 900 : 50); }
+    if (canProduceSettler(view, ai, Boolean(content.opening), openingSites)) { const escortId = pickEscort(view, content); queue({ kind: 'logistics', defId: 'settler', ...(escortId ? { escortId } : {}) }, settlerCity === city.id ? strategy.priorities.find(goal => goal !== 'diplomacy')! : 'found', content.opening && cities.length < 3 ? 900 : 50); }
     // The first 工匠 early (improvements compound); later ones only after the army is fed.
     if (wantsBuilder(view) && !bondThreatened.has(city.id)) { const escortId = pickBuilderEscort(view, city.id, content); queue({ kind: 'logistics', defId: 'builder', ...(escortId ? { escortId } : {}) }, 'economy', units.some(unit => unit.kind === 'logistics' && unit.role === 'builder') ? 70 : 400); }
     if (wantsTrader(view, city.id)) { const escortId = pickEscort(view, content); queue({ kind: 'logistics', defId: 'trader', ...(escortId ? { escortId } : {}) }, 'economy', 140); }
@@ -229,6 +249,8 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
         const species = content.species[id];
         if (species.role === 'fast' && !player.research.unlockedIds.includes('riding')) continue;
         if (classTrainingBlocker(view, player, view.eraProgression, badges, id, content)) continue;
+        // v24 AI: never a species with no tile next to the city it could be placed on (a water species inland would block the queue forever).
+        if (v24Ai && !neighbors(city.position, view.map).some(hex => { const tile = hexToIndex(hex, view.map); return tile !== null && canEnterTile({ kind: 'pokemon', speciesId: id }, view.map, tile, content); })) continue;
         queue({ kind: 'pokemon', defId: id }, 'military', species.attack + species.defense - species.trainCost
           + (preparingSiege && species.role === 'siege' && strategy.siegeTrainingBonus !== null ? ai[strategy.siegeTrainingBonus] : 0)
           + roleTrainingBonus(view, id, content, preparingSiege) + typeCounterBonus(view, id, content) + classTrainingBonus(view, id, content) + rivalTrainingBonus(view, id, content), i);
@@ -246,9 +268,6 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
   const atWar = view.diplomacy.some(pair => pair.status === 'war' && (pair.a === actorId || pair.b === actorId));
   const workers = designatedWorkers(view, content, atWar || campaignActive || preparingSiege);
   const traceTargets = legendTraceTargets(view, content), ballTargets = itemBallTargets(view), gymTargets = gymMoveTargets(view, content), rivalHunters = ownRivalHunters(view);
-  // Known city sites (computed once per plan; settlers and the v24 overseas checks share the list).
-  let siteCache: MapUnit['position'][] | null = null;
-  const allSites = () => siteCache ??= view.map.tiles.flatMap((_, index) => citySite(indexToHex(index, view.map)) ? [indexToHex(index, view.map)] : []);
   // v24 integration fix (crowded continent): with no known site reachable over land from the capital and water access, Pokémon may board
   // to explore and stay out instead of heading home; a settler whose sites all lie across water gets the nearest Pokémon as its escort.
   const seaPlans = Boolean(content.embark && view.map.features) && waterAccess(player, content) >= 1 && cities.length > 0;
@@ -263,6 +282,12 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
       .sort((a, b) => hexDistance(a.position, settler.position, view.map) - hexDistance(b.position, settler.position, view.map) || a.id - b.id)[0];
     if (escort) escortTargets.set(escort.id, settler.position);
   }
+  // v24 AI: a wild Pokémon that does not wander strikes any unit next to it at the end of the round (settlers and builders are knocked out
+  // at once), and enemies at war move first (within 3); logistics units never step into that reach unless they found a city there, and step out.
+  const warEnemies = new Set(view.diplomacy.filter(pair => pair.status === 'war' && (pair.a === actorId || pair.b === actorId)).map(pair => pair.a === actorId ? pair.b : pair.a));
+  const wanderers = wanderersFor(content);
+  const strikers = v24Ai ? view.units.filter(other => other.kind === 'pokemon' && (other.ownerId === null ? !wanderers.includes(other.speciesId) && !viewIsRivalUnit(view, other.id) : warEnemies.has(other.ownerId))) : [];
+  const exposed = (position: MapUnit['position']) => strikers.some(other => hexDistance(other.position, position, view.map) <= (other.ownerId === null ? 1 : 3));
   for (const unit of units.filter(unit => unit.actionLeft)) {
     const trader = traderPlan(view, unit);
     if (trader.action) add(trader.action, 'economy', 900, unit.id);
@@ -316,6 +341,8 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
       // v24 A2: board only when it is safe (no sea threat nearby, escorted), and never just to look around.
       const boarding = isBoarding(view, unit, to, content);
       if (boarding && !safeToBoard(view, unit, to, content)) continue;
+      if (unit.kind === 'logistics' && strikers.length && exposed(to) && !(unit.role === 'settler' && citySite(to))) continue;
+      if (unit.kind === 'logistics' && strikers.length && exposed(unit.position)) add(action, unit.role === 'settler' ? 'found' : 'economy', 200, unit.id, index);
       if (trader.destination && far(to, trader.destination) < far(unit.position, trader.destination)) add(action, 'economy', 110 - far(to, trader.destination), unit.id, index);
       if (unit.kind === 'logistics' && sites.length) {
         const before = siteTravel(unit.position), after = siteTravel(to);
