@@ -8,6 +8,11 @@ import type { PlayerView } from '../core/model.ts';
 import { habitatBiomes, hasTask, tasksDone } from '../core/research-tasks.ts';
 import type { ResearchCard, ResearchTaskEvent } from '../core/research-tasks.ts';
 import '../research-tasks.css';
+import { artImage, uiIcon } from './ui-icons.ts';
+import type { UiIconName } from './ui-icons.ts';
+import { pokemonSpritePath } from './sprites.ts';
+
+const TASK_ICONS: Record<ResearchTaskId, UiIconName> = { seen: 'class:scout', knockouts: 'swords', captured: 'pokeBall', evolution: 'essence', special: 'star' };
 
 const R = RESEARCH_TASK_RULES_V24;
 const BIOME_LABEL: Record<string, string> = { grassland: '草原', forest: '森林', mountain: '山地', ocean: '海洋', desert: '荒漠', snow: '雪原', volcano: '火山' };
@@ -43,8 +48,8 @@ export function researchCardMarkup(view: PlayerView, speciesId: SpeciesId, conte
   const book = view.expansion?.researchTasks;
   if (!book) return '';
   const card = book[speciesId], done = tasksDone(card?.tasks ?? 0);
-  const rows = RESEARCH_TASK_IDS.map(task => `<li class="${hasTask(card, task) ? 'done' : ''}" data-task="${task}">${hasTask(card, task) ? '✔' : '○'} ${escape(taskLabel(task, card, speciesId, content))}</li>`).join('');
-  return `<details class="research-card" id="research-card" data-species="${speciesId}"${open ? ' open' : ''}><summary><span>图鉴调查 · ${escape(content.species[speciesId].name)}</span><span class="research-pips" aria-label="完成 ${done}/5">${pips(card)}</span><b>${done}/5</b></summary>
+  const rows = RESEARCH_TASK_IDS.map(task => `<li class="${hasTask(card, task) ? 'done' : ''}" data-task="${task}">${uiIcon(TASK_ICONS[task], { size: 16 })}${uiIcon(hasTask(card, task) ? 'check' : 'lock', { size: 12, label: hasTask(card, task) ? '已完成' : '未完成', className: 'task-state' })}<span>${escape(taskLabel(task, card, speciesId, content))}</span></li>`).join('');
+  return `<details class="research-card" id="research-card" data-species="${speciesId}"${open ? ' open' : ''}><summary>${artImage(pokemonSpritePath(speciesId), { size: 28 })}<span>图鉴调查 · ${escape(content.species[speciesId].name)}</span><span class="research-pips" aria-label="完成 ${done}/5">${pips(card)}</span><b>${done}/5</b></summary>
     <ol class="research-tasks">${rows}</ol><p class="research-next">${researchNextHint(card)}${done >= R.captureAt ? ` 已获得：捕捉率 +${R.captureBonus}。` : ''}</p>
     <p class="research-note">奖励：2 项科研 +${R.notesResearch}，4 项对这个物种的捕捉率 +${R.captureBonus}，5 项金币 +${R.completeGold}、世代分 +${R.completeEraScore}（每世代最多 ${R.eraScoreCapPerEra} 次）。调查卡不计入图鉴胜利；进度只有你自己知道。</p></details>`;
 }
@@ -56,8 +61,8 @@ export function researchBookMarkup(view: PlayerView, content: Content): string {
   const entries = (Object.entries(book) as [SpeciesId, ResearchCard][]).filter(([, card]) => card.tasks || card.knockouts)
     .sort((a, b) => tasksDone(b[1].tasks) - tasksDone(a[1].tasks) || content.species[a[0]].name.localeCompare(content.species[b[0]].name, 'zh'));
   const complete = entries.filter(([, card]) => tasksDone(card.tasks) >= R.completeAt).length, bonus = entries.filter(([, card]) => tasksDone(card.tasks) >= R.captureAt).length;
-  const list = entries.map(([speciesId, card]) => `<li data-species="${speciesId}" title="${escape(RESEARCH_TASK_IDS.map(task => `${hasTask(card, task) ? '✔' : '○'}${taskLabel(task, card, speciesId, content)}`).join(' · '))} — ${escape(researchNextHint(card))}"><span>${escape(content.species[speciesId].name)}</span><span class="research-pips">${pips(card)}</span></li>`).join('');
-  return `<details class="research-book" id="research-book" data-system="research-book"><summary>图鉴调查卡 · ${entries.length} 种有进度 · 完成 ${complete} · 捕捉率加成 ${bonus}</summary>
+  const list = entries.map(([speciesId, card]) => `<li data-species="${speciesId}" title="${escape(RESEARCH_TASK_IDS.map(task => `${hasTask(card, task) ? '✔' : '○'}${taskLabel(task, card, speciesId, content)}`).join(' · '))} — ${escape(researchNextHint(card))}">${artImage(pokemonSpritePath(speciesId), { size: 32 })}<span>${escape(content.species[speciesId].name)}</span><span class="research-pips">${pips(card)}</span></li>`).join('');
+  return `<details class="research-book" id="research-book" data-system="research-book"><summary>${uiIcon('clipboard', { size: 18 })} 图鉴调查卡 · ${entries.length} 种有进度 · 完成 ${complete} · 捕捉率加成 ${bonus}</summary>
     <p class="research-note">每个物种 5 项：看到、击倒 ${R.knockoutsNeeded} 只、收服、看到进化、特别条件（恶/幽灵夜里击倒；水/火/岩石/地面/钢在对应天气里击倒；其他在栖息地收服）。不计入图鉴胜利。</p>
     <ul class="research-list">${list || '<li>还没有调查进度。</li>'}</ul></details>`;
 }

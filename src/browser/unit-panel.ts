@@ -37,6 +37,12 @@ import { pokemonSpritePath } from './sprites.ts';
 import { WORLD_DEFINITIONS } from '../content/world-systems.ts';
 import { civHint } from './civ-hint.ts';
 import { researchCardMarkup } from './research-card.ts';
+import { typeBadge, uiIcon } from './ui-icons.ts';
+import type { UiIconName } from './ui-icons.ts';
+
+/** One stat tile: an icon over the number; the label stays as visually hidden text and the tile's title. */
+const statTile = (icon: UiIconName, label: string, value: string | number) =>
+  `<div class="unit-detail icon-tile" title="${label} ${value}">${uiIcon(icon, { size: 20 })}<small class="visually-hidden">${label}</small><strong>${value}</strong></div>`;
 
 export type ActionMode = 'move' | 'attack' | 'capture' | null;
 export type PendingTarget = CombatTarget & { index: number };
@@ -184,9 +190,9 @@ export function renderUnitPanel(view: PlayerView, selected: number | null, mode:
   // v24 D: the research card of the targeted wild / enemy Pokémon, else of this unit's species (keeps its open state across refreshes).
   const researchSpecies = targetUnit?.kind === 'pokemon' ? targetUnit.speciesId : unit.speciesId;
   const researchOpen = root.querySelector<HTMLDetailsElement>('#research-card')?.open ?? false;
-  root.innerHTML = `<div class="unit-card"><div class="unit-head"><div class="unit-portrait"><img src="${pokemonSpritePath(unit.speciesId)}" alt="${definition.name}" width="64" height="64"></div><div><strong>${definition.name}</strong><small>宝可梦 · 文明 ${view.playerId + 1}${unit.enraged ? ' · 激怒' : ''}</small></div><span class="unit-ap ${unit.actionLeft ? '' : 'spent'}">${actionPointLabel(view, unit, CONTENT)}</span></div>
-    <div class="unit-vitals"><span>HP <strong>${unit.hp}/${species.maxHp}</strong><span class="vital-bar" aria-hidden="true"><span style="width:${Math.max(0, Math.min(100, unit.hp * 100 / species.maxHp))}%"></span></span></span><span>EXP <strong>${unit.xp}${evolution ? `/${evolution.xp}` : ''}</strong>${evolution ? `<span class="vital-bar xp" aria-hidden="true"><span style="width:${Math.max(0, Math.min(100, unit.xp * 100 / evolution.xp))}%"></span></span>` : ''}</span></div>
-    <div class="unit-details"><div class="unit-detail"><small>${CONTENT.combat === 'strength' ? '攻击战斗力' : '攻击'}</small><strong>${species.attack}</strong></div><div class="unit-detail"><small>${CONTENT.combat === 'strength' ? '防御战斗力' : '防御'}</small><strong>${species.defense}</strong></div><div class="unit-detail"><small>射程</small><strong>${species.range}</strong></div><div class="unit-detail"><small>移动</small><strong>${species.move + doctrineEffects(player, view.eraProgression, unit, CONTENT).movementBonus + promotionMovement(view, unit.id)}</strong></div><div class="unit-detail"><small>视野</small><strong>${species.vision}</strong></div>${CONTENT.combat === 'strength' ? '' : `<div class="unit-detail"><small>威力</small><strong>${species.power}</strong></div>`}</div>
+  root.innerHTML = `<div class="unit-card"><div class="unit-head"><div class="unit-portrait"><img src="${pokemonSpritePath(unit.speciesId)}" alt="${definition.name}" width="64" height="64"></div><div><strong>${definition.name}</strong><span class="unit-types">${typeBadge(species.typeId, 18)}${species.secondaryTypeId ? typeBadge(species.secondaryTypeId, 18) : ''}${view.gameplayVersion ? uiIcon(`class:${species.role}`, { size: 18, label: CLASS_NAMES[species.role] }) : ''}</span><small>宝可梦 · 文明 ${view.playerId + 1}${unit.enraged ? ' · 激怒' : ''}</small></div><span class="unit-ap ${unit.actionLeft ? '' : 'spent'}">${actionPointLabel(view, unit, CONTENT)}</span></div>
+    <div class="unit-vitals"><span>${uiIcon('heart', { size: 14 })}HP <strong>${unit.hp}/${species.maxHp}</strong><span class="vital-bar" aria-hidden="true"><span style="width:${Math.max(0, Math.min(100, unit.hp * 100 / species.maxHp))}%"></span></span></span><span>${uiIcon('star', { size: 14 })}EXP <strong>${unit.xp}${evolution ? `/${evolution.xp}` : ''}</strong>${evolution ? `<span class="vital-bar xp" aria-hidden="true"><span style="width:${Math.max(0, Math.min(100, unit.xp * 100 / evolution.xp))}%"></span></span>` : ''}</span></div>
+    <div class="unit-details">${statTile('attack', CONTENT.combat === 'strength' ? '攻击战斗力' : '攻击', species.attack)}${statTile('defense', CONTENT.combat === 'strength' ? '防御战斗力' : '防御', species.defense)}${statTile('range', '射程', species.range)}${statTile('move', '移动', species.move + doctrineEffects(player, view.eraProgression, unit, CONTENT).movementBonus + promotionMovement(view, unit.id))}${statTile('class:scout', '视野', species.vision)}${CONTENT.combat === 'strength' ? '' : statTile('effect', '威力', species.power)}</div>
     ${classNoteMarkup(view, unit, CONTENT)}
     ${researchCardMarkup(view, researchSpecies, CONTENT, researchOpen)}
     ${view.gameplayVersion ? `<p class="unit-note" id="assault-role">兵种：${ROLE_CITY_ASSAULT[species.role].label} · ${ROLE_CITY_ASSAULT[species.role].note}${doctrineEffects(player, view.eraProgression, unit, CONTENT).cityDamageBonus ? `；领袖战术再 +${doctrineEffects(player, view.eraProgression, unit, CONTENT).cityDamageBonus / 10}%` : ''}</p>` : ''}

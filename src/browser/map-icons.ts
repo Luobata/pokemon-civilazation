@@ -478,6 +478,9 @@ const MARKER_ICONS = {
 
 const ICONS = { ...YIELD_ICONS, ...RESOURCE_ICONS, ...IMPROVEMENT_ICONS, ...DISTRICT_ICONS, ...MARKER_ICONS } as const;
 export type IconName = keyof typeof ICONS;
+export const MAP_ICON_NAMES = Object.keys(ICONS) as IconName[];
+/** The palette grid of a map icon, for DOM panels (src/browser/ui-icons.ts renders it as an SVG data URL). */
+export const mapIconGrid = (name: IconName): Readonly<IconDef> => ICONS[name];
 
 const cache = new Map<string, HTMLCanvasElement>();
 function rendered(name: IconName, scale: number): HTMLCanvasElement {

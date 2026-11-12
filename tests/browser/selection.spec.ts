@@ -47,8 +47,8 @@ test('unit and city selection expose only the actions of the selected object', a
   await expect(page.locator('#capture-unit')).toBeDisabled();
   await expect(page.locator('#evolve-unit')).toBeDisabled();
   await expect(page.locator('#found-city')).toHaveCount(0);
-  await expect(page.locator('#unit-panel img')).toHaveAttribute('src', pokemonSpritePath('bulbasaur'));
-  await expect.poll(() => page.locator('#unit-panel img').evaluate(image => (image as HTMLImageElement).naturalWidth)).toBe(64);
+  await expect(page.locator('#unit-panel .unit-portrait img')).toHaveAttribute('src', pokemonSpritePath('bulbasaur'));
+  await expect.poll(() => page.locator('#unit-panel .unit-portrait img').evaluate(image => (image as HTMLImageElement).naturalWidth)).toBe(64);
   await page.screenshot({ path: 'test-results/screenshots/context-pokemon.png', fullPage: false });
   // Selecting a city must not accidentally move the selected unit into it.
   await clickHex(page, city.position);
@@ -93,7 +93,7 @@ test('a completed training ground opens unit production in its own city', async 
   const trainingGround = page.locator('[data-production-option="building:trainingGround"]');
   await expect(trainingGround).toContainText('宝可梦中心');
   await expect(trainingGround.locator('.production-option-cost b')).toHaveText('60');
-  await expect(trainingGround.locator('img')).toHaveAttribute('src', '/buildings/trainingGround.svg');
+  await expect(trainingGround.locator('img.production-icon')).toHaveAttribute('src', '/buildings/trainingGround.svg');
   await trainingGround.click();
   for (let turn = 0; turn < 35 && !(await state(page)).cities[cityId].buildingIds.includes('trainingGround'); turn++) await page.locator('#end-turn').click({ modifiers: ['Shift'] });
   // P0-1: the building strip lives in the city's 详情 tab.
@@ -104,7 +104,7 @@ test('a completed training ground opens unit production in its own city', async 
   await expect(page.locator('[data-production-kind="pokemon"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('.building-detail-head img')).toHaveAttribute('src', '/buildings/trainingGround.svg');
   await expect(page.locator('#building-detail')).toContainText('经验 +20');
-  await expect(page.locator('[data-production-option="pokemon:bulbasaur"] img')).toHaveAttribute('src', pokemonSpritePath('bulbasaur'));
+  await expect(page.locator('[data-production-option="pokemon:bulbasaur"] img.production-icon')).toHaveAttribute('src', pokemonSpritePath('bulbasaur'));
   await page.screenshot({ path: 'test-results/screenshots/context-training-ground.png', fullPage: false });
   await page.locator('[data-production-option="pokemon:bulbasaur"]').click();
   const queued = await state(page);

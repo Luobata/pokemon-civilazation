@@ -12,6 +12,7 @@ import { hexToIndex } from '../core/hex.ts';
 import type { Command, MapUnit, PlayerView } from '../core/model.ts';
 import { placeCard } from './combat-preview.ts';
 import { pokemonSpritePath } from './sprites.ts';
+import { typeBadge, uiIcon } from './ui-icons.ts';
 import type { TileEntity } from './tile-info.ts';
 
 const esc = (value: unknown) => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
@@ -78,19 +79,19 @@ export function v24PanelCards(view: PlayerView, button: (label: string, action: 
     const won = badgesOf(view), cityGyms = new Set((view.expansion?.essences?.gyms ?? []).filter(gym => view.economy.cities.some(city => city.id === gym.cityId)).map(gym => gym.essence));
     const slots = Array.from({ length: Math.max(GYM_RULES_V24.gymCount, won.length) }, (_, slot) => {
       const gym = circuit.gyms.find(item => item.id === won[slot]);
-      return gym ? `<li class="badge-slot won" style="--badge:${ESSENCES[gym.essence].color}" title="${esc(gymTitle(gym))}"><b>${ESSENCES[gym.essence].mark}</b>${esc(GYM_LEADERS[gym.leader].name)}</li>`
-        : '<li class="badge-slot empty">—</li>';
+      return gym ? `<li class="badge-slot won" style="--badge:${ESSENCES[gym.essence].color}" title="${esc(gymTitle(gym))}">${uiIcon(`gym:${gym.typeId}`, { size: 30, label: `${TYPE_NAMES[gym.typeId]}属性徽章 · ${gymTitle(gym)}` })}<span>${esc(GYM_LEADERS[gym.leader].name)}</span></li>`
+        : `<li class="badge-slot empty">${uiIcon('badge', { size: 30, label: `空徽章槽 ${slot + 1}` })}</li>`;
     }).join('');
     const own = view.units.filter((unit): unit is Extract<MapUnit, { kind: 'pokemon' }> => unit.ownerId === view.playerId && unit.kind === 'pokemon' && unit.actionLeft === 1)
       .sort((a, b) => unitPower(b, content) - unitPower(a, content) || a.id - b.id).slice(0, GYM_RULES_V24.eliteFour.team);
     const elite = viewEliteFourBlocker(view, own.map(unit => unit.id));
-    const rows = circuit.gyms.map(gym => `<li>${won.includes(gym.id) ? '✓' : '·'} ${esc(gymTitle(gym))}（${TYPE_NAMES[gym.typeId]}）${gym.homeOf === view.playerId ? ' · 家门口' : ''}</li>`).join('');
-    const others = Object.entries(circuit.badges).filter(([id]) => Number(id) !== view.playerId).map(([id, list]) => `文明 ${Number(id) + 1} ${list.length} 枚${circuit.eliteFour[Number(id)]?.won ? '（已胜四天王）' : ''}`).join(' · ');
+    const rows = circuit.gyms.map(gym => `<li class="${won.includes(gym.id) ? 'won' : ''}">${typeBadge(gym.typeId, 20)}<span>${esc(gymTitle(gym))}</span>${gym.homeOf === view.playerId ? '<small>家门口</small>' : ''}${won.includes(gym.id) ? uiIcon('check', { size: 14, label: '已获得徽章' }) : ''}</li>`).join('');
+    const others = Object.entries(circuit.badges).filter(([id]) => Number(id) !== view.playerId).map(([id, list]) => `<span class="icon-stat" role="img" aria-label="${esc(`文明 ${Number(id) + 1} ${list.length} 枚${circuit.eliteFour[Number(id)]?.won ? '（已胜四天王）' : ''}`)}">文明 ${Number(id) + 1} ${uiIcon('badge', { size: 14 })}<b aria-hidden="true">${list.length}</b>${circuit.eliteFour[Number(id)]?.won ? uiIcon('trophy', { size: 14 }) : ''}</span>`).join('');
     html += card('s-gym-circuit', `道馆巡回 · 徽章 ${won.length}/${GYM_RULES_V24.gymCount}`,
       `<p>8 座中立道馆，谁都能带 1–3 只宝可梦挑战，各自赢得徽章。馆主强度随你已有的徽章数提高：你的下一位馆主 <b>${esc(nextLeaderText(view))}</b>。巡回徽章和自建属性道馆一样，能解锁对应属性的最终形态${cityGyms.size ? `（自建道馆：${[...cityGyms].map(id => ESSENCES[id].name).join('、')}）` : ''}。</p>`
       + `<ul class="badge-box" id="badge-box">${slots}</ul>`
-      + `<p>已发现的道馆：</p><ul class="gym-list">${rows || '<li>还没有发现道馆，派宝可梦去探索。</li>'}</ul>`
-      + `<p>其他文明：${esc(others || '无')}</p>`
+      + `<p>已发现的道馆：</p><ul class="gym-list gym-list-icons">${rows || '<li>还没有发现道馆，派宝可梦去探索。</li>'}</ul>`
+      + `<p class="world-stats">其他文明：${others || '无'}</p>`
       + `<p>集齐 ${GYM_RULES_V24.gymCount} 枚后挑战四天王（${ELITE_FOUR.map(member => member.name).join('、')}）：派 ${GYM_RULES_V24.eliteFour.team} 只宝可梦连战 5 场，赢了得 1 个冠军赛头衔（每局一次）、金币 ${GYM_RULES_V24.eliteFour.gold}。</p>`
       + (circuit.eliteFour[view.playerId]?.won ? '<p>你已战胜四天王，冠军赛头衔 +1。</p>'
         : button('挑战四天王', { type: 'ChallengeEliteFour', unitIds: own.map(unit => unit.id) }, elite === null) + (elite ? `<small class="gym-blocker">${esc(gymBlockerText(elite))}</small>` : '')));

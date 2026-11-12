@@ -30,6 +30,8 @@ import { pokemonSpritePath } from './sprites.ts';
 import { cityDistrictMarkup, districtTypeCards } from './district-panel.ts';
 import type { DistrictId } from '../content/districts.ts';
 import { civHint } from './civ-hint.ts';
+import { statChip, uiIcon } from './ui-icons.ts';
+import type { UiIconName } from './ui-icons.ts';
 
 let rendered = '';
 type LegacyProductionItem = Exclude<ProductionItem, { kind: 'district' }>;
@@ -61,20 +63,20 @@ function buildingEffect(id: BuildingId): string {
   return [...yields, `城市最大 HP +${BASE_CONTENT.balance.city.buildingHp}`].join('；');
 }
 const YIELD_LABEL = { food: '食物', production: '生产', gold: '金币', research: '科研' } as const;
-/** The row's one-line effect: per-round yields and training XP (the HP bonus is in the building's detail card). */
-function buildingShortEffect(id: BuildingId): string {
-  const definition = BASE_CONTENT.buildings[id];
-  const parts = Object.entries(definition.yields).filter(([, amount]) => amount > 0)
-    .map(([key, amount]) => `${YIELD_LABEL[key as keyof typeof YIELD_LABEL]} +${amount}/轮`);
-  if (definition.trainedXp) parts.push(`新训练宝可梦经验 +${definition.trainedXp}`);
-  return parts.join(' · ') || buildingEffect(id);
-}
 /** Pixel icon for a production item: building art, the Pokémon / role / legend sprite, or the district's mark. */
 function productionIcon(item: ProductionItem): string {
-  if (item.kind === 'district') return `<span class="production-icon district-mark" aria-hidden="true">${DISTRICTS[item.defId].mark}</span>`;
+  if (item.kind === 'district') return uiIcon(item.defId as UiIconName, { size: 36, className: 'production-icon district-icon' });
   const src = item.kind === 'building' ? buildingArtPath(item.defId) : item.kind === 'pokemon' ? pokemonSpritePath(item.defId)
     : item.kind === 'legend' ? legendSprite(item.defId) : ROLE_POKEMON[item.defId].sprite;
   return `<img class="production-icon${item.kind === 'building' ? ' is-building' : ''}" src="${src}" width="40" height="40" alt="" aria-hidden="true">`;
+}
+/** Icon chips for a building's per-round yields and training XP (each named by its text). */
+function buildingEffectChips(id: BuildingId): string {
+  const definition = BASE_CONTENT.buildings[id];
+  const chips = Object.entries(definition.yields).filter(([, amount]) => amount > 0)
+    .map(([key, amount]) => statChip(key as keyof typeof YIELD_LABEL, `+${amount}`, `${YIELD_LABEL[key as keyof typeof YIELD_LABEL]}/轮`));
+  if (definition.trainedXp) chips.push(statChip('star', `+${definition.trainedXp}`, '新训练宝可梦经验'));
+  return chips.join('') || buildingEffect(id);
 }
 /** Rounds to produce `needed` at `rate` per round; null when the city makes no production. */
 const roundsFor = (needed: number, rate: number): number | null => rate > 0 ? Math.max(1, Math.ceil(needed / rate)) : null;
@@ -182,17 +184,18 @@ export function renderEconomyPanel(view: PlayerView, selectedCity: number | null
       <p class="unit-note">训练宝可梦时，若有对应精华，每轮自动消耗 ${ESSENCE_RULES.trainingSpend} 点加速 +${ESSENCE_RULES.trainingBoost}。</p>${weatherMarkup}</section>` : '';
   const districtXp = cityDistrictDetails(view, city.id).reduce((sum, district) => sum + district.effects.total.trainedXp, 0);
   const optionEffect = (item: LegacyProductionItem): string => {
-    if (item.kind === 'building') return buildingShortEffect(item.defId);
+    if (item.kind === 'building') return buildingEffectChips(item.defId);
     if (item.kind === 'legend') return `${legendEffectText(item.defId)} · 全世界唯一`;
     if (item.kind === 'logistics') return item.defId === 'builder' ? `${ROLE_POKEMON.builder.job} ${BUILDER_RULES.charges} 处` : item.defId === 'trader' ? ROLE_POKEMON.trader.job : `${ROLE_POKEMON.settler.job} · 移动 ${CONTENT.units.settler.move} · 无维护费`;
     const species = CONTENT.species[item.defId];
-    return `${CONTENT.combat === 'strength' ? '战斗力 ' : ''}攻 ${species.attack} · 防 ${species.defense} · 维护 ${species.upkeep} 金/轮${districtXp ? ` · 设施区出场经验 +${districtXp}` : ''}`;
+    return `${statChip('attack', species.attack, CONTENT.combat === 'strength' ? '战斗力 攻击' : '攻击')}${statChip('defense', species.defense, '防御')}${statChip('gold', `−${species.upkeep}`, '维护 金/轮')}${districtXp ? statChip('star', `+${districtXp}`, '设施区出场经验') : ''}`;
   };
   const queueFull = city.queue.length >= 5;
   const optionRows = options.map(item => {
     const cost = costOf(item), name = itemName(item), rounds = roundsText(roundsFor(cost, rate));
-    const tag = item.kind === 'pokemon' && usesUnitClasses(view) ? `<span class="production-class">【${CLASS_NAMES[CONTENT.species[item.defId].role]}】</span>` : '';
-    return `<li><button type="button" class="production-option" data-production-option="${item.kind}:${item.defId}" title="加入队列 · 单独生产${rounds}" ${disabled || queueFull ? 'disabled' : ''}>${productionIcon(item)}<span class="production-option-main"><b>${tag}${name}</b><small>${optionEffect(item)}</small></span><span class="production-option-cost"><b>${cost}</b><small>${rounds}</small></span></button></li>`;
+    const role = item.kind === 'pokemon' && usesUnitClasses(view) ? CONTENT.species[item.defId].role : null;
+    const picture = `<span class="production-pic">${productionIcon(item)}${role ? uiIcon(`class:${role}`, { size: 18, label: CLASS_NAMES[role], className: 'production-class-badge' }) : ''}</span>`;
+    return `<li><button type="button" class="production-option" data-production-option="${item.kind}:${item.defId}" title="加入队列 · 单独生产${rounds}" ${disabled || queueFull ? 'disabled' : ''}>${picture}<span class="production-option-main"><b>${name}</b><small class="production-effect">${optionEffect(item)}</small></span><span class="production-option-cost">${uiIcon('production', { size: 14, label: '生产' })}<b>${cost}</b><small>${uiIcon('turns', { size: 12 })}${rounds}</small></span></button></li>`;
   }).join('');
   const queueEtas = queueRounds(city.queue.map(order => order.progress), city.queue.map(order => costOf(order.item)), rate);
   const queueMarkup = city.queue.map((order, i) => {
@@ -200,7 +203,7 @@ export function renderEconomyPanel(view: PlayerView, selectedCity: number | null
     return `<li class="${i === 0 ? 'is-current' : ''}">${productionIcon(order.item)}<div class="queue-body"><div class="queue-name"><span title="${itemName(order.item)}">${itemName(order.item)}</span><span>${order.progress}/${cost}</span></div><div class="queue-progress"><span style="width:${Math.min(100, order.progress * 100 / cost)}%"></span></div></div><span class="queue-eta" title="${i === 0 ? '当前生产' : '排队中'} · 预计完成">${roundsText(queueEtas[i])}</span><div class="queue-actions"><button data-up="${i}" aria-label="上移" title="上移" ${i ? '' : 'disabled'}>▲</button><button data-down="${i}" aria-label="下移" title="下移" ${i < city.queue.length - 1 ? '' : 'disabled'}>▼</button><button data-remove="${i}" aria-label="取消" title="取消">✕</button></div></li>`;
   }).join('');
   const productionHelp = productionKind === 'legend' ? '传说奇观全世界只有一座：先建成的文明得到它，别人在建的同名奇观作废并按一半退还金币。奇观跟着城市走。' : productionKind === 'district' ? '选择设施区类型，再在地图上选格预览；确认后才会加入队列。' : productionKind === 'logistics' ? (view.expansion?.cityNetwork ? `${usesBuilders(view) ? `工匠（${ROLE_POKEMON.builder.species}）修建地块改良，每个能建 ${BUILDER_RULES.charges} 处。` : ''}开拓队（${ROLE_POKEMON.settler.species}）建新城；随行宝可梦的属性决定新城的开局特长（只对开拓队有效）。商队需要本城有友好商店，走到另一座己方城市旁边即可开通商路（目的城 食物 +2、生产 +1，出发城 金币 +3）。${city.buildingIds.includes(CITY_NETWORK_RULES.trader.building) ? '' : '本城还没有友好商店，不能训练商队。'}` : '训练完成后，开拓队出现在城市周围。选中它，前往新的土地建城。') : productionKind === 'pokemon' ? '训练已经登记的宝可梦。完成后在城市周围出场。' : '建筑留在这座城市内，建成后自动提供产出或训练效果。';
-  const yieldCell = (key: keyof typeof YIELD_LABEL) => `<div class="yield-item ${key}"><small>${YIELD_LABEL[key]}</small><strong>${city.yields[key]}</strong></div>`;
+  const yieldCell = (key: keyof typeof YIELD_LABEL) => `<div class="yield-item ${key}">${uiIcon(key, { size: 18, label: YIELD_LABEL[key] })}<small aria-hidden="true">${YIELD_LABEL[key]}</small><strong>${city.yields[key]}</strong></div>`;
   root.innerHTML = `<div class="economy-head"><div id="city-summary" class="city-summary"><h2 class="economy-title">城市 ${city.id}<span class="civ-badge">文明 ${view.playerId + 1}</span>${isHq ? '<span class="civ-badge hq-badge">联盟总部</span>' : ''}</h2>
     <p class="city-meta">人口 <b>${city.population}</b> · HP ${city.hp}/${maxCityHp(city, CONTENT)} · 观测者 ${city.population - city.workedTileIds.length} · <span id="city-growth-turns" class="${net > 0 ? '' : 'stalled'}">${growthText}</span>${bondAlert}</p></div>
     <div class="yield-grid" aria-label="城市产出">${yieldCell('food')}${yieldCell('production')}${yieldCell('gold')}${yieldCell('research')}</div>

@@ -1,0 +1,189 @@
+/* Icon-first panels (src/browser/ui-icons.ts, docs/design/ui-icons/README.md). Pixel art stays crisp at any size. */
+.px-icon, .px-art { display: inline-block; flex: none; vertical-align: middle; image-rendering: pixelated; }
+.px-art { object-fit: contain; }
+.icon-stat { display: inline-flex; align-items: center; gap: 3px; color: var(--ink-secondary); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.icon-stat b { color: #F3E7C9; font-weight: 600; }
+
+/* ---------- Hover card lists ---------- */
+.ui-tip-card { z-index: 40; max-width: 300px; }
+.ui-tip-card .tip-unlocks { display: grid; gap: 3px; margin: 2px 0; padding: 0; list-style: none; }
+.ui-tip-card .tip-unlocks li { display: flex; gap: 6px; align-items: center; color: #D6E4D8; font-size: 12px; }
+
+/* ---------- Unlock chips ---------- */
+.unlock-chip { position: relative; display: inline-grid; place-items: center; flex: none; width: 28px; height: 28px; border: 1px solid #34494C; border-radius: 6px; background: #1A2C30; }
+.unlock-chip.recruit { border-color: #4F8A66; background: radial-gradient(circle at 50% 60%, #2E5440, #15281F); }
+.unlock-chip.building { border-color: #7A6436; background: #3A3020; }
+.unlock-chip.district { border-color: #64558E; background: #2A2540; }
+.unlock-chip.improvement { border-color: #5E7E3C; background: #253220; }
+.unlock-chip.class { border-color: #3F6FB8; background: #1A2C46; }
+.unlock-chip.effect { border-color: #6E6243; background: #2A2A20; }
+.unlock-chip.boost::after { content: "+"; position: absolute; top: -6px; right: -4px; color: #8CD3A2; font: 700 12px/1 system-ui, sans-serif; text-shadow: 0 0 2px #000, 0 0 2px #000; }
+
+/* ---------- Research tree nodes ---------- */
+.tech-tree-v22 .tech-node { grid-template-columns: 42px minmax(0, 1fr); grid-template-areas: "icon main" "bar bar" "marks marks"; gap: 6px 8px; padding: 7px 8px 8px 11px; }
+.tech-node .node-icon { grid-area: icon; position: relative; display: grid; place-items: center; width: 42px; height: 42px; border: 1px solid color-mix(in srgb, var(--line) 60%, #0D1D21); border-radius: 8px;
+  background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--line) 38%, #0D1D21), #0D1D21 75%); }
+.tech-node .node-state-badge { position: absolute; right: -6px; bottom: -6px; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: #0D1D21; box-shadow: 0 0 0 1px #2E4448; }
+.tech-node .node-main { grid-area: main; display: grid; align-content: center; gap: 4px; min-width: 0; padding-right: 16px; }
+.tech-node .node-main strong { overflow: hidden; color: #F3E7C9; font-size: 13.5px; text-overflow: ellipsis; white-space: nowrap; }
+.tech-tree-v22 .tech-node .node-meta { justify-content: flex-start; gap: 9px; }
+.tech-node .node-eureka { position: absolute; top: 6px; right: 6px; line-height: 0; }
+.tech-node .node-eureka.pending img { opacity: .4; filter: grayscale(1); }
+.tech-node .node-eureka.found img { filter: drop-shadow(0 0 3px #F7D25C); }
+.tech-tree-v22 .tech-node .node-progress { grid-area: bar; }
+.tech-tree-v22 .tech-node .node-marks { grid-area: marks; gap: 4px; min-height: 28px; }
+.tech-tree-v22 .tech-node.done .node-icon { border-color: #5F9F7E; }
+.tech-tree-v22 .tech-node.done .node-state-badge { box-shadow: 0 0 0 1px #5F9F7E; }
+.tech-tree-v22 .tech-node.active .node-icon { border-color: #6FC0F0; box-shadow: 0 0 10px #4A9FD4; }
+.tech-tree-v22 .tech-node.active .node-state-badge { box-shadow: 0 0 0 1px #6FC0F0; }
+.tech-tree-v22 .tech-node.available { box-shadow: inset 4px 0 0 var(--line), 0 0 10px rgb(240 200 100 / 22%); }
+.tech-tree-v22 .tech-node.available .node-icon { border-color: var(--gold); }
+.tech-tree-v22 .tech-node.locked .node-icon img, .tech-tree-v22 .tech-node.locked .node-marks { filter: saturate(.3) brightness(.8); }
+.tech-tree-v22 .tech-node.locked .node-marks { opacity: .75; }
+.tech-tree-v22 .tech-node.selected { box-shadow: inset 4px 0 0 var(--line), 0 0 0 3px var(--focus); }
+
+/* Legend */
+.tech-icon-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: -4px 0 10px; padding: 0; list-style: none; color: var(--ink-secondary); font-size: 11px; }
+.tech-icon-legend li { display: inline-flex; align-items: center; gap: 4px; }
+.tech-icon-legend .legend-gap { margin-left: 10px; }
+.tech-icon-legend .unlock-chip { width: 20px; height: 20px; border-radius: 4px; }
+.tech-icon-legend .legend-frame { display: inline-grid; place-items: center; width: 20px; height: 20px; border: 2px solid var(--border-strong); border-radius: 4px; background: var(--surface); }
+.tech-icon-legend .done .legend-frame { border-color: #6FB58F; background: #16291F; }
+.tech-icon-legend .active .legend-frame { border-color: #4A9FD4; background: #13304A; }
+.tech-icon-legend .available .legend-frame { border-color: var(--gold); }
+.tech-icon-legend .locked .legend-frame { border-style: dashed; }
+
+/* Summary */
+.research-current { display: flex; align-items: center; gap: 10px; }
+.research-stats { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: 4px; }
+.detail-icon { display: grid; place-items: center; flex: none; padding: 5px; border: 2px solid color-mix(in srgb, var(--line, #4A9FD4) 70%, #0D1D21); border-radius: 10px;
+  background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--line, #4A9FD4) 40%, #0D1D21), #0D1D21 80%); }
+.detail-icon.active { border-color: #6FC0F0; box-shadow: 0 0 10px #4A9FD4; }
+.detail-icon.done { border-color: #5F9F7E; }
+.detail-icon.locked img { filter: saturate(.3) brightness(.85); }
+
+/* Details beside the tree */
+.tech-detail header { align-items: center; justify-content: flex-start; }
+.tech-detail header > div { display: grid; justify-items: start; gap: 4px; }
+.tech-stats { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 0; }
+.tech-stats .icon-stat { font-size: 12px; }
+.tech-column-chip { color: var(--ink-muted); font-size: 11px; }
+.tech-requires li { display: flex; align-items: center; gap: 5px; }
+.tech-detail .tech-unlocks { gap: 5px; }
+.tech-detail .tech-unlocks li { align-items: center; gap: 8px; color: #E6DDC4; font-size: 12px; }
+.tech-detail .tech-unlocks li small { display: block; color: var(--ink-muted); font-size: 10px; }
+.tech-detail .tech-unlocks .unlock-chip { width: 32px; height: 32px; }
+.tech-leads { display: flex; flex-wrap: wrap; gap: 4px 10px; margin: 0; }
+.tech-lead { display: inline-flex; align-items: center; gap: 4px; color: var(--ink-secondary); font-size: 12px; }
+.tech-eureka .eureka-mark { line-height: 0; }
+.tech-eureka:not(.hit) .eureka-mark img { opacity: .5; filter: grayscale(1); }
+
+/* Older games' three-tier research cards */
+.tech-card header { align-items: center; justify-content: flex-start; }
+.tech-card header strong { flex: 1; }
+.tech-card .detail-icon { padding: 3px; border-width: 1px; border-radius: 8px; }
+.tech-card .tech-unlocks li { display: flex; align-items: center; gap: 6px; }
+.tech-card .tech-unlocks li::before { content: none; }
+.tech-card .tech-unlocks .unlock-chip { width: 26px; height: 26px; }
+
+/* ---------- Civics: charters, governments, policy cards ---------- */
+.card-emblem { position: relative; display: grid; place-items: center; flex: none; width: 36px; height: 36px; border: 1px solid #4A5A50; border-radius: 8px; background: radial-gradient(circle at 50% 40%, #2C3E3A, #0D1D21 78%); }
+.emblem-badge { position: absolute; right: -6px; bottom: -6px; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: #0D1D21; box-shadow: 0 0 0 1px #2E4448; }
+.charter-card header, .government-card header { display: flex; align-items: center; justify-content: flex-start; gap: 8px; }
+.charter-card header strong, .government-card header strong { flex: 1; min-width: 0; }
+.charter-card .charter-cost { padding: 1px 6px; border-radius: 999px; background: #2B2440; }
+.charter-card .charter-cost::before { content: none; }
+.charter-card .charter-state { display: flex; align-items: center; gap: 6px; }
+.charter-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; }
+.charter-card .charter-unlocks { display: flex; flex-wrap: wrap; gap: 4px; }
+.charter-card.done .card-emblem { border-color: #4F7A5C; }
+.charter-card.active .card-emblem { border-color: #E0A030; box-shadow: 0 0 8px rgb(242 193 78 / 35%); }
+.charter-card.locked .card-emblem > img { filter: grayscale(.7) brightness(.8); }
+.charter-government { display: flex; align-items: center; gap: 5px; margin: 0; }
+.section-mini { color: var(--ink-muted); font-size: 10px; letter-spacing: .06em; }
+.slot-pip { display: inline-flex; align-items: center; gap: 2px; padding: 1px 5px 1px 3px; border-radius: 999px; font-size: 10.5px; line-height: 16px; }
+.slot-pip b { font-weight: 600; }
+.slot-card { display: inline-block; flex: none; width: 10px; height: 13px; border: 1px solid #17262A; border-radius: 2px; background: linear-gradient(#F2E3B8 0 3px, #6E6243 3px); vertical-align: middle; }
+.slot-card.military { background: linear-gradient(#FFD0C4 0 3px, #D2614E 3px); }
+.slot-card.economic { background: linear-gradient(#D2F5B5 0 3px, #5FB06A 3px); }
+.slot-card.wild { background: linear-gradient(#EADCFA 0 3px, #9C7AD8 3px); }
+.slot-chip .slot-card { width: 12px; height: 16px; }
+.slot-pip.military { background: #4A2B26; color: #F6B9A8; } .slot-pip.economic { background: #1F3E2C; color: #A9E0B6; } .slot-pip.wild { background: #3A2E4A; color: #D9C7F0; }
+.policy-chip { position: relative; display: inline-grid; place-items: center; width: 24px; height: 30px; padding-top: 3px; border: 1px solid #6E6243; border-radius: 4px; background: linear-gradient(#F2E3B8 0 4px, #2A2A20 4px); }
+.policy-chip.military { border-color: #B0604E; background: linear-gradient(#D2614E 0 4px, #33201C 4px); }
+.policy-chip.economic { border-color: #4F8A5C; background: linear-gradient(#5FB06A 0 4px, #1B3024 4px); }
+.policy-chip.affinity::after { content: "★"; position: absolute; top: -7px; right: -6px; color: var(--gold); font-size: 12px; line-height: 1; text-shadow: 0 0 2px #000, 0 0 2px #000; }
+.government-card .government-tier { color: var(--gold); font-size: 9px; letter-spacing: 1px; }
+.government-effects { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 9px; }
+.government-effects .charter-slots { gap: 4px; }
+.government-card.active .card-emblem { border-color: var(--gold); box-shadow: 0 0 8px rgb(242 193 78 / 35%); }
+.government-card.locked .card-emblem > img { filter: grayscale(.7) brightness(.8); }
+.policy-card .policy-icon { margin-top: 1px; }
+.slot-board .slot { display: inline-flex; align-items: center; gap: 4px; }
+.slot-chip:has(img) { display: inline-grid; place-items: center; padding: 1px 4px; }
+/* ---------- Era: score, milestones, abilities, dedications ---------- */
+.era-stats { display: flex; gap: 12px; margin: 0; }
+.era-honor-score { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.era-honor-legend span { display: inline-flex; align-items: center; gap: 3px; }
+.era-honor-breakdown { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px 10px; }
+.era-honor-breakdown li, .era-honor-table li { display: flex; align-items: center; gap: 5px; }
+.era-honor-breakdown li { padding: 3px 6px; border: 1px solid #3E4A3A; border-radius: 6px; background: #17251F; }
+.era-honor-breakdown b, .era-honor-table b { margin-left: auto; }
+.era-honor-table { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 3px 12px; }
+.era-abilities ul { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px 10px; }
+.era-abilities li { display: grid; grid-template-columns: 34px minmax(0, 1fr); grid-template-areas: "icon name" "icon text"; column-gap: 7px; align-items: center; }
+.era-abilities li > span:not(.era-ability-icon) { grid-area: name; font-size: 11px; }
+.era-abilities li small { grid-area: text; }
+.era-ability-icon { grid-area: icon; position: relative; display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid #5A4C70; border-radius: 8px; background: #241D33; }
+.era-abilities li.locked .era-ability-icon > img:first-child { filter: grayscale(.8) brightness(.75); }
+.era-ability-state { position: absolute; right: -4px; bottom: -4px; padding: 1px; border-radius: 50%; background: #0D1D21; }
+.dedication-line b { display: inline-flex; align-items: center; gap: 2px; }
+
+/* ---------- World page: Pokédex, nests, overlords, resources, gym circuit ---------- */
+.world-stats { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.dex-strip { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
+.dex-entry { position: relative; display: grid; place-items: center; width: 46px; height: 46px; border: 1px solid #34494C; border-radius: 8px; background: #132428; }
+.dex-entry:not(.documented) img.px-art { filter: brightness(.55) saturate(.4); }
+.dex-entry.documented { border-color: #4F8A66; background: radial-gradient(circle at 50% 60%, #24452F, #132428 75%); }
+.dex-entry .dex-mark { position: absolute; right: 1px; bottom: 1px; }
+.world-row { display: flex; align-items: center; gap: 8px; margin: 6px 0 4px; }
+.world-row-name { min-width: 110px; color: #E6DDC4; }
+.world-row-name small { color: var(--ink-muted); }
+.hp-bar, .bond-track { position: relative; flex: 1; max-width: 160px; height: 8px; overflow: visible; border-radius: 4px; background: #0D1D21; box-shadow: inset 0 0 0 1px #2E4448; }
+.hp-bar > span { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, #D9495B, #F08A4B); }
+.bond-track > span { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, #C77DB5, #F2A7C8); }
+.bond-track i { position: absolute; top: -3px; width: 2px; height: 14px; background: #5B6A60; }
+.bond-track i.met { background: var(--gold); }
+.badge-box { grid-template-columns: repeat(8, minmax(0, 76px)); gap: 6px; }
+.badge-box .badge-slot { flex-direction: column; justify-content: center; gap: 2px; min-height: 58px; padding: 4px 2px; border-radius: 8px; font-size: 10px; text-align: center; }
+.badge-box .badge-slot span { overflow: hidden; max-width: 100%; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 700px) { .badge-box { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.badge-slot.empty img { opacity: .28; filter: grayscale(1); }
+.badge-slot.won { background: color-mix(in srgb, var(--badge) 16%, #10201F); }
+.gym-list-icons { display: grid; gap: 3px; padding: 0; list-style: none; font-size: 12px; }
+.gym-list-icons li { display: flex; align-items: center; gap: 6px; }
+.gym-list-icons li small { color: var(--gold); }
+.gym-list-icons li.won { color: #CDEFD8; }
+
+/* ---------- Unit panel and notification rail ---------- */
+.unit-types { display: flex; gap: 3px; margin: 2px 0; }
+.unit-details .icon-tile { display: grid; justify-items: center; gap: 2px; padding: 6px 4px; }
+.unit-details .icon-tile strong { margin-top: 0; }
+.unit-vitals > span > .px-icon { margin-right: 3px; vertical-align: -2px; }
+.toast-icon .toast-pixel { pointer-events: none; }
+
+/* ---------- City: yields, production list, districts ---------- */
+.yield-grid .yield-item { align-items: center; justify-content: flex-start; gap: 5px; }
+.yield-grid .yield-item small { display: none; }
+.yield-grid .yield-item strong { margin-left: auto; }
+.production-pic { position: relative; display: grid; place-items: center; width: 40px; height: 40px; }
+.production-pic .production-class-badge { position: absolute; right: -5px; bottom: -4px; }
+.production-option .production-effect { display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; }
+.production-option .production-effect .icon-stat { font-size: 11px; }
+.production-option-cost { grid-template-columns: auto auto; align-items: center; column-gap: 3px; }
+.production-option-cost b::after { content: none; }
+.production-option-cost small { grid-column: 1 / -1; display: inline-flex; align-items: center; gap: 2px; }
+.district-icon { padding: 2px; border: 1px solid #5A4F78; border-radius: 6px; background: #1D1A2C; }
+.district-mark.has-icon { width: auto; height: auto; padding: 1px; border-color: #5A4F78; background: #1D1A2C; }
+.district-project { display: flex; align-items: center; gap: 4px; }
+.icon-stat.effect-stat { padding: 1px 5px 1px 3px; border-radius: 999px; background: #1B2E30; }

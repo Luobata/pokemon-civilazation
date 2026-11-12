@@ -18,7 +18,8 @@ test('v19: the unit panel names the class, its counters and affinity; training i
   await expect(page.locator('#class-note')).toContainText('克制飞行、水面');
   await page.locator('#city-select').selectOption(String(game.players[0].headquartersCityId));
   await page.locator('[data-production-kind="pokemon"]').click();
-  await expect(page.locator('#production-list [data-production-option]').first()).toContainText(`【${CLASS_NAMES.ranged}】`);
+  // The class is a named shield badge on the sprite.
+  await expect(page.locator('#production-list [data-production-option]').first().getByRole('img', { name: CLASS_NAMES.ranged, exact: true })).toHaveCount(1);
   await openScreen(page, 'research');
   await expect(page.locator('[data-tech-card="meteorology"]')).toContainText('学会秘传「飞翔」');
   expect(errors).toEqual([]);
