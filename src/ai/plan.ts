@@ -126,7 +126,10 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
   const faithAction = planFaithAction(view);
   if (faithAction) return result(faithAction);
   // v24 C: a rival's warned / attacked cities count as threatened too.
-  const threatened = new Set([...threatenedCityIds(view), ...rivalThreatenedCityIds(view)]);
+  // Rivals never strike logistics units or take a city, so their threat only moves garrisons and pauses wonders;
+  // the training-ground rush and the builder pause stay for bond threats (else the opening settler waits).
+  const bondThreatened = new Set(threatenedCityIds(view));
+  const threatened = new Set([...bondThreatened, ...rivalThreatenedCityIds(view)]);
   const leaderAction = planLeaderAction(view, content);
   if (leaderAction) return result(leaderAction);
   const worldAction = planWorldAction(view, { base: content, world: WORLD_DEFINITIONS });
@@ -209,14 +212,14 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
     if (district) queue({ kind: 'district', defId: district.kind, tileIndex: district.tileIndex }, 'economy', district.score, district.tileIndex);
     if (canProduceSettler(view, ai, Boolean(content.opening))) { const escortId = pickEscort(view, content); queue({ kind: 'logistics', defId: 'settler', ...(escortId ? { escortId } : {}) }, 'found', content.opening && cities.length < 3 ? 900 : 50); }
     // The first 工匠 early (improvements compound); later ones only after the army is fed.
-    if (wantsBuilder(view) && !threatened.has(city.id)) { const escortId = pickBuilderEscort(view, city.id, content); queue({ kind: 'logistics', defId: 'builder', ...(escortId ? { escortId } : {}) }, 'economy', units.some(unit => unit.kind === 'logistics' && unit.role === 'builder') ? 70 : 400); }
+    if (wantsBuilder(view) && !bondThreatened.has(city.id)) { const escortId = pickBuilderEscort(view, city.id, content); queue({ kind: 'logistics', defId: 'builder', ...(escortId ? { escortId } : {}) }, 'economy', units.some(unit => unit.kind === 'logistics' && unit.role === 'builder') ? 70 : 400); }
     if (wantsTrader(view, city.id)) { const escortId = pickEscort(view, content); queue({ kind: 'logistics', defId: 'trader', ...(escortId ? { escortId } : {}) }, 'economy', 140); }
     for (const [i, id] of (Object.keys(content.buildings) as BuildingId[]).entries()) {
       const building = content.buildings[id];
       if (building.cost === null || city.buildingIds.includes(id) || (building.requiredTech && !player.research.unlockedIds.includes(building.requiredTech))) continue;
       const y = building.yields;
       queue({ kind: 'building', defId: id }, 'economy', (y.food + y.production * 2 + y.gold * 2 + y.research * 2) * 100 - building.cost
-        + (id === 'trainingGround' && threatened.has(city.id) ? 1000 : 0), i);
+        + (id === 'trainingGround' && bondThreatened.has(city.id) ? 1000 : 0), i);
     }
     if (combat.length < Math.max(4, cities.length * 2) && (income > upkeep || player.gold >= 80)) {
       const badges = viewBadges(view);
