@@ -73,3 +73,18 @@ test('boarding: escorts for settlers, no sea monsters within 3', () => {
   // Not a boarding move: always fine.
   expect(safeToBoard(view, view.units.find(item => item.id === 9002) as MapUnit, at(9, 8))).toBe(true);
 });
+
+test('boarding in peace: a Pokémon needs company within 2 tiles, and no hostile Pokémon may stand next to the boarding tile', () => {
+  const state = strait(24, ['seafaring']), content = contentFor(state.setup);
+  state.units[9010] = createMapUnit({ kind: 'pokemon', speciesId: 'rattata' }, 9010, 0, at(10, 4), content, 0, 1);
+  for (const unit of Object.values(state.units)) if (unit.id !== 9010 && unit.ownerId === 0 && 'position' in unit && unit.position) unit.position = at(1, 1);
+  refreshKnowledge(state);
+  const lone = () => { const view = observe(state, 0); return safeToBoard(view, view.units.find(item => item.id === 9010) as MapUnit, at(11, 4)); };
+  expect(lone()).toBe(false);
+  // A settler (or any own unit) alongside is company.
+  state.units[9011] = createMapUnit({ kind: 'logistics', role: 'settler' }, 9011, 0, at(9, 4), content, 0, 1); refreshKnowledge(state);
+  expect(lone()).toBe(true);
+  // A wild land Pokémon next to the boarding tile stops it.
+  state.units[9012] = createMapUnit({ kind: 'pokemon', speciesId: 'rattata' }, 9012, null, at(10, 5), content, 0, 1); refreshKnowledge(state);
+  expect(lone()).toBe(false);
+});

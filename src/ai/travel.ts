@@ -132,21 +132,22 @@ export function isBoarding(view: PlayerView, unit: MapUnit, to: Hex, content: Co
 }
 /**
  * §2.8 when to board: a land unit steps onto water only when no hostile water-going unit (a wild sea Pokémon, or a Pokémon of a
- * civilization at war with this one) is visible within 3 tiles of the boarding tile; a settler, builder or trader also needs one of
- * its own Pokémon within 2 tiles; while at war a Pokémon boards only with two more of its own Pokémon within 2 tiles (landings are
- * made together). Always true for moves that do not board (so always true before v24).
+ * civilization at war with this one) is visible within 3 tiles of the boarding tile, and no hostile Pokémon at all stands next to it;
+ * a settler, builder or trader also needs one of its own Pokémon within 2 tiles; a Pokémon needs company within 2 tiles (another own
+ * unit — e.g. the settler it escorts — in peace, two more own Pokémon at war; landings are made together). Integration fix: lone
+ * Pokémon crossing in peace were the units knocked out at sea. Always true for moves that do not board (so always true before v24).
  */
 export function safeToBoard(view: PlayerView, unit: MapUnit, to: Hex, content: Content = contentForView(view)): boolean {
   if (!isBoarding(view, unit, to, content)) return true;
   const enemies = new Set(view.diplomacy.filter(pair => pair.status === 'war' && (pair.a === view.playerId || pair.b === view.playerId))
     .map(pair => pair.a === view.playerId ? pair.b : pair.a));
   const hostile = view.units.some(other => other.kind === 'pokemon' && (other.ownerId === null || enemies.has(other.ownerId))
-    && unitDefinition(other, content).terrain.includes('ocean') && hexDistance(other.position, to, view.map) <= 3);
+    && (hexDistance(other.position, to, view.map) <= 1 || (unitDefinition(other, content).terrain.includes('ocean') && hexDistance(other.position, to, view.map) <= 3)));
   if (hostile) return false;
-  const escorts = view.units.filter(other => other.ownerId === view.playerId && other.id !== unit.id && other.kind === 'pokemon'
-    && hexDistance(other.position, unit.position, view.map) <= 2).length;
+  const near = view.units.filter(other => other.ownerId === view.playerId && other.id !== unit.id && hexDistance(other.position, unit.position, view.map) <= 2);
+  const escorts = near.filter(other => other.kind === 'pokemon').length;
   if (unit.kind === 'logistics') return escorts >= 1;
-  return enemies.size === 0 || escorts >= 2;
+  return enemies.size === 0 ? near.length >= 1 : escorts >= 2;
 }
 /**
  * §2.8 research: +60 for 近海航行 when fewer than two known city sites are reachable over land from the capital, or an aggressive

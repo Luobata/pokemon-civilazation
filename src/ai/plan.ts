@@ -44,7 +44,8 @@ import { gymMoveTargets, planGymAction } from './gym-plan.ts';
 import { ownRivalHunters, rivalAttackBonus, rivalThreatenedCityIds, rivalTrainingBonus } from './rival-plan.ts';
 import { viewIsRivalUnit } from '../core/rivals.ts';
 import { researchCaptureScore } from './research-plan.ts';
-import { embarkResearchBonus, isBoarding, nearestTravel, safeToBoard, travelCloser, travelDistance } from './travel.ts';
+import { embarkResearchBonus, isBoarding, nearestTravel, safeToBoard, travelCloser, travelDistance, walkerTravel } from './travel.ts';
+import { waterAccess } from '../core/movement.ts';
 import { featureVision, isEmbarked } from '../core/terrain.ts';
 import type { Goal } from './strategies.ts';
 type Candidate = { action: Command['action']; goal: Goal; benefit: number; ownId: number; targetId: number };
@@ -245,6 +246,23 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
   const atWar = view.diplomacy.some(pair => pair.status === 'war' && (pair.a === actorId || pair.b === actorId));
   const workers = designatedWorkers(view, content, atWar || campaignActive || preparingSiege);
   const traceTargets = legendTraceTargets(view, content), ballTargets = itemBallTargets(view), gymTargets = gymMoveTargets(view, content), rivalHunters = ownRivalHunters(view);
+  // Known city sites (computed once per plan; settlers and the v24 overseas checks share the list).
+  let siteCache: MapUnit['position'][] | null = null;
+  const allSites = () => siteCache ??= view.map.tiles.flatMap((_, index) => citySite(indexToHex(index, view.map)) ? [indexToHex(index, view.map)] : []);
+  // v24 integration fix (crowded continent): with no known site reachable over land from the capital and water access, Pokémon may board
+  // to explore and stay out instead of heading home; a settler whose sites all lie across water gets the nearest Pokémon as its escort.
+  const seaPlans = Boolean(content.embark && view.map.features) && waterAccess(player, content) >= 1 && cities.length > 0;
+  const landSettler = { kind: 'logistics', role: 'settler' } as const;
+  const crowded = seaPlans && walkerTravel(view, landSettler, cities[0].position, allSites(), content) === Infinity;
+  const escortTargets = new Map<number, MapUnit['position']>();
+  if (seaPlans) for (const settler of units.filter(unit => unit.kind === 'logistics' && unit.role === 'settler')) {
+    const overseas = isEmbarked(settler, view.map, content)
+      || (allSites().length > 0 && walkerTravel(view, settler, settler.position, allSites(), content) === Infinity && nearestTravel(view, settler, settler.position, allSites()) < Infinity);
+    if (!overseas) continue;
+    const escort = units.filter(unit => unit.kind === 'pokemon' && !escortTargets.has(unit.id))
+      .sort((a, b) => hexDistance(a.position, settler.position, view.map) - hexDistance(b.position, settler.position, view.map) || a.id - b.id)[0];
+    if (escort) escortTargets.set(escort.id, settler.position);
+  }
   for (const unit of units.filter(unit => unit.actionLeft)) {
     const trader = traderPlan(view, unit);
     if (trader.action) add(trader.action, 'economy', 900, unit.id);
@@ -281,13 +299,16 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
     }
     const paths = query.paths(view, unit.id, content);
     if (workers.has(unit.id)) for (const suggestion of improvementSuggestions(view, unit, content, paths)) add(suggestion.action, 'economy', suggestion.benefit, unit.id);
-    const sites = unit.kind === 'logistics' && unit.role === 'settler' ? view.map.tiles.flatMap((_, index) => citySite(indexToHex(index, view.map)) ? [indexToHex(index, view.map)] : []) : [];
+    const sites = unit.kind === 'logistics' && unit.role === 'settler' ? allSites() : [];
+    // v24: a settler with a site reachable over land walks there (it never waits at the shore for a sea route it may not take).
+    const settlerLand = seaPlans && sites.length > 0 && walkerTravel(view, unit, unit.position, sites, content) < Infinity;
+    const siteTravel = (from: MapUnit['position']) => settlerLand ? walkerTravel(view, unit, from, sites, content) : nearestTravel(view, unit, from, sites);
     // v24 A2: progress is measured on the unit's travel field (water, peaks, hills); before v24 it is the straight hex distance.
     const far = (from: MapUnit['position'], target: MapUnit['position']) => travelDistance(view, unit, from, target);
     const targetHq = eraCampaign?.target ?? [...objectives.hqs].sort((a, b) => far(unit.position, a.position) - far(unit.position, b.position) || a.id - b.id)[0];
     const seek = unit.kind === 'pokemon' && objectives.searching ? seekUnknownHeadquarters(view, unit, paths) : null;
     // v24 A2: a unit left on the water with nothing better to do heads back to the nearest own city (lowest goal, so any real target wins).
-    const homes = isEmbarked(unit, view.map, content) ? cities.map(city => city.position) : [], homeBefore = homes.length ? nearestTravel(view, unit, unit.position, homes) : Infinity;
+    const homes = isEmbarked(unit, view.map, content) && !crowded && !escortTargets.has(unit.id) ? cities.map(city => city.position) : [], homeBefore = homes.length ? nearestTravel(view, unit, unit.position, homes) : Infinity;
     for (const [indexText, path] of Object.entries(paths)) {
       // A visible route cannot hit a hidden first-step blocker and be rejected.
       if (!path.every(position => visible.has(hexToIndex(position, view.map)!))) continue;
@@ -297,7 +318,7 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
       if (boarding && !safeToBoard(view, unit, to, content)) continue;
       if (trader.destination && far(to, trader.destination) < far(unit.position, trader.destination)) add(action, 'economy', 110 - far(to, trader.destination), unit.id, index);
       if (unit.kind === 'logistics' && sites.length) {
-        const before = nearestTravel(view, unit, unit.position, sites), after = nearestTravel(view, unit, to, sites);
+        const before = siteTravel(unit.position), after = siteTravel(to);
         const ring = view.map.tiles.filter((_, tile) => hexDistance(indexToHex(tile, view.map), to, view.map) <= 2);
         const ringTiles = new Set(view.map.tiles.flatMap((_, tile) => hexDistance(indexToHex(tile, view.map), to, view.map) <= 2 ? [tile] : []));
         if (after < before) add(action, 'found', 100 - after + (citySite(to) ? siteEssenceBonus(view, content, ring) + siteRareBerryBonus(view, ringTiles) : 0), unit.id, index);
@@ -330,6 +351,11 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
           && far(to, target.position) < far(unit.position, target.position)) add(action, 'military', 150 - far(to, target.position)
             + (usesTactics(view) && hexDistance(to, target.position, view.map) === 1 ? 5 * units.filter(own => own.id !== unit.id && hexDistance(own.position, target.position, view.map) === 1).length : 0), unit.id, index);
       }
+      // v24: escort a settler bound across water (stay next to it; it boards once an escort is within 2).
+      const escorted = escortTargets.get(unit.id);
+      if (escorted && hexDistance(unit.position, escorted, view.map) > 1 && hexDistance(to, escorted, view.map) < hexDistance(unit.position, escorted, view.map)) {
+        add(action, 'found', 60 - hexDistance(to, escorted, view.map), unit.id, index);
+      }
       // v24 C: close in on the own rival's Pokémon near own cities (they only hunt this civilization).
       if (unit.kind === 'pokemon') for (const hunter of rivalHunters) {
         if (travelCloser(view, unit, to, hunter.position)) add(action, 'military', 140 - travelDistance(view, unit, to, hunter.position), unit.id, index);
@@ -342,7 +368,7 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
       }
       const radius = unitDefinition(unit, content).vision + (view.map.tiles[index] === 'mountain' ? 1 : 0) + featureVision(view.map, index);
       const gain = view.map.tiles.reduce((sum, _, tile) => sum + (!explored.has(tile) && !polarRow(tile) && hexDistance(to, indexToHex(tile, view.map), view.map) <= radius ? 1 : 0), 0);
-      if (gain > 0 && !boarding) add(action, 'explore', gain, unit.id, index);
+      if (gain > 0 && (!boarding || crowded)) add(action, 'explore', gain, unit.id, index);
       if (homes.length) { const home = nearestTravel(view, unit, to, homes); if (home < homeBefore) add(action, 'explore', 60 - home, unit.id, index); }
     }
   }
