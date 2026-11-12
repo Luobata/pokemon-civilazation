@@ -51,6 +51,8 @@ function typeFactor(attackType: TypeId, defenseTypes: readonly TypeId[], researc
 const terrainFactors = (from: BiomeId, to: BiomeId): StrengthFactor[] => to === 'forest' || to === 'mountain'
   ? [{ side: 'defense', label: to === 'forest' ? '森林掩护' : '山地掩护', value: STRENGTH_RULES.cover }]
   : from === 'mountain' ? [{ side: 'attack', label: '居高临下', value: STRENGTH_RULES.highGround }] : [];
+/** v24 C 劲敌气势 (world-v24 §4.1): a rival trainer's Pokémon adds its bonus to its attack and its defense; 0 (dropped) for everyone else. */
+const rivalFactors = (attacker: number, defender: number): StrengthFactor[] => [{ side: 'attack', label: '劲敌气势', value: attacker }, { side: 'defense', label: '劲敌气势', value: defender }];
 function finish(attack: number, defense: number, factors: StrengthFactor[], immune: boolean, logistics: boolean): StrengthBreakdown {
   const kept = factors.filter(factor => factor.value !== 0 || factor.label.startsWith('属性无效'));
   const gap = attack + kept.filter(f => f.side === 'attack').reduce((s, f) => s + f.value, 0) - defense - kept.filter(f => f.side === 'defense').reduce((s, f) => s + f.value, 0);
@@ -66,7 +68,8 @@ const converted = (extra: readonly StrikeFactor[]): StrengthFactor[] => extra.ma
  * from `featureStrikeFactors` (src/core/terrain.ts) — hills, river crossing, embarked targets; empty before v24.
  */
 export function unitStrengthBreakdown(attacker: MapUnit, defender: MapUnit, from: BiomeId, to: BiomeId, researched: boolean, content: Content,
-  extra: readonly StrikeFactor[], defenderTypes: readonly TypeId[] | null, features: readonly StrengthFactor[] = []): StrengthBreakdown {
+  extra: readonly StrikeFactor[], defenderTypes: readonly TypeId[] | null, features: readonly StrengthFactor[] = [],
+  spirit: { attacker: number; defender: number } = { attacker: 0, defender: 0 }): StrengthBreakdown {
   if (attacker.kind !== 'pokemon') return finish(0, 0, [], true, false);
   const a = content.species[attacker.speciesId];
   if (defender.kind === 'logistics') return finish(a.attack, 0, [], false, true);
@@ -74,17 +77,17 @@ export function unitStrengthBreakdown(attacker: MapUnit, defender: MapUnit, from
   const type = typeFactor(a.typeId, defenderTypes ?? [d.typeId, ...(d.secondaryTypeId ? [d.secondaryTypeId] : [])], researched);
   const factors: StrengthFactor[] = [...(type.factor ? [type.factor] : []), ...terrainFactors(from, to), ...features, ...converted(extra),
     ...(attacker.uniqueLeader ? [{ side: 'attack' as const, label: '领袖专属', value: STRENGTH_RULES.uniqueLeader }] : []),
-    ...(defender.uniqueLeader ? [{ side: 'defense' as const, label: '领袖专属', value: STRENGTH_RULES.uniqueLeader }] : [])];
+    ...(defender.uniqueLeader ? [{ side: 'defense' as const, label: '领袖专属', value: STRENGTH_RULES.uniqueLeader }] : []), ...rivalFactors(spirit.attacker, spirit.defender)];
   return finish(a.attack, d.defense, factors, type.immune, false);
 }
 /** A unit attacking a city: the city's defense strength comes from the old city defense stat. */
 export function cityStrengthBreakdown(attacker: MapUnit, from: BiomeId, to: BiomeId, content: Content, extra: readonly StrikeFactor[], walls = 0,
-  features: readonly StrengthFactor[] = []): StrengthBreakdown {
+  features: readonly StrengthFactor[] = [], spirit = 0): StrengthBreakdown {
   if (attacker.kind !== 'pokemon') return finish(0, 0, [], true, false);
   const a = content.species[attacker.speciesId];
   return finish(a.attack, toStrength(content.balance.city.defense), [...terrainFactors(from, to), ...features, ...converted(extra),
     ...(attacker.uniqueLeader ? [{ side: 'attack' as const, label: '领袖专属', value: STRENGTH_RULES.uniqueLeader }] : []),
-    ...(walls ? [{ side: 'defense' as const, label: '城墙', value: walls }] : [])], false, false);
+    ...(walls ? [{ side: 'defense' as const, label: '城墙', value: walls }] : []), ...rivalFactors(spirit, 0)], false, false);
 }
 /** A city shooting back at the unit that attacked it. */
 export function cityCounterBreakdown(counterAttack: number, defender: MapUnit, from: BiomeId, to: BiomeId, content: Content,

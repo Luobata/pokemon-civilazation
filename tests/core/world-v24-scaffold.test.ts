@@ -19,15 +19,18 @@ test('v24 envelope: schema 19, its own content with six flags; v23 has none of t
   expect(flags.map(flag => IMPROVEMENT_CONTENT[flag])).toEqual(flags.map(() => undefined));
 });
 
-test('v24 scaffolding: the v24 map comes from its own generator (A1); v23 maps carry no features', () => {
+test('v24 scaffolding: the v24 map comes from its own generator (A1); v23 maps carry no features; B, C and D add their ledgers', () => {
   const v23 = createGame(setup(23)), v24 = createGame(setup(24));
   expect(v24.map.features).toBeDefined();
   expect(v23.map.features).toBeUndefined();
   expect(observe(v23, 0).map.features).toBeUndefined();
   expect(observe(v24, 0).map.features!.hills.every(tile => observe(v24, 0).knowledge.exploredTileIds.includes(tile))).toBe(true);
-  // Feature D adds its own ledger; v23 has none.
-  expect(v24.expansion!.researchTasks).toBeDefined();
-  expect(v23.expansion!.researchTasks).toBeUndefined();
+  for (const key of ['researchTasks', 'gymCircuit', 'rivals'] as const) {
+    expect(v24.expansion![key], key).toBeDefined();
+    expect(v23.expansion![key], key).toBeUndefined();
+  }
+  expect(observe(v24, 0).expansion!.gymCircuit).toBeDefined();
+  expect(observe(v24, 0).expansion!.rivals).toBeDefined();
   const challenge = { actorId: 0, expectedSeq: 0, action: { type: 'ChallengeGym' as const, gymId: 1, unitIds: [1] } };
   expect(step(v24, challenge)).toEqual({ ok: false, reason: 'invalid-command' });
   expect(step(v23, challenge)).toEqual({ ok: false, reason: 'invalid-command' });

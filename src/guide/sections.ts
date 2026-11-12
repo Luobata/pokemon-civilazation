@@ -313,6 +313,36 @@ const CHAPTERS: readonly GuideSection[] = [
     ${T.districtTable()}
     ${tip('研究所区放在山地、雪原、火山中间；发电厂放在矿坑旁边；港口旁边修渔场；花园是最便宜的，适合新城。')}` },
 
+  { id: 'gym-circuit', group: '文明发展', title: '道馆巡回与四天王', badge: 'v24 新增', html: `
+    <p>地图上有 ${T.gymRules.gymCount} 座<strong>中立巡回道馆</strong>（开局随地图生成，探索后可见）。谁都能挑战、不用花钱、不用宣战，<strong>每个文明各自赢得徽章</strong>，别人拿到了你也还能拿。</p>
+    <ul>
+      <li><strong>家门口道馆</strong>：每个文明在离首都陆路 5–8 格有一座，属性是你的御三家克制的属性，像原作的第一座道馆。其余道馆补齐 7 种精华（每种最终形态都有徽章来源；两家同御三家时可能多出第 9 座），有空位再放龙之道馆；地图上有海岛时，至少 2 座在海对面（需要冲浪）。</li>
+      <li><strong>挑战</strong>：带 1–${T.gymRules.maxTeam} 只本回合还没行动的宝可梦，一只站在道馆上，其余在 ${T.gymRules.siteRange} 格内（单位栏「道馆」，快捷键 G，先看预览卡再确认；也可以在地块信息里直接挑战）。战斗自动模拟，你的宝可梦以当前 HP 参战，战后至少保留 1 HP，并花掉本回合行动。同一道馆每 ${T.gymRules.cooldownRounds} 轮只能挑战一次。</li>
+      <li><strong>馆主强度随你已有的徽章数</strong>：第 k 枚徽章面对 k 级队伍，与道馆在哪里无关（见下表）。</li>
+      <li><strong>胜利</strong>：该道馆的徽章；金币 ${T.gymRules.reward.goldPerBadge} × 第几枚；该精华 +${T.gymRules.reward.essence}；参战宝可梦经验 +${T.gymRules.reward.xp}；第 1、4、8 枚各得世代分 +1。</li>
+      <li><strong>徽章接入兵种规则</strong>：巡回徽章和自建属性道馆一样，能解锁对应精华的最终形态训练（v19 徽章门槛）。谁拿到了哪些徽章是公开的。</li>
+      <li><strong>不能在道馆格上建城</strong>，道馆要对所有文明开放。</li>
+    </ul>
+    ${T.gymLeaderTable()}
+    ${T.gymTeamTable()}
+    <h3>四天王</h3>
+    <p>集齐 ${T.gymRules.gymCount} 枚巡回徽章后，可以派 ${T.gymRules.eliteFour.team} 只有行动的宝可梦（位置不限）挑战四天王：连战 4 场再加冠军 1 场，两场之间每只还站着的宝可梦恢复已损失 HP 的一半，输一场即止。每 ${T.gymRules.eliteFour.cooldownRounds} 轮可挑战一次。赢了得到 <strong>1 个冠军赛头衔</strong>（与联盟大会的头衔一起计入冠军赛胜利；<strong>每人每局只能得一次</strong>）、世代分 +3、金币 ${T.gymRules.eliteFour.gold}。按 1000 支随机的六只三阶满 HP 队伍校准，胜率约 60%。</p>
+    ${T.eliteFourTable()}
+    ${tip('先拿家门口道馆：你的御三家克制它的属性。徽章越多下一位馆主越强，第 6 枚以后要带三阶并利用属性克制；道馆和圣所不同，不需要先花钱建立。')}` },
+
+  { id: 'rivals', group: '宝可梦与战斗', title: '劲敌训练家', badge: 'v24 新增', html: `
+    <p>每个文明有一名<strong>专属劲敌</strong>（名字开局就定，文明与探索面板里能看到），在第 ${T.rivalRules.arrivals.join(' / ')} 轮带着克制你御三家的宝可梦找上门。</p>
+    <ul>
+      <li><strong>预告</strong>：登场前 ${T.rivalRules.warningRounds} 轮，地图上的登场地点出现红色“!”（与巢穴暴走预告相同），地块信息写明登场轮次和目标城市。<strong>预告只有你看得到</strong>。第 1 次的目标是首都，之后是你离其他文明最远的城市。登场地点在目标城市 ${T.rivalRules.spawnDistance[0]}–${T.rivalRules.spawnDistance[1]} 格外、陆路可达，优先在领土外。</li>
+      <li><strong>行为</strong>：每轮末（巢穴暴走之后）向目标城市推进（每轮最多 ${T.rivalRules.stepsPerRound} 格），射程内有你的宝可梦就打它（优先打它克制的那只），到城市旁就打城市——<strong>城市不会被打到 1 HP 以下，也不会被占领</strong>。劲敌<strong>不打开拓队、工匠和商队</strong>，但会挡路。登场 ${T.rivalRules.staysRounds} 轮后还没被打倒就离开。</li>
+      <li><strong>强度（劲敌气势）</strong>：取你地图上宝可梦里攻击战斗力第二高的值 S（只有一只就取它），每只劲敌宝可梦的攻击和防守都加「劲敌气势」= S + 偏移 − 它自己的攻击战斗力，限制在 ±${T.rivalRules.strengthCap}。攻击预览会把这一行列出来。</li>
+      <li><strong>不能捕捉</strong>；击倒它们照常得经验与战功，图鉴只算“看到”。其他文明也看得见、打得了你的劲敌，但没有奖励，劲敌也不理它们。</li>
+      <li><strong>奖励</strong>：把这一次登场的劲敌宝可梦全部击倒，你得到下表的奖励；“参战宝可梦”是对它们打出过伤害（或挨过它们打又还手）的己方宝可梦。</li>
+    </ul>
+    ${T.rivalTable()}
+    ${T.rivalCounterTable()}
+    ${tip('看到预告就把一两只宝可梦留在目标城市旁，最好带克制劲敌主属性的（妙蛙种子开局防火系，小火龙开局防水系，杰尼龟开局防草系）。劲敌只待 6 轮，守住就行；能打倒最好，第 3 次的奖励最丰厚。')}` },
+
   ...SYSTEM_SECTIONS,
 ];
 

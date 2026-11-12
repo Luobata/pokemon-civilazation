@@ -1109,3 +1109,11 @@ img[src*="/sprites/gen6/"], img[src*="/sprites/gen7/"], img[src*="/sprites/gen8/
 .combat-card footer small { color: var(--ink-muted); font-size: 11px; }
 .combat-card footer button { min-width: 110px; }
 @media (max-width: 480px) { .cp-columns { grid-template-columns: minmax(0, 1fr) 54px minmax(0, 1fr); } .cp-gap { font-size: 24px; } .cp-sprite { display: none; } }
+/* v24 B: badge box (world panel) and the gym challenge card (uses the combat card's look). */
+.badge-box { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; margin: 6px 0; padding: 0; list-style: none; }
+.badge-slot { display: flex; align-items: center; gap: 4px; min-height: 26px; padding: 2px 4px; border: 1px dashed var(--border); border-radius: 3px; color: var(--ink-muted); font-size: 11px; }
+.badge-slot.won { border: 1px solid var(--badge); background: rgb(255 255 255 / 4%); color: var(--ink); }
+.badge-slot.won b { display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--badge); color: #17262A; }
+.gym-list { margin: 2px 0; padding-left: 14px; }
+.gym-blocker { display: block; color: var(--ink-muted); }
+.gym-card .cp-side .cp-who + .cp-who { margin-top: 2px; }

@@ -41,7 +41,8 @@ import { planContestAction } from './contest-plan.ts';
 import { planFaithAction } from './faith-plan.ts';
 import { planDedicationAction } from './dedication-plan.ts';
 import { gymMoveTargets, planGymAction } from './gym-plan.ts';
-import { rivalThreatenedCityIds } from './rival-plan.ts';
+import { ownRivalHunters, rivalAttackBonus, rivalThreatenedCityIds, rivalTrainingBonus } from './rival-plan.ts';
+import { viewIsRivalUnit } from '../core/rivals.ts';
 import { researchCaptureScore } from './research-plan.ts';
 import { embarkResearchBonus, isBoarding, nearestTravel, safeToBoard, travelCloser, travelDistance } from './travel.ts';
 import { featureVision, isEmbarked } from '../core/terrain.ts';
@@ -54,7 +55,7 @@ export function knownCombatCount(view: PlayerView, ownerId: number): number {
   return [...known.values()].filter(unit => unit.ownerId === ownerId && unit.kind === 'pokemon').length;
 }
 export function canCaptureByPersonality(view: PlayerView, target: MapUnit, query: RuleQueries = RULE_QUERIES): boolean {
-  if (target.kind !== 'pokemon' || target.ownerId !== null) return false;
+  if (target.kind !== 'pokemon' || target.ownerId !== null || viewIsRivalUnit(view, target.id)) return false;
   const strategy = AI_STRATEGIES[view.economy.player.personality], ai = query.ai ?? AI_THRESHOLDS;
   const content = query.content === CONTENT ? contentForView(view) : query.content;
   if (strategy.captureHpPercent !== null && target.hp * 100 >= content.species[target.speciesId].maxHp * ai[strategy.captureHpPercent]) return false;
@@ -126,7 +127,10 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
   const faithAction = planFaithAction(view);
   if (faithAction) return result(faithAction);
   // v24 C: a rival's warned / attacked cities count as threatened too.
-  const threatened = new Set([...threatenedCityIds(view), ...rivalThreatenedCityIds(view)]);
+  // Rivals never strike logistics units or take a city, so their threat only moves garrisons and pauses wonders;
+  // the training-ground rush and the builder pause stay for bond threats (else the opening settler waits).
+  const bondThreatened = new Set(threatenedCityIds(view));
+  const threatened = new Set([...bondThreatened, ...rivalThreatenedCityIds(view)]);
   const leaderAction = planLeaderAction(view, content);
   if (leaderAction) return result(leaderAction);
   const worldAction = planWorldAction(view, { base: content, world: WORLD_DEFINITIONS });
@@ -209,14 +213,14 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
     if (district) queue({ kind: 'district', defId: district.kind, tileIndex: district.tileIndex }, 'economy', district.score, district.tileIndex);
     if (canProduceSettler(view, ai, Boolean(content.opening))) { const escortId = pickEscort(view, content); queue({ kind: 'logistics', defId: 'settler', ...(escortId ? { escortId } : {}) }, 'found', content.opening && cities.length < 3 ? 900 : 50); }
     // The first 工匠 early (improvements compound); later ones only after the army is fed.
-    if (wantsBuilder(view) && !threatened.has(city.id)) { const escortId = pickBuilderEscort(view, city.id, content); queue({ kind: 'logistics', defId: 'builder', ...(escortId ? { escortId } : {}) }, 'economy', units.some(unit => unit.kind === 'logistics' && unit.role === 'builder') ? 70 : 400); }
+    if (wantsBuilder(view) && !bondThreatened.has(city.id)) { const escortId = pickBuilderEscort(view, city.id, content); queue({ kind: 'logistics', defId: 'builder', ...(escortId ? { escortId } : {}) }, 'economy', units.some(unit => unit.kind === 'logistics' && unit.role === 'builder') ? 70 : 400); }
     if (wantsTrader(view, city.id)) { const escortId = pickEscort(view, content); queue({ kind: 'logistics', defId: 'trader', ...(escortId ? { escortId } : {}) }, 'economy', 140); }
     for (const [i, id] of (Object.keys(content.buildings) as BuildingId[]).entries()) {
       const building = content.buildings[id];
       if (building.cost === null || city.buildingIds.includes(id) || (building.requiredTech && !player.research.unlockedIds.includes(building.requiredTech))) continue;
       const y = building.yields;
       queue({ kind: 'building', defId: id }, 'economy', (y.food + y.production * 2 + y.gold * 2 + y.research * 2) * 100 - building.cost
-        + (id === 'trainingGround' && threatened.has(city.id) ? 1000 : 0), i);
+        + (id === 'trainingGround' && bondThreatened.has(city.id) ? 1000 : 0), i);
     }
     if (combat.length < Math.max(4, cities.length * 2) && (income > upkeep || player.gold >= 80)) {
       const badges = viewBadges(view);
@@ -226,7 +230,7 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
         if (classTrainingBlocker(view, player, view.eraProgression, badges, id, content)) continue;
         queue({ kind: 'pokemon', defId: id }, 'military', species.attack + species.defense - species.trainCost
           + (preparingSiege && species.role === 'siege' && strategy.siegeTrainingBonus !== null ? ai[strategy.siegeTrainingBonus] : 0)
-          + roleTrainingBonus(view, id, content, preparingSiege) + typeCounterBonus(view, id, content) + classTrainingBonus(view, id, content), i);
+          + roleTrainingBonus(view, id, content, preparingSiege) + typeCounterBonus(view, id, content) + classTrainingBonus(view, id, content) + rivalTrainingBonus(view, id, content), i);
       }
     }
   }
@@ -240,7 +244,7 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
   const polarRow = (tile: number) => view.map.features !== undefined && (Math.floor(tile / view.map.width) < 2 || Math.floor(tile / view.map.width) >= view.map.height - 2);
   const atWar = view.diplomacy.some(pair => pair.status === 'war' && (pair.a === actorId || pair.b === actorId));
   const workers = designatedWorkers(view, content, atWar || campaignActive || preparingSiege);
-  const traceTargets = legendTraceTargets(view, content), ballTargets = itemBallTargets(view), gymTargets = gymMoveTargets(view, content);
+  const traceTargets = legendTraceTargets(view, content), ballTargets = itemBallTargets(view), gymTargets = gymMoveTargets(view, content), rivalHunters = ownRivalHunters(view);
   for (const unit of units.filter(unit => unit.actionLeft)) {
     const trader = traderPlan(view, unit);
     if (trader.action) add(trader.action, 'economy', 900, unit.id);
@@ -258,12 +262,14 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
           if (preview.ok) add({ type: 'Capture', unitId: unit.id, targetUnitId: target.id, ballId }, 'capture', preview.probability
             + captureBonus(target) + siegeCaptureBonus(target) + (target.kind === 'pokemon' ? roleCaptureBonus(view, target.speciesId, content) : 0) + researchCaptureScore(view, target), unit.id, target.id);
         }
+        // v24 C: the own rival's Pokémon are worth +50 (a reward); another civilization's rival is left alone.
+        const rival = rivalAttackBonus(view, target);
         const preview = query.attack(view, unit.id, { kind: 'unit', id: target.id }, content);
-        if (preview.ok && preview.damage.min > 0 && (target.ownerId === null || !strategy.defendTerritoryOnly || canSiege(view, target.ownerId, ai)
+        if (rival !== null && preview.ok && preview.damage.min > 0 && (target.ownerId === null || !strategy.defendTerritoryOnly || canSiege(view, target.ownerId, ai)
           || cities.some(city => hexDistance(city.position, target.position, view.map) <= workRadius(city)))) add({ type: 'Attack', unitId: unit.id, target: { kind: 'unit', id: target.id } },
           // Wild-target weakening competes with capture; it is neither military training nor civilization defense.
-          target.ownerId === null ? strategy.wildAttackGoal : 'military',
-          preview.damage.min - preview.counter.damage + (target.ownerId !== null ? 200 : 0), unit.id, target.id);
+          target.ownerId === null && !rival ? strategy.wildAttackGoal : 'military',
+          preview.damage.min - preview.counter.damage + (target.ownerId !== null ? 200 : 0) + (rival ?? 0), unit.id, target.id);
       }
       // v23: pillage an enemy improvement the unit already stands on (attacks score higher and win).
       const pillage = viewPillage(view, unit.id);
@@ -323,6 +329,11 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
         if (war && (!strategy.defendTerritoryOnly || defensive || canSiege(view, target.ownerId, ai))
           && far(to, target.position) < far(unit.position, target.position)) add(action, 'military', 150 - far(to, target.position)
             + (usesTactics(view) && hexDistance(to, target.position, view.map) === 1 ? 5 * units.filter(own => own.id !== unit.id && hexDistance(own.position, target.position, view.map) === 1).length : 0), unit.id, index);
+      }
+      // v24 C: close in on the own rival's Pokémon near own cities (they only hunt this civilization).
+      if (unit.kind === 'pokemon') for (const hunter of rivalHunters) {
+        const distance = hexDistance(to, hunter.position, view.map);
+        if (distance < hexDistance(unit.position, hunter.position, view.map)) add(action, 'military', 140 - distance, unit.id, index);
       }
       if (unit.kind === 'pokemon') for (const target of wild) {
         if (!canCaptureByPersonality(view, target, query) || !player.research.unlockedIds.includes('domestication') || player.ballInventory.pokeBall + player.ballInventory.greatBall === 0) continue;

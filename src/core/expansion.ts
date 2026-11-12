@@ -8,7 +8,7 @@ import { applyDedicationAction, isDedicationAction, validateDedicationAction } f
 import { applyPillageAction, isPillageAction, validatePillageAction } from './pillage.ts';
 import { initializeLandmarks, recordLandmarks, resolveLandmarkRound } from './landmarks.ts';
 import { applyGymCircuitAction, initializeGymCircuit, isGymCircuitAction, validateGymCircuitAction } from './gym-circuit.ts';
-import { initializeRivals, resolveRivalRound } from './rivals.ts';
+import { initializeRivals, recordRivals, resolveRivalRound } from './rivals.ts';
 import { initializeResearchTasks, recordResearchTasks } from './research-tasks.ts';
 import { CIVILIZATION_CONTENT } from '../content/civilization-systems.ts';
 import type { Content } from '../content/units.ts';
@@ -122,7 +122,8 @@ export function recordExpansion(before: GameState, after: GameState, command: Co
   if (!after.expansion) return [];
   syncBonds(after);
   recordPromotions(after, events);
-  const world = updateWorldRecords(before, after, command, events, content);
+  // v24 C: who fought a rival and a visit cleared by a knockdown, before the era score reads the events ([] before v24).
+  const world = [...updateWorldRecords(before, after, command, events, content), ...recordRivals(before, after, events)];
   const discoveries = recordDiscoveries(before, after, command, [...events, ...world], content);
   const honors = recordEraHonors(before, after, [...events, ...world, ...discoveries]);
   const legends = recordLegends(after, [...events, ...world, ...discoveries, ...honors], content);
