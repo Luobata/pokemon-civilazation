@@ -9,6 +9,7 @@ import { applyPillageAction, isPillageAction, validatePillageAction } from './pi
 import { initializeLandmarks, recordLandmarks, resolveLandmarkRound } from './landmarks.ts';
 import { applyGymCircuitAction, initializeGymCircuit, isGymCircuitAction, validateGymCircuitAction } from './gym-circuit.ts';
 import { initializeRivals, recordRivals, resolveRivalRound } from './rivals.ts';
+import { landRule } from './reach.ts';
 import { initializeResearchTasks, recordResearchTasks } from './research-tasks.ts';
 import { CIVILIZATION_CONTENT } from '../content/civilization-systems.ts';
 import type { Content } from '../content/units.ts';
@@ -51,7 +52,7 @@ export function initializeExpansion(state: GameState, content: Content): void {
   initializeOpening(state);
   // v24 (world-v24): each initializer is a no-op unless its content flag is on.
   initializeLandmarks(state, content);
-  initializeGymCircuit(state, content);
+  initializeGymCircuit(state, content, landRule(state.map));
   initializeRivals(state, content);
   initializeResearchTasks(state, content);
 }
@@ -101,7 +102,7 @@ export function resolveExpansionRound(state: GameState, content: Content): Event
   if (!state.expansion || state.outcome) return [];
   const events = resolveWorldRound(state, content);
   // v24 C: rivals act right after the world's rampages; A3: landmark healing and regrowth.
-  if (!state.outcome) events.push(...resolveRivalRound(state, content));
+  if (!state.outcome) events.push(...resolveRivalRound(state, content, landRule(state.map)));
   if (!state.outcome) events.push(...resolveLandmarkRound(state, content));
   if (!state.outcome) events.push(...resolveCivilizationRound(state, { ...CIVILIZATION_CONTENT, world: content }));
   if (!state.outcome) events.push(...resolvePolicyRound(state));

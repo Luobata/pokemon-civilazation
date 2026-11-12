@@ -15,6 +15,8 @@ import type { Hex } from './hex.ts';
 import { isMapUnit } from './model.ts';
 import type { EventPayload, GameState, PlayerView } from './model.ts';
 import { visibleTiles } from './vision.ts';
+import type { FeatureMap } from './terrain.ts';
+import { tileHabitatWeights } from './wild.ts';
 
 export type ResearchCard = { tasks: number; knockouts: number };
 /** Per player, per species: completed tasks (bit i = RESEARCH_TASK_IDS[i]) and knockouts counted so far. */
@@ -52,8 +54,8 @@ function preEvolutions(content: Content, speciesId: SpeciesId): SpeciesId[] {
   }
   return map.get(speciesId) ?? [];
 }
-/** Biomes where a species (or, for an evolved form, its family's earlier forms) appears in the wild. */
-export function habitatBiomes(content: Content, speciesId: SpeciesId): BiomeId[] {
+/** The species and its earlier forms. */
+function speciesFamily(content: Content, speciesId: SpeciesId): SpeciesId[] {
   const family: SpeciesId[] = [], queue = [speciesId];
   while (queue.length) {
     const next = queue.shift()!;
@@ -61,17 +63,26 @@ export function habitatBiomes(content: Content, speciesId: SpeciesId): BiomeId[]
     family.push(next);
     queue.push(...preEvolutions(content, next));
   }
+  return family;
+}
+/** Biomes where a species (or, for an evolved form, its family's earlier forms) appears in the wild. */
+export function habitatBiomes(content: Content, speciesId: SpeciesId): BiomeId[] {
+  const family = speciesFamily(content, speciesId);
   const biomes = new Set<BiomeId>();
   for (const member of family) for (const biome of content.species[member]?.spawnBiomes ?? []) if ((spawnWeightsFor(content, biome)?.[member] ?? 0) > 0) biomes.add(biome);
   return [...biomes].sort();
 }
 /**
- * Task 5 "in its habitat": the tile's biome is one the species spawns in. Gameplay v24 A3 (terrain features and habitat overlays,
- * docs/design/world-v24.md §2.6) can refine this one function — e.g. hills / rivers / next to a landmark — without touching the rest.
+ * Task 5 "in its habitat": the species (or an earlier form) can appear on this tile. On v24 maps that is the tile's habitat from the
+ * terrain (`tileHabitatWeights`, docs/design/world-v24.md §2.6, night excluded); without features, the biomes it spawns in.
  */
-export function inResearchHabitat(map: { tiles: readonly (BiomeId | null)[] }, content: Content, speciesId: SpeciesId, tileIndex: number): boolean {
+export function inResearchHabitat(map: FeatureMap, content: Content, speciesId: SpeciesId, tileIndex: number): boolean {
   const biome = map.tiles[tileIndex];
-  return biome !== null && biome !== undefined && habitatBiomes(content, speciesId).includes(biome);
+  if (biome === null || biome === undefined) return false;
+  if (!map.features) return habitatBiomes(content, speciesId).includes(biome);
+  // v24 (§2.6): the tile's own habitat — biome table plus hills, rivers, peaksides, deep water and landmark residents.
+  const weights = tileHabitatWeights(map, tileIndex, content);
+  return speciesFamily(content, speciesId).some(member => (weights[member] ?? 0) > 0);
 }
 
 /** v24 games only: one empty card book per player; species already seen at the start (starting registrations) count as seen. */

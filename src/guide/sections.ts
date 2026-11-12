@@ -316,7 +316,7 @@ const CHAPTERS: readonly GuideSection[] = [
   { id: 'gym-circuit', group: '文明发展', title: '道馆巡回与四天王', badge: 'v24 新增', html: `
     <p>地图上有 ${T.gymRules.gymCount} 座<strong>中立巡回道馆</strong>（开局随地图生成，探索后可见）。谁都能挑战、不用花钱、不用宣战，<strong>每个文明各自赢得徽章</strong>，别人拿到了你也还能拿。</p>
     <ul>
-      <li><strong>家门口道馆</strong>：每个文明在离首都陆路 5–8 格有一座，属性是你的御三家克制的属性，像原作的第一座道馆。其余道馆补齐 7 种精华（每种最终形态都有徽章来源；两家同御三家时可能多出第 9 座），有空位再放龙之道馆；地图上有海岛时，至少 2 座在海对面（需要冲浪）。</li>
+      <li><strong>家门口道馆</strong>：每个文明在离首都陆路移动 5–8 点的地方有一座（地形太挤时按 5–8 格），属性是你的御三家克制的属性，像原作的第一座道馆。其余道馆补齐 7 种精华（每种最终形态都有徽章来源；两家同御三家时可能多出第 9 座），有空位再放龙之道馆；至少 2 座在海对面的岛上（研究近海航行后乘浪，或派水系、飞行宝可梦），其余按每块大陆的文明数分配。道馆不会在高山或地标上。</li>
       <li><strong>挑战</strong>：带 1–${T.gymRules.maxTeam} 只本回合还没行动的宝可梦，一只站在道馆上，其余在 ${T.gymRules.siteRange} 格内（单位栏「道馆」，快捷键 G，先看预览卡再确认；也可以在地块信息里直接挑战）。战斗自动模拟，你的宝可梦以当前 HP 参战，战后至少保留 1 HP，并花掉本回合行动。同一道馆每 ${T.gymRules.cooldownRounds} 轮只能挑战一次。</li>
       <li><strong>馆主强度随你已有的徽章数</strong>：第 k 枚徽章面对 k 级队伍，与道馆在哪里无关（见下表）。</li>
       <li><strong>胜利</strong>：该道馆的徽章；金币 ${T.gymRules.reward.goldPerBadge} × 第几枚；该精华 +${T.gymRules.reward.essence}；参战宝可梦经验 +${T.gymRules.reward.xp}；第 1、4、8 枚各得世代分 +1。</li>

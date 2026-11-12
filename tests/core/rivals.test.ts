@@ -8,6 +8,9 @@ import type { Command, GameState, MapUnit, VisibleEvent } from '../../src/core/m
 import { previewAttack, previewCapture } from '../../src/core/preview.ts';
 import { resolveRivalRound, rivalSpirit, spiritFor } from '../../src/core/rivals.ts';
 import { step } from '../../src/core/step.ts';
+import { canEnter } from '../../src/core/movement.ts';
+import { landRule } from '../../src/core/reach.ts';
+import { isLandmarkTile, isPeak } from '../../src/core/terrain.ts';
 import { createMapUnit } from '../../src/core/unit.ts';
 import { observe, projectEvents, refreshKnowledge } from '../../src/core/vision.ts';
 
@@ -123,5 +126,18 @@ describe('v24 C rival trainers', () => {
     expect(state.players[0].ballInventory.pokeBall).toBe(balls + 2);
     expect(state.expansion!.rivals!.byPlayer[0].outcomes).toEqual(['defeated']);
     expect(state.expansion!.eraHonors!.players[0].byMilestone.rivalDefeated).toBe(1);
+  });
+  test('v24 terrain: rivals walk by their species terrain and the land passage rules (no embarking, no peaks, no landmarks)', () => {
+    const { state } = playTo(createGame(setup(24)), RIVAL_RULES_V24.arrivals[0]);
+    const rule = landRule(state.map);
+    for (let round = 0; round < RIVAL_RULES_V24.staysRounds; round++) {
+      resolveRivalRound(state, content, rule);
+      for (const unit of rivalUnits(state, 0).filter(Boolean)) {
+        const index = hexToIndex(unit.position, state.map)!;
+        expect(canEnter(unit, state.map.tiles[index]!, content, { map: state.map, index })).toBe(true);
+        if (!WORLD24_CONTENT.species[(unit as MapUnit & { speciesId: 'charmander' }).speciesId].terrain.includes('ocean')) expect(state.map.tiles[index]).not.toBe('ocean');
+        expect(isPeak(state.map, index) || isLandmarkTile(state.map, index)).toBe(false);
+      }
+    }
   });
 });

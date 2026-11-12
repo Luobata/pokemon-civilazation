@@ -14,6 +14,7 @@ import { workRadius } from './city.ts';
 import { resolveAttack } from './combat.ts';
 import { isRivalUnit } from './rivals.ts';
 import { isDeep, isHill, isLandmarkTile, isPeak, isRiver } from './terrain.ts';
+import type { FeatureMap } from './terrain.ts';
 import { adjacentLandmarks } from './landmarks.ts';
 import { DEEP_WATER_HABITAT_V24, HABITAT_OVERLAYS_V24, LANDMARKS, LANDMARK_RULES_V24, NIGHT_SPAWN_MULTIPLIER_V24 } from '../content/terrain.ts';
 import { isNight } from '../content/era-abilities.ts';
@@ -59,7 +60,17 @@ export function spawnWild(state: GameState, initial = false, content: Content = 
 }
 /** §2.6 habitat of one tile: the biome's table plus feature overlays, deep water, landmark residents and the night bonus. */
 export function habitatWeights(state: GameState, tileIndex: number, content: Content): Partial<Record<SpeciesId, number>> {
-  const map = state.map, biome = map.tiles[tileIndex];
+  const weights = tileHabitatWeights(state.map, tileIndex, content);
+  if (isNight(state.round)) for (const id of Object.keys(weights) as SpeciesId[]) {
+    const species = content.species[id];
+    if (species && [species.typeId, species.secondaryTypeId].some(type => type === 'dark' || type === 'ghost')) weights[id] = weights[id]! * NIGHT_SPAWN_MULTIPLIER_V24;
+  }
+  return weights;
+}
+/** The time-independent part of a tile's habitat (biome table, feature overlays, deep water, landmark residents); `map` may be a view map. */
+export function tileHabitatWeights(map: FeatureMap, tileIndex: number, content: Content): Partial<Record<SpeciesId, number>> {
+  const biome = map.tiles[tileIndex];
+  if (biome === null || biome === undefined) return {};
   const weights: Partial<Record<SpeciesId, number>> = { ...spawnWeightsFor(content, biome) };
   const add = (extra: Partial<Record<SpeciesId, number>>) => { for (const [id, value] of Object.entries(extra) as [SpeciesId, number][]) weights[id] = (weights[id] ?? 0) + value; };
   if (isHill(map, tileIndex)) add(HABITAT_OVERLAYS_V24.hill);
@@ -72,10 +83,6 @@ export function habitatWeights(state: GameState, tileIndex: number, content: Con
   }
   for (const id of adjacentLandmarks(map, tileIndex)) for (const resident of LANDMARKS[id].residents) {
     weights[resident] = (weights[resident] ?? LANDMARK_RULES_V24.residentBaseWeight) * LANDMARK_RULES_V24.residentMultiplier;
-  }
-  if (isNight(state.round)) for (const id of Object.keys(weights) as SpeciesId[]) {
-    const species = content.species[id];
-    if (species && [species.typeId, species.secondaryTypeId].some(type => type === 'dark' || type === 'ghost')) weights[id] = weights[id]! * NIGHT_SPAWN_MULTIPLIER_V24;
   }
   return weights;
 }

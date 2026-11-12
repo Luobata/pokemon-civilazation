@@ -642,6 +642,12 @@ v23 对照（`improvements-v23.md` 第 10 节，同一组 36 局）：第一项�
 
 高山不可通行（只有飞行物种可越过）、原创地标名单、调查任务奖励量级按本文执行。
 
+### 9.1 用户确认（2026-11-12，集成时）
+
+- **调查任务的 AI 加分保留 +15**（`RESEARCH_TASK_RULES_V24.aiCaptureScore`）。大地图 36 局里图鉴胜利 5.6% → 13.9%；216 局门槛（第 10 节“集成与门槛”）重新核对这一项。
+- **潮音洞**（`tidesongGrotto`）只给**水面兵种**（`role: 'naval'`）回满 HP；它的相邻产出加成只给**相邻的水面格**（`waterOnly`）。陆地单位乘浪停在旁边不回血，相邻陆地格不加食物。
+- **调平**（第三城、劲敌时间与强度、道馆难度、陆地比例）在集成之后、在 216 局门槛上做；数值作为提案写进门槛报告，由用户决定是否采用。
+
 ## 10. 实现与验收
 
 ### 第 0 步：脚手架（2026-11-09）
@@ -737,3 +743,14 @@ v23 对照（`improvements-v23.md` 第 10 节，同一组 36 局）：第一项�
   - 中位结束 138 → 128.5（目标 130–160 的下沿外），征服 9 → 6、华丽大赛 15 → 16；结局分布变化最大 −8.3 个百分点（征服），在 20 个百分点门槛内。
 - 门禁：`npm run build`、`npm run lint`、`npm run lint:tools` 通过；`npx vitest run` 704 项 703 通过，唯一失败 `tests/tools/district-preview-check.test.ts`（v10 对局，30 s 超时，机器满载），空闲时单独重跑通过；`npx playwright test`（临时配置端口 4203）170 项 169 通过，唯一失败 `economy.spec.ts:52`（30 s 点击超时，已知），单独重跑通过（20.5 s）。
 - **地形合入时要改的地方**：`src/core/reach.ts` `landRule` 换成 A2 的通行规则（高山、地标不可站立；`gymCircuit` 的过海判断即“任何首都陆路到不了”）；`initializeGymCircuit` 与 `resolveRivalRound` 的默认 `canStand` 改为传入 A2 谓词；劲敌单位的移动（`actRival`）沿用 `canEnter`，A2 若给 `canEnter` 加通行参数，劲敌按物种地形表（不乘浪）；AI 的道馆队距离已走 `ai/travel.ts` `travelDistance`，A2 的距离场接上后自动生效，劲敌回防与追击仍用 `hexDistance`（`ai/rival-plan.ts`、`ai/plan.ts` 劲敌追击），要迁到距离场；家门口道馆距离 5–8 现在是陆地步数，A2 后应改为“陆路移动花费”还是步数需确认；地图上的道馆在大陆 / 岛屿上的配额（A3 2.7）要在 `placeGyms` 的候选里体现。
+
+### 集成：地形接入道馆与劲敌（2026-11-12）
+
+- 三个分支按 A → D → B+C 合入（冲突只在“各加一行”的位置：世代分里程碑与献礼名称表、时代页得分表过滤、总览表、手册表、审计目录与检查、地块信息类型、战斗力的地形项与「劲敌气势」两个参数并存（`unitStrengthBreakdown(…, features, spirit)`、`cityStrengthBreakdown(…, walls, features, spirit)`；劲敌打城也算地形项）、建城校验（地形 + 道馆格）、捕捉预览（乘浪 + 劲敌）、`isCitySite`（高山、地标、道馆格）。
+- `src/core/reach.ts` `landRule`：v24 地图上不能站立/行走的格 = 水、高山、地标（`worldSiteAllowed(…, 'land')`）、火山；无地形要素时仍是“非海洋”。`initializeGymCircuit` 与 `resolveRivalRound` 由 `expansion.ts` 显式传入它。
+- **家门口道馆 5–8**：v24 地图上按**陆路移动花费**（`routeCosts`：群系移动消耗 + 丘陵 + 过河，同 A2 规则）；该文明没有满足的格时退回陆地步数 5–8，再退回“最近的可达格”。
+- **道馆配额**：补位道馆的前 2 座优先放在**任何首都陆路都到不了**的岛上（`overseas`）；其余按**每块大陆的文明数**分配（陆路互通的首都算同一块大陆，道馆数 / 文明数最少的大陆先放）。
+- **劲敌不乘浪**：出生格与 `actRival` 的移动都用 `canEnter(…, { map, index })`（不带水域通行能力，所以只按物种地形表 + 高山/地标规则）；v24 地图上沿陆路距离场走向目标城市，不再被海湾或高山卡住。
+- **AI**：`ai/rival-plan.ts` 的“受威胁城市”和“值得去打的劲敌”改用劲敌自己的陆路距离（`walkerTravel`，不乘浪）；`ai/plan.ts` 的劲敌追击与回防选城改用 `travelDistance`。v≤23 上这些都等于直线格数。
+- **调查任务的栖息地**：`inResearchHabitat` 在 v24 地图上读地块栖息地（`tileHabitatWeights`：群系表 + 丘陵/河流/高山旁叠加 + 深海增删 + 地标常驻，不含夜晚倍率），物种或其进化前形态有权重即算；没有地形要素时仍按群系。
+

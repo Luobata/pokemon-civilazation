@@ -13,7 +13,8 @@ import { hexDistance, hexToIndex, indexToHex } from './hex.ts';
 import type { GridSize, Hex } from './hex.ts';
 import { isMapUnit } from './model.ts';
 import type { EventPayload, GameState, MapUnit, PlayerView, UnitState } from './model.ts';
-import { landRule, routeDistances } from './reach.ts';
+import { landRule, routeCosts, routeDistances } from './reach.ts';
+import type { FeatureMap } from './terrain.ts';
 import type { StandRule } from './reach.ts';
 
 export type GymCircuitAction = { type: 'ChallengeGym'; gymId: number; unitIds: number[] } | { type: 'ChallengeEliteFour'; unitIds: number[] };
@@ -35,12 +36,20 @@ const RULES = GYM_RULES_V24;
 // ---------- placement (§3.1) ----------
 
 type Capital = { playerId: number; starterId: StarterId; tileIndex: number };
-/** Places the circuit: one home gym per civilization 5–8 land steps from its capital (a type its starter beats), then the
- *  missing essences and the dragon gym, the first two across water when the map has any. `canStand` is the land rule (A2 swaps it). */
-export function placeGyms(input: { map: GridSize; seed: number; capitals: readonly Capital[]; taken: ReadonlySet<number>; canStand: StandRule }): GymSite[] {
+/**
+ * Places the circuit: one home gym per civilization 5–8 land travel cost from its capital (a type its starter beats; when no tile
+ * qualifies, 5–8 land steps, then the nearest reachable tile), then the missing essences and the dragon gym. The first two of those go
+ * across water when the map has such land (islands first); the rest follow the per-continent quota, the continent with the fewest gyms
+ * per civilization first. `canStand` is the land passage rule (`landRule`); `content` with a v24 map enables travel costs.
+ */
+export function placeGyms(input: { map: GridSize & Partial<FeatureMap>; seed: number; capitals: readonly Capital[]; taken: ReadonlySet<number>; canStand: StandRule;
+  content?: Content }): GymSite[] {
   const { map, seed, canStand } = input;
   const capitals = [...input.capitals].sort((a, b) => a.playerId - b.playerId);
   const routes = capitals.map(capital => routeDistances(map, capital.tileIndex, canStand));
+  // v24 maps: land travel cost (move costs, hills, river crossings); otherwise the step count.
+  const travel = input.content && map.tiles && map.features
+    ? capitals.map(capital => routeCosts(map as FeatureMap, capital.tileIndex, canStand, input.content!)) : routes;
   const hex = (index: number) => indexToHex(index, map);
   const hash = (index: number, tag: string) => stableSeed(seed, index, tag);
   const chosen: number[] = [];
@@ -60,10 +69,11 @@ export function placeGyms(input: { map: GridSize; seed: number; capitals: readon
     essence: leader === 'dragon' ? TYPE_ESSENCE.dragon : leader, typeId, ...(homeOf === undefined ? {} : { homeOf }),
     ...(routes.every(route => !route.has(index)) ? { overseas: true as const } : {}) });
   for (const [seat, capital] of capitals.entries()) {
-    const route = routes[seat], [low, high] = RULES.homeGymDistance;
-    const near = (index: number) => (route.get(index) ?? Infinity);
-    const index = pick((a, b) => near(a) - near(b) || hash(a, 'gym-home') - hash(b, 'gym-home') || a - b, i => near(i) >= low && near(i) <= high)
-      ?? pick((a, b) => near(a) - near(b) || a - b, i => near(i) >= 3 && near(i) < Infinity);
+    const [low, high] = RULES.homeGymDistance;
+    const cost = (index: number) => (travel[seat].get(index) ?? Infinity), steps = (index: number) => (routes[seat].get(index) ?? Infinity);
+    const index = pick((a, b) => cost(a) - cost(b) || hash(a, 'gym-home') - hash(b, 'gym-home') || a - b, i => cost(i) >= low && cost(i) <= high)
+      ?? (travel === routes ? undefined : pick((a, b) => steps(a) - steps(b) || hash(a, 'gym-home') - hash(b, 'gym-home') || a - b, i => steps(i) >= low && steps(i) <= high))
+      ?? pick((a, b) => steps(a) - steps(b) || a - b, i => steps(i) >= 3 && steps(i) < Infinity);
     if (index === undefined) continue;
     chosen.push(index);
     const home = HOME_GYMS[capital.starterId];
@@ -79,10 +89,19 @@ export function placeGyms(input: { map: GridSize; seed: number; capitals: readon
     const distances = capitals.map(capital => hexDistance(hex(capital.tileIndex), hex(index), map));
     return Math.max(...distances) - Math.min(...distances);
   };
+  // Continents with civilizations: capitals that reach each other over land share one (keyed by the lowest seat).
+  const continentOf = capitals.map((_, seat) => capitals.findIndex((other, j) => j === seat || routes[seat].has(other.tileIndex)));
+  const continents = [...new Set(continentOf)];
+  const civsOn = (group: number) => continentOf.filter(item => item === group).length;
+  const gymsOn = (group: number) => chosen.filter(index => routes[group].has(index)).length;
   for (const [slot, leader] of leaders.entries()) {
     // The first two: across water (no capital reaches them, else not every capital), when the map has such land.
     const overseas = slot < RULES.minOverseas ? pick((a, b) => reached(a) - reached(b) || hash(a, 'gym-sea') - hash(b, 'gym-sea') || a - b, i => reached(i) < capitals.length) : undefined;
-    const index = overseas ?? pick((a, b) => spread(a) - spread(b) || hash(a, 'gym-mid') - hash(b, 'gym-mid') || a - b, () => true);
+    // The rest: per-continent quota (fewest gyms per civilization first), between that continent's capitals.
+    const group = continents.length > 1
+      ? [...continents].sort((a, b) => gymsOn(a) * civsOn(b) - gymsOn(b) * civsOn(a) || a - b)[0] : undefined;
+    const middle = (accept: (index: number) => boolean) => pick((a, b) => spread(a) - spread(b) || hash(a, 'gym-mid') - hash(b, 'gym-mid') || a - b, accept);
+    const index = overseas ?? (group === undefined ? undefined : middle(i => routes[group].has(i))) ?? middle(() => true);
     if (index === undefined) continue;
     chosen.push(index);
     const types = GYM_TYPES[leader];
@@ -102,7 +121,7 @@ export function initializeGymCircuit(state: GameState, content: Content, canStan
     ...Object.values(expansion.legends?.sites ?? {}) as number[], ...Object.keys(expansion.opening?.itemBalls ?? {}).map(Number)]);
   const capitals = state.turnOrder.map(playerId => ({ playerId, starterId: state.players[playerId].starterId,
     tileIndex: hexToIndex(state.cities[state.players[playerId].headquartersCityId].position, state.map)! }));
-  expansion.gymCircuit = { gyms: placeGyms({ map: state.map, seed: state.setup.seed, capitals, taken, canStand }),
+  expansion.gymCircuit = { gyms: placeGyms({ map: state.map, seed: state.setup.seed, capitals, taken, canStand, content }),
     badges: Object.fromEntries(state.turnOrder.map(id => [id, []])), challengedAt: Object.fromEntries(state.turnOrder.map(id => [id, {}])), eliteFour: {} };
 }
 

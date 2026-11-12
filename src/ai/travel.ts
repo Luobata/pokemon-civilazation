@@ -106,6 +106,17 @@ export function nearestTravel(view: PlayerView, unit: UnitIdentity, from: Hex, t
   const value = travelField(view, unit, targets)[index];
   return value >= INF ? Infinity : value;
 }
+/**
+ * Travel cost for a unit that never embarks (a rival trainer's Pokémon, a wild Pokémon) from `from` to the nearest of `targets`: its species
+ * terrain table plus the peak and landmark rules, no water access. The hex distance before v24.
+ */
+export function walkerTravel(view: PlayerView, unit: UnitIdentity, from: Hex, targets: readonly Hex[], content: Content = contentForView(view)): number {
+  if (!view.map.features) return targets.length ? Math.min(...targets.map(target => hexDistance(from, target, view.map))) : Infinity;
+  const index = hexToIndex(from, view.map), mover = moverOf(view, unit, content);
+  if (index === null || !targets.length) return Infinity;
+  const value = fieldFor(view, mover.kind === 'land' ? { kind: 'land', access: 0 } : mover, unit, targets, content)[index];
+  return value >= INF ? Infinity : value;
+}
 /** Whether moving `unit` to `to` brings it closer to `target` (strictly; never true for an unreachable target). */
 export function travelCloser(view: PlayerView, unit: MapUnit, to: Hex, target: Hex): boolean {
   const after = travelDistance(view, unit, to, target);

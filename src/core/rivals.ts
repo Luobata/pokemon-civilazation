@@ -89,7 +89,7 @@ function freeTilesNear(state: GameState, from: number, cityTile: number, canStan
     .sort((a, b) => hexDistance(origin, indexToHex(a, state.map), state.map) - hexDistance(origin, indexToHex(b, state.map), state.map) || a - b);
   const chosen: number[] = [];
   for (const speciesId of speciesIds) {
-    const index = order.find(tile => !chosen.includes(tile) && canEnter({ kind: 'pokemon', speciesId }, state.map.tiles[tile], content));
+    const index = order.find(tile => !chosen.includes(tile) && canEnter({ kind: 'pokemon', speciesId }, state.map.tiles[tile], content, { map: state.map, index: tile }));
     if (index !== undefined) chosen.push(index);
   }
   return chosen;
@@ -176,14 +176,20 @@ function actRival(state: GameState, unit: MapUnit & { kind: 'pokemon' }, playerI
     return [{ type: 'RivalStruckCity', playerId, unitId: unit.id, cityId: struck.id, position: { ...struck.position }, damage, cityHpBefore: before, cityHpAfter: struck.hp }];
   }
   if (hexDistance(unit.position, city.position, map) <= species.range) return [];
+  // v24: walk the land route to the city (around water, peaks and landmarks); rivals never embark, so the passage carries no water access.
+  // Tiles off the route (or before v24) fall back to the straight hex distance.
+  const route = map.features ? routeDistances(map, hexToIndex(city.position, map)!, canStand) : null;
+  const toward = (index: number, hex: Hex) => route?.get(index) ?? (route ? Infinity : hexDistance(hex, city!.position, map));
   const path = [{ ...unit.position }];
   for (let step = 0; step < RULES.stepsPerRound; step++) {
-    const occupied = occupiedTiles(state), distance = hexDistance(unit.position, city.position, map);
-    if (distance <= species.range) break;
+    const here = hexToIndex(unit.position, map)!, onRoute = route?.has(here) ?? false;
+    const occupied = occupiedTiles(state), distance = onRoute ? toward(here, unit.position) : hexDistance(unit.position, city.position, map);
+    if (hexDistance(unit.position, city.position, map) <= species.range) break;
+    const measure = (index: number, hex: Hex) => onRoute ? toward(index, hex) : hexDistance(hex, city!.position, map);
     const next = neighbors(unit.position, map).map(hex => ({ hex, index: hexToIndex(hex, map) }))
       .filter((item): item is { hex: Hex; index: number } => item.index !== null && canStand(item.index) && !occupied.has(item.index)
-        && canEnter(unit, map.tiles[item.index], content) && hexDistance(item.hex, city!.position, map) < distance)
-      .sort((a, b) => hexDistance(a.hex, city!.position, map) - hexDistance(b.hex, city!.position, map) || a.index - b.index)[0];
+        && canEnter(unit, map.tiles[item.index], content, { map, index: item.index }) && measure(item.index, item.hex) < distance)
+      .sort((a, b) => measure(a.index, a.hex) - measure(b.index, b.hex) || a.index - b.index)[0];
     if (!next) break;
     unit.position = next.hex;
     path.push({ ...next.hex });

@@ -9,7 +9,7 @@ import { leaderTeam, placeGyms, viewGymBlocker, viewGymTeam } from '../../src/co
 import { hexDistance, hexToIndex, indexToHex, neighbors } from '../../src/core/hex.ts';
 import { isMapUnit } from '../../src/core/model.ts';
 import type { Command, GameState } from '../../src/core/model.ts';
-import { landRule, routeDistances } from '../../src/core/reach.ts';
+import { landRule, routeCosts, routeDistances } from '../../src/core/reach.ts';
 import { step } from '../../src/core/step.ts';
 import { classTrainingBlocker, stateBadges } from '../../src/core/unit-classes.ts';
 import { createMapUnit } from '../../src/core/unit.ts';
@@ -35,7 +35,7 @@ function teamAt(state: GameState, gymId: number, species: SpeciesId[], playerId 
 }
 
 describe('v24 B gym circuit: placement', () => {
-  test('eight or more neutral gyms; each civilization has a home gym its starter beats, 5–8 land steps away; every essence present', () => {
+  test('eight or more neutral gyms; each civilization has a home gym its starter beats, 5–8 land travel away; every essence present', () => {
     for (const seed of [31, 32, 33, 34]) {
       const state = createGame(setup(24, 4, seed));
       const gyms = state.expansion!.gymCircuit!.gyms;
@@ -46,16 +46,35 @@ describe('v24 B gym circuit: placement', () => {
         const home = gyms.find(gym => gym.homeOf === player.id)!;
         expect(home.leader).toBe(HOME_GYMS[player.starterId].leader);
         expect(dualEffectiveness(content.species[player.starterId].typeId, [home.typeId])).toBeGreaterThan(100);
-        const steps = routeDistances(state.map, hexToIndex(state.cities[player.headquartersCityId].position, state.map)!, landRule(state.map)).get(home.tileIndex)!;
-        expect(steps).toBeGreaterThanOrEqual(5);
-        expect(steps).toBeLessThanOrEqual(8);
+        // Land travel cost (move costs, hills, river crossings) 5–8; when no tile qualifies, 5–8 land steps.
+        const capital = hexToIndex(state.cities[player.headquartersCityId].position, state.map)!;
+        const cost = routeCosts(state.map, capital, landRule(state.map), content).get(home.tileIndex)!;
+        const steps = routeDistances(state.map, capital, landRule(state.map)).get(home.tileIndex)!;
+        expect((cost >= 5 && cost <= 8) || (steps >= 5 && steps <= 8), `seed ${seed} player ${player.id}: cost ${cost}, steps ${steps}`).toBe(true);
       }
+      // A2 passage rules: no gym on water, a peak or a landmark.
+      expect(gyms.every(gym => landRule(state.map)(gym.tileIndex))).toBe(true);
       for (const gym of gyms) {
         expect(state.map.tiles[gym.tileIndex]).not.toBe('ocean');
         expect(capitals.every(city => hexDistance(city.position, gym.position, state.map) >= GYM_RULES_V24.minCapitalDistance)).toBe(true);
       }
     }
     expect(createGame(setup(23)).expansion!.gymCircuit).toBeUndefined();
+  });
+
+  test('v24 terrain: at least two gyms across water and the rest by continent quota (40×26, four civilizations)', () => {
+    for (const seed of [31, 32, 33, 34, 35, 36]) {
+      const state = createGame({ ...setup(24, 4, seed), width: 40, height: 26 });
+      const gyms = state.expansion!.gymCircuit!.gyms, rule = landRule(state.map);
+      expect(gyms.filter(gym => gym.overseas).length, `seed ${seed}`).toBeGreaterThanOrEqual(GYM_RULES_V24.minOverseas);
+      const capitals = state.turnOrder.map(id => hexToIndex(state.cities[state.players[id].headquartersCityId].position, state.map)!);
+      const routes = capitals.map(tile => routeDistances(state.map, tile, rule));
+      // Each continent (capitals that reach each other over land) gets gyms in proportion to its civilizations.
+      const groups = [...new Set(capitals.map((_, seat) => capitals.findIndex((tile, j) => j === seat || routes[seat].has(tile))))];
+      const per = groups.map(group => gyms.filter(gym => routes[group].has(gym.tileIndex)).length
+        / capitals.filter((_, seat) => capitals.findIndex((tile, j) => j === seat || routes[seat].has(tile)) === group).length);
+      expect(Math.max(...per) - Math.min(...per), `seed ${seed}: ${per}`).toBeLessThanOrEqual(0.5);
+    }
   });
 
   test('placement takes a stand rule: with islands on the map, two gyms go across water', () => {

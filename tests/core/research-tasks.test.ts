@@ -13,6 +13,7 @@ import { observe, projectEvents, refreshKnowledge, visibleTiles } from '../../sr
 import { hexDistance, hexToIndex, indexToHex, neighbors } from '../../src/core/hex.ts';
 import type { Hex } from '../../src/core/hex.ts';
 import { recordExpansion } from '../../src/core/expansion.ts';
+import { tileHabitatWeights } from '../../src/core/wild.ts';
 import { habitatBiomes, inResearchHabitat, researchCaptureBonus, tasksDone, viewResearchCaptureBonus } from '../../src/core/research-tasks.ts';
 import type { ResearchTaskEvent } from '../../src/core/research-tasks.ts';
 import { researchCaptureScore } from '../../src/ai/research-plan.ts';
@@ -267,4 +268,19 @@ test('AI: +15 capture score only when the capture completes task 3 or the habita
   expect(score()).toBe(0);
   const v23 = createGame(duel(23)), any = observe(v23, 0).units.find(unit => unit.kind === 'pokemon')!;
   expect(researchCaptureScore(observe(v23, 0), any)).toBe(0);
+});
+
+test('v24 terrain: the habitat task reads the tile habitat (hill overlay, deep water), not only the biome', () => {
+  const state = createGame(duel());
+  const features = state.map.features!;
+  // Geodude lives on every hill (overlay) whatever the hill's biome, and so does its evolution; Squirtle never in deep water.
+  const hill = features.hills.find(index => state.map.tiles[index] === 'grassland') ?? features.hills[0];
+  expect(tileHabitatWeights(state.map, hill, content).geodude).toBeGreaterThan(0);
+  expect(inResearchHabitat(state.map, content, 'geodude', hill)).toBe(true);
+  expect(inResearchHabitat(state.map, content, 'graveler', hill)).toBe(true);
+  const deep = features.deep.find(index => state.map.tiles[index] === 'ocean')!;
+  expect(inResearchHabitat(state.map, content, 'squirtle', deep)).toBe(false);
+  // Without features (a v23 map) the biome rule is unchanged.
+  const flat = { ...state.map, features: undefined };
+  expect(inResearchHabitat(flat, content, 'geodude', hill)).toBe(habitatBiomes(content, 'geodude').includes(state.map.tiles[hill]!));
 });

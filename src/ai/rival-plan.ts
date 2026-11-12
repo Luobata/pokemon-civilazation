@@ -5,22 +5,22 @@ import { RIVAL_COUNTERS, RIVAL_RULES_V24 } from '../content/rivals.ts';
 import type { Content } from '../content/units.ts';
 import type { SpeciesId } from '../content/species.ts';
 import { dualEffectiveness } from '../core/combat-math.ts';
-import { hexDistance } from '../core/hex.ts';
 import type { MapUnit, PlayerView } from '../core/model.ts';
+import { walkerTravel } from './travel.ts';
 
 const ownSightings = (view: PlayerView) => view.expansion?.rivals?.sightings.filter(sighting => sighting.targetPlayerId === view.playerId) ?? [];
-/** The own rival's Pokémon in sight within reach of an own city (worth walking to). */
+/** The own rival's Pokémon in sight within reach of an own city (worth walking to). Distances are the rival's own land travel (v24). */
 export function ownRivalHunters(view: PlayerView): MapUnit[] {
   return ownSightings(view).flatMap(sighting => view.units.filter(unit => unit.id === sighting.unitId))
-    .filter(unit => view.economy.cities.some(city => hexDistance(unit.position, city.position, view.map) <= RIVAL_RULES_V24.threatRadius + 2));
+    .filter(unit => walkerTravel(view, unit, unit.position, view.economy.cities.map(city => city.position)) <= RIVAL_RULES_V24.threatRadius + 2);
 }
-/** Own city ids under a rival warning, or within 4 tiles of a rival Pokémon hunting this civilization. */
+/** Own city ids under a rival warning, or within 4 travel of a rival Pokémon hunting this civilization (it walks, never embarks). */
 export function rivalThreatenedCityIds(view: PlayerView): number[] {
   const rivals = view.expansion?.rivals;
   if (!rivals) return [];
   const hunters = ownSightings(view).flatMap(sighting => view.units.filter(unit => unit.id === sighting.unitId));
   const ids = view.economy.cities.filter(city => city.id === rivals.pending?.cityId
-    || hunters.some(unit => hexDistance(unit.position, city.position, view.map) <= RIVAL_RULES_V24.threatRadius)).map(city => city.id);
+    || hunters.some(unit => walkerTravel(view, unit, unit.position, [city.position]) <= RIVAL_RULES_V24.threatRadius)).map(city => city.id);
   return ids.sort((a, b) => a - b);
 }
 /** A rival's warning or visit is under way for this civilization (gym teams stay home). */

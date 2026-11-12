@@ -314,7 +314,7 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
         add(action, 'military', 100 - far(to, seek), unit.id, index);
       }
       if (unit.kind === 'pokemon' && threatened.size && !atWar) {
-        const city = view.economy.cities.filter(item => threatened.has(item.id)).sort((a, b) => hexDistance(unit.position, a.position, view.map) - hexDistance(unit.position, b.position, view.map) || a.id - b.id)[0];
+        const city = view.economy.cities.filter(item => threatened.has(item.id)).sort((a, b) => far(unit.position, a.position) - far(unit.position, b.position) || a.id - b.id)[0];
         const garrisoned = city && view.units.some(other => other.ownerId === actorId && other.id !== unit.id && hexDistance(other.position, city.position, view.map) <= 1);
         if (city && !garrisoned && far(to, city.position) < far(unit.position, city.position)) add(action, 'economy', 90 - far(to, city.position), unit.id, index);
       }
@@ -332,8 +332,7 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
       }
       // v24 C: close in on the own rival's Pokémon near own cities (they only hunt this civilization).
       if (unit.kind === 'pokemon') for (const hunter of rivalHunters) {
-        const distance = hexDistance(to, hunter.position, view.map);
-        if (distance < hexDistance(unit.position, hunter.position, view.map)) add(action, 'military', 140 - distance, unit.id, index);
+        if (travelCloser(view, unit, to, hunter.position)) add(action, 'military', 140 - travelDistance(view, unit, to, hunter.position), unit.id, index);
       }
       if (unit.kind === 'pokemon') for (const target of wild) {
         if (!canCaptureByPersonality(view, target, query) || !player.research.unlockedIds.includes('domestication') || player.ballInventory.pokeBall + player.ballInventory.greatBall === 0) continue;
