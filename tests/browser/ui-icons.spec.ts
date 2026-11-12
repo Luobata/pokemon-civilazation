@@ -31,6 +31,21 @@ test('icon-first panels: research tree, civics, city, era, world, unit and rail 
   await page.locator('#import-save').setInputFiles({ name: 'mid.json', mimeType: 'application/json', buffer: Buffer.from(fixture.save) });
   await expect(page.locator('#action-notice')).toContainText('读档完成');
   await page.locator('#animate').uncheck();
+  if (phase !== 'before') {
+    // Contact sheet of the whole kit (docs/design/ui-icons/kit.png), rendered in a throwaway page.
+    const sheet = await page.context().newPage();
+    await sheet.goto('/buildings/README.md');
+    await sheet.evaluate(async () => {
+      const path = '/src/browser/ui-icons.ts';
+      const kit = await import(path);
+      document.body.innerHTML = `<style>body{margin:0;padding:10px;background:#16282C;color:#C9D6CF;font:10px sans-serif;display:flex;flex-wrap:wrap;gap:4px}
+        figure{margin:0;width:96px;text-align:center}figcaption{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}img{image-rendering:pixelated}</style>`
+        + kit.UI_ICON_NAMES.map((name: string) => `<figure><img src="${kit.iconUrl(name)}" width="40" height="40" alt=""> <img src="${kit.iconUrl(name)}" width="20" height="20" alt=""><figcaption>${name}</figcaption></figure>`).join('');
+    });
+    await sheet.setViewportSize({ width: 1280, height: 900 });
+    await sheet.screenshot({ path: `${dir}/kit.png`, fullPage: true });
+    await sheet.close();
+  }
   await shot(page, 'map-rail');
 
   const unitId = Object.values(fixture.state.units).find(unit => unit.ownerId === 0 && unit.kind === 'pokemon')!.id;
