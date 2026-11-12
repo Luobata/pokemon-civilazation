@@ -138,3 +138,21 @@ test('v24 tile info and scene: feature names, passage text, yields with features
   expect(describeTile(oldView, tile).terrain!.name).toBe('草原');
   expect(buildScene({ view: oldView }).terrain).toBeUndefined();
 });
+
+test('v24 movement: a unit that has not moved may always enter one costly tile (forest hill = 3 > a settler\'s 2), ending its move; v23 unchanged', () => {
+  const state = arena({}, 'rattata'), east = { q: 10, r: 5 }, hill = at(state, east);
+  delete state.units[9001]; delete state.units[9000];
+  state.units[9000] = createMapUnit({ kind: 'logistics', role: 'settler' }, 9000, 0, { q: 9, r: 6 }, contentFor(state.setup), 0, 1);
+  refreshKnowledge(state);
+  state.map.tiles[hill] = 'forest';
+  state.map.features = { ...empty(), hills: [hill] };
+  expect(reachablePaths(observe(state, 0), 9000)[hill]).toEqual([{ q: 9, r: 6 }, east]);
+  const result = step(state, { actorId: 0, expectedSeq: state.commandSeq, action: { type: 'Move', unitId: 9000, to: east } });
+  expect(result.ok && result.state.units[9000]).toMatchObject({ position: east, actionLeft: 0 });
+  // Only from a fresh start: after spending a point, the costly tile is out of reach this round.
+  state.units[9000].movesSpent = 1;
+  expect(reachablePaths(observe(state, 0), 9000)[hill]).toBeUndefined();
+  // Without features (v≤23) nothing changes.
+  state.units[9000].movesSpent = 0; delete state.map.features;
+  expect(reachablePaths(observe(state, 0), 9000)[hill]).toEqual([{ q: 9, r: 6 }, east]);
+});

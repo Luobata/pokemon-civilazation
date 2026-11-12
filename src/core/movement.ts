@@ -133,7 +133,7 @@ export function reachablePaths(view: PlayerView, unitId: number,
   const costs = new Map([[origin, 0]]);
   const paths: Record<number, Hex[]> = { [origin]: [{ ...unit.position }] };
   const pending = new Set([origin]);
-  const budget = movementBudget(view, unit, content) - (unit.movesSpent ?? 0);
+  const budget = movementBudget(view, unit, content) - (unit.movesSpent ?? 0), fresh = Boolean(view.map.features) && !(unit.movesSpent ?? 0);
   // Gameplay v2: entering a visible hostile zone of control ends movement there.
   const zoc = usesTactics(view) ? zocTiles(unit, view.units, view.diplomacy, content) : [];
   // v24 A2: land units board water with the civilization's access; boarding or landing ends the move.
@@ -150,7 +150,10 @@ export function reachablePaths(view: PlayerView, unitId: number,
       // Boarding / landing costs whatever is left (at least one point): the unit stops there.
       const boarding = embarkStep(unit, view.map, current, index, content, harbors);
       if (boarding && costs.get(current)! >= budget) continue;
-      const cost = boarding ? budget : costs.get(current)! + tileStepCost(unit, view.map, current, index, content);
+      // v24 (features only): a unit that has not moved this round may always enter one adjacent tile, however costly (hill + forest or a
+      // river crossing costs 3, more than a 2-move unit's whole budget), ending its move there — the Civilization rule.
+      const step = tileStepCost(unit, view.map, current, index, content);
+      const cost = boarding ? budget : current === origin && fresh && step > budget ? budget : costs.get(current)! + step;
       if (cost > budget || cost >= (costs.get(index) ?? Infinity)) continue;
       costs.set(index, cost);
       paths[index] = [...paths[current], hex];
