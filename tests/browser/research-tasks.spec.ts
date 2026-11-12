@@ -5,6 +5,7 @@ import { verifyImportedReplay } from './fixtures/reachable.ts';
 import { openScreen } from './ui.ts';
 import { WORLD24_CONTENT } from '../../src/content/units.ts';
 import { RESEARCH_TASK_RULES_V24 } from '../../src/content/research-tasks.ts';
+import { tasksDone } from '../../src/core/research-tasks.ts';
 import type { Hex } from '../../src/core/hex.ts';
 import type { GameState } from '../../src/core/model.ts';
 
@@ -26,6 +27,10 @@ test('v24 research tasks: the unit panel card follows the target, a knockout com
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(String(error)));
   const fixture = knockoutTaskFixture(), name = WORLD24_CONTENT.species[fixture.speciesId].name;
+  // The knockout completes one more task on a card a real AI game built; the reward is the one for that count (notes at 2, capture at 4).
+  const R = RESEARCH_TASK_RULES_V24, before = tasksDone(fixture.state.expansion!.researchTasks![0]![fixture.speciesId]!.tasks), after = before + 1;
+  const reward = after === R.notesAt ? { hint: '调查笔记', toast: `调查笔记：科研 +${R.notesResearch}`, research: R.notesResearch }
+    : after === R.captureAt ? { hint: `捕捉率 +${R.captureBonus}`, toast: `捕捉率 +${R.captureBonus}`, research: 0 } : null;
   await page.goto('/?seed=1&gameplay=24');
   await page.locator('#import-save').setInputFiles({ name: 'v24.json', mimeType: 'application/json', buffer: Buffer.from(fixture.save) });
   await expect(page.locator('#action-notice')).toContainText('读档完成');
@@ -38,26 +43,26 @@ test('v24 research tasks: the unit panel card follows the target, a knockout com
   const own = (fixture.state.units[fixture.unitId] as { speciesId: string }).speciesId;
   await expect(card).toHaveAttribute('data-species', own);
   await expect(card).not.toHaveAttribute('open', '');
-  // Aiming at the wild Pokémon switches the card to its species: seen, 1 of 2 knockouts, one more knockout pays the notes.
+  // Aiming at the wild Pokémon switches the card to its species: seen, 1 of 2 knockouts, one more knockout pays the next reward.
   await page.locator('#attack-unit').click();
   await clickHex(page, fixture.targetPosition);
   await expect(card).toHaveAttribute('data-species', fixture.speciesId);
   await expect(card).toContainText(`图鉴调查 · ${name}`);
   await expect(card.locator('[data-task="seen"]')).toHaveClass(/done/);
   await expect(card.locator('[data-task="knockouts"]')).toContainText(`击倒 1/${RESEARCH_TASK_RULES_V24.knockoutsNeeded} 只`);
-  await expect(card.locator('.research-next')).toContainText('再击倒 1 只得调查笔记');
+  if (reward) await expect(card.locator('.research-next')).toContainText(`再击倒 1 只得${reward.hint}`);
   const reserve = (await state(page)).players[0].research.reserve;
 
   // Confirm with a second click on the target.
   await clickHex(page, fixture.targetPosition);
   await expect.poll(async () => (await state(page)).expansion!.researchTasks![0]![fixture.speciesId]!.knockouts).toBe(RESEARCH_TASK_RULES_V24.knockoutsNeeded);
-  expect((await state(page)).players[0].research.reserve).toBe(reserve + RESEARCH_TASK_RULES_V24.notesResearch);
+  expect((await state(page)).players[0].research.reserve).toBe(reserve + (reward?.research ?? 0));
   const notice = page.locator('#toast-host .toast', { hasText: `图鉴调查：${name}` });
   await expect(notice).toHaveCount(1);
-  await expect(notice).toContainText(`调查笔记：科研 +${RESEARCH_TASK_RULES_V24.notesResearch}`);
+  if (reward) await expect(notice).toContainText(reward.toast);
   await page.screenshot({ path: `${reports}/research-tasks-notice.png` });
 
-  // The Pokédex card in the world screen lists the species with two pips done.
+  // The Pokédex card in the world screen lists the species with its pips done.
   await openScreen(page, 'world');
   await page.locator('#expansion-panel details[data-system="s22-pokedex"] > summary').click();
   const book = page.locator('#research-book');
@@ -65,7 +70,7 @@ test('v24 research tasks: the unit panel card follows the target, a knockout com
   await book.locator('summary').click();
   const row = book.locator(`li[data-species="${fixture.speciesId}"]`);
   await expect(row).toContainText(name);
-  await expect(row.locator('.research-pips i.done')).toHaveCount(2);
+  await expect(row.locator('.research-pips i.done')).toHaveCount(after);
   await page.screenshot({ path: `${reports}/research-tasks-book.png` });
   await page.locator('.screen:not([hidden]) .screen-close').click();
 
