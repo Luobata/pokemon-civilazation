@@ -27,6 +27,8 @@ import { randomBelow } from './rng.ts';
 import { promotionCityMultiplier, promotionStrikeMultiplier, scalePermille } from './promotions.ts';
 import { registerSpecies } from './unit.ts';
 import { visibleTiles } from './vision.ts';
+import { researchCaptureBonus } from './research-tasks.ts';
+import { cityCounterTerrain, cityStrikeTerrain, isEmbarked, unitStrikeTerrain } from './terrain.ts';
 
 type Rejection = Extract<StepResult, { ok: false }>['reason'];
 const hasTech = (state: GameState, owner: number | null, tech: TechId) => owner !== null && state.players[owner].research.unlockedIds.includes(tech);
@@ -51,6 +53,8 @@ export function validateCombatAction(state: GameState, actor: number, action: Co
   const target = action.type === 'Capture' ? state.units[action.targetUnitId]
     : action.target.kind === 'unit' ? state.units[action.target.id] : state.cities[action.target.id];
   const unavailable = action.type === 'Capture' ? 'capture-unavailable' : 'attack-unavailable';
+  // v24 A2: a land unit carried on water cannot attack or capture.
+  if (isEmbarked(unit, state.map, content)) return unavailable;
   if (!target || ('location' in target && !isMapUnit(target)) || !target.position
     || !visibleTiles(state, actor, content).has(hexToIndex(target.position, state.map)!)) return unavailable;
   const distance = hexDistance(unit.position, target.position, state.map);
@@ -98,7 +102,7 @@ function unitStrike(state: GameState, attacker: MapUnit, defender: MapUnit, coun
       zealot: counter ? 1000 : zealotMultiplier(state, attacker.ownerId, attacker.position),
       assault: promotionStrikeMultiplier(state, attacker.id, -1, counter), bulwark: promotionStrikeMultiplier(state, -1, defender.id, counter),
       classCounter: classCounterPermille(state, attacker, defender, content), affinity: affinityPermille(state, attacker, content) }),
-    teraTypes(era, defender.id)), roll, counter, defender.hp) : unitDamage(attacker, defender, state.map.tiles[hexToIndex(attacker.position, state.map)!],
+    teraTypes(era, defender.id), unitStrikeTerrain(state.map, attacker, defender, counter, content)), roll, counter, defender.hp) : unitDamage(attacker, defender, state.map.tiles[hexToIndex(attacker.position, state.map)!],
     state.map.tiles[hexToIndex(defender.position, state.map)!], hasTech(state, attacker.ownerId, 'typeResearch'), roll, counter, content,
     leaderAttackMultiplier(state, attacker.ownerId, leaderEffects(attacker.ownerId === null ? undefined : state.players[attacker.ownerId].leaderId).activeAttackMultiplier), Boolean(state.expansion),
     counter ? 0 : flankBonus(state.setup, attacker, defender, Object.values(state.units).filter(isMapUnit), state.map),
@@ -145,7 +149,8 @@ export function resolveAttack(state: GameState, unitId: number, target: CombatTa
       assault: cityAssaultMultiplier(owner, state.setup.eraProgression, state.setup.gameplayVersion, attacker, content, hexDistance(attacker.position, city.position, state.map), hasTech(state, attacker.ownerId, 'siegeCraft'))
         ?? (content.species[attacker.speciesId].role === 'siege' && hasTech(state, attacker.ownerId, 'siegeCraft') ? content.balance.effects.siegeMultiplier : 1000),
       leader: leaderAttackMultiplier(state, attacker.ownerId, leaderEffects(owner?.leaderId).activeAttackMultiplier), eraAttack: eraAttackMultiplier(combatContext(state), attacker, content, true, false),
-      enraged: attacker.enraged, breacher: promotionCityMultiplier(state, attacker.id), affinity: affinityPermille(state, attacker, content) }), content.opening ? wallBonus(state.round, city.ownerId !== null && state.players[city.ownerId].headquartersCityId === city.id) : 0), 85 + randomBelow(state.rng, 16), false, city.hp);
+      enraged: attacker.enraged, breacher: promotionCityMultiplier(state, attacker.id), affinity: affinityPermille(state, attacker, content) }), content.opening ? wallBonus(state.round, city.ownerId !== null && state.players[city.ownerId].headquartersCityId === city.id) : 0,
+      cityStrikeTerrain(state.map, attacker, city.position, content)), 85 + randomBelow(state.rng, 16), false, city.hp);
     else hit = cityDamage(attacker, state.map.tiles[hexToIndex(attacker.position, state.map)!],
       state.map.tiles[hexToIndex(city.position, state.map)!], hasTech(state, attacker.ownerId, 'siegeCraft'), 85 + randomBelow(state.rng, 16), content,
       Math.floor(scalePermille(scalePermille(leaderAttackMultiplier(state, attacker.ownerId, leaderEffects(attacker.ownerId === null ? undefined : state.players[attacker.ownerId].leaderId).activeAttackMultiplier)
@@ -175,7 +180,8 @@ export function resolveAttack(state: GameState, unitId: number, target: CombatTa
     } else if (city.ownerId !== null && hexDistance(attacker.position, city.position, state.map) <= 2) {
       const attack = cityCounterAttack(state.players[city.ownerId], content);
       counterDamage = content.combat === 'strength'
-        ? strengthDamage(cityCounterBreakdown(attack, attacker, state.map.tiles[hexToIndex(city.position, state.map)!], state.map.tiles[hexToIndex(attacker.position, state.map)!], content), 100, true, attacker.hp)
+        ? strengthDamage(cityCounterBreakdown(attack, attacker, state.map.tiles[hexToIndex(city.position, state.map)!], state.map.tiles[hexToIndex(attacker.position, state.map)!], content,
+          cityCounterTerrain(state.map, city.position, attacker, content)), 100, true, attacker.hp)
         : cityCounterDamage(attack, attacker, state.map.tiles[hexToIndex(city.position, state.map)!],
         state.map.tiles[hexToIndex(attacker.position, state.map)!], content);
       attacker.hp = Math.max(0, attacker.hp - counterDamage);
@@ -209,7 +215,7 @@ export function applyCombatAction(state: GameState, actor: number, action: Comba
   const definition = content.species[target.speciesId];
   const probability = Math.min(100, captureProbability(definition.maxHp, target.hp, action.ballId === 'greatBall' ? 1500 : 1000,
     hasTech(state, actor, 'fieldObservation'), definition.rare) + playerPolicyEffects(state, actor).captureBonus
-    + leaderCaptureBonus(state, actor));
+    + leaderCaptureBonus(state, actor) + researchCaptureBonus(state, actor, target.speciesId));
   player.ballInventory[action.ballId]--;
   const success = randomBelow(state.rng, 100) < probability;
   if (success) { target.ownerId = actor; target.actionLeft = 0; target.wildHome = null; registerSpecies(player, target); player.gold += leaderEffects(player.leaderId).captureGold; }

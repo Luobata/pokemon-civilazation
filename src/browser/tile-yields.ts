@@ -1,3 +1,5 @@
+import { applyFeatureYield, workableFeature } from '../core/terrain.ts';
+import { applyLandmarkYield } from '../core/landmarks.ts';
 import { WORLD_DEFINITIONS } from '../content/world-systems.ts';
 import type { BerryId } from '../content/world-systems.ts';
 import type { Yield } from '../content/economy.ts';
@@ -32,6 +34,8 @@ export function tileYieldReader(view: PlayerView): (index: number) => TileYieldI
     const resource = resources.get(index);
     if (resource?.kind === 'berry') yields.food += Math.max(1, Math.floor(WORLD_DEFINITIONS.berries[resource.definitionId as BerryId].food / 4));
     else if (resource?.kind === 'stone') yields.production += 1;
-    return { yields, workable: weather || (biome !== 'snow' && biome !== 'volcano') };
+    // v24: feature and landmark yields, unworkable peaks / landmarks / polar ice (no change before v24).
+    applyFeatureYield(view.map, index, yields); applyLandmarkYield(view.map, index, yields);
+    return { yields, workable: (weather || (biome !== 'snow' && biome !== 'volcano')) && workableFeature(view.map, index) };
   };
 }

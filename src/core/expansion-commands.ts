@@ -43,6 +43,7 @@ export function expansionActionFields(content: Content = ROSTER_CONTENT): Record
   EstablishTradeRoute: { unitId: 'id', toCityId: 'id' },
   ChooseDedication: { dedicationIds: 'dedicationIds' },
   PillageImprovement: { unitId: 'id' }, RepairImprovement: { unitId: 'id', tileIndex: 'id' },
+  ChallengeGym: { gymId: 'id', unitIds: 'ids' }, ChallengeEliteFour: { unitIds: 'ids' },
   };
 }
 export const EXPANSION_ACTION_FIELDS: Record<ExpansionAction['type'], Fields> = expansionActionFields();

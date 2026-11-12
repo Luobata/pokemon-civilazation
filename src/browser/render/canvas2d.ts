@@ -11,6 +11,7 @@ import { buildingSprite, drawPokemonSprite, drawSpritePath } from '../sprites.ts
 import { ROLE_POKEMON } from '../../content/roles.ts';
 const ROLE_MARK = { settler: '拓', builder: '工', trader: '商' } as const;
 import { drawTerrain } from '../terrain.ts';
+import { drawTerrainFeatures } from './terrain-features.ts';
 import { drawIcon, drawPixelNumber, drawYieldRow } from '../map-icons.ts';
 import type { IconName } from '../map-icons.ts';
 import type { MapScene, SceneCity, SceneWeather, UnitMarkIdentity } from './scene.ts';
@@ -150,6 +151,8 @@ function drawBase(d: Draw) {
     context.lineWidth = tile.biome ? Math.max(1, d.radius * .045) : .8;
     context.stroke();
   }
+  // v24: hills, peaks, rivers, deep water and landmarks over the terrain (each wrapped copy draws its own).
+  if (scene.terrain) drawTerrainFeatures(context, scene.terrain, centers, d.radius, d.onscreen);
   for (const edge of scene.coastEdges) {
     if (!d.onscreen(centers[edge.index])) continue;
     edgeLine(d, edge.index, edge.direction);
@@ -1024,7 +1027,7 @@ export function createCanvas2DRenderer(canvas: HTMLCanvasElement, options: Rende
         blit(context, built.cache.canvas, dpr, shakeX, shakeY);
         return { cache: built.cache, stat: 'miss' };
       };
-      const baseKey = `${view}|${scene.tiles.map(tile => tile.biome ?? '-').join(',')}|${scene.territoryEdges.map(edge => `${edge.index}.${edge.direction}.${edge.ownerId}`).join(',')}`;
+      const baseKey = `${view}|${scene.tiles.map(tile => tile.biome ?? '-').join(',')}|${scene.terrain ? `${scene.terrain.hills.length}.${scene.terrain.rivers.length}.${scene.terrain.landmarks.length}` : ''}|${scene.territoryEdges.map(edge => `${edge.index}.${edge.direction}.${edge.ownerId}`).join(',')}`;
       const baseLayer = layer(base, baseKey, drawBase);
       base = baseLayer.cache;
 

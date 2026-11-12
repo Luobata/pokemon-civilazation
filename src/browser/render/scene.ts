@@ -24,6 +24,7 @@ import { maxUnitHp } from '../../core/unit.ts';
 import { hexToWorld } from '../camera.ts';
 import type { Point } from '../camera.ts';
 import { tileYieldReader } from '../tile-yields.ts';
+import type { SceneTerrain } from './terrain-features.ts';
 
 export type DebugOverlay = 'none' | 'tiles' | 'vision' | 'wild' | 'ai';
 /** Optional presentation layers; they never add information beyond the PlayerView. */
@@ -74,6 +75,8 @@ export type MapScene = {
   /** v22: the map wraps east-west; the renderer draws side-by-side copies. */
   wrap?: true;
   tiles: SceneTile[];
+  /** v24: hills, peaks, rivers, deep water, lakes and landmarks of explored tiles (absent before v24). */
+  terrain?: SceneTerrain;
   coastEdges: SceneEdge[];
   territoryEdges: SceneEdge[];
   /** `damaged`: v23, the improvement was pillaged (as the viewer last saw it). */
@@ -259,8 +262,15 @@ export function buildScene(input: MapRenderInput): MapScene {
     debug.labels.push({ index: indexOf(unit.position)!, text: `#${unit.id} A${unit.actionLeft}${unit.enraged ? ' 暴走' : ''}`, offset: true });
   }
 
+  const features = view.map.features, riverTiles = new Set(features?.rivers ?? []);
+  const terrain: SceneTerrain | undefined = features ? {
+    hills: [...features.hills], peaks: [...features.peaks], deep: [...features.deep], lakes: [...features.lakes],
+    landmarks: features.landmarks.map(site => ({ index: site.tileIndex, id: site.id })),
+    rivers: features.rivers.map(index => ({ index, links: neighbors(indexToHex(index, view.map), view.map).map(indexOf)
+      .flatMap((next, direction) => next !== null && (riverTiles.has(next) || view.map.tiles[next] === 'ocean') ? [direction] : []) })),
+  } : undefined;
   return {
-    width: view.map.width, height: view.map.height, ...(view.map.wrap ? { wrap: true as const } : {}), tiles, coastEdges, territoryEdges, improvements, faith, badges, districts, constructionSites,
+    width: view.map.width, height: view.map.height, ...(view.map.wrap ? { wrap: true as const } : {}), tiles, ...(terrain ? { terrain } : {}), coastEdges, territoryEdges, improvements, faith, badges, districts, constructionSites,
     cities, yields, workedTiles: focusCity ? [...focusCity.workedTileIds] : [],
     tradeRoutes: (expansion?.cityNetwork?.routes ?? []).flatMap(route => {
       const from = view.cities.find(city => city.id === route.fromCityId), to = view.cities.find(city => city.id === route.toCityId);

@@ -6,6 +6,10 @@ import { applyPromotionAction, initializePromotions, isPromotionAction, recordPr
 import { initializeEraHonors, recordEraHonors, resolveEraHonorRound } from './era-honors.ts';
 import { applyDedicationAction, isDedicationAction, validateDedicationAction } from './dedications.ts';
 import { applyPillageAction, isPillageAction, validatePillageAction } from './pillage.ts';
+import { initializeLandmarks, recordLandmarks, resolveLandmarkRound } from './landmarks.ts';
+import { applyGymCircuitAction, initializeGymCircuit, isGymCircuitAction, validateGymCircuitAction } from './gym-circuit.ts';
+import { initializeRivals, resolveRivalRound } from './rivals.ts';
+import { initializeResearchTasks, recordResearchTasks } from './research-tasks.ts';
 import { CIVILIZATION_CONTENT } from '../content/civilization-systems.ts';
 import type { Content } from '../content/units.ts';
 import type { Command, EventPayload, GameState } from './model.ts';
@@ -45,6 +49,11 @@ export function initializeExpansion(state: GameState, content: Content): void {
   initializeLegends(state);
   initializeCityNetwork(state);
   initializeOpening(state);
+  // v24 (world-v24): each initializer is a no-op unless its content flag is on.
+  initializeLandmarks(state, content);
+  initializeGymCircuit(state, content);
+  initializeRivals(state, content);
+  initializeResearchTasks(state, content);
 }
 export function validateExpansionAction(state: GameState, actorId: number, action: Command['action'], content: Content): boolean {
   if (!state.expansion || !expansionActionType(action.type)) return false;
@@ -52,6 +61,7 @@ export function validateExpansionAction(state: GameState, actorId: number, actio
     const clean = parseExpansionAction(action, content);
     if (isDedicationAction(clean)) return validateDedicationAction(state, actorId, clean) === null;
     if (isPillageAction(clean)) return validatePillageAction(state, actorId, clean, content) === null;
+    if (isGymCircuitAction(clean)) return validateGymCircuitAction(state, actorId, clean, content) === null;
     if (isCityNetworkAction(clean)) return validateCityNetworkAction(state, actorId, clean) === null;
     if (isPromotionAction(clean)) return validatePromotionAction(state, actorId, clean) === null;
     if (isImprovementAction(clean)) return validateImprovementAction(state, actorId, clean, content) === null;
@@ -71,6 +81,7 @@ export function validateExpansionAction(state: GameState, actorId: number, actio
 export function applyExpansionAction(state: GameState, actorId: number, action: Command['action'], content: Content): EventPayload[] {
   if (isDedicationAction(action)) return applyDedicationAction(state, actorId, action);
   if (isPillageAction(action)) return applyPillageAction(state, actorId, action, content);
+  if (isGymCircuitAction(action)) return applyGymCircuitAction(state, actorId, action, content);
   if (isCityNetworkAction(action)) return applyCityNetworkAction(state, actorId, action);
   if (isPromotionAction(action)) return applyPromotionAction(state, actorId, action);
   if (isImprovementAction(action)) return applyImprovementAction(state, actorId, action, content);
@@ -89,6 +100,9 @@ export function applyExpansionAction(state: GameState, actorId: number, action: 
 export function resolveExpansionRound(state: GameState, content: Content): EventPayload[] {
   if (!state.expansion || state.outcome) return [];
   const events = resolveWorldRound(state, content);
+  // v24 C: rivals act right after the world's rampages; A3: landmark healing and regrowth.
+  if (!state.outcome) events.push(...resolveRivalRound(state, content));
+  if (!state.outcome) events.push(...resolveLandmarkRound(state, content));
   if (!state.outcome) events.push(...resolveCivilizationRound(state, { ...CIVILIZATION_CONTENT, world: content }));
   if (!state.outcome) events.push(...resolvePolicyRound(state));
   if (!state.outcome) events.push(...resolveEssenceRound(state));
@@ -112,5 +126,9 @@ export function recordExpansion(before: GameState, after: GameState, command: Co
   const discoveries = recordDiscoveries(before, after, command, [...events, ...world], content);
   const honors = recordEraHonors(before, after, [...events, ...world, ...discoveries]);
   const legends = recordLegends(after, [...events, ...world, ...discoveries, ...honors], content);
-  return [...world, ...discoveries, ...honors, ...legends, ...recordOpening(after, [...events, ...world, ...discoveries, ...honors, ...legends])];
+  const opening = recordOpening(after, [...events, ...world, ...discoveries, ...honors, ...legends]);
+  // v24: landmark discoveries (A3) and research tasks (D) see everything recorded above.
+  const landmarks = recordLandmarks(after, [...events, ...world, ...discoveries, ...honors, ...legends, ...opening]);
+  const tasks = recordResearchTasks(before, after, [...events, ...world, ...discoveries, ...honors, ...legends, ...opening, ...landmarks]);
+  return [...world, ...discoveries, ...honors, ...legends, ...opening, ...landmarks, ...tasks];
 }

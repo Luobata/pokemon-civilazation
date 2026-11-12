@@ -1,3 +1,4 @@
+import { workableFeature } from './terrain.ts';
 import { classTrainingBlocker, stateBadges } from './unit-classes.ts';
 import { foundCityOnResource, usesBuilders } from './improvements.ts';
 import { applyEscortBonus } from './city-network.ts';
@@ -29,7 +30,7 @@ export function validateEconomyAction(state: GameState, actor: number, action: E
     const unit = state.units[action.unitId];
     if (!unit || unit.ownerId !== actor || unit.kind !== 'logistics' || unit.role !== 'settler' || !isMapUnit(unit)) return 'unit-unavailable';
     if (!unit.actionLeft) return 'no-action';
-    if (state.map.tiles[hexToIndex(unit.position, state.map)!] === 'ocean'
+    if (state.map.tiles[hexToIndex(unit.position, state.map)!] === 'ocean' || !workableFeature(state.map, hexToIndex(unit.position, state.map)!)
       || Object.values(state.cities).some(city => hexDistance(city.position, unit.position, state.map) < 4)) return 'invalid-city-site';
     return null;
   }

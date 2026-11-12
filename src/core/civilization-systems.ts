@@ -1,3 +1,5 @@
+import { worldSiteAllowed } from './terrain.ts';
+import type { MapFeatures } from './terrain.ts';
 import { victoryTargets } from '../content/opening.ts';
 import { gameplayAtLeast } from '../content/eras.ts';
 import { CIVILIZATION_CONTENT } from '../content/civilization-systems.ts';
@@ -7,7 +9,7 @@ import type { TechId } from '../content/economy.ts';
 import { contentFor, techOf } from '../content/units.ts';
 import { dualEffectiveness, damage, terrainMultiplier } from './combat-math.ts';
 import { createRng, randomBelow } from './rng.ts';
-import { edgeDistance, hexDistance, hexToIndex, indexToHex, offsetToHex } from './hex.ts';
+import { edgeDistance, hexDistance, hexToIndex, indexToHex, neighbors, offsetToHex } from './hex.ts';
 import type { Hex, MapShape } from './hex.ts';
 import type { CityState, EventPayload, GameState, UnitState } from './model.ts';
 import { finishGame } from './victory.ts';
@@ -285,7 +287,8 @@ function strikeEffectiveness(attacker: BattleCombatant, defender: BattleCombatan
 function expectedDamage(attacker: BattleCombatant, defender: BattleCombatant): number {
   return Math.max(1, Math.floor(attacker.attack * attacker.power * strikeEffectiveness(attacker, defender) / (defender.defense * 1000)));
 }
-function simulateBattle(home: BattleCombatant[], away: BattleCombatant[], seed: number, terrain: Parameters<typeof terrainMultiplier>[0]): BattleTrace {
+/** Shared auto-battle (guardians, championship; v24 gym circuit and Elite Four). */
+export function simulateBattle(home: BattleCombatant[], away: BattleCombatant[], seed: number, terrain: Parameters<typeof terrainMultiplier>[0]): BattleTrace {
   const rng = createRng(seed || 1);
   const fighters = [...home.map(combatant => ({ ...combatant, side: 'home' as const })), ...away.map(combatant => ({ ...combatant, side: 'away' as const }))];
   const rounds: BattleRound[] = [];
@@ -357,6 +360,30 @@ function emptyRelation(round: number): CivilizationRelation {
     tradeLastRejectedRound: null, trust: 0, betrayedBy: [],
   };
 }
+/**
+ * v24: the passable tiles of the continent each sanctuary goes to. Continents get sanctuaries in proportion to the capitals on them
+ * (largest remainder, ties to the lower continent), so 2 + 2 on four-player maps and 3 + 1 on three-player maps.
+ */
+function sanctuaryAnchorsV24(state: CivilizationHost & { map: { features: MapFeatures } }, count: number): number[][] {
+  const capitals = Object.values(state.cities).filter(city => city.ownerId !== null).map(city => hexToIndex(city.position, state.map)!).sort((a, b) => a - b);
+  const groups: number[][] = [];
+  const groupOf = new Map<number, number>();
+  for (const capital of capitals) {
+    if (groupOf.has(capital)) continue;
+    const group = [capital], seen = new Set(group);
+    for (let k = 0; k < group.length; k++) for (const hex of neighbors(indexToHex(group[k], state.map), state.map)) {
+      const next = hexToIndex(hex, state.map);
+      if (next !== null && !seen.has(next) && state.map.tiles[next] !== 'ocean') { seen.add(next); group.push(next); }
+    }
+    for (const index of group) groupOf.set(index, groups.length);
+    groups.push(group.filter(index => worldSiteAllowed(state.map, index, 'continent')).sort((a, b) => a - b));
+  }
+  const civs = groups.map((_, g) => capitals.filter(capital => groupOf.get(capital) === g).length);
+  const quota = civs.map(n => Math.floor(count * n / capitals.length));
+  const order = civs.map((n, g) => ({ g, rest: (count * n) % capitals.length })).sort((a, b) => b.rest - a.rest || a.g - b.g);
+  for (let k = 0; quota.reduce((s, q) => s + q, 0) < count; k++) quota[order[k % order.length].g]++;
+  return quota.flatMap((q, g) => Array.from({ length: q }, () => groups[g]));
+}
 function selectSanctuarySites(state: CivilizationHost, content: CivilizationContent): SanctuarySite[] {
   const anchors = [
     { col: Math.floor(state.map.width / 4), row: Math.floor(state.map.height / 4) },
@@ -368,10 +395,20 @@ function selectSanctuarySites(state: CivilizationHost, content: CivilizationCont
     .map(city => hexToIndex(city.position, state.map))
     .filter((index): index is number => index !== null));
   const chosen: number[] = [];
+  const v24 = state.map.features ? sanctuaryAnchorsV24(state as CivilizationHost & { map: { features: MapFeatures } }, content.sanctuaries.definitions.length) : null;
   for (const definition of content.sanctuaries.definitions) {
+    if (v24) {
+      // v24 A3 (world-v24 §2.7): on the k-th sanctuary's continent, the passable tile farthest (up to 6) from cities and earlier sanctuaries.
+      const continent = v24[content.sanctuaries.definitions.indexOf(definition)];
+      const spread = (index: number) => Math.min(6, ...Object.values(state.cities).map(city => hexDistance(city.position, indexToHex(index, state.map), state.map))) * 16
+        + Math.min(10, ...chosen.map(other => hexDistance(indexToHex(other, state.map), indexToHex(index, state.map), state.map)));
+      const options = continent.filter(index => !cityIndexes.has(index) && !chosen.includes(index) && edgeDistance(indexToHex(index, state.map), state.map) >= 1);
+      const best = options.sort((a, b) => spread(b) - spread(a) || a - b)[0];
+      if (best !== undefined) { chosen.push(best); continue; }
+    }
     const anchor = anchors[(content.sanctuaries.definitions.indexOf(definition)) % anchors.length];
     const candidates = state.map.tiles.flatMap((biome, index) => biome === 'ocean' || cityIndexes.has(index) || chosen.includes(index)
-      ? [] : [index]).sort((a, b) => {
+      || !worldSiteAllowed(state.map, index, 'land') ? [] : [index]).sort((a, b) => {
       const first = indexToHex(a, state.map), second = indexToHex(b, state.map);
       return hexDistance(first, anchor, state.map) - hexDistance(second, anchor, state.map)
         || edgeDistance(second, state.map) - edgeDistance(first, state.map) || a - b;
