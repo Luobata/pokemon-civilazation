@@ -6,6 +6,7 @@ import { TYPE_ESSENCE } from '../content/essences.ts';
 import type { EssenceId } from '../content/essences.ts';
 import type { SpeciesId, TypeId } from '../content/species.ts';
 import type { Content, StarterId } from '../content/units.ts';
+import { gymTeamPower, world24Tuning } from '../content/world24-tuning.ts';
 import { grantChampionshipTitle, simulateBattle, stableSeed } from './civilization-systems.ts';
 import type { BattleCombatant, BattleTrace } from './civilization-systems.ts';
 import { CIVILIZATION_CONTENT } from '../content/civilization-systems.ts';
@@ -127,8 +128,11 @@ export function initializeGymCircuit(state: GameState, content: Content, canStan
 
 // ---------- teams (§3.1, §3.2) ----------
 
-/** The leader's team row for a challenger holding `badges` badges (clamped to the table). */
-export const leaderTeamFor = (badges: number) => RULES.teams[Math.max(0, Math.min(RULES.teams.length - 1, badges))];
+/** The leader's team row for a challenger holding `badges` badges (clamped to the table); the power follows the content's v24 tuning. */
+export const leaderTeamFor = (badges: number, content?: Content) => {
+  const row = RULES.teams[Math.max(0, Math.min(RULES.teams.length - 1, badges))];
+  return { members: row.members, stage: row.stage, power: gymTeamPower(content, badges) };
+};
 /** Species of a type at a stage (primary type first, then secondary, then the nearest stage), sorted by id. */
 function speciesPool(typeId: TypeId, stage: number, content: Content): SpeciesId[] {
   const ids = Object.keys(content.species).sort() as SpeciesId[];
@@ -155,11 +159,11 @@ function team(typeIds: readonly TypeId[], stage: number, members: number, power:
 }
 /** The leader's Pokémon a challenger with `badges` badges faces at this gym (the same team in the preview and the battle). */
 export const leaderTeam = (gym: GymSite, badges: number, seed: number, content: Content): BattleCombatant[] => {
-  const row = leaderTeamFor(badges);
+  const row = leaderTeamFor(badges, content);
   return team([gym.typeId], row.stage, row.members, row.power, seed, `gym-${gym.id}-${badges}`, content);
 };
 export const eliteFourTeam = (stage: number, seed: number, content: Content): BattleCombatant[] =>
-  team(ELITE_FOUR[stage].typeIds, 3, ELITE_FOUR[stage].members, ELITE_FOUR[stage].power, seed, `elite-${stage}`, content);
+  team(ELITE_FOUR[stage].typeIds, 3, ELITE_FOUR[stage].members, world24Tuning(content).eliteFourPower[stage] ?? ELITE_FOUR[stage].power, seed, `elite-${stage}`, content);
 const challenger = (unit: UnitState, id: string, content: Content): BattleCombatant => {
   const speciesId = unit.kind === 'pokemon' ? unit.speciesId : 'bulbasaur', species = content.species[speciesId];
   return { id, unitId: unit.id, side: 'home', speciesId, typeIds: [species.typeId, ...(species.secondaryTypeId ? [species.secondaryTypeId] : [])],
@@ -239,7 +243,7 @@ export function applyGymCircuitAction(state: GameState, actorId: number, action:
       for (const id of action.unitIds) state.units[id]!.xp += RULES.reward.xp;
     }
     return [{ type: 'GymChallenged', public: true, playerId: actorId, gymId: gym.id, victory, badges: circuit.badges[actorId].length,
-      teamPower, leaderPower: leaderTeamFor(held).power, battle }];
+      teamPower, leaderPower: leaderTeamFor(held, content).power, battle }];
   }
   const battles: BattleTrace[] = [];
   let reached = 0;

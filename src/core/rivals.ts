@@ -4,6 +4,7 @@
 import { RIVAL_COUNTERS, RIVAL_LINES, RIVAL_NAMES, RIVAL_RULES_V24, RIVAL_TEAMS } from '../content/rivals.ts';
 import type { SpeciesId } from '../content/species.ts';
 import type { Content } from '../content/units.ts';
+import { world24Tuning } from '../content/world24-tuning.ts';
 import { stableSeed } from './civilization-systems.ts';
 import { resolveAttack } from './combat.ts';
 import { dualEffectiveness } from './combat-math.ts';
@@ -108,7 +109,7 @@ export function spiritFor(state: GameState, playerId: number, encounter: number,
   const attacks = Object.values(state.units).filter(isMapUnit).filter(unit => unit.ownerId === playerId && unit.kind === 'pokemon')
     .map(unit => content.species[(unit as Extract<MapUnit, { kind: 'pokemon' }>).speciesId].attack).sort((a, b) => b - a);
   const strength = attacks.length > 1 ? attacks[1] : attacks[0] ?? 0;
-  return Math.max(-RULES.strengthCap, Math.min(RULES.strengthCap, strength + RULES.strengthOffsets[encounter] - content.species[speciesId].attack));
+  return Math.max(-RULES.strengthCap, Math.min(RULES.strengthCap, strength + world24Tuning(content).rivalStrengthOffsets[encounter] - content.species[speciesId].attack));
 }
 
 // ---------- round end ----------
@@ -181,7 +182,7 @@ function actRival(state: GameState, unit: MapUnit & { kind: 'pokemon' }, playerI
   const route = map.features ? routeDistances(map, hexToIndex(city.position, map)!, canStand) : null;
   const toward = (index: number, hex: Hex) => route?.get(index) ?? (route ? Infinity : hexDistance(hex, city!.position, map));
   const path = [{ ...unit.position }];
-  for (let step = 0; step < RULES.stepsPerRound; step++) {
+  for (let step = 0; step < world24Tuning(content).rivalStepsPerRound; step++) {
     const here = hexToIndex(unit.position, map)!, onRoute = route?.has(here) ?? false;
     const occupied = occupiedTiles(state), distance = onRoute ? toward(here, unit.position) : hexDistance(unit.position, city.position, map);
     if (hexDistance(unit.position, city.position, map) <= species.range) break;
@@ -196,8 +197,8 @@ function actRival(state: GameState, unit: MapUnit & { kind: 'pokemon' }, playerI
   }
   return path.length > 1 ? [{ type: 'Moved', unitId: unit.id, path }] : [];
 }
-function announce(state: GameState, playerId: number, canStand: StandRule): EventPayload[] {
-  const ledger = ledgerOf(state, playerId), arrival = RULES.arrivals[ledger.encounter];
+function announce(state: GameState, playerId: number, canStand: StandRule, content: Content): EventPayload[] {
+  const ledger = ledgerOf(state, playerId), arrival = world24Tuning(content).rivalArrivals[ledger.encounter];
   const skip = (reason: 'eliminated' | 'no-site'): EventPayload[] => { ledger.encounter++; ledger.outcomes.push('skipped'); return [{ type: 'RivalSkipped', playerId, encounter: ledger.encounter, reason }]; };
   if (state.players[playerId].eliminated) return skip('eliminated');
   const cityId = targetCity(state, playerId, ledger.encounter);
@@ -256,8 +257,8 @@ export function resolveRivalRound(state: GameState, content: Content, canStand: 
       }
     }
     if (ledger.pending && state.round + 1 >= ledger.pending.round) events.push(...arrive(state, playerId, canStand, content));
-    const next = RULES.arrivals[ledger.encounter];
-    if (!ledger.pending && !ledger.activeUnitIds.length && next !== undefined && state.round + 1 >= next - RULES.warningRounds) events.push(...announce(state, playerId, canStand));
+    const next = world24Tuning(content).rivalArrivals[ledger.encounter];
+    if (!ledger.pending && !ledger.activeUnitIds.length && next !== undefined && state.round + 1 >= next - RULES.warningRounds) events.push(...announce(state, playerId, canStand, content));
   }
   return events;
 }
@@ -280,7 +281,7 @@ export function recordRivals(before: GameState, after: GameState, events: readon
 }
 
 /** The target's own ledger and warning, plus every rival Pokémon in sight. */
-export function observeRivals(state: GameState, playerId: number, visible: ReadonlySet<number>): RivalView | undefined {
+export function observeRivals(state: GameState, playerId: number, visible: ReadonlySet<number>, content?: Content): RivalView | undefined {
   const rivals = state.expansion?.rivals, ledger = rivals?.byPlayer[playerId];
   if (!rivals || !ledger) return undefined;
   const sightings = Object.keys(rivals.unitTargets).map(Number).sort((a, b) => a - b).flatMap(unitId => {
@@ -291,7 +292,7 @@ export function observeRivals(state: GameState, playerId: number, visible: Reado
   });
   return { name: ledger.name, encounter: ledger.encounter, ...(ledger.pending ? { pending: { ...ledger.pending } } : {}), activeUnitIds: [...ledger.activeUnitIds],
     ...(ledger.arrivedAtRound !== undefined ? { arrivedAtRound: ledger.arrivedAtRound } : {}),
-    nextArrival: ledger.pending?.round ?? RULES.arrivals[ledger.encounter] ?? null, outcomes: [...ledger.outcomes], sightings };
+    nextArrival: ledger.pending?.round ?? world24Tuning(content).rivalArrivals[ledger.encounter] ?? null, outcomes: [...ledger.outcomes], sightings };
 }
 /** Original lines for a visit (1-based). */
 export const rivalLines = (encounter: number) => RIVAL_LINES[Math.max(0, Math.min(RIVAL_LINES.length - 1, encounter - 1))];

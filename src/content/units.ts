@@ -13,6 +13,8 @@ import { BALLS, BIOME_YIELDS, BUILDINGS, TECHS } from './economy.ts';
 import type { BuildingId, TechDefinition, TechId, TechTable } from './economy.ts';
 import { TREE_BUILDING_TECH, TREE_RECRUITS, TREE_TECHS } from './tech-tree.ts';
 import type { BiomeId } from './rules.ts';
+import { WORLD24_TUNING } from './world24-tuning.ts';
+import type { World24Tuning } from './world24-tuning.ts';
 
 export const STARTER_IDS = ['bulbasaur', 'charmander', 'squirtle'] as const;
 export type StarterId = (typeof STARTER_IDS)[number];
@@ -39,6 +41,8 @@ export type Content = {
   /** Gameplay v24 (docs/design/world-v24.md): terrain generation and features (A1), embarking and impassable peaks (A2), landmarks and
    * habitats (A3), gym circuit (B), rival trainers (C), Pokédex research tasks (D). */
   terrain?: true; embark?: true; landmarks?: true; gymCircuit?: true; rivals?: true; researchTasks?: true;
+  /** Gameplay v24 balance knobs (src/content/world24-tuning.ts); only the v24 content carries them, so patches cannot reach older rules. */
+  world24?: World24Tuning;
   /** Gameplay v14 only: species-keyed tables that older contents read from their global constants. */
   roster?: RosterTables;
 };
@@ -148,7 +152,8 @@ export const WORLD_CONTENT: Content = { ...OPENING_CONTENT, version: 'world-v22'
 /** v23: v22 content plus the three improvement flags (spec docs/design/improvements-v23.md). */
 export const IMPROVEMENT_CONTENT: Content = { ...WORLD_CONTENT, version: 'improvements-v23', resourceImprovements: true, pillage: true, builderCrews: true };
 /** v24: v23 content plus the six world flags (spec docs/design/world-v24.md). */
-export const WORLD24_CONTENT: Content = { ...IMPROVEMENT_CONTENT, version: 'world-v24', terrain: true, embark: true, landmarks: true, gymCircuit: true, rivals: true, researchTasks: true };
+export const WORLD24_CONTENT: Content = { ...IMPROVEMENT_CONTENT, version: 'world-v24', terrain: true, embark: true, landmarks: true, gymCircuit: true, rivals: true, researchTasks: true,
+  world24: structuredClone(WORLD24_TUNING) };
 /** A technology of this content (throws for ids the content does not define, e.g. a v22 id in an older game). */
 export function techOf(content: Content, id: TechId): TechDefinition {
   const tech = content.techs[id];

@@ -115,11 +115,11 @@ node tools/balance-run.ts --preset gate --out /tmp/balance/gate-v23             
 node tools/balance-report.ts /tmp/balance/gate-v23 --anchor /tmp/balance/gate-v22 --out docs/design/balance/gate-v23.md
 ```
 
-输出目录：`games/<id>.json`（逐局记录：对局编排、`simulateLeaderCase` 的完整结果、每轮结束时每方的城数 / 分数 / 科技数 / 是否出局、每 10 轮的曲线快照）、`metrics.jsonl`（每局一行，由逐局记录推出）、`curves.jsonl`（每局 × 每 10 轮 × 每方一行：城市、人口、粮 / 产 / 金 / 研每轮产出、科技、分数、金库、世代、军队与各兵种数）、`manifest.json`（命令、git head 与是否有未提交改动、Node 版本、解析后的参数、补丁及其 SHA-256、内容版本、编排哈希、子进程数、墙钟 / CPU 时间、每局耗时）。
+输出目录：`games/<id>.json`（逐局记录：对局编排、`simulateLeaderCase` 的完整结果、每轮结束时每方的城数 / 分数 / 科技数 / 是否出局、每 10 轮的曲线快照；v24 另有 `world24`：每方徽章数与首枚徽章轮次、四天王挑战次数与胜负、劲敌每次登场的结果，以及乘浪时被打倒的己方宝可梦数）、`metrics.jsonl`（每局一行，由逐局记录推出）、`curves.jsonl`（每局 × 每 10 轮 × 每方一行：城市、人口、粮 / 产 / 金 / 研每轮产出、科技、分数、金库、世代、军队与各兵种数）、`manifest.json`（命令、git head 与是否有未提交改动、Node 版本、解析后的参数、补丁及其 SHA-256、内容版本、编排哈希、子进程数、墙钟 / CPU 时间、每局耗时）。
 
 - **可复现**：同样的参数 → `games/*.json`、`metrics.jsonl`、`curves.jsonl` 逐字节相同，与子进程数无关（`node tools/compare-games.ts 目录A 目录B` + `cmp`）；只有 `manifest.json` 记录时间和子进程数。观察只读：曲线快照在状态副本上算，测试保证带观察和不带观察的 `simulateLeaderCase` 结果逐字节一致。
 - **口径**：11 月目标的精确定义写在 `balance-metrics.ts` 的 `NOVEMBER_TARGETS` 和报告里。第一项科技 / 第三城取"每个文明"的中位数，达不到记 ∞（不从分母里剔除）；中位结束轮取完成对局的中位数。
-- **补丁 / 扫描能改什么**：`tools/patch.ts` 的叶子（物种数值、建筑 / 科技 / 精灵球价格、地形产出、移动消耗、`balance.city.*`、`balance.effects.*`、`balance.score.*`、`ai.*`），按该版本的内容表校验（`parsePatch(json, contentFor(setup))`）；`simulateLeaderCase(match, onState, { content, ai })` 接收覆盖。模块常量（`FAITH_RULES`、`CONTEST_RULES`、`STRENGTH_RULES`、`OPENING_RULES`、`WORLD_DEFINITIONS`、冠军赛参数、AI 规划器里的评分常数等）还不在 `Content` 里，不能扫。规则里少数调用点在没传 `content` 时退回 `contentFor(state.setup)`，所以"无影响"的格子要先确认是不是这个原因。
+- **补丁 / 扫描能改什么**：`tools/patch.ts` 的叶子（物种数值、建筑 / 科技 / 精灵球价格、地形产出、移动消耗、`balance.city.*`、`balance.effects.*`、`balance.score.*`、`ai.*`；gameplay v24 另有 `world24.*`：`landPercent`、`rivalArrivals.0–2`、`rivalStrengthOffsets.0–2`、`rivalStepsPerRound`、`gymTeamPower.0–7`、`gymLatePowerPercent`（第 5–8 枚徽章的馆主战力百分比）、`eliteFourPower.0–4`，见 `src/content/world24-tuning.ts`；更早的内容表没有这一组，补丁会被拒绝），按该版本的内容表校验（`parsePatch(json, contentFor(setup))`）；`simulateLeaderCase(match, onState, { content, ai })` 接收覆盖。模块常量（`FAITH_RULES`、`CONTEST_RULES`、`STRENGTH_RULES`、`OPENING_RULES`、`WORLD_DEFINITIONS`、冠军赛参数、AI 规划器里的评分常数等）还不在 `Content` 里，不能扫。规则里少数调用点在没传 `content` 时退回 `contentFor(state.setup)`，所以"无影响"的格子要先确认是不是这个原因。
 
 ## 归档与验证
 

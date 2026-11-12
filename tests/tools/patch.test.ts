@@ -154,3 +154,20 @@ test('a stock-valued patch on version content changes nothing; a real one is app
   expect(() => parsePatch({ techs: { [Object.keys(base.techs)[0]]: { cost: 20 } } }, base)).not.toThrow();
   expect(() => parsePatch({ balance: { city: { defense: 0 } } }, base)).toThrow('patch.balance.city.defense');
 });
+
+test('v24 tuning knobs: patchable on the v24 content only, and they reach map generation, gyms and rivals', () => {
+  const v24 = contentFor({ expansionVersion: 1, gameplayVersion: 24 }), v23 = contentFor({ expansionVersion: 1, gameplayVersion: 23 });
+  expect(() => parsePatch({ world24: { landPercent: 64 } }, v23)).toThrow('patch.world24: unknown field');
+  const tuned = parsePatch({ world24: { landPercent: 64, rivalArrivals: { 0: 12 }, rivalStrengthOffsets: { 0: -10 }, rivalStepsPerRound: 3, gymLatePowerPercent: 85,
+    gymTeamPower: { 0: 180 }, eliteFourPower: { 4: 900 } } }, v24).content;
+  expect(tuned.world24).toMatchObject({ landPercent: 64, rivalArrivals: [12, 25, 50], rivalStrengthOffsets: [-10, -2, 2], rivalStepsPerRound: 3, gymLatePowerPercent: 85 });
+  expect(tuned.world24!.gymTeamPower[0]).toBe(180);
+  expect(tuned.world24!.eliteFourPower[4]).toBe(900);
+  expect(v24.world24!.rivalArrivals).toEqual([8, 25, 50]);
+  expect(() => parsePatch({ world24: { rivalArrivals: { 3: 70 } } }, v24)).toThrow('patch.world24.rivalArrivals.3');
+  const setup = { seed: 31, width: 40, height: 26, roundLimit: 200 as const, expansionVersion: 1 as const, eraProgression: 'simple-v1' as const, gameplayVersion: 24 as const,
+    players: [0, 1, 2, 3].map(id => ({ id, controller: 'ai' as const })) };
+  const land = (content = v24) => createGame(setup, content).map.tiles.filter(tile => tile !== 'ocean').length;
+  expect(land(tuned)).toBeGreaterThan(land());
+  expect(observe(createGame(setup, tuned), 0, tuned).expansion!.rivals!.nextArrival).toBe(12);
+});

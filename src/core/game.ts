@@ -36,7 +36,7 @@ export function createGame(setup: GameSetup, content: Content = contentFor(setup
     throw new Error('Expected 2–4 distinct players and at most one human with a chosen starter.');
   }
   // v24 (world-v24 §2.1): continents and terrain features come from their own generator.
-  const generated = content.terrain ? generateWorldMap({ ...setup, playerCount: setup.players.length })
+  const generated = content.terrain ? generateWorldMap({ ...setup, playerCount: setup.players.length, ...(content.world24 ? { landPercent: content.world24.landPercent } : {}) })
     : generateMap({ ...setup, playerCount: setup.players.length, ...(content.wrap ? { wrap: true } : {}) });
   const state: GameState = {
     ...gameVersions(setup), contentVersion: content.version,

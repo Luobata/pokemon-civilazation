@@ -22,7 +22,7 @@ const advantage = (team: readonly Pokemon[], gym: GymSite, content: Content) => 
 /** Whether this team is strong enough for the viewer's next leader at this gym (§3.4). */
 export function gymReady(view: PlayerView, gym: GymSite, team: readonly Pokemon[], content: Content): boolean {
   const badges = view.expansion?.gymCircuit?.badges[view.playerId]?.length ?? 0;
-  const power = team.reduce((sum, unit) => sum + effectivePower(unit, content), 0), needed = leaderTeamFor(badges).power;
+  const power = team.reduce((sum, unit) => sum + effectivePower(unit, content), 0), needed = leaderTeamFor(badges, content).power;
   return power * 100 >= needed * (advantage(team, gym, content) ? 110 : 125);
 }
 const atWar = (view: PlayerView) => view.diplomacy.some(pair => pair.status === 'war' && (pair.a === view.playerId || pair.b === view.playerId));

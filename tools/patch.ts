@@ -40,8 +40,15 @@ export function patchSchema(base: Content): Schema {
     expansionMaySiege: 'boolean', expansionSiegeStrength: [0, 10_000], expansionBorderDistance: [1, 24],
     conservativeSettlerInterval: [1, 300], peaceCitiesLost: [1, 100], expansionCaptureHpPercent: [1, 100],
   },
+  // v24 knobs (src/content/world24-tuning.ts): only a content that carries them (gameplay v24) accepts them.
+  ...(base.world24 ? { world24: {
+    landPercent: [30, 80], rivalArrivals: indexed(base.world24.rivalArrivals, [2, 300]), rivalStrengthOffsets: indexed(base.world24.rivalStrengthOffsets, [-30, 30]),
+    rivalStepsPerRound: [1, 6], gymTeamPower: indexed(base.world24.gymTeamPower, [10, 5000]), gymLatePowerPercent: [10, 300],
+    eliteFourPower: indexed(base.world24.eliteFourPower, [10, 5000]),
+  } } : {}),
   };
 }
+const indexed = (values: readonly unknown[], range: readonly [number, number]): Schema => Object.fromEntries(values.map((_, index) => [String(index), range]));
 export const PATCH_SCHEMA: Schema = patchSchema(CONTENT);
 function validate(value: unknown, schema: Schema, path: string): void {
   if (schema === 'boolean') {

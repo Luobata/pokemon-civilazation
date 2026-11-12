@@ -141,7 +141,7 @@ export function gymCardMarkup(view: PlayerView, unitId: number): string | null {
   const unit = view.units.find(item => item.id === unitId && item.ownerId === view.playerId);
   const state = unit && gymBarState(view, unit);
   if (!state) return null;
-  const content = contentForView(view), { gym, team, reason } = state, row = leaderTeamFor(badgesOf(view).length);
+  const content = contentForView(view), { gym, team, reason } = state, row = leaderTeamFor(badgesOf(view).length, content);
   const members = team.map(id => view.units.find(item => item.id === id)!).filter((item): item is Extract<MapUnit, { kind: 'pokemon' }> => item.kind === 'pokemon');
   const power = members.reduce((sum, item) => sum + unitPower(item, content), 0), ratio = Math.round(power * 100 / row.power);
   const side = members.map(item => `<div class="cp-who"><span class="cp-sprite"><img src="${pokemonSpritePath(item.speciesId)}" alt="" width="40" height="40"></span><p><strong>${esc(unitDefinition(item, content).name)}</strong><small>HP ${item.hp}/${content.species[item.speciesId].maxHp} · 战力 ${unitPower(item, content)}</small></p></div>`).join('');

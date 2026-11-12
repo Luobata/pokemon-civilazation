@@ -21,6 +21,8 @@ const WATER = -1;
 type World = {
   size: GridSize; n: number; width: number; height: number; rng: RngState;
   nbr: Int32Array; adj: number[][]; owner: Int32Array; lake: Uint8Array;
+  /** §2.1 land share in percent (MAP_GENERATION_V24.landPercent unless the content's tuning overrides it). */
+  landPercent: number;
 };
 const row = (w: World, i: number) => Math.floor(i / w.width);
 const isLand = (w: World, i: number) => w.owner[i] !== WATER;
@@ -62,7 +64,7 @@ function weightedPick(w: World, list: readonly number[], weight: (i: number) => 
 function shapeLand(w: World, playerCount: number): { continents: number; civsOn: number[] } {
   const C = Math.ceil(playerCount / 2);
   const civsOn = Array.from({ length: C }, (_, c) => Math.floor(playerCount / C) + (c < playerCount % C ? 1 : 0));
-  const landTarget = Math.floor(w.n * P.landPercent / 100), islandTarget = Math.floor(landTarget * P.islandPercent / 100);
+  const landTarget = Math.floor(w.n * w.landPercent / 100), islandTarget = Math.floor(landTarget * P.islandPercent / 100);
   const allowedRow = (i: number) => row(w, i) >= P.poleRows && row(w, i) < w.height - P.poleRows;
   const offset = randomBelow(w.rng, w.width), middle = Math.floor(w.height / 2);
   const centers = civsOn.map((_, c) => {
@@ -362,7 +364,7 @@ function placeLandmarks(w: World, relief: Relief, C: number, seed: number, start
 }
 
 export function generateWorldMap({ seed, width = DEFAULT_MAP.width, height = DEFAULT_MAP.height,
-  playerCount = DEFAULT_MAP.playerCount }: Partial<MapSetup> & { seed: number }): MapState {
+  playerCount = DEFAULT_MAP.playerCount, landPercent = P.landPercent }: Partial<MapSetup> & { seed: number; landPercent?: number }): MapState {
   if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width < 1 || height < 1
     || !Number.isSafeInteger(width * height) || !Number.isInteger(playerCount) || playerCount < 2 || playerCount > 4) {
     throw new RangeError('Map dimensions must be positive integers; player count must be 2..4.');
@@ -373,7 +375,7 @@ export function generateWorldMap({ seed, width = DEFAULT_MAP.width, height = DEF
     neighbors(indexToHex(i, size), size).forEach((hex, k) => { nbr[i * 6 + k] = hexToIndex(hex, size) ?? -1; });
     adj.push(Array.from(nbr.subarray(i * 6, i * 6 + 6)).filter(j => j >= 0));
   }
-  const w: World = { size, n, width, height, rng: createRng(seed), nbr, adj, owner: new Int32Array(n).fill(WATER), lake: new Uint8Array(n) };
+  const w: World = { size, n, width, height, rng: createRng(seed), nbr, adj, owner: new Int32Array(n).fill(WATER), lake: new Uint8Array(n), landPercent };
   const { continents, civsOn } = shapeLand(w, playerCount);
   const relief = shapeRelief(w, continents);
   const { tiles } = relief;
