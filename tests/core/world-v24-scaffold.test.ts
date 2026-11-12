@@ -25,6 +25,9 @@ test('v24 scaffolding: the v24 map comes from its own generator (A1); v23 maps c
   expect(v23.map.features).toBeUndefined();
   expect(observe(v23, 0).map.features).toBeUndefined();
   expect(observe(v24, 0).map.features!.hills.every(tile => observe(v24, 0).knowledge.exploredTileIds.includes(tile))).toBe(true);
+  // Feature D adds its own ledger; v23 has none.
+  expect(v24.expansion!.researchTasks).toBeDefined();
+  expect(v23.expansion!.researchTasks).toBeUndefined();
   const challenge = { actorId: 0, expectedSeq: 0, action: { type: 'ChallengeGym' as const, gymId: 1, unitIds: [1] } };
   expect(step(v24, challenge)).toEqual({ ok: false, reason: 'invalid-command' });
   expect(step(v23, challenge)).toEqual({ ok: false, reason: 'invalid-command' });

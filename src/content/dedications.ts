@@ -19,7 +19,7 @@ export type DedicationDefinition = {
 export const DEDICATION_TRIGGERS: Record<DedicationTrigger, string> = {
   documentedSpecies: '图鉴新记录物种', cityFounded: '建立新城市', evolution: '宝可梦进化', capture: '成功捕捉', charterAdopted: '确立联盟规章',
   districtCompleted: '建成设施区', nestCleared: '清除巢穴', sanctuaryEstablished: '建立圣所', guardianDefeated: '击败圣所守卫', faithFounded: '创立信仰',
-  contestHallBuilt: '建成华丽馆', discovery: '图鉴发现', cityCaptured: '攻占城市', legendWonder: '建成传说奇观', landmarkDiscovered: '发现自然地标',
+  contestHallBuilt: '建成华丽馆', discovery: '图鉴发现', cityCaptured: '攻占城市', legendWonder: '建成传说奇观', landmarkDiscovered: '发现自然地标', researchComplete: '图鉴调查完成',
   techCompleted: '完成科技', buildingCompleted: '建成建筑', enemyDefeated: '击倒敌方文明的单位', contestHeld: '举办华丽大赛', cityConverted: '城市改宗本文明信仰',
   tradeRoute: '开通商路', exploration: '每新探索 15 格',
 };
