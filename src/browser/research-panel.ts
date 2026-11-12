@@ -7,6 +7,9 @@ import { DISCOVERIES, DISCOVERY_PERCENT } from '../content/discoveries.ts';
 import { TECH_TIERS, techUnlocks, techsInTier } from './tech-info.ts';
 import { renderTechTree } from './tech-tree-panel.ts';
 import { civHint } from './civ-hint.ts';
+import { statChip, uiIcon } from './ui-icons.ts';
+import { TECH_ICONS, unlockPicture } from './unlock-icons.ts';
+import '../ui-icons.css';
 
 const TIER_NOTES = ['无前置', '需完成任一第一层科技', '需完成任一第二层科技'];
 
@@ -40,13 +43,13 @@ export function renderResearchPanel(view: PlayerView, issue: (action: Command['a
     const def = tech(id), done = research.unlockedIds.includes(id), active = id === current, available = !done && canResearch(player, id);
     const state = done ? 'done' : active ? 'active' : available ? 'available' : 'locked';
     const label = done ? '已完成' : active ? `研究中 · 剩 ${def.cost - research.progressByTech[id]}` : available ? '可研究' : '未解锁';
-    const eureka = found ? `<div class="tech-eureka ${found.includes(id) ? 'hit' : ''}"><span class="eureka-mark" aria-hidden="true">${found.includes(id) ? '★' : '☆'}</span><div><b>图鉴发现 · ${discoveryText(id, Boolean(CONTENT.opening)).name}</b><small>${discoveryText(id, Boolean(CONTENT.opening)).hint}${found.includes(id) ? ` · 已触发 +${DISCOVERY_PERCENT}%` : ` · 达成后 +${DISCOVERY_PERCENT}%`}</small></div></div>` : '';
+    const eureka = found ? `<div class="tech-eureka ${found.includes(id) ? 'hit' : ''}"><span class="eureka-mark">${uiIcon('pokedex', { size: 22, label: found.includes(id) ? '图鉴发现已触发' : '图鉴发现未触发' })}</span><div><b>图鉴发现 · ${discoveryText(id, Boolean(CONTENT.opening)).name}</b><small>${discoveryText(id, Boolean(CONTENT.opening)).hint}${found.includes(id) ? ` · 已触发 +${DISCOVERY_PERCENT}%` : ` · 达成后 +${DISCOVERY_PERCENT}%`}</small></div></div>` : '';
     const action = available && !active ? `<button type="button" data-tech="${id}" ${disabled ? 'disabled' : ''}>研究此项</button>` : '';
     return `<article class="tech-card ${state}" data-tech-card="${id}" aria-label="${def.name} · ${label}">
-      <header><strong>${def.name}</strong><span class="tech-cost">${def.cost}</span></header>
+      <header><span class="detail-icon ${state}">${uiIcon(TECH_ICONS[id], { size: 30 })}</span><strong>${def.name}</strong>${statChip('research', def.cost, '科研', 'tech-cost-icon')}</header>
       <p class="tech-state">${label}</p>
       <div class="tech-progress" aria-hidden="true"><span style="width:${done ? 100 : percent(id)}%"></span></div>
-      <ul class="tech-unlocks">${techUnlocks(id, CONTENT, view.gameplayVersion).map(item => `<li class="${item.kind}">${item.text}</li>`).join('')}</ul>
+      <ul class="tech-unlocks">${techUnlocks(id, CONTENT, view.gameplayVersion).map(item => `<li class="${item.kind}"><span class="unlock-chip ${item.kind}" aria-hidden="true">${unlockPicture(item, id, 22)}</span><span>${item.text}</span></li>`).join('')}</ul>
       ${eureka}${action}
     </article>`;
   };

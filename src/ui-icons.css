@@ -9,3 +9,79 @@
 .ui-tip-card .tip-unlocks { display: grid; gap: 3px; margin: 2px 0; padding: 0; list-style: none; }
 .ui-tip-card .tip-unlocks li { display: flex; gap: 6px; align-items: center; color: #D6E4D8; font-size: 12px; }
 
+/* ---------- Unlock chips ---------- */
+.unlock-chip { position: relative; display: inline-grid; place-items: center; flex: none; width: 28px; height: 28px; border: 1px solid #34494C; border-radius: 6px; background: #1A2C30; }
+.unlock-chip.recruit { border-color: #4F8A66; background: radial-gradient(circle at 50% 60%, #2E5440, #15281F); }
+.unlock-chip.building { border-color: #7A6436; background: #3A3020; }
+.unlock-chip.district { border-color: #64558E; background: #2A2540; }
+.unlock-chip.improvement { border-color: #5E7E3C; background: #253220; }
+.unlock-chip.class { border-color: #3F6FB8; background: #1A2C46; }
+.unlock-chip.effect { border-color: #6E6243; background: #2A2A20; }
+.unlock-chip.boost::after { content: "+"; position: absolute; top: -6px; right: -4px; color: #8CD3A2; font: 700 12px/1 system-ui, sans-serif; text-shadow: 0 0 2px #000, 0 0 2px #000; }
+
+/* ---------- Research tree nodes ---------- */
+.tech-tree-v22 .tech-node { grid-template-columns: 42px minmax(0, 1fr); grid-template-areas: "icon main" "bar bar" "marks marks"; gap: 6px 8px; padding: 7px 8px 8px 11px; }
+.tech-node .node-icon { grid-area: icon; position: relative; display: grid; place-items: center; width: 42px; height: 42px; border: 1px solid color-mix(in srgb, var(--line) 60%, #0D1D21); border-radius: 8px;
+  background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--line) 38%, #0D1D21), #0D1D21 75%); }
+.tech-node .node-state-badge { position: absolute; right: -6px; bottom: -6px; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: #0D1D21; box-shadow: 0 0 0 1px #2E4448; }
+.tech-node .node-main { grid-area: main; display: grid; align-content: center; gap: 4px; min-width: 0; padding-right: 16px; }
+.tech-node .node-main strong { overflow: hidden; color: #F3E7C9; font-size: 13.5px; text-overflow: ellipsis; white-space: nowrap; }
+.tech-tree-v22 .tech-node .node-meta { justify-content: flex-start; gap: 9px; }
+.tech-node .node-eureka { position: absolute; top: 6px; right: 6px; line-height: 0; }
+.tech-node .node-eureka.pending img { opacity: .4; filter: grayscale(1); }
+.tech-node .node-eureka.found img { filter: drop-shadow(0 0 3px #F7D25C); }
+.tech-tree-v22 .tech-node .node-progress { grid-area: bar; }
+.tech-tree-v22 .tech-node .node-marks { grid-area: marks; gap: 4px; min-height: 28px; }
+.tech-tree-v22 .tech-node.done .node-icon { border-color: #5F9F7E; }
+.tech-tree-v22 .tech-node.done .node-state-badge { box-shadow: 0 0 0 1px #5F9F7E; }
+.tech-tree-v22 .tech-node.active .node-icon { border-color: #6FC0F0; box-shadow: 0 0 10px #4A9FD4; }
+.tech-tree-v22 .tech-node.active .node-state-badge { box-shadow: 0 0 0 1px #6FC0F0; }
+.tech-tree-v22 .tech-node.available { box-shadow: inset 4px 0 0 var(--line), 0 0 10px rgb(240 200 100 / 22%); }
+.tech-tree-v22 .tech-node.available .node-icon { border-color: var(--gold); }
+.tech-tree-v22 .tech-node.locked .node-icon img, .tech-tree-v22 .tech-node.locked .node-marks { filter: saturate(.3) brightness(.8); }
+.tech-tree-v22 .tech-node.locked .node-marks { opacity: .75; }
+.tech-tree-v22 .tech-node.selected { box-shadow: inset 4px 0 0 var(--line), 0 0 0 3px var(--focus); }
+
+/* Legend */
+.tech-icon-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: -4px 0 10px; padding: 0; list-style: none; color: var(--ink-secondary); font-size: 11px; }
+.tech-icon-legend li { display: inline-flex; align-items: center; gap: 4px; }
+.tech-icon-legend .legend-gap { margin-left: 10px; }
+.tech-icon-legend .unlock-chip { width: 20px; height: 20px; border-radius: 4px; }
+.tech-icon-legend .legend-frame { display: inline-grid; place-items: center; width: 20px; height: 20px; border: 2px solid var(--border-strong); border-radius: 4px; background: var(--surface); }
+.tech-icon-legend .done .legend-frame { border-color: #6FB58F; background: #16291F; }
+.tech-icon-legend .active .legend-frame { border-color: #4A9FD4; background: #13304A; }
+.tech-icon-legend .available .legend-frame { border-color: var(--gold); }
+.tech-icon-legend .locked .legend-frame { border-style: dashed; }
+
+/* Summary */
+.research-current { display: flex; align-items: center; gap: 10px; }
+.research-stats { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: 4px; }
+.detail-icon { display: grid; place-items: center; flex: none; padding: 5px; border: 2px solid color-mix(in srgb, var(--line, #4A9FD4) 70%, #0D1D21); border-radius: 10px;
+  background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--line, #4A9FD4) 40%, #0D1D21), #0D1D21 80%); }
+.detail-icon.active { border-color: #6FC0F0; box-shadow: 0 0 10px #4A9FD4; }
+.detail-icon.done { border-color: #5F9F7E; }
+.detail-icon.locked img { filter: saturate(.3) brightness(.85); }
+
+/* Details beside the tree */
+.tech-detail header { align-items: center; justify-content: flex-start; }
+.tech-detail header > div { display: grid; justify-items: start; gap: 4px; }
+.tech-stats { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 0; }
+.tech-stats .icon-stat { font-size: 12px; }
+.tech-column-chip { color: var(--ink-muted); font-size: 11px; }
+.tech-requires li { display: flex; align-items: center; gap: 5px; }
+.tech-detail .tech-unlocks { gap: 5px; }
+.tech-detail .tech-unlocks li { align-items: center; gap: 8px; color: #E6DDC4; font-size: 12px; }
+.tech-detail .tech-unlocks li small { display: block; color: var(--ink-muted); font-size: 10px; }
+.tech-detail .tech-unlocks .unlock-chip { width: 32px; height: 32px; }
+.tech-leads { display: flex; flex-wrap: wrap; gap: 4px 10px; margin: 0; }
+.tech-lead { display: inline-flex; align-items: center; gap: 4px; color: var(--ink-secondary); font-size: 12px; }
+.tech-eureka .eureka-mark { line-height: 0; }
+.tech-eureka:not(.hit) .eureka-mark img { opacity: .5; filter: grayscale(1); }
+
+/* Older games' three-tier research cards */
+.tech-card header { align-items: center; justify-content: flex-start; }
+.tech-card header strong { flex: 1; }
+.tech-card .detail-icon { padding: 3px; border-width: 1px; border-radius: 8px; }
+.tech-card .tech-unlocks li { display: flex; align-items: center; gap: 6px; }
+.tech-card .tech-unlocks li::before { content: none; }
+.tech-card .tech-unlocks .unlock-chip { width: 26px; height: 26px; }

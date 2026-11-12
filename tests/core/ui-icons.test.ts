@@ -1,5 +1,9 @@
 import { expect, test } from 'vitest';
 import { iconGrid, iconUrl, statChip, typeBadge, uiIcon, UI_ICON_NAMES, artImage } from '../../src/browser/ui-icons.ts';
+import { TECH_ICONS, unlockChip } from '../../src/browser/unlock-icons.ts';
+import { techUnlocks } from '../../src/browser/tech-info.ts';
+import { TREE_TECH_IDS } from '../../src/content/tech-tree.ts';
+import { WORLD_CONTENT } from '../../src/content/units.ts';
 import { TYPE_NAMES } from '../../src/content/type-names.ts';
 
 test('the icon kit covers types, classes, HMs, meters, items and unlock kinds; every grid is rectangular and fully paletted', () => {
@@ -25,3 +29,9 @@ test('icons are named or explicitly decorative', () => {
   expect(artImage('/buildings/workshop.svg', { label: '精灵球工坊' })).toContain('alt="精灵球工坊"');
 });
 
+test('every v22 tech has a subject icon, and each unlock chip carries its full sentence as its accessible name', () => {
+  for (const id of TREE_TECH_IDS) {
+    expect(UI_ICON_NAMES, id).toContain(TECH_ICONS[id]);
+    for (const item of techUnlocks(id, WORLD_CONTENT, 22)) expect(unlockChip(item, id), `${id}: ${item.text}`).toContain(`：${item.text.replace(/"/g, '&quot;')}" title=`);
+  }
+});
