@@ -5,6 +5,17 @@
 import { toastResolved } from './notifications.ts';
 import type { Toast, ToastTarget } from './notifications.ts';
 import type { PlayerView } from '../core/model.ts';
+import { uiIcon } from './ui-icons.ts';
+import type { UiIconName } from './ui-icons.ts';
+
+/** Pixel icon for each notification glyph (docs/design/ui-icons/README.md); unknown glyphs stay as text. */
+const GLYPH_ICONS: Record<string, UiIconName> = {
+  '⚗': 'research', '✦': 'pokedex', '◎': 'clipboard', '🏛': 'building', '▣': 'district', '★': 'star', '⏸': 'turns', '⇄': 'handshake',
+  '⚑': 'building', '↑': 'citizen', '↓': 'damaged', '✚': 'medicine', '✔': 'check', '◓': 'pokeBall', '◆': 'badge', '◇': 'gym', '♚': 'trophy',
+  '⚔': 'swords', '✕': 'damaged', '✖': 'heart', '☠': 'damaged', '!': 'swords', '…': 'move', '⌃': 'eraScore', '✉': 'handshake', '◷': 'eraScore',
+  '✧': 'wonder', '♛': 'wonder',
+};
+const railIcon = (glyph: string) => GLYPH_ICONS[glyph] ? uiIcon(GLYPH_ICONS[glyph]!, { size: 24, className: 'toast-pixel' }) : glyph;
 
 const MAX_ITEMS = 12;
 export const INFO_MS = 10_000;
@@ -29,7 +40,7 @@ export function railMarkup(entries: readonly Toast[], peekId: number | null): st
     const label = `${item.title}${item.detail ? `：${item.detail}` : ''}`;
     const actionable = Boolean(item.target);
     return `<div class="toast toast-${item.tone}${item.persistent ? ' is-persistent' : ''}${item.id === peekId ? ' is-peek' : ''}" data-toast="${item.id}" role="status">
-    <button type="button" class="toast-icon" data-toast-open="${item.id}" title="${escape(label)}${actionable ? '（点击前往，右键忽略）' : '（右键忽略）'}" aria-label="${escape(label)}">${item.icon}</button>
+    <button type="button" class="toast-icon" data-toast-open="${item.id}" title="${escape(label)}${actionable ? '（点击前往，右键忽略）' : '（右键忽略）'}" aria-label="${escape(label)}">${railIcon(item.icon)}</button>
     <div class="toast-card"><div class="toast-body"><strong>${item.title}</strong>${item.detail ? `<small>${item.detail}</small>` : ''}</div>
     ${item.target && item.action ? `<button type="button" class="toast-action" data-toast-action="${item.id}">${item.action}</button>` : ''}
     <button type="button" class="toast-close" data-toast-close="${item.id}" aria-label="忽略：${escape(item.title)}" title="忽略">×</button></div></div>`;

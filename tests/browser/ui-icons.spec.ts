@@ -36,6 +36,15 @@ test('icon-first panels: research tree, civics, city, era, world, unit and rail 
   const unitId = Object.values(fixture.state.units).find(unit => unit.ownerId === 0 && unit.kind === 'pokemon')!.id;
   await page.locator('#unit-select').selectOption(String(unitId));
   await shot(page, 'unit-panel');
+  if (phase !== 'before') {
+    // Stat tiles are icons over numbers; their labels stay as (hidden) text, and type badges are named.
+    await expect(page.locator('#unit-panel .unit-details .icon-tile')).toHaveCount(5);
+    await expect(page.locator('#unit-panel .unit-details')).toContainText('射程');
+    await expect(page.locator('#unit-panel .unit-types').getByRole('img', { name: /属性$/ }).first()).toBeVisible();
+    // Rail entries draw a pixel icon; the button keeps the notification text as its name.
+    const rail = page.locator('#toast-host .toast-icon');
+    if (await rail.count()) await expect(rail.first()).toHaveAttribute('aria-label', /.+/);
+  }
 
   await page.locator('#city-select').selectOption(String(fixture.state.players[0].headquartersCityId));
   await expect(page.locator('#production-list [data-production-option]').first()).toBeVisible();
@@ -96,5 +105,13 @@ test('icon-first panels: research tree, civics, city, era, world, unit and rail 
     await expect(page.locator('.dex-strip img').first()).toHaveAttribute('alt', /已(观察|对战|捕捉)/);
     await expectNamedIcons(page);
   }
+
+  // One turn later the notification rail has entries (Shift+click skips the reminders).
+  await page.locator('.screen:not([hidden]) .screen-close').click();
+  await page.locator('#end-turn').click({ modifiers: ['Shift'] });
+  await expect(page.locator('#toast-host .toast-icon').first()).toBeVisible({ timeout: 60_000 });
+  await page.locator('#toast-host .toast-icon').first().hover();
+  await shot(page, 'rail');
+  if (phase !== 'before') await expect(page.locator('#toast-host .toast-icon').first()).toHaveAttribute('aria-label', /.+/);
   expect(errors).toEqual([]);
 });

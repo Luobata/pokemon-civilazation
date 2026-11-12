@@ -165,6 +165,13 @@
 .gym-list-icons li small { color: var(--gold); }
 .gym-list-icons li.won { color: #CDEFD8; }
 
+/* ---------- Unit panel and notification rail ---------- */
+.unit-types { display: flex; gap: 3px; margin: 2px 0; }
+.unit-details .icon-tile { display: grid; justify-items: center; gap: 2px; padding: 6px 4px; }
+.unit-details .icon-tile strong { margin-top: 0; }
+.unit-vitals > span > .px-icon { margin-right: 3px; vertical-align: -2px; }
+.toast-icon .toast-pixel { pointer-events: none; }
+
 /* ---------- City: yields, production list, districts ---------- */
 .yield-grid .yield-item { align-items: center; justify-content: flex-start; gap: 5px; }
 .yield-grid .yield-item small { display: none; }
