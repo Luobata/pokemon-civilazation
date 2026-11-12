@@ -44,7 +44,7 @@ import { gymMoveTargets, planGymAction } from './gym-plan.ts';
 import { ownRivalHunters, rivalAttackBonus, rivalResponseTeam, rivalThreatenedCityIds, rivalTrainingBonus } from './rival-plan.ts';
 import { viewIsRivalUnit } from '../core/rivals.ts';
 import { researchCaptureScore } from './research-plan.ts';
-import { embarkResearchBonus, isBoarding, nearestTravel, safeToBoard, travelCloser, travelDistance, walkerTravel } from './travel.ts';
+import { embarkResearchBonus, isBoarding, moverOf, nearestTravel, safeToBoard, travelCloser, travelDistance, walkerTravel } from './travel.ts';
 import { canEnterTile, waterAccess } from '../core/movement.ts';
 import { wanderersFor } from '../content/roster.ts';
 import { featureVision, isEmbarked } from '../core/terrain.ts';
@@ -295,6 +295,10 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
   const rivalTeam = rivalResponseTeam(view, content, unit => escortTargets.has(unit.id) || sanctuaryTeam.includes(unit.id)
     || view.units.some(other => other.ownerId !== null && warEnemies.has(other.ownerId) && hexDistance(other.position, unit.position, view.map) <= 3)
     || known.some(city => city.ownerId !== null && warEnemies.has(city.ownerId) && hexDistance(city.position, unit.position, view.map) <= 3));
+  // v24 AI (sea safety): a land unit on the water cannot strike back, so it never steps onto a water tile next to a striking wild Pokémon,
+  // within 2 of its own rival's Pokémon or within 3 of an enemy at war (landing is always allowed), and leaves such a tile when on one.
+  const ownRivals = v24Ai ? view.units.filter(other => view.expansion?.rivals?.sightings.some(sighting => sighting.unitId === other.id && sighting.targetPlayerId === actorId)) : [];
+  const seaThreat = (position: MapUnit['position']) => exposed(position) || ownRivals.some(other => hexDistance(other.position, position, view.map) <= 2);
   for (const unit of units.filter(unit => unit.actionLeft)) {
     const trader = traderPlan(view, unit);
     if (trader.action) add(trader.action, 'economy', 900, unit.id);
@@ -332,6 +336,7 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
       }
     }
     const paths = query.paths(view, unit.id, content);
+    const lands = v24Ai && moverOf(view, unit, content).kind === 'land', atSeaThreat = lands && isEmbarked(unit, view.map, content) && seaThreat(unit.position);
     if (workers.has(unit.id)) for (const suggestion of improvementSuggestions(view, unit, content, paths)) add(suggestion.action, 'economy', suggestion.benefit, unit.id);
     const sites = unit.kind === 'logistics' && unit.role === 'settler' ? allSites() : [];
     // v24: a settler with a site reachable over land walks there (it never waits at the shore for a sea route it may not take).
@@ -351,6 +356,8 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
       const boarding = isBoarding(view, unit, to, content);
       if (boarding && !safeToBoard(view, unit, to, content)) continue;
       if (unit.kind === 'logistics' && strikers.length && exposed(to) && !(unit.role === 'settler' && citySite(to))) continue;
+      if (lands && view.map.tiles[index] === 'ocean' && seaThreat(to)) continue;
+      if (atSeaThreat) add(action, rivalGoal, 200, unit.id, index);
       if (unit.kind === 'logistics' && strikers.length && exposed(unit.position)) add(action, unit.role === 'settler' ? 'found' : 'economy', 200, unit.id, index);
       if (trader.destination && far(to, trader.destination) < far(unit.position, trader.destination)) add(action, 'economy', 110 - far(to, trader.destination), unit.id, index);
       if (unit.kind === 'logistics' && sites.length) {
