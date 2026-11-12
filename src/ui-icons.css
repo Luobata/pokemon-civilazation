@@ -85,3 +85,40 @@
 .tech-card .tech-unlocks li { display: flex; align-items: center; gap: 6px; }
 .tech-card .tech-unlocks li::before { content: none; }
 .tech-card .tech-unlocks .unlock-chip { width: 26px; height: 26px; }
+
+/* ---------- Civics: charters, governments, policy cards ---------- */
+.card-emblem { position: relative; display: grid; place-items: center; flex: none; width: 36px; height: 36px; border: 1px solid #4A5A50; border-radius: 8px; background: radial-gradient(circle at 50% 40%, #2C3E3A, #0D1D21 78%); }
+.emblem-badge { position: absolute; right: -6px; bottom: -6px; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: #0D1D21; box-shadow: 0 0 0 1px #2E4448; }
+.charter-card header, .government-card header { display: flex; align-items: center; justify-content: flex-start; gap: 8px; }
+.charter-card header strong, .government-card header strong { flex: 1; min-width: 0; }
+.charter-card .charter-cost { padding: 1px 6px; border-radius: 999px; background: #2B2440; }
+.charter-card .charter-cost::before { content: none; }
+.charter-card .charter-state { display: flex; align-items: center; gap: 6px; }
+.charter-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; }
+.charter-card .charter-unlocks { display: flex; flex-wrap: wrap; gap: 4px; }
+.charter-card.done .card-emblem { border-color: #4F7A5C; }
+.charter-card.active .card-emblem { border-color: #E0A030; box-shadow: 0 0 8px rgb(242 193 78 / 35%); }
+.charter-card.locked .card-emblem > img { filter: grayscale(.7) brightness(.8); }
+.charter-government { display: flex; align-items: center; gap: 5px; margin: 0; }
+.section-mini { color: var(--ink-muted); font-size: 10px; letter-spacing: .06em; }
+.slot-pip { display: inline-flex; align-items: center; gap: 2px; padding: 1px 5px 1px 3px; border-radius: 999px; font-size: 10.5px; line-height: 16px; }
+.slot-pip b { font-weight: 600; }
+.slot-card { display: inline-block; flex: none; width: 10px; height: 13px; border: 1px solid #17262A; border-radius: 2px; background: linear-gradient(#F2E3B8 0 3px, #6E6243 3px); vertical-align: middle; }
+.slot-card.military { background: linear-gradient(#FFD0C4 0 3px, #D2614E 3px); }
+.slot-card.economic { background: linear-gradient(#D2F5B5 0 3px, #5FB06A 3px); }
+.slot-card.wild { background: linear-gradient(#EADCFA 0 3px, #9C7AD8 3px); }
+.slot-chip .slot-card { width: 12px; height: 16px; }
+.slot-pip.military { background: #4A2B26; color: #F6B9A8; } .slot-pip.economic { background: #1F3E2C; color: #A9E0B6; } .slot-pip.wild { background: #3A2E4A; color: #D9C7F0; }
+.policy-chip { position: relative; display: inline-grid; place-items: center; width: 24px; height: 30px; padding-top: 3px; border: 1px solid #6E6243; border-radius: 4px; background: linear-gradient(#F2E3B8 0 4px, #2A2A20 4px); }
+.policy-chip.military { border-color: #B0604E; background: linear-gradient(#D2614E 0 4px, #33201C 4px); }
+.policy-chip.economic { border-color: #4F8A5C; background: linear-gradient(#5FB06A 0 4px, #1B3024 4px); }
+.policy-chip.affinity::after { content: "★"; position: absolute; top: -7px; right: -6px; color: var(--gold); font-size: 12px; line-height: 1; text-shadow: 0 0 2px #000, 0 0 2px #000; }
+.government-card .government-tier { color: var(--gold); font-size: 9px; letter-spacing: 1px; }
+.government-effects { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 9px; }
+.government-effects .charter-slots { gap: 4px; }
+.government-card.active .card-emblem { border-color: var(--gold); box-shadow: 0 0 8px rgb(242 193 78 / 35%); }
+.government-card.locked .card-emblem > img { filter: grayscale(.7) brightness(.8); }
+.policy-card .policy-icon { margin-top: 1px; }
+.slot-board .slot { display: inline-flex; align-items: center; gap: 4px; }
+.slot-chip:has(img) { display: inline-grid; place-items: center; padding: 1px 4px; }
+.icon-stat.effect-stat { padding: 1px 5px 1px 3px; border-radius: 999px; background: #1B2E30; }
