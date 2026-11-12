@@ -5,8 +5,8 @@ const reports = process.env.E2E_SCREENSHOT_DIR ?? 'test-results/screenshots';
 test('v21: new games show the opening objectives card and visible item balls; v20 games do not', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(String(error)));
-  // Seed 10: an item ball is already in sight on round 1 (deterministic world).
-  await page.goto('/?seed=10');
+  // Seed 4: an item ball is already in sight on round 1 of the default (v24) world (seed 10 was the v23 choice; its v24 map has none in sight).
+  await page.goto('/?seed=4');
   const goals = page.locator('#opening-goals');
   await expect(goals).toBeVisible();
   await expect(goals).toContainText('开局目标 0/8');
@@ -27,7 +27,7 @@ test('v21: new games show the opening objectives card and visible item balls; v2
   await expect(page.locator('#tile-info')).toContainText('道具球');
   await page.screenshot({ path: `${reports}/opening-v21.png` });
 
-  await page.goto('/?seed=10&gameplay=20');
+  await page.goto('/?seed=4&gameplay=20');
   await expect(page.locator('#map')).toBeVisible();
   await expect(goals).toBeHidden();
   expect(errors).toEqual([]);
