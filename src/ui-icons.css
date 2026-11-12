@@ -1,0 +1,11 @@
+/* Icon-first panels (src/browser/ui-icons.ts, docs/design/ui-icons/README.md). Pixel art stays crisp at any size. */
+.px-icon, .px-art { display: inline-block; flex: none; vertical-align: middle; image-rendering: pixelated; }
+.px-art { object-fit: contain; }
+.icon-stat { display: inline-flex; align-items: center; gap: 3px; color: var(--ink-secondary); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.icon-stat b { color: #F3E7C9; font-weight: 600; }
+
+/* ---------- Hover card lists ---------- */
+.ui-tip-card { z-index: 40; max-width: 300px; }
+.ui-tip-card .tip-unlocks { display: grid; gap: 3px; margin: 2px 0; padding: 0; list-style: none; }
+.ui-tip-card .tip-unlocks li { display: flex; gap: 6px; align-items: center; color: #D6E4D8; font-size: 12px; }
+
