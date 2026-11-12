@@ -47,8 +47,8 @@ test('unit and city selection expose only the actions of the selected object', a
   await expect(page.locator('#capture-unit')).toBeDisabled();
   await expect(page.locator('#evolve-unit')).toBeDisabled();
   await expect(page.locator('#found-city')).toHaveCount(0);
-  await expect(page.locator('#unit-panel img')).toHaveAttribute('src', pokemonSpritePath('bulbasaur'));
-  await expect.poll(() => page.locator('#unit-panel img').evaluate(image => (image as HTMLImageElement).naturalWidth)).toBe(64);
+  await expect(page.locator('#unit-panel .unit-portrait img')).toHaveAttribute('src', pokemonSpritePath('bulbasaur'));
+  await expect.poll(() => page.locator('#unit-panel .unit-portrait img').evaluate(image => (image as HTMLImageElement).naturalWidth)).toBe(64);
   await page.screenshot({ path: 'test-results/screenshots/context-pokemon.png', fullPage: false });
   // Selecting a city must not accidentally move the selected unit into it.
   await clickHex(page, city.position);
