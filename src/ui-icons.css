@@ -139,6 +139,32 @@
 .era-ability-state { position: absolute; right: -4px; bottom: -4px; padding: 1px; border-radius: 50%; background: #0D1D21; }
 .dedication-line b { display: inline-flex; align-items: center; gap: 2px; }
 
+/* ---------- World page: Pokédex, nests, overlords, resources, gym circuit ---------- */
+.world-stats { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.dex-strip { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
+.dex-entry { position: relative; display: grid; place-items: center; width: 46px; height: 46px; border: 1px solid #34494C; border-radius: 8px; background: #132428; }
+.dex-entry:not(.documented) img.px-art { filter: brightness(.55) saturate(.4); }
+.dex-entry.documented { border-color: #4F8A66; background: radial-gradient(circle at 50% 60%, #24452F, #132428 75%); }
+.dex-entry .dex-mark { position: absolute; right: 1px; bottom: 1px; }
+.world-row { display: flex; align-items: center; gap: 8px; margin: 6px 0 4px; }
+.world-row-name { min-width: 110px; color: #E6DDC4; }
+.world-row-name small { color: var(--ink-muted); }
+.hp-bar, .bond-track { position: relative; flex: 1; max-width: 160px; height: 8px; overflow: visible; border-radius: 4px; background: #0D1D21; box-shadow: inset 0 0 0 1px #2E4448; }
+.hp-bar > span { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, #D9495B, #F08A4B); }
+.bond-track > span { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, #C77DB5, #F2A7C8); }
+.bond-track i { position: absolute; top: -3px; width: 2px; height: 14px; background: #5B6A60; }
+.bond-track i.met { background: var(--gold); }
+.badge-box { grid-template-columns: repeat(8, minmax(0, 76px)); gap: 6px; }
+.badge-box .badge-slot { flex-direction: column; justify-content: center; gap: 2px; min-height: 58px; padding: 4px 2px; border-radius: 8px; font-size: 10px; text-align: center; }
+.badge-box .badge-slot span { overflow: hidden; max-width: 100%; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 700px) { .badge-box { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.badge-slot.empty img { opacity: .28; filter: grayscale(1); }
+.badge-slot.won { background: color-mix(in srgb, var(--badge) 16%, #10201F); }
+.gym-list-icons { display: grid; gap: 3px; padding: 0; list-style: none; font-size: 12px; }
+.gym-list-icons li { display: flex; align-items: center; gap: 6px; }
+.gym-list-icons li small { color: var(--gold); }
+.gym-list-icons li.won { color: #CDEFD8; }
+
 /* ---------- City: yields, production list, districts ---------- */
 .yield-grid .yield-item { align-items: center; justify-content: flex-start; gap: 5px; }
 .yield-grid .yield-item small { display: none; }

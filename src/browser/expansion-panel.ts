@@ -14,10 +14,17 @@ import { CIVILIZATION_CONTENT } from '../content/civilization-systems.ts';
 import { WORLD_DEFINITIONS } from '../content/world-systems.ts';
 
 /** Display name of a berry or evolution stone id (falls back to the id). */
+/** Kit icon for a berry or stone id (the ids are the map icon names), or the generic resource icon. */
+const resourceIcon = (id: string, size: number, label?: string) => (MAP_ICON_NAMES as readonly string[]).includes(id)
+  ? uiIcon(id as UiIconName, { size, label }) : uiIcon('essence', { size, label });
 const resourceName = (id: string): string => (WORLD_DEFINITIONS.berries as Record<string, { name: string }>)[id]?.name ?? (WORLD_DEFINITIONS.stones as Record<string, { name: string }>)[id]?.name ?? id;
 import { parseAuditAction } from '../audit/commands.ts';
 import { civHint } from './civ-hint.ts';
 import { researchBookMarkup } from './research-card.ts';
+import { artImage, statChip, uiIcon } from './ui-icons.ts';
+import type { UiIconName } from './ui-icons.ts';
+import { MAP_ICON_NAMES } from './map-icons.ts';
+import { pokemonSpritePath } from './sprites.ts';
 import { v24PanelCards } from './gym-panel.ts';
 
 const escape = (value: unknown) => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
@@ -45,18 +52,18 @@ export function renderExpansionPanel(view: PlayerView, selectedUnitId: number | 
       + button(`建造${leader.building} · 90 金`, { type: 'BuildLeaderBuilding', cityId: city.id }, player.gold >= 90 && !exp.leaders.uniqueCityIds.includes(city.id))
       + button(`招募${unitDefinition({ kind: 'pokemon', speciesId: leaderUnitFor(CONTENT, player.leaderId!, leader.unit) }, CONTENT).name} · 100 金`, { type: 'RecruitLeaderUnit', cityId: city.id }, player.gold >= 100 && exp.leaders.recruited < 3 && player.research.unlockedIds.includes('training')) : ''));
   const world = exp.world, records = Object.values(world.player?.pokedex ?? {});
-  html += card('s22-pokedex', '图鉴与探索胜利', `<p>完整记录 ${records.filter(record => record.observed && (record.battled || record.captured)).length}/${world.victory?.targetDocumentedSpecies ?? 18}。观察 ${records.filter(record => record.observed).length} · 对战 ${records.filter(record => record.battled).length} · 捕捉 ${records.filter(record => record.captured).length}。已观察且战斗或捕捉的物种计入完整记录。</p><p>${records.filter(record => record.observed).map(record => escape(CONTENT.species[record.speciesId].name)).join('、') || '尚未观察'}</p>${researchBookMarkup(view, CONTENT)}`);
+  html += card('s22-pokedex', '图鉴与探索胜利', `<p class="world-stats">${statChip('pokedex', `${records.filter(record => record.observed && (record.battled || record.captured)).length}/${world.victory?.targetDocumentedSpecies ?? 18}`, '完整记录')}${statChip('class:scout', records.filter(record => record.observed).length, '观察')}${statChip('swords', records.filter(record => record.battled).length, '对战')}${statChip('pokeBall', records.filter(record => record.captured).length, '捕捉')}</p><p class="unit-note">已观察且战斗或捕捉的物种计入完整记录。</p><div class="dex-strip">${records.filter(record => record.observed).map(record => `<span class="dex-entry${record.battled || record.captured ? ' documented' : ''}">${artImage(pokemonSpritePath(record.speciesId), { size: 40, label: `${CONTENT.species[record.speciesId].name}${record.captured ? ' · 已捕捉' : record.battled ? ' · 已对战' : ' · 已观察'}` })}${record.captured ? uiIcon('pokeBall', { size: 12, className: 'dex-mark' }) : record.battled ? uiIcon('swords', { size: 12, className: 'dex-mark' }) : ''}</span>`).join('') || '<p>尚未观察</p>'}</div>${researchBookMarkup(view, CONTENT)}`);
   html += card('s18-nests', `暴走巢穴 ${civHint('nest')}`, '<p>靠近巢穴后派宝可梦清剿，消耗行动点；巢穴会周期性派出敌对野生单位。</p>'
-    + world.nests.map(nest => `<p>巢穴 #${nest.id} · (${nest.position.q},${nest.position.r}) · HP ${nest.hp}/${nest.maxHp} · 下次刷新 ${nest.nextSpawnRound}</p>`
+    + world.nests.map(nest => `<p class="world-row">${uiIcon('nest', { size: 28 })}<span class="world-row-name">巢穴 #${nest.id} <small>(${nest.position.q},${nest.position.r})</small></span><span class="hp-bar" role="img" aria-label="HP ${nest.hp}/${nest.maxHp}" title="HP ${nest.hp}/${nest.maxHp}"><span style="width:${Math.round(nest.hp * 100 / Math.max(1, nest.maxHp))}%"></span></span>${statChip('heart', `${nest.hp}/${nest.maxHp}`, 'HP')}${statChip('turns', nest.nextSpawnRound, '下次刷新（轮）')}</p>`
       + (unit ? button(`以 #${unit.id} 清剿`, { type: 'ClearNest', unitId: unit.id, nestId: nest.id }, Boolean(unit.actionLeft) && hexDistance(unit.position, nest.position, view.map) <= (unit.kind === 'pokemon' ? CONTENT.species[unit.speciesId].range : 1)) : '')).join(''));
   html += card('s19-overlords', `霸主与羁绊 ${civHint('overlord')}`, '<p>附近城市可用 10 食物或 20 金币供奉，每轮一次。羁绊 15/40/75 解锁视野与本地产出。</p>'
-    + world.overlords.map(site => `<p>${escape(CONTENT.species[site.speciesId].name)} #${site.id} · 羁绊 ${site.bond}</p>`
+    + world.overlords.map(site => `<p class="world-row">${artImage(pokemonSpritePath(site.speciesId), { size: 40 })}<span class="world-row-name">${escape(CONTENT.species[site.speciesId].name)} <small>#${site.id}</small></span><span class="bond-track" role="img" aria-label="羁绊 ${site.bond}（15/40/75 解锁）" title="羁绊 ${site.bond}（15/40/75 解锁）"><span style="width:${Math.min(100, site.bond)}%"></span>${[15, 40, 75].map(mark => `<i class="${site.bond >= mark ? 'met' : ''}" style="left:${mark}%"></i>`).join('')}</span>${statChip('heart', site.bond, '羁绊')}</p>`
       + (city ? button('供奉食物', { type: 'OfferToOverlord', overlordId: site.id, cityId: city.id, currency: 'food' }, site.lastOfferRound !== view.round && city.food >= 10 && hexDistance(city.position, site.position, view.map) <= WORLD_DEFINITIONS.overlords.reach)
         + button('供奉金币', { type: 'OfferToOverlord', overlordId: site.id, cityId: city.id, currency: 'gold' }, site.lastOfferRound !== view.round && player.gold >= 20 && hexDistance(city.position, site.position, view.map) <= WORLD_DEFINITIONS.overlords.reach) : '')).join(''));
-  html += card('s20-berries', `树果、进化石与满意度 ${civHint('satisfaction')}`, `<p>满意度 ${world.player?.satisfaction ?? 0}/100。移动到资源地块后采集；树果提供食物与满意度，石头存入库存。</p>`
-    + world.resources.map(site => `<p>${escape(resourceName(site.definitionId))} · (${site.position.q},${site.position.r}) · 剩余 ${site.remaining}</p>`
+  html += card('s20-berries', `树果、进化石与满意度 ${civHint('satisfaction')}`, `<p class="world-stats">${statChip('satisfaction', `${world.player?.satisfaction ?? 0}/100`, '满意度')}</p><p class="unit-note">移动到资源地块后采集；树果提供食物与满意度，石头存入库存。</p>`
+    + world.resources.map(site => `<p class="world-row">${resourceIcon(site.definitionId, 24)}<span class="world-row-name">${escape(resourceName(site.definitionId))} <small>(${site.position.q},${site.position.r})</small></span>${statChip('check', site.remaining, '剩余')}</p>`
       + (unit ? button('采集', { type: 'HarvestResource', unitId: unit.id, tileIndex: site.tileIndex }, Boolean(unit.actionLeft) && site.remaining > 0 && hexDistance(unit.position, site.position, view.map) === 0) : '')).join('')
-    + `<p>进化石：${Object.entries(world.player?.stoneInventory ?? {}).map(([id, count]) => `${escape(resourceName(id))} ${count}`).join(' · ') || '无'}</p>`
+    + `<p class="world-stats">进化石：${Object.entries(world.player?.stoneInventory ?? {}).map(([id, count]) => `<span class="icon-stat" role="img" aria-label="${escape(resourceName(id))} ${count}" title="${escape(resourceName(id))} ${count}">${resourceIcon(id, 18)}<b aria-hidden="true">${count}</b></span>`).join('') || '无'}</p>`
     + (unit?.kind === 'pokemon' ? stoneEvolutionsFor(CONTENT).filter(path => path.fromSpeciesId === unit.speciesId).map(path => button(`进化成${CONTENT.species[path.intoSpeciesId].name} · ${resourceName(path.stoneId)}`, { type: 'UseEvolutionStone', unitId: unit.id, intoSpeciesId: path.intoSpeciesId, stoneId: path.stoneId }, Boolean(unit.actionLeft) && (world.player?.stoneInventory[path.stoneId] ?? 0) > 0 && unit.xp >= path.requiredXp)).join('') : ''));
   const rare = exp.rareBerries;
   if (rare) {

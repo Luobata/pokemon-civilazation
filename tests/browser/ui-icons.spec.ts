@@ -86,8 +86,15 @@ test('icon-first panels: research tree, civics, city, era, world, unit and rail 
   }
   await page.locator('#expansion-panel details[data-system="s-gym-circuit"]').scrollIntoViewIfNeeded();
   await shot(page, 'world');
-  await page.locator('#expansion-panel details[data-system="s18-nests"]').scrollIntoViewIfNeeded();
-  await shot(page, 'world-nests');
-  if (phase !== 'before') await expectNamedIcons(page);
+  const book = page.locator('#research-book');
+  if (await book.count()) await book.locator('summary').click();
+  await page.locator('#expansion-panel details[data-system="s22-pokedex"]').scrollIntoViewIfNeeded();
+  await shot(page, 'world-pokedex');
+  if (phase !== 'before') {
+    // Badge slots are named medals; observed species are named sprites.
+    await expect(page.locator('#badge-box').getByRole('img', { name: /^空徽章槽|属性徽章/ })).toHaveCount(8);
+    await expect(page.locator('.dex-strip img').first()).toHaveAttribute('alt', /已(观察|对战|捕捉)/);
+    await expectNamedIcons(page);
+  }
   expect(errors).toEqual([]);
 });
