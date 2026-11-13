@@ -62,7 +62,7 @@ export const LATE_GAME_TUNING: LateGameTuning = {
   seasonFirstRound: 45, seasonInterval: 15, seasonAnnounce: 5, seasonRewards: [60, 30, 15], seasonEntryAppeal: 5,
   seasonTypePoints: 20, seasonStagePoints: 10, seasonHallPoints: 5, seasonHallCap: 4,
   defencePercent: 60,
-  raidFirstRound: 90, raidInterval: 20, raidRounds: 3, raidBaseHp: 250, raidHpPerCiv: 25, raidCapitalDistance: 5,
+  raidFirstRound: 90, raidInterval: 20, raidRounds: 3, raidBaseHp: 60, raidHpPerCiv: 15, raidCapitalDistance: 5,
   raidShareGold: 60, raidMaxGold: 180, raidMinSharePercent: 10,
   watchPercent: 75,
   escortMaxCities: 4,
