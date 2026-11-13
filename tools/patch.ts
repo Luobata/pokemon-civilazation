@@ -47,6 +47,12 @@ export function patchSchema(base: Content): Schema {
     eliteFourPower: indexed(base.world24.eliteFourPower, [10, 5000]),
     ...(base.world24.rivalStayRounds ? { rivalStayRounds: indexed(base.world24.rivalStayRounds, [1, 30]) } : {}),
   } } : {}),
+  // v26 knobs (src/content/depth-v26.ts): only the v26 content carries them.
+  ...(base.depth26 ? { depth26: {
+    gymPowerPercent: [10, 300], guardianHpPercent: indexed(base.depth26.guardianHpPercent, [50, 1000]), eliteFourPowerPercent: [10, 300],
+    npcBasePower: [10, 10_000], npcSeasonPower: [0, 1000], npcSlotPower: [0, 1000], veteranXp: [1, 1000], veteranCap: [0, 20],
+    sparRewardPercent: [0, 100], prizePercent: [0, 100], prizePerVisit: [0, 1000], conferenceRivalPower: [0, 1000],
+  } } : {}),
   };
 }
 const indexed = (values: readonly unknown[], range: readonly [number, number]): Schema => Object.fromEntries(values.map((_, index) => [String(index), range]));

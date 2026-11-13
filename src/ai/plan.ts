@@ -43,6 +43,10 @@ import { planDedicationAction } from './dedication-plan.ts';
 import { gymMoveTargets, planGymAction } from './gym-plan.ts';
 import { ownRivalHunters, rivalAttackBonus, rivalResponseTeam, rivalThreatenedCityIds, rivalTrainingBonus } from './rival-plan.ts';
 import { viewIsRivalUnit } from '../core/rivals.ts';
+import { planGoldSinkAction } from './gold-sink-plan.ts';
+import { planContestSeasonAction } from './contest-season-plan.ts';
+import { planRivalDuel } from './rival-duel-plan.ts';
+import { raidAttackBonus, raidMoveTargets } from './raid-plan.ts';
 import { researchCaptureScore } from './research-plan.ts';
 import { embarkResearchBonus, isBoarding, moverOf, nearestTravel, safeToBoard, travelCloser, travelDistance, walkerTravel } from './travel.ts';
 import { canEnterTile, waterAccess } from '../core/movement.ts';
@@ -133,6 +137,11 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
   if (berryAction) return result(berryAction);
   const contestAction = planContestAction(view);
   if (contestAction) return result(contestAction);
+  // v26 D: contest seasons and gold sinks (null before v26).
+  const seasonAction = planContestSeasonAction(view, content);
+  if (seasonAction) return result(seasonAction);
+  const goldSinkAction = planGoldSinkAction(view, content);
+  if (goldSinkAction) return result(goldSinkAction);
   const faithAction = planFaithAction(view);
   if (faithAction) return result(faithAction);
   // v24 C: a rival's warned / attacked cities count as threatened too.
@@ -148,6 +157,9 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
     ? planCivilizationAction(view.expansion.civilization, { ...CIVILIZATION_CONTENT, world: content }, eraCivilizationPolicy(view), view.map)
     : null;
   if (civilizationAction) return result(civilizationAction);
+  // v26 P3: a rival duel (null before v26).
+  const duelAction = planRivalDuel(view, content);
+  if (duelAction) return result(duelAction);
   // v24 B: gym circuit and Elite Four challenges (null before v24).
   const gymAction = planGymAction(view, content);
   if (gymAction) return result(gymAction);
@@ -268,6 +280,8 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
   const atWar = view.diplomacy.some(pair => pair.status === 'war' && (pair.a === actorId || pair.b === actorId));
   const workers = designatedWorkers(view, content, atWar || campaignActive || preparingSiege);
   const traceTargets = legendTraceTargets(view, content), ballTargets = itemBallTargets(view), gymTargets = gymMoveTargets(view, content), rivalHunters = ownRivalHunters(view);
+  // v26 D: raid dens (empty before v26).
+  const raidTargets = raidMoveTargets(view);
   // v24 integration fix (crowded continent): with no known site reachable over land from the capital and water access, Pokémon may board
   // to explore and stay out instead of heading home; a settler whose sites all lie across water gets the nearest Pokémon as its escort.
   const seaPlans = Boolean(content.embark && view.map.features) && waterAccess(player, content) >= 1 && cities.length > 0;
@@ -323,7 +337,7 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
           || cities.some(city => hexDistance(city.position, target.position, view.map) <= workRadius(city)))) add({ type: 'Attack', unitId: unit.id, target: { kind: 'unit', id: target.id } },
           // Wild-target weakening competes with capture; it is neither military training nor civilization defense.
           target.ownerId === null && !rival ? strategy.wildAttackGoal : 'military',
-          preview.damage.min - preview.counter.damage + (target.ownerId !== null ? 200 : 0) + (rival ?? 0), unit.id, target.id);
+          preview.damage.min - preview.counter.damage + (target.ownerId !== null ? 200 : 0) + (rival ?? 0) + raidAttackBonus(view, target), unit.id, target.id);
         if (rival && rivalTeam.has(unit.id) && preview.ok && preview.damage.min > 0) add({ type: 'Attack', unitId: unit.id, target: { kind: 'unit', id: target.id } }, rivalGoal,
           400 + preview.damage.min - preview.counter.damage, unit.id, target.id);
       }
@@ -374,6 +388,8 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
       if (ball && far(to, ball) < far(unit.position, ball)) add(action, 'explore', 125 - far(to, ball), unit.id, index);
       const gym = gymTargets.get(unit.id);
       if (gym && travelCloser(view, unit, to, gym)) add(action, 'military', 90 - travelDistance(view, unit, to, gym), unit.id, index);
+      const raid = raidTargets.get(unit.id);
+      if (raid && travelCloser(view, unit, to, raid)) add(action, 'military', 80 - travelDistance(view, unit, to, raid), unit.id, index);
       if (seek && far(to, seek) < far(unit.position, seek)) {
         add(action, 'military', 100 - far(to, seek), unit.id, index);
       }

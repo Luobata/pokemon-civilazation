@@ -3,6 +3,9 @@ import { featureVision, viewFeatures } from './terrain.ts';
 import { observeLandmarks } from './landmarks.ts';
 import { observeGymCircuit } from './gym-circuit.ts';
 import { observeRivals } from './rivals.ts';
+import { observeGoldSinks } from './gold-sinks.ts';
+import { observeContestSeasons } from './contest-seasons.ts';
+import { observeRaids } from './raids.ts';
 import { observeResearchTasks } from './research-tasks.ts';
 import { observeCityNetwork } from './city-network.ts';
 import { observeLegends } from './legends.ts';
@@ -134,6 +137,10 @@ export function observe(state: GameState, playerId: number, content: Content = c
       ...(state.expansion.gymCircuit ? { gymCircuit: observeGymCircuit(state, playerId) } : {}),
       ...(state.expansion.rivals ? { rivals: observeRivals(state, playerId, visible, content) } : {}),
       ...(state.expansion.researchTasks ? { researchTasks: observeResearchTasks(state, playerId) } : {}),
+      // v26 D: present only when the late-game lanes create their ledgers.
+      ...(state.expansion.goldSinks ? { goldSinks: observeGoldSinks(state, playerId) } : {}),
+      ...(state.expansion.contestSeasons ? { contestSeasons: observeContestSeasons(state, playerId) } : {}),
+      ...(state.expansion.raids ? { raids: observeRaids(state, playerId) } : {}),
       ...(state.expansion.promotions ? { promotions: observePromotions(state, playerId, visible, hex => hexToIndex(hex, state.map)) } : {}),
       ...(state.expansion.faith ? { faith: observeFaith(state, playerId) } : {}),
       ...(state.expansion.contests ? { contests: observeContests(state, playerId, content) } : {}),

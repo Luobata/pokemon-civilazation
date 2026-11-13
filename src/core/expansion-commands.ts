@@ -44,6 +44,10 @@ export function expansionActionFields(content: Content = ROSTER_CONTENT): Record
   ChooseDedication: { dedicationIds: 'dedicationIds' },
   PillageImprovement: { unitId: 'id' }, RepairImprovement: { unitId: 'id', tileIndex: 'id' },
   ChallengeGym: { gymId: 'id', unitIds: 'ids' }, ChallengeEliteFour: { unitIds: 'ids' },
+  // v26 (docs/design/depth-v26.md): gold sinks, contest seasons, rival duels; each module refuses them before v26.
+  RushProduction: { cityId: 'id' }, RushRecovery: { unitId: 'id' }, SpecialTraining: { unitId: 'id' }, TeachMove: { unitId: 'id', typeId: Object.keys(TYPE_ESSENCE) },
+  EnterContest: { unitId: 'id' },
+  ChallengeRival: { unitIds: 'ids', stake: ['spar', 'serious'] },
   };
 }
 export const EXPANSION_ACTION_FIELDS: Record<ExpansionAction['type'], Fields> = expansionActionFields();

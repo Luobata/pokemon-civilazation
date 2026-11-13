@@ -11,6 +11,13 @@ import { applyGymCircuitAction, initializeGymCircuit, isGymCircuitAction, valida
 import { initializeRivals, recordRivals, resolveRivalRound } from './rivals.ts';
 import { landRule } from './reach.ts';
 import { initializeResearchTasks, recordResearchTasks } from './research-tasks.ts';
+import { applyGoldSinkAction, isGoldSinkAction, resolveGoldSinkRound, validateGoldSinkAction } from './gold-sinks.ts';
+import { applyContestSeasonAction, isContestSeasonAction, resolveContestSeasonRound, validateContestSeasonAction } from './contest-seasons.ts';
+import { applyRivalDuelAction, isRivalDuelAction, validateRivalDuelAction } from './rival-duels.ts';
+import { initializeRaids, recordRaids, resolveRaidRound } from './raids.ts';
+import { recordLegendRace } from './legend-race.ts';
+import { recordOpeningGift } from './opening-gift.ts';
+import { resolveVictoryWatchRound } from './victory-watch.ts';
 import { CIVILIZATION_CONTENT } from '../content/civilization-systems.ts';
 import type { Content } from '../content/units.ts';
 import type { Command, EventPayload, GameState } from './model.ts';
@@ -55,6 +62,8 @@ export function initializeExpansion(state: GameState, content: Content): void {
   initializeGymCircuit(state, content, landRule(state.map));
   initializeRivals(state, content);
   initializeResearchTasks(state, content);
+  // v26 (depth-v26 §5.4): no-op unless the content has raids.
+  initializeRaids(state, content);
 }
 export function validateExpansionAction(state: GameState, actorId: number, action: Command['action'], content: Content): boolean {
   if (!state.expansion || !expansionActionType(action.type)) return false;
@@ -63,6 +72,10 @@ export function validateExpansionAction(state: GameState, actorId: number, actio
     if (isDedicationAction(clean)) return validateDedicationAction(state, actorId, clean) === null;
     if (isPillageAction(clean)) return validatePillageAction(state, actorId, clean, content) === null;
     if (isGymCircuitAction(clean)) return validateGymCircuitAction(state, actorId, clean, content) === null;
+    // v26: each refuses its commands unless the content has its flag.
+    if (isRivalDuelAction(clean)) return validateRivalDuelAction(state, actorId, clean, content) === null;
+    if (isGoldSinkAction(clean)) return validateGoldSinkAction(state, actorId, clean, content) === null;
+    if (isContestSeasonAction(clean)) return validateContestSeasonAction(state, actorId, clean, content) === null;
     if (isCityNetworkAction(clean)) return validateCityNetworkAction(state, actorId, clean) === null;
     if (isPromotionAction(clean)) return validatePromotionAction(state, actorId, clean) === null;
     if (isImprovementAction(clean)) return validateImprovementAction(state, actorId, clean, content) === null;
@@ -83,6 +96,9 @@ export function applyExpansionAction(state: GameState, actorId: number, action: 
   if (isDedicationAction(action)) return applyDedicationAction(state, actorId, action);
   if (isPillageAction(action)) return applyPillageAction(state, actorId, action, content);
   if (isGymCircuitAction(action)) return applyGymCircuitAction(state, actorId, action, content);
+  if (isRivalDuelAction(action)) return applyRivalDuelAction(state, actorId, action, content);
+  if (isGoldSinkAction(action)) return applyGoldSinkAction(state, actorId, action, content);
+  if (isContestSeasonAction(action)) return applyContestSeasonAction(state, actorId, action, content);
   if (isCityNetworkAction(action)) return applyCityNetworkAction(state, actorId, action);
   if (isPromotionAction(action)) return applyPromotionAction(state, actorId, action);
   if (isImprovementAction(action)) return applyImprovementAction(state, actorId, action, content);
@@ -117,6 +133,11 @@ export function resolveExpansionRound(state: GameState, content: Content): Event
   if (!state.outcome) events.push(...resolveBondRound(state));
   if (!state.outcome) events.push(...resolveContestRound(state, content));
   if (!state.outcome) events.push(...resolveFaithRound(state, content));
+  // v26 D (depth-v26 §5): gold sinks, contest seasons, raids, the near-victory warning ([] before v26).
+  if (!state.outcome) events.push(...resolveGoldSinkRound(state, content));
+  if (!state.outcome) events.push(...resolveContestSeasonRound(state, content));
+  if (!state.outcome) events.push(...resolveRaidRound(state, content));
+  if (!state.outcome) events.push(...resolveVictoryWatchRound(state, content));
   return events;
 }
 export function recordExpansion(before: GameState, after: GameState, command: Command, events: readonly EventPayload[], content: Content): EventPayload[] {
@@ -132,5 +153,7 @@ export function recordExpansion(before: GameState, after: GameState, command: Co
   // v24: landmark discoveries (A3) and research tasks (D) see everything recorded above.
   const landmarks = recordLandmarks(after, [...events, ...world, ...discoveries, ...honors, ...legends, ...opening]);
   const tasks = recordResearchTasks(before, after, [...events, ...world, ...discoveries, ...honors, ...legends, ...opening, ...landmarks]);
-  return [...world, ...discoveries, ...honors, ...legends, ...opening, ...landmarks, ...tasks];
+  // v26 (depth-v26 §5.3, §5.4, §8): the legend race, raid ledgers and the opening gift ([] before v26).
+  const depth = [...recordLegendRace(before, after, events), ...recordRaids(before, after, events), ...recordOpeningGift(before, after, events, content)];
+  return [...world, ...discoveries, ...honors, ...legends, ...opening, ...landmarks, ...tasks, ...depth];
 }

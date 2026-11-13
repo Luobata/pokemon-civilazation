@@ -6,13 +6,15 @@ import { hexDistance, indexToHex } from '../core/hex.ts';
 import type { Hex } from '../core/hex.ts';
 import { viewLegendBlocker } from '../core/legends.ts';
 import type { PlayerView } from '../core/model.ts';
+import { legendRaceVeto } from './legend-race-plan.ts';
 
 export function planLegendWonder(view: PlayerView, threatened: ReadonlySet<number>): { cityId: number | null; legendId: LegendWonderId | null } {
   const legends = view.expansion?.legends;
   if (!legends || legends.building.length) return { cityId: null, legendId: null };
   const cities = [...view.economy.cities].filter(city => !threatened.has(city.id)).sort((a, b) => b.yields.production - a.yields.production || a.id - b.id);
   for (const city of cities) {
-    const legendId = LEGEND_WONDER_IDS.find(id => viewLegendBlocker(view, city, id) === null);
+    // v26 D: the legend race may veto a legend another civilization is about to finish (never before v26).
+    const legendId = LEGEND_WONDER_IDS.find(id => viewLegendBlocker(view, city, id) === null && !legendRaceVeto(view, id));
     if (legendId) return { cityId: city.id, legendId };
   }
   return { cityId: null, legendId: null };
