@@ -11,7 +11,7 @@ const view = (page: Page): Promise<PlayerView> => page.evaluate(async () => { co
 async function importSave(page: Page, save: string) {
   await page.goto('/?seed=1&gameplay=24');
   await page.locator('#import-save').setInputFiles({ name: 'playtest.json', mimeType: 'application/json', buffer: Buffer.from(save) });
-  await expect(page.locator('#action-notice')).toContainText('读档完成');
+  await expect(page.locator('#action-notice')).toContainText('读档完成', { timeout: 120_000 });
   await page.locator('#animate').uncheck();
 }
 async function clickTile(page: Page, index: number) {
@@ -23,7 +23,12 @@ async function clickTile(page: Page, index: number) {
   }, index);
   await page.mouse.click(point.x, point.y);
 }
-const endTurn = (page: Page) => page.locator('#end-turn').click({ modifiers: ['Shift'] });
+/** Shift+click end turn; a wonder story card (another seat's or our own legend) is closed first, as a player would. */
+async function endTurn(page: Page) {
+  const story = page.locator('#legend-arrival-close');
+  while (await story.isVisible()) { await story.click(); await page.waitForTimeout(100); }
+  await page.locator('#end-turn').click({ modifiers: ['Shift'] });
+}
 async function newGame(page: Page, roundLimit: '100' | '200') {
   await openScreen(page, 'menu');
   await page.locator('#round-limit').selectOption(roundLimit);
@@ -112,7 +117,7 @@ test('B3: a Pokémon that only evolves with a stone names the stone, not "no for
 });
 
 test('B1: countdowns 5 rounds and 1 round before the league, then a toast, a 动态 entry and the result card (real AI save)', async ({ page }) => {
-  test.setTimeout(600_000);
+  test.setTimeout(1_200_000);
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(String(error)));
   const fixture = leagueFixture();

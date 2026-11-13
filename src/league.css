@@ -20,7 +20,7 @@
 .league-match.final { border-color: var(--gold); }
 .league-match-head { display: flex; justify-content: space-between; align-items: center; color: var(--ink-muted); }
 .league-pair { gap: 3px; }
-.league-team { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "name power score" "sprites sprites sprites"; gap: 2px 6px; align-items: center; padding: 3px 5px; border-radius: 6px; }
+.league-team { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "name name name" "sprites power score"; gap: 2px 6px; align-items: center; padding: 3px 5px; border-radius: 6px; }
 .league-team-name { grid-area: name; display: inline-flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .league-team .league-team-sprites { grid-area: sprites; }
 .league-team .league-power { grid-area: power; } .league-team .league-score { grid-area: score; }
