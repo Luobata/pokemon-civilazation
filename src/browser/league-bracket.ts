@@ -13,7 +13,7 @@ import { artImage, escapeAttr, statChip, uiIcon } from './ui-icons.ts';
 import '../league-bracket.css';
 
 type Label = ChampionshipMatch['label'];
-const BOX = { width: 166, height: 76 }, COLUMN = 186;
+const BOX = { width: 174, height: 76 }, COLUMN = 190;
 /** Box positions (px): preliminary 2 feeds semi-final 1 and preliminary 1 feeds semi-final 2, so no lines cross. */
 const LAYOUT: Record<Label, { x: number; y: number }> = {
   'preliminary-2': { x: 0, y: 58 }, 'preliminary-1': { x: 0, y: 238 },

@@ -9,15 +9,15 @@
 .lb .lb-col-head { position: absolute; top: 0; margin: 0; color: var(--ink-secondary); font-size: 13px; font-weight: 700; }
 .lb .lb-col-head small { color: var(--ink-muted); font-weight: 400; }
 .lb .lb-matches { margin: 0; padding: 0; list-style: none; }
-.lb .lb-match { position: absolute; box-sizing: border-box; width: 166px; padding: 3px 5px 4px; border: 2px solid #3E5450; border-radius: 6px; background: #17282D; box-shadow: 3px 3px 0 rgb(4 12 15 / 55%); }
+.lb .lb-match { position: absolute; box-sizing: border-box; width: 174px; padding: 3px 5px 4px; border: 2px solid #3E5450; border-radius: 6px; background: #17282D; box-shadow: 3px 3px 0 rgb(4 12 15 / 55%); }
 .lb .lb-match.final { border-color: var(--gold, #F2C14E); }
 .lb .lb-match .league-match-head { display: flex; align-items: center; gap: 6px; height: 18px; color: var(--ink-muted); }
 .lb .lb-replay { margin-left: auto; min-width: 0; min-height: 0; box-shadow: none; height: 18px; padding: 0 6px; line-height: 1; }
-.lb .lb-match .league-pair { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.lb .lb-match .league-pair { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; margin: 0; padding: 0; list-style: none; }
 .lb .lb-slot .league-score { gap: 1px; font-size: 10px; }
 .lb .lb-slot .league-score .px-icon { width: 12px; height: 12px; }
 .league-card .league-champion .px-art, .league-card .league-damage .px-art { padding: 1px; }
-.lb .lb-slot { display: flex; align-items: center; gap: 4px; height: 24px; padding: 0 4px; border-radius: 4px; }
+.lb .lb-slot { display: flex; min-width: 0; align-items: center; gap: 4px; height: 24px; padding: 0 4px; border-radius: 4px; }
 .lb .lb-slot .league-team-name { flex: 1; min-width: 0; overflow: hidden; font-size: 12px; white-space: nowrap; text-overflow: ellipsis; }
 .lb .lb-slot .px-art, .lb-champion .px-art { image-rendering: pixelated; }
 .lb .lb-slot.won { background: #2A4A3C; }

@@ -51,9 +51,9 @@ test('every sound effect and music mood plays on a running context without error
 
   expect(result.locked).toBe('locked');
   expect(result.state).toBe('running');
-  expect(result.ids).toBe(37);
-  expect(result.afterAll).toBe(37);
-  expect(result.afterBurst).toBe(37);
+  expect(result.ids).toBe(38); // depth-v26 §4.2 added the evolution fanfare
+  expect(result.afterAll).toBe(38);
+  expect(result.afterBurst).toBe(38);
   for (const mood of ['peace', 'war', 'menu']) expect(result.notes[mood]).toBeGreaterThan(0);
   expect(result.crossfading).toBeGreaterThan(1);
   expect(result.stopped.players).toBe(0);
