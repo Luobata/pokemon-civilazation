@@ -19,11 +19,14 @@ import { isLandmarkTile, isPeak } from './terrain.ts';
 import { createMapUnit, registerSpecies } from './unit.ts';
 
 export type RaidBoss = { unitId: number; tileIndex: number; endsAtRound: number; damage: Record<number, number>; speciesId: SpeciesId; maxHp: number; index: number };
-export type RaidState = { active: RaidBoss | null; held: number };
+/** `pending`: the next den, announced `raidAnnounce` rounds before it opens (site and species fixed then). */
+export type RaidDen = { tileIndex: number; speciesId: SpeciesId; round: number; index: number };
+export type RaidState = { active: RaidBoss | null; held: number; pending: RaidDen | null };
 /** `tileIndex` / `unitId` only for civilizations that explored the den's tile; the damage ledger is public. */
-export type RaidView = { nextRound: number | null; held: number;
+export type RaidView = { nextRound: number | null; held: number; pending: { tileIndex: number | null; speciesId: SpeciesId; round: number } | null;
   active: { unitId: number | null; tileIndex: number | null; endsAtRound: number; damage: Record<number, number>; speciesId: SpeciesId; maxHp: number } | null };
 export type RaidEvent =
+  | { type: 'RaidAnnounced'; playerId: number; speciesId: SpeciesId; tileIndex: number | null; round: number }
   | { type: 'RaidAppeared'; playerId: number; speciesId: SpeciesId; tileIndex: number | null; endsAtRound: number; hp: number }
   | { type: 'RaidDefeated'; public: true; playerId: number; speciesId: SpeciesId; unitId: number | null; damage: Record<number, number>; gold: Record<number, number> }
   | { type: 'RaidEnded'; speciesId: SpeciesId; damage: Record<number, number> };
@@ -31,7 +34,7 @@ export type RaidEvent =
 export const isRaidUnit = (state: Pick<GameState, 'expansion'>, unitId: number) => state.expansion?.raids?.active?.unitId === unitId;
 export const viewIsRaidUnit = (view: Pick<PlayerView, 'expansion'>, unitId: number) => view.expansion?.raids?.active?.unitId === unitId;
 export function initializeRaids(state: GameState, content: Content): void {
-  if (content.raids && state.expansion) state.expansion.raids = { active: null, held: 0 };
+  if (content.raids && state.expansion) state.expansion.raids = { active: null, held: 0, pending: null };
 }
 /** Raid rounds of a game: `raidFirstRound`, then every `raidInterval`, within the round limit. */
 export function raidRounds(content: Content, roundLimit: number): number[] {
@@ -88,23 +91,44 @@ export function resolveRaidRound(state: GameState, content: Content): EventPaylo
       events.push({ type: 'RaidEnded', speciesId: boss.speciesId, damage: { ...boss.damage } });
     }
   }
-  const next = nextRaidRound(content, state.round + 1, state.setup.roundLimit ?? 100);
-  if (!raids.active && next === state.round + 1) {
-    const index = raids.held, site = raidSite(state, index, content);
+  // Announce the next den `raidAnnounce` rounds ahead (site and species fixed now), then open it on its round.
+  const tuning = lateTuning(content), next = nextRaidRound(content, state.round + 1, state.setup.roundLimit ?? 100);
+  const explored = (playerId: number, tile: number) => state.knowledge[playerId]?.exploredTileIds.includes(tile) ?? false;
+  if (!raids.pending && next !== null && next - (state.round + 1) === Math.min(tuning.raidAnnounce, tuning.raidInterval - 1)) {
+    const site = raidSite(state, raids.held, content);
     if (site) {
-      const tuning = lateTuning(content), id = state.nextEntityId++, position = indexToHex(site.tileIndex, state.map);
-      state.units[id] = { ...createMapUnit({ kind: 'pokemon', speciesId: site.speciesId }, id, null, position, content), hp: tuning.raidBaseHp + tuning.raidHpPerCiv * alive(state).length };
-      raids.active = { unitId: id, tileIndex: site.tileIndex, endsAtRound: next + tuning.raidRounds - 1, damage: {}, speciesId: site.speciesId, maxHp: state.units[id].hp, index };
+      raids.pending = { tileIndex: site.tileIndex, speciesId: site.speciesId, round: next, index: raids.held };
+      for (const playerId of [...alive(state)].sort((a, b) => a - b)) events.push({ type: 'RaidAnnounced', playerId, speciesId: site.speciesId,
+        tileIndex: explored(playerId, site.tileIndex) ? site.tileIndex : null, round: next });
+    }
+  }
+  const den = raids.pending;
+  if (!raids.active && den && den.round === state.round + 1) {
+    raids.pending = null;
+    const tile = denTile(state, den, content);
+    if (tile !== null) {
+      const id = state.nextEntityId++, position = indexToHex(tile, state.map);
+      state.units[id] = { ...createMapUnit({ kind: 'pokemon', speciesId: den.speciesId }, id, null, position, content), hp: tuning.raidBaseHp + tuning.raidHpPerCiv * alive(state).length };
+      raids.active = { unitId: id, tileIndex: tile, endsAtRound: den.round + tuning.raidRounds - 1, damage: {}, speciesId: den.speciesId, maxHp: state.units[id].hp, index: den.index };
       raids.held++;
       for (const playerId of [...alive(state)].sort((a, b) => a - b)) {
-        const explored = state.knowledge[playerId]?.exploredTileIds.includes(site.tileIndex) ?? false;
-        events.push({ type: 'RaidAppeared', playerId, speciesId: site.speciesId, tileIndex: explored ? site.tileIndex : null, endsAtRound: raids.active.endsAtRound, hp: state.units[id].hp });
+        events.push({ type: 'RaidAppeared', playerId, speciesId: den.speciesId, tileIndex: explored(playerId, tile) ? tile : null, endsAtRound: raids.active.endsAtRound, hp: state.units[id].hp });
       }
     }
   }
   return events;
 }
 
+/** The announced den tile, or (when a unit or city stands there now) the nearest free land tile within 2 that fits the species; null if none. */
+function denTile(state: GameState, den: RaidDen, content: Content): number | null {
+  const taken = new Set([...Object.values(state.units).filter(isMapUnit), ...Object.values(state.cities)].map(item => hexToIndex(item.position, state.map)));
+  const identity = { kind: 'pokemon' as const, speciesId: den.speciesId }, center = indexToHex(den.tileIndex, state.map);
+  const fits = (tile: number) => !taken.has(tile) && state.map.tiles[tile] !== 'ocean' && !isPeak(state.map, tile) && !isLandmarkTile(state.map, tile) && canEnterTile(identity, state.map, tile, content);
+  if (fits(den.tileIndex)) return den.tileIndex;
+  const ring = [...new Set([...neighbors(center, state.map), ...neighbors(center, state.map).flatMap(hex => neighbors(hex, state.map))]
+    .map(hex => hexToIndex(hex, state.map)).filter((tile): tile is number => tile !== null && tile !== den.tileIndex))];
+  return ring.filter(fits).sort((a, b) => hexDistance(indexToHex(a, state.map), center, state.map) - hexDistance(indexToHex(b, state.map), center, state.map) || a - b)[0] ?? null;
+}
 /** The free tile next to the top damage dealer's city nearest the den (ring 1, then ring 2); null when there is none. */
 function rewardTile(state: GameState, playerId: number, speciesId: SpeciesId, den: number, content: Content): number | null {
   const denHex = indexToHex(den, state.map), identity = { kind: 'pokemon' as const, speciesId };
@@ -168,6 +192,8 @@ export function observeRaids(state: GameState, playerId: number, content: Conten
   if (!raids) return undefined;
   const boss = raids.active;
   const explored = boss ? state.knowledge[playerId]?.exploredTileIds.includes(boss.tileIndex) ?? false : false;
-  return { nextRound: boss ? null : nextRaidRound(content, state.round + 1, state.setup.roundLimit ?? 100), held: raids.held,
+  const den = raids.pending, knows = (tile: number) => state.knowledge[playerId]?.exploredTileIds.includes(tile) ?? false;
+  return { nextRound: boss ? null : den?.round ?? nextRaidRound(content, state.round + 1, state.setup.roundLimit ?? 100), held: raids.held,
+    pending: den ? { tileIndex: knows(den.tileIndex) ? den.tileIndex : null, speciesId: den.speciesId, round: den.round } : null,
     active: boss ? { unitId: explored ? boss.unitId : null, tileIndex: explored ? boss.tileIndex : null, endsAtRound: boss.endsAtRound, damage: { ...boss.damage }, speciesId: boss.speciesId, maxHp: boss.maxHp } : null };
 }

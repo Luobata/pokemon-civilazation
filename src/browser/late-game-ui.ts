@@ -66,6 +66,11 @@ export function depthWorldCards(view: PlayerView, content: Content = contentForV
       status: `${unit ? `HP ${unit.hp}/${boss.maxHp}` : `HP ${boss.maxHp}`} · 第 ${boss.endsAtRound} 轮后离开`,
       tip: `本地区的${name}出现在${boss.tileIndex === null ? '远方（你还没探索过那里）' : '地图上'}，不移动，每轮末攻击所有相邻单位，不能捕捉。\n用普通攻击打它：伤害第一的文明得到这只宝可梦（出现在离巢最近的己方城市旁）和世代分 +1；伤害 ≥ 10% 的文明各得金币（每 10% 份额 ${lateTuning(content).raidShareGold} 金，最多 ${lateTuning(content).raidMaxGold}）。\n伤害：${Object.entries(boss.damage).map(([id, value]) => `${civ(view, Number(id))} ${value}（${total ? Math.round(value * 100 / total) : 0}%）`).join('、') || '还没有人出手'}。`,
       urgency: 0, distance: boss.tileIndex === null ? null : hexDistanceToOwn(view, boss.tileIndex), ...(boss.tileIndex === null ? {} : { tileIndex: boss.tileIndex }) });
+  } else if (raids?.pending) {
+    const den = raids.pending, name = content.species[den.speciesId]?.name ?? '';
+    cards.push({ id: 'raid', title: `极巨巢穴预告：${name}`, art: { sprite: pokemonSpritePath(den.speciesId) }, status: `第 ${den.round} 轮出现（${den.round - view.round} 轮）`,
+      tip: `第 ${den.round} 轮，本地区的${name}会出现在${den.tileIndex === null ? '远方（你还没探索过那里）' : '定位处'}，停留 ${lateTuning(content).raidRounds} 轮。提前把队伍带过去：伤害第一的文明得到它。`,
+      urgency: den.round - view.round <= 2 ? 0 : 2, distance: den.tileIndex === null ? null : hexDistanceToOwn(view, den.tileIndex), ...(den.tileIndex === null ? {} : { tileIndex: den.tileIndex }) });
   } else if (raids?.nextRound) {
     cards.push({ id: 'raid', title: '极巨巢穴', art: { icon: 'raid' }, status: `第 ${raids.nextRound} 轮出现`,
       tip: `从第 ${lateTuning(content).raidFirstRound} 轮起每 ${lateTuning(content).raidInterval} 轮，远离所有首都的地方会出现一只本地区的三阶或稀有宝可梦，停留 ${lateTuning(content).raidRounds} 轮。`,
@@ -189,6 +194,9 @@ export function depthToast(payload: VisibleEvent['payload'], view: PlayerView): 
         detail: first ? `冠军：${civ(view, first.playerId)}的${content.species[first.speciesId]?.name ?? ''}（${first.score} 分）。${own ? `你第 ${own.place} 名，人气 +${own.appeal}。` : '你没有参赛。'}` : '没有文明参赛。',
         target: world, action: '查看', strategic: own?.place === 1 };
     }
+    case 'RaidAnnounced':
+      return { tone: 'info', icon: '✸', title: `极巨巢穴预告：${content.species[payload.speciesId]?.name ?? ''}`, detail: `第 ${payload.round} 轮出现${payload.tileIndex === null ? '在远方（你还没探索过那里）' : '，世界页可定位'}。`,
+        target: world, action: '查看', key: 'raid' };
     case 'RaidAppeared':
       return { tone: 'war', icon: '✸', title: `极巨巢穴出现：${content.species[payload.speciesId]?.name ?? ''}`, detail: payload.tileIndex === null ? '远方出现了极巨巢穴（你还没探索过那里）。' : `HP ${payload.hp}，第 ${payload.endsAtRound} 轮后离开。伤害第一的文明得到它。`,
         target: world, action: '查看', key: 'raid', strategic: true };

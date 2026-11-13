@@ -43,8 +43,8 @@ export type LateGameTuning = {
   seasonTypePoints: number; seasonStagePoints: number; seasonHallPoints: number; seasonHallCap: number;
   /** §5.2 AI cultural defence: a rival at this percent of its contest target. */
   defencePercent: number;
-  /** §5.4 raids: first round, interval, rounds a den stays, boss HP (base + per living civilization), minimum distance to capitals. */
-  raidFirstRound: number; raidInterval: number; raidRounds: number; raidBaseHp: number; raidHpPerCiv: number; raidCapitalDistance: number;
+  /** §5.4 raids: first round, interval, rounds a den stays, rounds of notice before it opens (§5.6), boss HP (base + per living civilization), minimum distance to capitals. */
+  raidFirstRound: number; raidInterval: number; raidRounds: number; raidAnnounce: number; raidBaseHp: number; raidHpPerCiv: number; raidCapitalDistance: number;
   /** §5.4 raid rewards: gold per 10% share (at most `raidMaxGold`) to each civilization with at least `raidMinSharePercent`. */
   raidShareGold: number; raidMaxGold: number; raidMinSharePercent: number;
   /** §5.5 the near-victory warning threshold (percent of a victory route). */
@@ -62,7 +62,7 @@ export const LATE_GAME_TUNING: LateGameTuning = {
   seasonFirstRound: 45, seasonInterval: 15, seasonAnnounce: 5, seasonRewards: [60, 30, 15], seasonEntryAppeal: 5,
   seasonTypePoints: 20, seasonStagePoints: 10, seasonHallPoints: 5, seasonHallCap: 4,
   defencePercent: 60,
-  raidFirstRound: 90, raidInterval: 20, raidRounds: 3, raidBaseHp: 60, raidHpPerCiv: 15, raidCapitalDistance: 5,
+  raidFirstRound: 90, raidInterval: 20, raidRounds: 3, raidAnnounce: 5, raidBaseHp: 60, raidHpPerCiv: 15, raidCapitalDistance: 5,
   raidShareGold: 60, raidMaxGold: 180, raidMinSharePercent: 10,
   watchPercent: 75,
   escortMaxCities: 4,

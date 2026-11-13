@@ -57,7 +57,7 @@ export function patchSchema(base: Content): Schema {
       trainingGold: [0, 1000], trainingXp: [0, 1000], trainingCooldown: [1, 300], tmGold: [0, 1000], tmFinalGold: [0, 1000],
       seasonFirstRound: [1, 300], seasonInterval: [1, 300], seasonAnnounce: [0, 50], seasonRewards: indexed(base.depth26.late.seasonRewards, [0, 1000]), seasonEntryAppeal: [0, 1000],
       seasonTypePoints: [0, 1000], seasonStagePoints: [0, 1000], seasonHallPoints: [0, 1000], seasonHallCap: [0, 20], defencePercent: [0, 1000],
-      raidFirstRound: [1, 300], raidInterval: [1, 300], raidRounds: [1, 30], raidBaseHp: [1, 10_000], raidHpPerCiv: [0, 1000], raidCapitalDistance: [0, 30],
+      raidFirstRound: [1, 300], raidInterval: [1, 300], raidRounds: [1, 30], raidAnnounce: [0, 50], raidBaseHp: [1, 10_000], raidHpPerCiv: [0, 1000], raidCapitalDistance: [0, 30],
       raidShareGold: [0, 1000], raidMaxGold: [0, 10_000], raidMinSharePercent: [0, 100], watchPercent: [1, 100], escortMaxCities: [0, 100], giftBalls: [0, 100] },
   } } : {}),
   };

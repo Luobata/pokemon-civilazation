@@ -8,8 +8,9 @@ import { contentForView } from '../content/units.ts';
 const RAID_REACH = 10, RAID_TEAM = 3;
 type Pokemon = Extract<MapUnit, { kind: 'pokemon' }>;
 function raidTeam(view: PlayerView): { den: Hex; team: Pokemon[] } | null {
-  const active = view.expansion?.raids?.active;
-  if (!active || active.tileIndex === null || view.round > active.endsAtRound) return null;
+  // The open den, or the announced one (5 rounds of notice to walk there).
+  const raids = view.expansion?.raids, active = raids?.active ?? raids?.pending;
+  if (!active || active.tileIndex === null) return null;
   // At war only while no enemy Pokémon is in sight within 5 tiles of an own city (the spec's "not fighting a neighbour").
   const enemies = new Set(view.diplomacy.filter(pair => pair.status === 'war' && (pair.a === view.playerId || pair.b === view.playerId)).map(pair => pair.a === view.playerId ? pair.b : pair.a));
   if (view.units.some(unit => unit.ownerId !== null && enemies.has(unit.ownerId) && view.economy.cities.some(city => hexDistance(city.position, unit.position, view.map) <= 5))) return null;

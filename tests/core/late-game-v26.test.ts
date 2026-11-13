@@ -156,12 +156,18 @@ describe('v26 raids, the near-victory warning, the opening gift, evolution goals
   test('raid rounds and the raid view stay quiet before round 90', () => {
     const { state, content } = game();
     expect(raidRounds(content, 200)).toEqual([90, 110, 130, 150, 170, 190]);
-    expect(observe(state, 0, content).expansion!.raids).toEqual({ nextRound: 90, held: 0, active: null });
+    expect(observe(state, 0, content).expansion!.raids).toEqual({ nextRound: 90, held: 0, pending: null, active: null });
   });
   test('a raid appears the round before 90 and a knocked-out boss goes to the top damage dealer', () => {
     const { state, content } = game();
-    state.round = 89;
+    state.round = 84;
     let next = state;
+    for (const actor of [0, 1]) next = ok(order(next, { type: 'EndTurn' }, content, actor)).state;
+    // Announced five rounds ahead: site and species, the tile only for civilizations that explored it.
+    const den = next.expansion!.raids!.pending!;
+    expect(den.round).toBe(90);
+    expect(observe(next, 0, content).expansion!.raids!.pending!.speciesId).toBe(den.speciesId);
+    next.round = 89;
     for (const actor of [0, 1]) next = ok(order(next, { type: 'EndTurn' }, content, actor)).state;
     const raid = next.expansion!.raids!.active!;
     expect(raid).not.toBeNull();
