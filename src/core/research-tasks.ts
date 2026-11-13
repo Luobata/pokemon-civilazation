@@ -4,7 +4,7 @@
 import { RESEARCH_TASK_IDS, RESEARCH_TASK_RULES_V24, researchSpecialFor } from '../content/research-tasks.ts';
 import type { ResearchTaskId } from '../content/research-tasks.ts';
 import { isNight } from '../content/era-abilities.ts';
-import { spawnWeightsFor } from '../content/roster.ts';
+import { isRegionalSpecies, spawnWeightsFor } from '../content/roster.ts';
 import type { BiomeId } from '../content/rules.ts';
 import type { SpeciesId } from '../content/species.ts';
 import { contentFor } from '../content/units.ts';
@@ -151,7 +151,8 @@ function credits(before: GameState, after: GameState, events: readonly EventPayl
   for (const playerId of active) for (const record of Object.values(after.expansion?.world.players[playerId]?.pokedex ?? {})) {
     if (record.observed) found.push({ playerId, speciesId: record.speciesId, task: 'seen' });
   }
-  return found;
+  // v25: research cards exist for regional species only.
+  return content.regionalDex ? found.filter(credit => isRegionalSpecies(content, credit.speciesId)) : found;
 }
 
 /** Gives the rewards for reaching `done` tasks on one card (each threshold is reached exactly once). */

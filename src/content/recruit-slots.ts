@@ -52,19 +52,27 @@ const typesOf = (definition: SpeciesDefinition) => definition.secondaryTypeId ? 
 
 /**
  * §3.3 resolution, strictly in slot order; a species used by an earlier slot is not used again and the starter lines never fill a slot.
+ * Fallbacks skip the other slots' regional first choices; a core slot may still take one when nothing else fits.
  * Only slots up to `maxGeneration` resolve (simple-era games stop at generation 3). Within a level: non-rare first, lower stage, id.
  */
 export function resolveRecruits(species: Species, speciesIds: readonly SpeciesId[], maxGeneration: number, excluded: ReadonlySet<SpeciesId>): ResolvedRecruit[] {
   const used = new Set<SpeciesId>(), dex = new Set(speciesIds), tables = slotTables(species);
   const pool = tables.order.filter(id => dex.has(id) && !excluded.has(id));
+  const active = RECRUIT_SLOTS.filter(slot => slot.generation === undefined || slot.generation <= maxGeneration);
+  // Regional first choices are reserved for their own slots: only a core slot (C11, never empty) may borrow one when nothing else fits,
+  // e.g. seafaring takes horsea when magikarp is not regional; other slots stay empty rather than take another slot's first choice.
+  const reserved = new Set(active.map(slot => slot.preferred).filter(id => dex.has(id) && !excluded.has(id)));
   const resolved: ResolvedRecruit[] = [];
   for (const [index, slot] of RECRUIT_SLOTS.entries()) {
-    if (slot.generation !== undefined && slot.generation > maxGeneration) continue;
+    if (!active.includes(slot)) continue;
     let found: ResolvedRecruit = { slot: slot.id, speciesId: null, level: 6 };
     if (dex.has(slot.preferred) && !excluded.has(slot.preferred) && !used.has(slot.preferred)) found = { slot: slot.id, speciesId: slot.preferred, level: 1 };
-    else for (const [level, test] of tables.levels[index]) {
-      const speciesId = pool.find(id => !used.has(id) && test(species[id], id));
-      if (speciesId) { found = { slot: slot.id, speciesId, level }; break; }
+    else for (const free of slot.core ? [true, false] : [true]) {
+      for (const [level, test] of tables.levels[index]) {
+        const speciesId = pool.find(id => !used.has(id) && (!free || !reserved.has(id)) && test(species[id], id));
+        if (speciesId) { found = { slot: slot.id, speciesId, level }; break; }
+      }
+      if (found.speciesId) break;
     }
     if (found.speciesId) used.add(found.speciesId);
     resolved.push(found);

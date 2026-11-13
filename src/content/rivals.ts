@@ -1,7 +1,7 @@
 // Gameplay v24 C (docs/design/world-v24.md §4): rival trainers — schedule, counters by starter, strength offsets, rewards, names.
 // Names and lines are original. Integers only.
 import type { StarterId } from './units.ts';
-import type { SpeciesId } from './species.ts';
+import type { SpeciesId, TypeId } from './species.ts';
 
 export const RIVAL_RULES_V24 = {
   /** Arrival rounds; the warning appears `warningRounds` earlier. Fallback for the first visit: round 12 (§9, option 7B). */
@@ -19,6 +19,14 @@ export const RIVAL_COUNTERS: Record<StarterId, { primary: readonly SpeciesId[]; 
   bulbasaur: { primary: ['charmander', 'charmeleon', 'charizard', 'ponyta', 'rapidash'], secondary: ['pidgey', 'pidgeotto', 'pidgeot'] },
   charmander: { primary: ['squirtle', 'wartortle', 'blastoise'], secondary: ['geodude', 'graveler', 'golem'] },
   squirtle: { primary: ['bulbasaur', 'ivysaur', 'venusaur', 'exeggcute', 'exeggutor'], secondary: ['pikachu', 'raichu', 'magnemite', 'magneton'] },
+};
+/** v25 (roster-v25 §2.4): the same counters written as types, filled from the regional Pokédex (land species, primary type first, else
+ * secondary). Each type keeps a line that is always regional: fire charmander, water squirtle, grass bulbasaur, electric pikachu,
+ * rock geodude, flying the charizard line (secondary type). */
+export const RIVAL_COUNTER_TYPES_V25: Record<StarterId, { primary: TypeId; secondary: TypeId }> = {
+  bulbasaur: { primary: 'fire', secondary: 'flying' },
+  charmander: { primary: 'water', secondary: 'rock' },
+  squirtle: { primary: 'grass', secondary: 'electric' },
 };
 /** Team per visit: which counter list and which stage (§4.1). */
 export const RIVAL_TEAMS: readonly (readonly { list: 'primary' | 'secondary'; stage: number }[])[] = [

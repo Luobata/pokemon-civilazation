@@ -32,6 +32,8 @@ export const OPENING_RULES = {
   cityHealing: 5, wallRounds: 20, wallStep: 3, wallMax: 15, capitalDefense: 6,
 } as const;
 
+/** v25 (roster-v25 §2.6): the Pokédex target scaled by the regional share of the pool, max(12, round(T × N / P)), integers only. */
+export const regionalPokedexTarget = (target: number, size: number, pool: number): number => Math.max(12, Math.floor((2 * target * size + pool) / (2 * pool)));
 /** v21: victory targets scale with the round limit (a 200-round game asks twice as much as a 100-round one). Older rules: fixed. */
 export function victoryTargets(source: { gameplayVersion?: number; roundLimit?: number }) {
   const scale = (source.gameplayVersion ?? 0) >= 21 ? Math.max(1, (source.roundLimit ?? 100) / 100) : 1;

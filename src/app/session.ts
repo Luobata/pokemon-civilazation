@@ -5,7 +5,7 @@ import type { RejectedCitySite } from '../ai/memory.ts';
 import { planNext } from '../ai/plan.ts';
 import { isMapUnit } from '../core/model.ts';
 import { deserializeSave, serializeSave } from './save.ts';
-import { contentFor, STOCK_CONTENTS } from '../content/units.ts';
+import { contentFor, isStockContent } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
 import { createGame } from '../core/game.ts';
 import { cityCounterAttack } from '../core/city.ts';
@@ -144,7 +144,7 @@ export class GameSession {
   }
   save(): string { return serializeSave(this.getState(), this.exportLog()); }
   load(text: string): void {
-    const stock = STOCK_CONTENTS.includes(this.content);
+    const stock = isStockContent(this.content);
     const save = deserializeSave(text, stock ? undefined : this.content);
     if (stock) this.content = contentFor(save.state.setup);
     this.state = save.state;

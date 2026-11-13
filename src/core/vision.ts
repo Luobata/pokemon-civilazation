@@ -141,6 +141,7 @@ export function observe(state: GameState, playerId: number, content: Content = c
       ...(state.expansion.eraAbilities ? { eraAbilities: observeEraAbilities(state, playerId, visible, hex => hexToIndex(hex, state.map)) } : {}) } } : {}),
     ...(state.setup.eraProgression ? { eraProgression: state.setup.eraProgression } : {}),
     ...(state.setup.gameplayVersion ? { gameplayVersion: state.setup.gameplayVersion } : {}),
+    ...(content.regionalDex ? { regionalDex: [...content.regionalDex.speciesIds] } : {}),
     playerId, seed: state.setup.seed, round: state.round, activePlayerId: state.activePlayerId, commandSeq: state.commandSeq,
     map: { width: state.map.width, height: state.map.height, ...(state.map.wrap ? { wrap: true } : {}),
       tiles: state.map.tiles.map((biome, i) => visible.has(i) ? biome : knowledge.rememberedTiles[i]?.biomeId ?? null),

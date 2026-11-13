@@ -18,9 +18,9 @@ import { collectTelemetry, createTelemetry } from './telemetry.ts';
 import { classifyRejection } from './rejections.ts';
 
 export function simulateMatch(match: Match, roundLimit: 100 | 200 | 300 = 100, options?: SimulationOptions, gameplayVersion?: GameplayVersion) {
-  const content = options?.content ?? contentFor(gameplayVersion ? { expansionVersion: 1, gameplayVersion } : {}), ai = options?.ai ?? AI_THRESHOLDS;
-  const query = { ...RULE_QUERIES, content, ai }, memory: RejectedCitySite[] = [];
   const setup = { ...matchSetup(match, roundLimit), ...(gameplayVersion ? { expansionVersion: 1 as const, eraProgression: 'simple-v1' as const, gameplayVersion } : {}) };
+  const content = options?.content ?? contentFor(setup), ai = options?.ai ?? AI_THRESHOLDS;
+  const query = { ...RULE_QUERIES, content, ai }, memory: RejectedCitySite[] = [];
   let state: GameState;
   try { state = createGame(setup, content); } catch (error) {
     return { ...match, winners: [], kind: null, round: 0, aborted: false, defect: true, legacyAborted: true, invalid: [], exception: String(error), commandCount: 0,

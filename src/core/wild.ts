@@ -2,7 +2,7 @@ import { contentFor } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
 import type { BiomeId } from '../content/rules.ts';
 import type { SpeciesId } from '../content/species.ts';
-import { spawnWeightsFor, speciesGeneration, wanderersFor } from '../content/roster.ts';
+import { deepWaterFor, habitatOverlaysFor, residentsFor, spawnWeightsFor, speciesGeneration, wanderersFor } from '../content/roster.ts';
 import { regionGeneration } from './roster.ts';
 import { hexDistance, hexToIndex, indexToHex, neighbors } from './hex.ts';
 import { isMapUnit } from './model.ts';
@@ -16,7 +16,7 @@ import { isRivalUnit } from './rivals.ts';
 import { isDeep, isHill, isLandmarkTile, isPeak, isRiver } from './terrain.ts';
 import type { FeatureMap } from './terrain.ts';
 import { adjacentLandmarks } from './landmarks.ts';
-import { DEEP_WATER_HABITAT_V24, HABITAT_OVERLAYS_V24, LANDMARKS, LANDMARK_RULES_V24, NIGHT_SPAWN_MULTIPLIER_V24 } from '../content/terrain.ts';
+import { LANDMARK_RULES_V24, NIGHT_SPAWN_MULTIPLIER_V24 } from '../content/terrain.ts';
 import { isNight } from '../content/era-abilities.ts';
 import type { Hex } from './hex.ts';
 
@@ -73,15 +73,17 @@ export function tileHabitatWeights(map: FeatureMap, tileIndex: number, content: 
   if (biome === null || biome === undefined) return {};
   const weights: Partial<Record<SpeciesId, number>> = { ...spawnWeightsFor(content, biome) };
   const add = (extra: Partial<Record<SpeciesId, number>>) => { for (const [id, value] of Object.entries(extra) as [SpeciesId, number][]) weights[id] = (weights[id] ?? 0) + value; };
-  if (isHill(map, tileIndex)) add(HABITAT_OVERLAYS_V24.hill);
-  if (isRiver(map, tileIndex)) add(HABITAT_OVERLAYS_V24.river);
+  // v25: the overlays, deep water and residents come from the regional tables (the v24 tables otherwise).
+  const overlays = habitatOverlaysFor(content), deep = deepWaterFor(content);
+  if (isHill(map, tileIndex)) add(overlays.hill);
+  if (isRiver(map, tileIndex)) add(overlays.river);
   const around = neighbors(indexToHex(tileIndex, map), map).map(hex => hexToIndex(hex, map)).filter((index): index is number => index !== null);
-  if (biome === 'mountain' && around.some(index => isPeak(map, index))) add(HABITAT_OVERLAYS_V24.peakside);
+  if (biome === 'mountain' && around.some(index => isPeak(map, index))) add(overlays.peakside);
   if (isDeep(map, tileIndex)) {
-    for (const id of DEEP_WATER_HABITAT_V24.remove) delete weights[id];
-    for (const [id, factor] of Object.entries(DEEP_WATER_HABITAT_V24.multiply) as [SpeciesId, number][]) if (weights[id]) weights[id] = weights[id]! * factor;
+    for (const id of deep.remove) delete weights[id];
+    for (const [id, factor] of Object.entries(deep.multiply) as [SpeciesId, number][]) if (weights[id]) weights[id] = weights[id]! * factor;
   }
-  for (const id of adjacentLandmarks(map, tileIndex)) for (const resident of LANDMARKS[id].residents) {
+  for (const id of adjacentLandmarks(map, tileIndex)) for (const resident of residentsFor(content, id)) {
     weights[resident] = (weights[resident] ?? LANDMARK_RULES_V24.residentBaseWeight) * LANDMARK_RULES_V24.residentMultiplier;
   }
   return weights;

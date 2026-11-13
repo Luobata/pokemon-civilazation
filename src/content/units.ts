@@ -15,6 +15,12 @@ import { TREE_BUILDING_TECH, TREE_RECRUITS, TREE_TECHS } from './tech-tree.ts';
 import type { BiomeId } from './rules.ts';
 import { WORLD24_TUNING } from './world24-tuning.ts';
 import type { World24Tuning } from './world24-tuning.ts';
+import type { EraProgression } from './eras.ts';
+import type { LandmarkId } from './terrain.ts';
+import type { ResolvedRecruit } from './recruit-slots.ts';
+import { deriveRosterTables, drawRegionalDex, dexMaxGeneration, evolutionLines } from './regional-dex.ts';
+import type { RegionalDexDraw } from './regional-dex.ts';
+import { SPECIES_TAGS } from './species-tags.ts';
 
 export const STARTER_IDS = ['bulbasaur', 'charmander', 'squirtle'] as const;
 export type StarterId = (typeof STARTER_IDS)[number];
@@ -64,6 +70,12 @@ export type RosterTables = {
   pokedexTargetBonus: number;
   /** Weights for the nest picker (absent = uniform). */
   nestWeights?: Partial<Record<SpeciesId, number>>;
+  /** v25 (roster-v25 §3.2): habitat overlays, deep water and landmark residents of the regional Pokédex; absent = the v24 tables. */
+  habitatOverlays?: Record<'hill' | 'river' | 'peakside', Partial<Record<SpeciesId, number>>>;
+  deepWater?: { multiply: Partial<Record<SpeciesId, number>>; remove: readonly SpeciesId[] };
+  residents?: Partial<Record<LandmarkId, readonly SpeciesId[]>>;
+  /** v25: how each recruit slot resolved in this region (tech cards, research tree). */
+  recruitSlots?: readonly ResolvedRecruit[];
 };
 const land: BiomeId[] = ['grassland', 'forest', 'mountain', 'desert', 'snow'];
 export const CONTENT: Content = {
@@ -143,7 +155,9 @@ export const OPENING_CONTENT: Content = { ...BATTLE_CONTENT, version: 'opening-v
   techs: Object.fromEntries(Object.entries(BATTLE_CONTENT.techs).map(([id, tech]) => [id, { ...tech, cost: tech.tier === 1 ? 14 : tech.tier === 2 ? 32 : tech.cost }])) as Content['techs'],
   units: { ...BATTLE_CONTENT.units, settler: { ...BATTLE_CONTENT.units.settler, trainCost: 24 } },
   balance: { ...BATTLE_CONTENT.balance, city: { ...BATTLE_CONTENT.balance.city, baseHp: 100, capturedHp: 50 } } };
-type ContentSetup = { expansionVersion?: 1; gameplayVersion?: number };
+/** What picks a content: versions, plus (v25) the public setup the regional Pokédex is drawn from. */
+type ContentSetup = { expansionVersion?: 1; gameplayVersion?: number; seed?: number; dexSeed?: number; eraProgression?: EraProgression;
+  players?: readonly { leaderId?: LeaderId }[] };
 /** The single place that maps a game setup to its content table; logs and saves record `content.version`. */
 /** v22: v21 content plus the three flags; the tech tree replaces `techs`, rewires building techs and the recruit table. */
 export const WORLD_CONTENT: Content = { ...OPENING_CONTENT, version: 'world-v22', wrap: true, techTree: true, dedications: true,
@@ -156,13 +170,54 @@ export const IMPROVEMENT_CONTENT: Content = { ...WORLD_CONTENT, version: 'improv
 /** v24: v23 content plus the six world flags (spec docs/design/world-v24.md). */
 export const WORLD24_CONTENT: Content = { ...IMPROVEMENT_CONTENT, version: 'world-v24', terrain: true, embark: true, landmarks: true, gymCircuit: true, rivals: true, researchTasks: true,
   world24: JSON.parse(JSON.stringify(WORLD24_TUNING)) as typeof WORLD24_TUNING };
-/** v25: v24 content as the regional-Pokédex base (spec docs/design/roster-v25.md); a game's own content narrows it to its regional Pokédex. */
-export const REGIONAL_CONTENT: Content = { ...WORLD24_CONTENT, version: 'roster-v25', world24: JSON.parse(JSON.stringify(WORLD24_CONTENT.world24)) as World24Tuning };
-/** v25: the content of one game's regional Pokédex (scaffolding: the full pool, same rules as v24). */
-export function regionalContentFor(setup: ContentSetup): Content {
-  void setup;
-  return REGIONAL_CONTENT;
+/** v25 species: v24 species, with every tagged wild habitat also listed in `spawnBiomes` (sneasel and clefairy gain one, roster-v25 §3.1). */
+const regionalSpecies = Object.fromEntries(Object.entries(WORLD24_CONTENT.species).map(([id, species]) => {
+  const biomes = Object.keys(SPECIES_TAGS[id]?.habitat ?? {}).filter((key): key is BiomeId => key in BIOME_YIELDS);
+  return [id, biomes.every(biome => species.spawnBiomes.includes(biome)) ? species : { ...species, spawnBiomes: [...new Set([...species.spawnBiomes, ...biomes])] }];
+})) as Record<SpeciesId, SpeciesDefinition>;
+const regionalRoster = (speciesIds: readonly SpeciesId[], mode: EraProgression): RosterTables => deriveRosterTables(regionalSpecies, speciesIds, mode);
+/** v25 base (spec docs/design/roster-v25.md): the v24 content with roster tables derived from the species tags over the whole pool. A game's
+ * own content (`regionalContentFor`) narrows the tables to its regional Pokédex; this base serves setups without a seed (the manual). */
+export const REGIONAL_CONTENT: Content = { ...WORLD24_CONTENT, version: 'roster-v25', species: regionalSpecies, units: { ...WORLD24_CONTENT.units, ...regionalSpecies },
+  world24: JSON.parse(JSON.stringify(WORLD24_CONTENT.world24)) as World24Tuning, roster: regionalRoster(Object.keys(regionalSpecies).sort() as SpeciesId[], 'full-v1') };
+const regionalContents = new Map<string, Content>(), regionalDraws = new Map<string, RegionalDexDraw>(), bySetup = new WeakMap<object, Content>();
+const derivedContents = new WeakSet<Content>();
+/** Pool size of a mode (P in the Pokédex target scaling, §2.6). */
+export const regionalPoolSize = (mode: EraProgression): number => evolutionLines(regionalSpecies, dexMaxGeneration(mode)).reduce((sum, line) => sum + line.speciesIds.length, 0);
+/** v25 §2.2: the regional Pokédex draw of a setup (dexSeed, else the map seed; era mode; seated leaders). Memoized; pure. */
+export function regionalDexDraw(setup: { seed: number; dexSeed?: number; eraProgression: EraProgression; players: readonly { leaderId?: LeaderId }[] }): RegionalDexDraw {
+  const leaders = [...new Set(setup.players.flatMap(player => player.leaderId ? [player.leaderId] : []))].sort();
+  const dexSeed = setup.dexSeed ?? setup.seed, key = `${dexSeed}|${setup.eraProgression}|${leaders.join(',')}`;
+  let draw = regionalDraws.get(key);
+  if (!draw) {
+    if (regionalDraws.size > 512) regionalDraws.clear();
+    regionalDraws.set(key, draw = drawRegionalDex({ species: regionalSpecies, mode: setup.eraProgression, dexSeed, leaders }));
+  }
+  return draw;
 }
+/** v25: the content of a regional Pokédex (memoized by mode and species list, so the authority and every view share one object). */
+export function regionalContentFromIds(speciesIds: readonly SpeciesId[], mode: EraProgression): Content {
+  const sorted = [...new Set(speciesIds)].filter(id => regionalSpecies[id]).sort(), key = `${mode}|${sorted.join(',')}`;
+  let content = regionalContents.get(key);
+  if (!content) {
+    if (regionalContents.size > 512) regionalContents.clear();
+    content = { ...REGIONAL_CONTENT, roster: regionalRoster(sorted, mode), regionalDex: { speciesIds: Object.freeze(sorted), size: sorted.length, pool: regionalPoolSize(mode) } };
+    derivedContents.add(content);
+    regionalContents.set(key, content);
+  }
+  return content;
+}
+/** v25: the content of one game's regional Pokédex; setups without a seed or era mode get the whole-pool base. */
+export function regionalContentFor(setup: ContentSetup): Content {
+  if (setup.seed === undefined || setup.eraProgression === undefined || !setup.players) return REGIONAL_CONTENT;
+  const cached = bySetup.get(setup);
+  if (cached) return cached;
+  const content = regionalContentFromIds(regionalDexDraw(setup as Parameters<typeof regionalDexDraw>[0]).speciesIds, setup.eraProgression);
+  bySetup.set(setup, content);
+  return content;
+}
+/** Stock contents plus the derived v25 regional contents (saves re-derive them from the setup). */
+export const isStockContent = (content: Content): boolean => STOCK_CONTENTS.includes(content) || derivedContents.has(content);
 /** A technology of this content (throws for ids the content does not define, e.g. a v22 id in an older game). */
 export function techOf(content: Content, id: TechId): TechDefinition {
   const tech = content.techs[id];
@@ -172,8 +227,9 @@ export function techOf(content: Content, id: TechId): TechDefinition {
 export function contentFor(setup: ContentSetup): Content {
   return setup.expansionVersion !== 1 ? CONTENT : (setup.gameplayVersion ?? 0) >= 25 ? regionalContentFor(setup) : (setup.gameplayVersion ?? 0) >= 24 ? WORLD24_CONTENT : (setup.gameplayVersion ?? 0) >= 23 ? IMPROVEMENT_CONTENT : (setup.gameplayVersion ?? 0) >= 22 ? WORLD_CONTENT : (setup.gameplayVersion ?? 0) >= 21 ? OPENING_CONTENT : (setup.gameplayVersion ?? 0) >= 20 ? BATTLE_CONTENT : (setup.gameplayVersion ?? 0) >= 14 ? ROSTER_CONTENT : EXPANSION_CONTENT;
 }
-/** Same choice from a player's view (views carry `expansion` and `gameplayVersion` but not the setup). */
-export function contentForView(view: { expansion?: unknown; gameplayVersion?: number }): Content {
+/** Same choice from a player's view (views carry `expansion` and `gameplayVersion` but not the setup; v25 views carry the regional Pokédex). */
+export function contentForView(view: { expansion?: unknown; gameplayVersion?: number; eraProgression?: EraProgression; regionalDex?: readonly SpeciesId[] }): Content {
+  if (view.expansion && view.regionalDex && view.eraProgression && (view.gameplayVersion ?? 0) >= 25) return regionalContentFromIds(view.regionalDex, view.eraProgression);
   return view.expansion ? contentFor({ expansionVersion: 1, gameplayVersion: view.gameplayVersion }) : CONTENT;
 }
 export const STOCK_CONTENTS: readonly Content[] = [CONTENT, EXPANSION_CONTENT, ROSTER_CONTENT, BATTLE_CONTENT, OPENING_CONTENT, WORLD_CONTENT, IMPROVEMENT_CONTENT, WORLD24_CONTENT, REGIONAL_CONTENT];
