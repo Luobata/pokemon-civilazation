@@ -733,6 +733,33 @@ export function inspectSystem(systemId: string, state: GameState): AuditSystemIn
       ...Object.entries(circuit.badges).map(([id, list]) => metric(`玩家 ${id} 徽章`, `${list.length}${circuit.eliteFour[Number(id)]?.won ? ' · 已胜四天王' : ''}`))],
       data: { gyms: circuit.gyms, badges: circuit.badges, eliteFour: circuit.eliteFour } };
   }
+  // v26 lane 2 (depth-v26 §5, §7.2, §8).
+  if (system.id === 's-gold-sinks') {
+    const sinks = state.expansion?.goldSinks;
+    if (!sinks) return { metrics: [metric('当前规则', '未启用（需 v26）')], data: {} };
+    return { metrics: [metric('当前规则', '金币出口 v26'), metric('学习器', Object.keys(sinks.moves).length),
+      ...Object.entries(sinks.spent).map(([id, row]) => metric(`玩家 ${id} 花费`, Object.entries(row).map(([kind, gold]) => `${kind} ${gold}`).join(' · ') || '0'))], data: { goldSinks: sinks } };
+  }
+  if (system.id === 's-contest-seasons') {
+    const seasons = state.expansion?.contestSeasons;
+    if (!seasons) return { metrics: [metric('当前规则', '未启用（需 v26）')], data: {} };
+    return { metrics: [metric('当前规则', '华丽大赛季 v26'), metric('已评审', seasons.held), metric('本届参赛', Object.keys(seasons.entries).length),
+      ...Object.entries(seasons.ribbons).map(([id, count]) => metric(`玩家 ${id} 缎带`, count))], data: { contestSeasons: seasons } };
+  }
+  if (system.id === 's-late-events') {
+    const raids = state.expansion?.raids;
+    if (!raids) return { metrics: [metric('当前规则', '未启用（需 v26）')], data: {} };
+    return { metrics: [metric('当前规则', '后期事件 v26'), metric('已出现的极巨巢穴', raids.held), metric('当前巢穴', raids.active ? `${raids.active.speciesId} · 第 ${raids.active.endsAtRound} 轮离开` : '无')],
+      data: { raids, victoryWatch: state.expansion?.victoryWatch ?? {} } };
+  }
+  if (system.id === 's-stacking') {
+    const on = (state.setup.gameplayVersion ?? 0) >= 26;
+    if (!on) return { metrics: [metric('当前规则', '未启用（需 v26）')], data: {} };
+    const tiles = new Map<number, number>();
+    for (const unit of Object.values(state.units)) if (unit.position) { const index = unit.position.q * 10_000 + unit.position.r; tiles.set(index, (tiles.get(index) ?? 0) + 1); }
+    return { metrics: [metric('当前规则', '同格护送 v26'), metric('两个单位同格的格子', [...tiles.values()].filter(count => count > 1).length),
+      ...Object.values(state.players).map(player => metric(`玩家 ${player.id} 精灵球`, player.ballInventory.pokeBall))], data: {} };
+  }
   if (system.id === 's-rivals') {
     const rivals = state.expansion?.rivals;
     if (!rivals) return { metrics: [metric('当前规则', '未启用（需 v24）')], data: {} };

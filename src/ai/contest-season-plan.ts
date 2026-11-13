@@ -31,14 +31,14 @@ const scoreOf = (view: PlayerView, unit: Pokemon, content: Content) => {
   const seasons = view.expansion!.contestSeasons!, halls = view.expansion!.contests!.own.halls.length;
   return contestScore(content, unit.speciesId, unit.xp, viewTaughtMoveType(view, unit.id), halls, seasons.category!);
 };
-/** The entrant for the announced season: the best score among own Pokémon within 6 tiles of a hall (lowest id on ties). */
+/** The entrant for the announced season: the best score among own Pokémon within 8 tiles of a hall (lowest id on ties). */
 function entrant(view: PlayerView, content: Content): { unit: Pokemon; hall: Hex } | null {
   const seasons = view.expansion?.contestSeasons, contests = view.expansion?.contests;
   if (!content.contestSeasons || !seasons?.category || seasons.ownEntry || !contests?.own.halls.length || seasons.nextRound === null || view.round > seasons.nextRound) return null;
   const halls = view.economy.cities.filter(city => contests.own.halls.includes(city.id));
   if (!halls.length) return null;
   const nearest = (unit: Pokemon) => [...halls].sort((a, b) => hexDistance(a.position, unit.position, view.map) - hexDistance(b.position, unit.position, view.map) || a.id - b.id)[0];
-  const unit = view.units.filter((item): item is Pokemon => item.ownerId === view.playerId && item.kind === 'pokemon' && hexDistance(nearest(item).position, item.position, view.map) <= 6)
+  const unit = view.units.filter((item): item is Pokemon => item.ownerId === view.playerId && item.kind === 'pokemon' && hexDistance(nearest(item).position, item.position, view.map) <= 8)
     .sort((a, b) => scoreOf(view, b, content) - scoreOf(view, a, content) || a.id - b.id)[0];
   return unit ? { unit, hall: nearest(unit).position } : null;
 }
@@ -56,7 +56,8 @@ export function planContestSeasonAction(view: PlayerView, content: Content): Com
   const threat = contestThreat(view, content), cities = view.economy.cities.length;
   const cap = threat ? Math.ceil(cities / 3) + 1 : (view.round >= 60 || cities >= 3) ? 1 : 0;
   const pending = Object.keys(contests.own.building).length;
-  if (!atWar && pending === 0 && contests.own.halls.length < cap && treeGateOpen(player, 'contestHall') && player.gold >= CONTEST_RULES.hallGold + 20) {
+  // At war only the first hall, or more while a rival nears a contest win (else a long war leaves the culture race to one civilization).
+  if ((!atWar || threat || !contests.own.halls.length) && pending === 0 && contests.own.halls.length < cap && treeGateOpen(player, 'contestHall') && player.gold >= CONTEST_RULES.hallGold + 20) {
     const city = view.economy.cities.filter(item => !contests.own.halls.includes(item.id) && item.capturedAtRound !== view.round)
       .sort((a, b) => b.population - a.population || a.id - b.id)[0];
     if (city) return { type: 'BuildContestHall', cityId: city.id };

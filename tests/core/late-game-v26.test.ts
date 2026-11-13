@@ -23,6 +23,8 @@ import { victoryProgress } from '../../src/core/victory-watch.ts';
 import { evolutionLines, firstFinalOfLine } from '../../src/core/evolution-goals.ts';
 import { previewAttack } from '../../src/core/preview.ts';
 import { planNext } from '../../src/ai/plan.ts';
+import { deserializeSave, serializeSave } from '../../src/app/save.ts';
+import { gameVersions } from '../../src/core/versions.ts';
 
 const setup = (gameplayVersion: 25 | 26, seed = 31): GameSetup => ({ seed, width: 24, height: 16, roundLimit: 100 as const, expansionVersion: 1 as const,
   eraProgression: 'simple-v1' as const, gameplayVersion, players: [
@@ -253,5 +255,21 @@ describe('v26 AI', () => {
     }
     expect(actions).toContain('RushProduction');
     expect(current.players[1].gold).toBeLessThan(2000);
+  });
+});
+
+describe('v26 saves', () => {
+  test('a v26 save replays with the content derived from its setup (its regional Pokédex), not the stock base', () => {
+    const { state, content } = game();
+    let current = state;
+    const commands: Command[] = [];
+    for (let index = 0; index < 40; index++) {
+      const command = planNext(observe(current, current.activePlayerId, content));
+      const result = step(current, command, content);
+      if (!result.ok) break;
+      current = result.state; commands.push(command);
+    }
+    const log = { version: 1 as const, ...gameVersions(current.setup), contentVersion: current.contentVersion, setup: current.setup, commands };
+    expect(deserializeSave(serializeSave(current, log)).state.commandSeq).toBe(commands.length);
   });
 });

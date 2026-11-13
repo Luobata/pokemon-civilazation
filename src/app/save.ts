@@ -1,7 +1,7 @@
 import { gameVersions } from '../core/versions.ts';
 import { createGame } from '../core/game.ts';
 import { step } from '../core/step.ts';
-import { CONTENT, STOCK_CONTENTS } from '../content/units.ts';
+import { CONTENT, STOCK_CONTENTS, contentFor } from '../content/units.ts';
 import { isLeaderId } from '../content/leaders.ts';
 import type { Content } from '../content/units.ts';
 import type { GameState } from '../core/model.ts';
@@ -20,7 +20,10 @@ export function serializeSave(state: GameState, log: CommandLog): string {
 }
 export function deserializeSave(text: string, content?: Content): SaveFile {
   const save = JSON.parse(text) as SaveFile;
-  content ??= STOCK_CONTENTS.find(stock => stock.version === save?.contentVersion) ?? CONTENT;
+  // A v25 / v26 game's content is derived from its setup (its regional Pokédex), not the stock base of the same version.
+  let derived: Content | undefined;
+  try { derived = save?.state?.setup ? contentFor(save.state.setup) : undefined; } catch { derived = undefined; }
+  content ??= derived?.version === save?.contentVersion ? derived : STOCK_CONTENTS.find(stock => stock.version === save?.contentVersion) ?? CONTENT;
   const versions = gameVersions(save?.state?.setup ?? {});
   if (save?.formatVersion !== 1 || save.schemaVersion !== versions.schemaVersion || save.rulesVersion !== versions.rulesVersion || save.contentVersion !== content.version
     || save.state?.schemaVersion !== save.schemaVersion || save.state.rulesVersion !== save.rulesVersion || save.state.contentVersion !== save.contentVersion

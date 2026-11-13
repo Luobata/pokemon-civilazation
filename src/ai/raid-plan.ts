@@ -1,16 +1,18 @@
-// Gameplay v26 D (docs/design/depth-v26.md §5.4.1): AI raid participation, view-only. With at least two healthy own Pokémon within 8
-// tiles of a den the viewer knows, and no war, up to three of them walk to the den and attacks on the boss score +60.
+// Gameplay v26 D (docs/design/depth-v26.md §5.4.1): AI raid participation, view-only. With at least two healthy own Pokémon within 10
+// tiles (the spec's 8 left most dens unvisited in the sweep) of a den the viewer knows, and no enemy at war near its cities, up to three of them walk to the den and attacks on the boss score +60.
 import { hexDistance, indexToHex } from '../core/hex.ts';
 import type { Hex } from '../core/hex.ts';
 import type { MapUnit, PlayerView } from '../core/model.ts';
 import { contentForView } from '../content/units.ts';
 
-const RAID_REACH = 8, RAID_TEAM = 3;
+const RAID_REACH = 10, RAID_TEAM = 3;
 type Pokemon = Extract<MapUnit, { kind: 'pokemon' }>;
 function raidTeam(view: PlayerView): { den: Hex; team: Pokemon[] } | null {
   const active = view.expansion?.raids?.active;
   if (!active || active.tileIndex === null || view.round > active.endsAtRound) return null;
-  if (view.diplomacy.some(pair => pair.status === 'war' && (pair.a === view.playerId || pair.b === view.playerId))) return null;
+  // At war only while no enemy Pokémon is in sight within 5 tiles of an own city (the spec's "not fighting a neighbour").
+  const enemies = new Set(view.diplomacy.filter(pair => pair.status === 'war' && (pair.a === view.playerId || pair.b === view.playerId)).map(pair => pair.a === view.playerId ? pair.b : pair.a));
+  if (view.units.some(unit => unit.ownerId !== null && enemies.has(unit.ownerId) && view.economy.cities.some(city => hexDistance(city.position, unit.position, view.map) <= 5))) return null;
   const den = indexToHex(active.tileIndex, view.map), content = contentForView(view);
   const team = view.units.filter((unit): unit is Pokemon => unit.ownerId === view.playerId && unit.kind === 'pokemon'
     && unit.hp * 2 >= content.species[unit.speciesId].maxHp && hexDistance(unit.position, den, view.map) <= RAID_REACH)
