@@ -55,11 +55,17 @@ export const ROSTER_SPECIES_NAMES = {
   rookidee: '稚山雀', corvisquire: '蓝鸦', corviknight: '钢铠鸦', dreepy: '多龙梅西亚', drakloak: '多龙奇', dragapult: '多龙巴鲁托',
   kingambit: '仆刀将军', tinkatink: '小锻匠', tinkatuff: '巧锻匠', tinkaton: '巨锻匠',
 } as const;
-export const SPECIES_NAMES = { ...BASE_SPECIES_NAMES, ...ROSTER_SPECIES_NAMES } as const;
+/** Gameplay v26 species batch (`roster-v26`, data: roster-v26-data.ts, spec docs/design/depth-v26.md §4.3); only the v26 content defines them. */
+export const ROSTER_V26_SPECIES_NAMES = {
+  metapod: '铁甲蛹', butterfree: '巴大蝶', weedle: '独角虫', kakuna: '铁壳蛹', beedrill: '大针蜂', persian: '猫老大', spearow: '烈雀', fearow: '大嘴雀',
+  doduo: '嘟嘟', dodrio: '嘟嘟利',
+} as const;
+export const SPECIES_NAMES = { ...BASE_SPECIES_NAMES, ...ROSTER_SPECIES_NAMES, ...ROSTER_V26_SPECIES_NAMES } as const;
 /** The 47 species of every content up to expansion-v1. */
 export type BaseSpeciesId = keyof typeof BASE_SPECIES_NAMES;
 export type RosterSpeciesId = keyof typeof ROSTER_SPECIES_NAMES;
-export type SpeciesId = BaseSpeciesId | RosterSpeciesId;
+export type RosterV26SpeciesId = keyof typeof ROSTER_V26_SPECIES_NAMES;
+export type SpeciesId = BaseSpeciesId | RosterSpeciesId | RosterV26SpeciesId;
 export function speciesDisplay(speciesId: SpeciesId): { name: string; abbreviation: string } {
   const name = SPECIES_NAMES[speciesId];
   return { name, abbreviation: name.slice(0, 1) };
