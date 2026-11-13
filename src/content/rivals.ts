@@ -22,9 +22,10 @@ export const RIVAL_RULES_V24 = {
 export const RIVAL_RULES_V25 = { strengthOffsets: [-10, -12, -13], staysRounds: [6, 7, 9] } as const;
 /**
  * v26 (docs/design/depth-v26.md §3.6): with duels a second way to win, the v25 offsets (set for map fights only) are too soft; the duel
- * prototype is steep between 气势 −5 and 0. Target: visit 1 beaten 40–55%, visits 2 / 3 25–40% (the stays stay as in v25).
+ * prototype is steep between 气势 −5 and 0. Interim values after two gates (docs/design/balance/gate-v26-core.md): the beaten-per-visit rate
+ * measures when the AI chooses to duel, so difficulty is read from the best-lineup estimate at arrival instead (the stays stay as in v25).
  */
-export const RIVAL_RULES_V26 = { strengthOffsets: [-4, -4, -2] } as const;
+export const RIVAL_RULES_V26 = { strengthOffsets: [-5, -4, 0] } as const;
 /** Primary and secondary counters to each starter (§4.1), whole evolution lines so every visit finds its stage. */
 export const RIVAL_COUNTERS: Record<StarterId, { primary: readonly SpeciesId[]; secondary: readonly SpeciesId[] }> = {
   bulbasaur: { primary: ['charmander', 'charmeleon', 'charizard', 'ponyta', 'rapidash'], secondary: ['pidgey', 'pidgeotto', 'pidgeot'] },
