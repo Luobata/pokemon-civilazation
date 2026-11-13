@@ -104,6 +104,8 @@ type BarAction = {
   id: string; action: string; icon: IconName; label: string; hotkey: string; key: string;
   /** Full description (title line of the hover card, accessible name). */
   title: string; reason: string | null; detail: string; selected?: boolean; tone?: 'attack' | 'primary'; data?: string;
+  /** U6: a small count on the button (the capture button shows the balls in stock). */
+  count?: number;
 };
 const escapeHtml = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 /** Hotkeys of the bar (lower-case `event.key`; Space is ' '). Chosen to avoid C (city), F (fit), R/T, Y, Enter, Esc, +/−. */
@@ -129,8 +131,8 @@ function barActions(view: PlayerView, unit: MapUnit, mode: ActionMode, lock: str
     const capture = captureBlocker(view);
     actions.push({
       id: 'capture-unit', action: 'capture', icon: 'capture', label: '捕捉', hotkey: 'Q', key: UNIT_BAR_HOTKEYS.capture,
-      title: mode === 'capture' ? '取消捕捉' : '捕捉', reason: blocked(capture), selected: mode === 'capture',
-      detail: `点相邻的野生宝可梦看捕捉率，再点一次即捕捉。精灵球 ${player.ballInventory.pokeBall} · 超级球 ${player.ballInventory.greatBall}`,
+      title: mode === 'capture' ? '取消捕捉' : '捕捉', reason: blocked(capture), selected: mode === 'capture', count: player.ballInventory.pokeBall + player.ballInventory.greatBall,
+      detail: `点相邻的野生宝可梦看捕捉率，再点一次即捕捉。精灵球 ${player.ballInventory.pokeBall} · 超级球 ${player.ballInventory.greatBall}（顶栏球数可前往城市采购）`,
     });
     const state = evolutionState(view, unit, content), evolution = state.evolution;
     const candy = evolution && unit.xp < evolution.xp ? state.candyPrice(evolution) : null;
@@ -230,7 +232,7 @@ export function renderUnitActionBar(view: PlayerView, selected: number | null, m
     <button type="button" id="${item.id}" class="unit-action${item.selected ? ' selected' : ''}${item.tone ? ` ${item.tone}` : ''}" data-action="${item.action}" data-hotkey="${escapeHtml(item.key)}"${item.data ? ` data-species="${item.data}"` : ''}
       aria-label="${escapeHtml(item.title)}" aria-keyshortcuts="${item.key === ' ' ? 'Space' : item.hotkey}" aria-describedby="${item.id}-tip"${item.selected ? ' aria-pressed="true"' : ''}
       title="${escapeHtml(item.reason ? `${item.title}：${item.reason}` : `${item.title}（${item.hotkey}）`)}"${item.reason ? ` data-reason="${escapeHtml(item.reason)}" disabled` : ''}>
-      <span class="unit-action-icon">${ICONS[item.icon]}</span><span class="unit-action-label">${item.label}</span><kbd>${item.hotkey}</kbd></button>
+      <span class="unit-action-icon">${ICONS[item.icon]}</span><span class="unit-action-label">${item.label}</span><kbd>${item.hotkey}</kbd>${item.count !== undefined ? `<span class="unit-action-count${item.count ? '' : ' empty'}" aria-hidden="true">${item.count}</span>` : ''}</button>
     <span class="unit-action-tip${item.reason ? ' unavailable' : ''}" id="${item.id}-tip" role="tooltip"><b>${escapeHtml(item.title)} <kbd>${item.hotkey}</kbd></b>${item.reason ? `<span class="unit-action-reason">${escapeHtml(item.reason)}</span>` : ''}${item.detail ? `<small>${escapeHtml(item.detail)}</small>` : ''}</span>
     ${item.action === 'improve' && menuOpen ? `<span class="unit-action-menu" role="menu" aria-label="选择改良">${options.map(option => `<button type="button" role="menuitem" data-action="improve-option" data-tile="${option.tileIndex}" data-kind="${option.kind}">${escapeHtml(option.label)}</button>`).join('')}</span>` : ''}
   </span>`).join('')}`;

@@ -29,8 +29,12 @@ export type ToastTone = 'research' | 'production' | 'growth' | 'wonder' | 'war' 
 export type ToastResolve = { kind: 'research' } | { kind: 'city-queued'; cityId: number } | { kind: 'peace-answered'; otherId: number }
   | { kind: 'unit-recovered'; unitId: number } | { kind: 'dedication' };
 export type Toast = { id: number; tone: ToastTone; icon: string; title: string; detail: string; action?: string; target: ToastTarget;
-  persistent: boolean; resolve?: ToastResolve; /** A newer notification with the same key replaces the older one. */ key?: string };
+  persistent: boolean; resolve?: ToastResolve; /** A newer notification with the same key replaces the older one. */ key?: string;
+  /** Playtest 2026-11 U8: a strategic event (war, a city lost or taken, a legend clue, the rival, the league, a wonder lost) is drawn apart from routine pings. */
+  strategic?: true };
 type ToastOptions = { persistent?: boolean; resolve?: ToastResolve; key?: string };
+/** Marks a toast as a strategic event (null stays null). */
+const strategic = (item: Toast | null): Toast | null => item && { ...item, strategic: true };
 /** What the client remembers from before the events (cities the viewer owned, names of units that are gone). */
 export type ToastMemory = { ownCityIds?: ReadonlySet<number>; unitName?: (unitId: number) => string | undefined };
 
@@ -98,22 +102,22 @@ export function toastFor(payload: VisibleEvent['payload'], view: PlayerView, mem
       return toast('info', '⌃', `晋升：获得特性「${PROMOTION_TRAITS[payload.trait].name}」`, PROMOTION_TRAITS[payload.trait].summary, { kind: 'unit', unitId: payload.unitId }, '选中');
     case 'LegendClueFound':
       if (payload.playerId !== me) return null;
-      return toast('wonder', '✧', `传说线索：${LEGEND_WONDERS[payload.legendId].name}`, `剧情第一章已解锁。可以在合适的城市建造「${LEGEND_WONDERS[payload.legendId].wonderName}」。`, { kind: 'screen', screen: 'legends' }, '查看传说', decision());
+      return strategic(toast('wonder', '✧', `传说线索：${LEGEND_WONDERS[payload.legendId].name}`, `剧情第一章已解锁。可以在合适的城市建造「${LEGEND_WONDERS[payload.legendId].wonderName}」。`, { kind: 'screen', screen: 'legends' }, '查看传说', decision()));
     case 'LegendWonderCompleted':
       return payload.playerId === me ? null // the full-screen story card covers it
         : toast('wonder', '♛', `文明 ${payload.playerId + 1} 建成了「${LEGEND_WONDERS[payload.legendId].wonderName}」`, `${LEGEND_WONDERS[payload.legendId].name} 的奇观已被他人建成。`, { kind: 'screen', screen: 'legends' }, '查看传说');
     case 'LegendWonderLost':
       if (payload.playerId !== me) return null;
-      return toast('war', '✕', `「${LEGEND_WONDERS[payload.legendId].wonderName}」被别人抢先建成`, `城市 ${payload.cityId} 的工程作废，退还 ${payload.refund} 金。`, { kind: 'city', cityId: payload.cityId }, '选择生产',
-        idle(payload.cityId) ? produced(payload.cityId) : decision());
+      return strategic(toast('war', '✕', `「${LEGEND_WONDERS[payload.legendId].wonderName}」被别人抢先建成`, `城市 ${payload.cityId} 的工程作废，退还 ${payload.refund} 金。`, { kind: 'city', cityId: payload.cityId }, '选择生产',
+        idle(payload.cityId) ? produced(payload.cityId) : decision()));
     case 'DiplomacyChanged': {
       const relation = payload.relation;
       if (relation.a !== me && relation.b !== me) return null;
       const other = relation.a === me ? relation.b : relation.a;
       if (relation.proposal && relation.proposal.recipientId === me) return toast('info', '✉', `文明 ${other + 1} 提议停战`, '在外交页面接受或拒绝。', { kind: 'screen', screen: 'diplomacy' }, '外交',
         decision({ kind: 'peace-answered', otherId: other }, `peace:${other}`));
-      if (relation.status === 'war' && relation.changedAtRound >= view.round - 1 && relation.declaredBy !== me) return toast('war', '⚔', `文明 ${other + 1} 向你宣战！`, '保护城市和开拓队。', { kind: 'screen', screen: 'diplomacy' }, '外交',
-        decision(undefined, `war:${other}`));
+      if (relation.status === 'war' && relation.changedAtRound >= view.round - 1 && relation.declaredBy !== me) return strategic(toast('war', '⚔', `文明 ${other + 1} 向你宣战！`, '保护城市和开拓队。', { kind: 'screen', screen: 'diplomacy' }, '外交',
+        decision(undefined, `war:${other}`)));
       return null;
     }
     case 'ImprovementPillaged': {
@@ -175,8 +179,8 @@ export function toastFor(payload: VisibleEvent['payload'], view: PlayerView, mem
       return toast('war', '!', `劲敌${view.expansion?.rivals?.name ?? ''}将在第 ${payload.round} 轮出现`, `目标：${view.economy.player.headquartersCityId === payload.cityId ? '首都' : `城市 ${payload.cityId}`}。地图上的红色“!”是它的登场地点。`,
         { kind: 'city', cityId: payload.cityId }, '查看城市', decision(undefined, 'rival-warning'));
     case 'RivalArrived':
-      return toast('war', '!', `劲敌${view.expansion?.rivals?.name ?? ''}登场！`, `“${rivalSays(payload.encounter, 'arrive')}” 劲敌气势 ${payload.spirit >= 0 ? '+' : ''}${payload.spirit}。`,
-        payload.unitIds.length ? { kind: 'unit', unitId: payload.unitIds[0] } : null, '查看', decision(undefined, 'rival-warning'));
+      return strategic(toast('war', '!', `劲敌${view.expansion?.rivals?.name ?? ''}登场！`, `“${rivalSays(payload.encounter, 'arrive')}” 劲敌气势 ${payload.spirit >= 0 ? '+' : ''}${payload.spirit}。`,
+        payload.unitIds.length ? { kind: 'unit', unitId: payload.unitIds[0] } : null, '查看', decision(undefined, 'rival-warning')));
     case 'RivalStruckCity':
       return toast('war', '⚔', `劲敌攻击城市 ${payload.cityId}`, `造成 ${payload.damage} 伤害，城防剩余 ${payload.cityHpAfter}（劲敌不会把城市打到 1 HP 以下）。`, { kind: 'city', cityId: payload.cityId }, '查看城市',
         decision(undefined, `city-attacked:${payload.cityId}`));
@@ -188,11 +192,11 @@ export function toastFor(payload: VisibleEvent['payload'], view: PlayerView, mem
     // Playtest 2026-11 B1: the league conference result (public; the card is on the 动态 screen).
     case 'ChampionshipResolved': {
       const note = leagueSummary(view, payload.season);
-      return toast(note.own === 'champion' ? 'wonder' : 'info', '♚', note.title, note.detail, { kind: 'screen', screen: 'log' }, '查看对阵',
-        decision(undefined, `league:${payload.season.season}`));
+      return strategic(toast(note.own === 'champion' ? 'wonder' : 'info', '♚', note.title, note.detail, { kind: 'screen', screen: 'log' }, '查看对阵',
+        decision(undefined, `league:${payload.season.season}`)));
     }
     case 'CivilizationEliminated':
-      return toast('war', '☠', `文明 ${payload.eliminatedPlayerId + 1} 出局`, '', null);
+      return strategic(toast('war', '☠', `文明 ${payload.eliminatedPlayerId + 1} 出局`, '', null));
     default: return null;
   }
 }
@@ -207,12 +211,15 @@ export function leagueCountdownToast(view: PlayerView): Toast | null {
 function battleToast(payload: Extract<VisibleEvent['payload'], { type: 'BattleResolved' }>, view: PlayerView, memory: ToastMemory): Toast | null {
   const me = view.playerId;
   const attacker = view.units.find(unit => unit.id === payload.attackerId) ?? view.recoveringUnits.find(unit => unit.id === payload.attackerId);
-  if (attacker?.ownerId === me) return null;
+  // U8: a city the viewer takes is a strategic event too.
+  if (attacker?.ownerId === me) return payload.target.kind === 'city' && payload.capturedCity && view.economy.cities.some(city => city.id === payload.target.id)
+    ? strategic(toast('growth', '⚑', `攻占了城市 ${payload.target.id}！`, '它现在是你的城市：为它选择生产。', { kind: 'city', cityId: payload.target.id }, '查看城市', decision({ kind: 'city-queued', cityId: payload.target.id })))
+    : null;
   const by = attacker === undefined ? '敌方单位' : attacker.ownerId === null ? '野生宝可梦' : `文明 ${attacker.ownerId + 1}`;
   if (payload.target.kind === 'city') {
     const cityId = payload.target.id, ownsNow = view.economy.cities.some(city => city.id === cityId);
     if (!ownsNow && !memory.ownCityIds?.has(cityId)) return null;
-    if (payload.capturedCity && !ownsNow) return toast('war', '⚑', `城市 ${cityId} 被攻占！`, `${by}夺走了这座城市。`, null, undefined, decision(undefined, `city-lost:${cityId}`));
+    if (payload.capturedCity && !ownsNow) return strategic(toast('war', '⚑', `城市 ${cityId} 被攻占！`, `${by}夺走了这座城市。`, null, undefined, decision(undefined, `city-lost:${cityId}`)));
     const hp = view.combat.cities[cityId]?.hp;
     return toast('war', '⚔', `城市 ${cityId} 遭到攻击`, `${by}造成 ${payload.damage} 伤害${hp === undefined ? '' : `，城防剩余 ${hp}`}。`, { kind: 'city', cityId }, '查看城市',
       decision(undefined, `city-attacked:${cityId}`));

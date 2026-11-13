@@ -38,11 +38,11 @@ test('v22 research screen: a connected tree, locked reasons, research from a nod
   await page.locator('[data-tree-node="seafaring"]').hover();
   await expect(page.locator('[data-tree-node="medicine"]')).not.toHaveClass(/chain/);
 
-  // Choosing a researchable node starts research.
+  // Clicking a researchable node starts research (playtest 2026-11 U1: one research flow).
   await page.locator('[data-tree-node="stoneCraft"]').click();
   await expect(detail).toContainText('解锁');
-  await detail.getByRole('button', { name: '研究此项' }).click();
   await expect(page.locator('#research-status')).toContainText('碎石工艺');
+  await expect(page.locator('#research-topic')).toHaveValue('stoneCraft');
   await expect(page.locator('[data-tree-node="stoneCraft"]')).toHaveClass(/active/);
 
   // Real wheel input over the tree pans sideways until the last column is in view and clickable.

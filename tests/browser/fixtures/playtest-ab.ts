@@ -83,3 +83,27 @@ export const leagueFixture = () => first('league', LEAGUE_GAMES, view => {
   return peaceful && own(view).filter(unit => unit.kind === 'pokemon').length >= 6 ? league.nextRound : undefined;
 });
 const LEAGUE_GAMES: Options[] = [{ seed: 2, personality: 'aggressive' }];
+
+// ---------- batch B ----------
+/** U8: the turn before the first league season (any registration; id = the season's round). */
+export const leagueEveFixture = () => first('league-eve', [{ seed: 1, personality: 'aggressive' }], view => {
+  const league = view.expansion?.civilization?.championship;
+  return league && league.nextRound - view.round === 1 ? league.nextRound : undefined;
+});
+/**
+ * U5: seat 0 can capture (taming researched, Poké Balls in stock) but its ready Pokémon has no wild Pokémon next to it,
+ * and one 2–4 tiles away (id = that Pokémon; the wild one is the nearest wild unit).
+ */
+export const captureFixture = () => first('capture', [{ seed: 1, personality: 'aggressive' }, { seed: 2, personality: 'aggressive' }], view => {
+  const player = view.economy.player;
+  if (!player.research.unlockedIds.includes('domestication') || player.ballInventory.pokeBall < 1) return undefined;
+  const wild = view.units.filter(unit => unit.kind === 'pokemon' && unit.ownerId === null && !view.expansion?.rivals?.sightings.some(item => item.unitId === unit.id));
+  return own(view).find(unit => unit.kind === 'pokemon' && unit.actionLeft && !inCity(view, unit.position)
+    && !wild.some(other => hexDistance(unit.position, other.position, view.map) === 1)
+    && wild.some(other => { const distance = hexDistance(unit.position, other.position, view.map); return distance >= 2 && distance <= 4; }))?.id;
+});
+/** U7: seat 0 held a contest and is waiting out the cooldown (id = the round the next show is ready; seed 1 ends before it). */
+export const contestFixture = () => first('contest', [{ seed: 2, personality: 'aggressive' }], view => {
+  const contests = view.expansion?.contests;
+  return contests && contests.own.halls.length > 0 && contests.own.showReadyAtRound > view.round ? contests.own.showReadyAtRound : undefined;
+});

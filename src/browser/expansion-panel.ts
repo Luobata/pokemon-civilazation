@@ -40,9 +40,9 @@ export function renderExpansionPanel(view: PlayerView, selectedUnitId: number | 
   const unit = own.find(unit => unit.id === selectedUnitId) ?? own.find(unit => unit.actionLeft);
   const city = view.economy.cities.find(city => city.id === selectedCityId) ?? view.economy.cities[0];
   const actions: Command['action'][] = [];
-  const button = (label: string, action: Command['action'], available = true) => {
+  const button = (label: string, action: Command['action'], available = true, reason?: string) => {
     const id = actions.push(action) - 1;
-    return `<button type="button" data-expansion-action="${id}"${disabled || !available ? ' disabled' : ''}>${escape(label)}</button>`;
+    return `<button type="button" data-expansion-action="${id}"${disabled || !available ? ' disabled' : ''}${reason ? ` title="${escape(reason)}"` : ''}>${escape(label)}</button>`;
   };
   const card = (id: string, title: string, body: string) => `<details data-system="${id}"><summary>${title}</summary>${body}<p><a href="/audit.html?system=${id}" target="_blank" rel="noopener">规则与独立调试 ↗</a></p></details>`;
   let html = '<h2>文明与探索</h2><p>地图标记：巢 · 暴走巢穴，霸 · 霸主，果 · 树果，石 · 矿脉，圣 / 碑 · 圣所与已取得石板。</p>';
@@ -82,7 +82,13 @@ export function renderExpansionPanel(view: PlayerView, selectedUnitId: number | 
       + `<p>当前每轮 +${contest.own.perRound} · 大赛馆 ${contest.own.halls.length} 座${Object.keys(contest.own.building).length ? ` · 建造中 ${Object.entries(contest.own.building).map(([id, progress]) => `城市 ${id} ${progress}/${CONTEST_RULES.hallCost}`).join('、')}` : ''}${leader ? ` · 最高对手：文明 ${leader.playerId + 1} ${leader.appeal}` : ''}</p>`
       + (!treeGateOpen(player, 'contestHall') ? `<p id="contest-hall-locked">建造大赛馆需要先研究「${techOf(contentForView(view), TREE_GATES.contestHall).name}」。</p>`
         : city ? button(`在城市 #${city.id} 建造大赛馆 · ${CONTEST_RULES.hallGold} 金`, { type: 'BuildContestHall', cityId: city.id }, player.gold >= CONTEST_RULES.hallGold && !contest.own.halls.includes(city.id) && contest.own.building[city.id] === undefined) : '')
-      + button(`举办华丽大赛 · ${CONTEST_RULES.showGold} 金（+${contest.own.halls.length * CONTEST_RULES.showPerHall} 人气）`, { type: 'HoldContest' }, contest.own.halls.length > 0 && player.gold >= CONTEST_RULES.showGold && view.round >= contest.own.showReadyAtRound)
+      // Playtest 2026-11 U7: the button says how long the cooldown still runs (and any other reason it is off).
+      + (() => {
+        const wait = contest.own.showReadyAtRound - view.round;
+        const reason = wait > 0 ? `冷却中：还剩 ${wait} 轮，第 ${contest.own.showReadyAtRound} 轮可再举办。` : !contest.own.halls.length ? '还没有建成的大赛馆。'
+          : player.gold < CONTEST_RULES.showGold ? `金币不足：需要 ${CONTEST_RULES.showGold}，现有 ${player.gold}。` : undefined;
+        return `<span class="contest-show" id="contest-show">${button(wait > 0 ? `举办华丽大赛 · 冷却 ${wait} 轮` : `举办华丽大赛 · ${CONTEST_RULES.showGold} 金（+${contest.own.halls.length * CONTEST_RULES.showPerHall} 人气）`, { type: 'HoldContest' }, !reason, reason)}${reason ? `<small class="contest-reason">${escape(reason)}</small>` : ''}</span>`;
+      })()
       + `<p>建造期间该城每轮一半生产投入大赛馆，共需 ${CONTEST_RULES.hallCost}；举办大赛冷却 ${CONTEST_RULES.showCooldown} 轮。</p>`);
   }
   const legendFaith = exp.faith;
