@@ -30,6 +30,8 @@ export type GameSetup = GridSize & {
   gameplayVersion?: GameplayVersion;
   multiplayer?: true;
   roundLimit?: 100 | 200 | 300;
+  /** Gameplay v25 only (docs/design/roster-v25.md §2.2): seed of the regional Pokédex draw; absent = the map `seed`. */
+  dexSeed?: number;
   players: (({ id: number; controller: 'human'; starterId: StarterId }
     | { id: number; controller: 'ai'; personality?: AiPersonality }) & { leaderId?: LeaderId })[];
 };
@@ -94,7 +96,7 @@ export type KnowledgeState = {
   lastKnownCities: Record<number, { ownerId: number | null; position: Hex; lastSeenRound: number; headquartersOf?: number | null }>;
 };
 export type GameState = {
-  schemaVersion: 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19; rulesVersion: 'm5-v1' | 'districts-v10' | 'governments-v11' | 'eras-v12' | 'promotions-v13' | 'roster-v14' | 'legends-v15' | 'movement-v16' | 'cities-v17' | 'roles-v18' | 'classes-v19' | 'strength-v20' | 'opening-v21' | 'world-v22' | 'improvements-v23' | 'world-v24'; contentVersion: string;
+  schemaVersion: 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20; rulesVersion: 'm5-v1' | 'districts-v10' | 'governments-v11' | 'eras-v12' | 'promotions-v13' | 'roster-v14' | 'legends-v15' | 'movement-v16' | 'cities-v17' | 'roles-v18' | 'classes-v19' | 'strength-v20' | 'opening-v21' | 'world-v22' | 'improvements-v23' | 'world-v24' | 'roster-v25'; contentVersion: string;
   expansion?: ExpansionState;
   setup: GameSetup; rng: RngState; nextEntityId: number; commandSeq: number;
   round: number; activePlayerId: number; turnOrder: number[];
@@ -112,6 +114,8 @@ export type PlayerView = {
   playerId: number; seed: number; round: number; activePlayerId: number; commandSeq: number;
   /** `features` (v24): terrain features of explored tiles only. */
   map: GridSize & { tiles: (BiomeId | null)[]; features?: MapFeatures };
+  /** v25 (roster-v25 §2.9): the regional Pokédex, public setup information (no positions), sorted by species id. */
+  regionalDex?: SpeciesId[];
   /** Per tile: sorted civilization IDs, [] observed unclaimed, null ownership never observed. */
   territoryOwnerIds: (number[] | null)[];
   visibleTileIds: number[]; knowledge: KnowledgeState;

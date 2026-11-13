@@ -21,6 +21,8 @@ import type { JsonValue } from '../src/core/snapshot.ts';
 import type { AiPersonality, GameState } from '../src/core/model.ts';
 import { isMapUnit } from '../src/core/model.ts';
 import { isEmbarked } from '../src/core/terrain.ts';
+import { stableSeed } from '../src/core/civilization-systems.ts';
+import { appealBreakdown } from '../src/core/contests.ts';
 import { isGameplayVersion, LATEST_GAMEPLAY_VERSION } from '../src/content/eras.ts';
 import type { GameplayVersion } from '../src/content/eras.ts';
 import type { LeaderId } from '../src/content/leaders.ts';
@@ -40,6 +42,8 @@ export type BalanceConfig = {
   seeds: number[];
   players: 2 | 3 | 4;
   mix: 'same' | 'mixed';
+  /** v25: `rotation` = a regional Pokédex per seed × leader rotation (`dexSeed`), `map`/absent = the map seed's. */
+  dexMode?: 'map' | 'rotation';
 };
 export type BalanceFlags = { preset: string; config: BalanceConfig; workers: number; patch: string | null; out: string };
 /** `gate` is the §5 balance gate: 8 seeds × 9 leader rotations × 3 personalities = 216 games on the default new-game setup. */
@@ -51,9 +55,9 @@ export const PRESETS: Record<string, BalanceConfig> = {
 };
 /** Shared with others: half the machine, never more than 32. */
 export const defaultWorkers = (cores = availableParallelism()) => Math.max(1, Math.min(32, Math.floor(cores / 2)));
-const RUN_FLAGS = ['--preset', '--gameplay', '--size', '--rounds', '--eras', '--seeds', '--players', '--mix', '--workers', '--patch', '--out'] as const;
+const RUN_FLAGS = ['--preset', '--gameplay', '--size', '--rounds', '--eras', '--seeds', '--players', '--mix', '--dex-mode', '--workers', '--patch', '--out'] as const;
 export const RUN_USAGE = 'Usage: node tools/balance-run.ts [--preset gate|full-spot|mixed|sweep] [--gameplay 1..] [--size 40x26] [--rounds 100|200|300] '
-  + '[--eras simple|full] [--seeds 31-38|31,33] [--players 2|3|4] [--mix same|mixed] [--workers N] [--patch p.json] --out <new-directory>';
+  + '[--eras simple|full] [--seeds 31-38|31,33] [--players 2|3|4] [--mix same|mixed] [--dex-mode map|rotation] [--workers N] [--patch p.json] --out <new-directory>';
 
 function range(from: number, to: number): number[] {
   return Array.from({ length: to - from + 1 }, (_, index) => from + index);
@@ -125,6 +129,11 @@ export function resolveConfig(flags: Record<string, string>): { preset: string; 
     if (flags['--mix'] !== 'same' && flags['--mix'] !== 'mixed') throw new Error('--mix: same or mixed');
     config.mix = flags['--mix'];
   }
+  if (flags['--dex-mode'] !== undefined) {
+    if (flags['--dex-mode'] !== 'map' && flags['--dex-mode'] !== 'rotation') throw new Error('--dex-mode: map or rotation');
+    if (config.gameplay < 25) throw new Error('--dex-mode needs --gameplay 25 or later (the regional Pokédex)');
+    config.dexMode = flags['--dex-mode'];
+  }
   return { preset, config };
 }
 export function parseWorkers(text: string | undefined, cores = availableParallelism()): number {
@@ -163,7 +172,9 @@ export function balanceCases(config: BalanceConfig): BalanceCase[] {
     cases.push({
       id: `s${seed}-${group}-r${rotation}`, seed, personality: bySeat[0], rotation, leaderBySeat,
       setup: { seed, expansionVersion: 1, eraProgression, gameplayVersion: config.gameplay, width: config.width, height: config.height, roundLimit: config.rounds,
-        players: seats.map(seat => ({ id: seat, controller: 'ai' as const, personality: bySeat[seat], leaderId: leaderBySeat[seat] })) },
+        players: seats.map(seat => ({ id: seat, controller: 'ai' as const, personality: bySeat[seat], leaderId: leaderBySeat[seat] })),
+        // v25 `--dex-mode rotation` (roster-v25 §4.3): each leader rotation of a map gets its own regional Pokédex (8 seeds × 9 = 72).
+        ...(config.dexMode === 'rotation' ? { dexSeed: stableSeed(seed, rotation, 'gate-dex') } : {}) },
       group, personalityBySeat: Object.fromEntries(seats.map(seat => [seat, bySeat[seat]])) as Record<number, AiPersonality>,
     });
   }
@@ -181,7 +192,15 @@ export type CurvePoint = { round: number; seats: CurveSeat[] };
  */
 export type World24Record = { badges: number[]; firstBadgeRound: (number | null)[]; eliteFourRuns: number[]; eliteFourWon: boolean[];
   rivalOutcomes: string[][]; seaKnockouts: number };
-export type BalanceGameRecord = { schemaVersion: 1; case: BalanceCase; result: LeaderGameResult; samples: RoundSample[]; curves: CurvePoint[]; world24?: World24Record };
+/**
+ * Gameplay v25 only (roster-v25 §4.3): the regional Pokédex and recruit slots; per seat (seat order) the starter, the peak number of own
+ * Pokémon of each species, the species registered and the regional species documented at the end, and the contest appeal summed over the
+ * rounds with the part that came from species.
+ */
+export type Roster25Record = { dex: string[]; pokedexTarget: number; recruits: string[]; starters: string[]; peakSpecies: Record<string, number>[];
+  registered: string[][]; documented: number[]; appealTotal: number[]; appealSpecies: number[] };
+export type BalanceGameRecord = { schemaVersion: 1; case: BalanceCase; result: LeaderGameResult; samples: RoundSample[]; curves: CurvePoint[]; world24?: World24Record;
+  roster25?: Roster25Record };
 export const CURVE_INTERVAL = 10;
 
 /** Read-only observer for `simulateLeaderCase`: samples every end of round, snapshots every 10 rounds (on a copy of the state). */
@@ -192,6 +211,20 @@ export function createObserver(content: Content) {
   const v24 = Boolean(content.gymCircuit || content.rivals);
   let embarked = new Set<number>(), seaKnockouts = 0, latest: GameState | null = null;
   const eliteRuns = new Map<number, number>(), eliteSeen = new Map<number, number>(), firstBadge = new Map<number, number>();
+  // v25 bookkeeping (read-only): peak own Pokémon per species and contest appeal per seat, sampled at the end of every round.
+  const dex = content.regionalDex, peakSpecies = new Map<number, Record<string, number>>(), appeal = new Map<number, { total: number; species: number }>();
+  const trackRoster = (state: GameState) => {
+    for (const player of Object.values(state.players)) {
+      const counts: Record<string, number> = {}, peak = peakSpecies.get(player.id) ?? {};
+      for (const unit of Object.values(state.units)) if (unit.ownerId === player.id && unit.kind === 'pokemon') counts[unit.speciesId] = (counts[unit.speciesId] ?? 0) + 1;
+      for (const [id, count] of Object.entries(counts)) peak[id] = Math.max(peak[id] ?? 0, count);
+      peakSpecies.set(player.id, peak);
+      if (!player.eliminated && state.expansion?.contests) {
+        const part = appealBreakdown(state, player.id, content), sum = appeal.get(player.id) ?? { total: 0, species: 0 };
+        appeal.set(player.id, { total: sum.total + part.total, species: sum.species + part.species });
+      }
+    }
+  };
   const track = (state: GameState) => {
     latest = state;
     for (const id of embarked) { const unit = state.units[id]; if (!unit || !isMapUnit(unit)) seaKnockouts++; }
@@ -205,6 +238,7 @@ export function createObserver(content: Content) {
     for (const [id, list] of Object.entries(circuit.badges)) if (list.length && !firstBadge.has(Number(id))) firstBadge.set(Number(id), state.round);
   };
   const sample = (round: number, state: GameState, final: boolean) => {
+    if (dex && samples.at(-1)?.r !== round) trackRoster(state);
     if (samples.at(-1)?.r === round) samples.pop();
     const players = Object.values(state.players), scores = players.map(player => scorePlayer(state, player.id, content));
     samples.push({ r: round, c: scores.map(score => score.cities), s: scores.map(score => score.total), t: scores.map(score => score.techs),
@@ -231,7 +265,19 @@ export function createObserver(content: Content) {
         eliteFourRuns: seats.map(seat => eliteRuns.get(seat) ?? 0), eliteFourWon: seats.map(seat => circuit?.eliteFour[seat]?.won ?? false),
         rivalOutcomes: seats.map(seat => [...(rivals?.byPlayer[seat]?.outcomes ?? [])]), seaKnockouts };
     },
+    roster25(): Roster25Record | undefined {
+      if (!dex || !latest) return undefined;
+      const state: GameState = latest, seats = Object.keys(state.players).map(Number).sort((a, b) => a - b), regional = new Set(dex.speciesIds);
+      const pokedex = (seat: number) => Object.values(state.expansion?.world.players[seat]?.pokedex ?? {});
+      return { dex: [...dex.speciesIds], pokedexTarget: state.expansion?.world.victory.targetDocumentedSpecies ?? 0,
+        recruits: (content.roster?.recruitSlots ?? []).map(item => `${item.slot}:${item.speciesId ?? '-'}:${item.level}`),
+        starters: seats.map(seat => state.players[seat].starterId), peakSpecies: seats.map(seat => peakSpecies.get(seat) ?? {}),
+        registered: seats.map(seat => [...state.players[seat].registeredSpeciesIds].sort()),
+        documented: seats.map(seat => pokedex(seat).filter(record => record.observed && (record.battled || record.captured) && regional.has(record.speciesId)).length),
+        appealTotal: seats.map(seat => Math.round(appeal.get(seat)?.total ?? 0)), appealSpecies: seats.map(seat => Math.round(appeal.get(seat)?.species ?? 0)) };
+    },
     onState(state: GameState) {
+      if (dex) latest = state;
       if (v24) track(state);
       if (lastRound > 0 && state.round !== lastRound) sample(lastRound, state, false);
       lastRound = state.round;
@@ -255,8 +301,9 @@ function overridesFor(job: BalanceJob): LeaderCaseOverrides {
 export function playJob(job: BalanceJob): { status: LeaderGameResult['status'] } {
   const overrides = overridesFor(job), observer = createObserver(overrides.content ?? contentFor(job.case.setup));
   const result = simulateLeaderCase(job.case, observer.onState, overrides);
-  const world24 = observer.world24();
-  const record: BalanceGameRecord = { schemaVersion: 1, case: job.case, result, samples: observer.samples, curves: observer.curves, ...(world24 ? { world24 } : {}) };
+  const world24 = observer.world24(), roster25 = observer.roster25();
+  const record: BalanceGameRecord = { schemaVersion: 1, case: job.case, result, samples: observer.samples, curves: observer.curves, ...(world24 ? { world24 } : {}),
+    ...(roster25 ? { roster25 } : {}) };
   writeFileSync(job.file, JSON.stringify(record) + '\n');
   return { status: result.status };
 }

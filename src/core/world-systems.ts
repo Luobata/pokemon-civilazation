@@ -1,6 +1,6 @@
-import { victoryTargets } from '../content/opening.ts';
+import { regionalPokedexTarget, victoryTargets } from '../content/opening.ts';
 import { isRivalUnit } from './rivals.ts';
-import { nestPriorityFor, speciesGeneration, stoneEvolutionsFor } from '../content/roster.ts';
+import { isRegionalSpecies, nestPriorityFor, speciesGeneration, stoneEvolutionsFor } from '../content/roster.ts';
 import { generationAllows, maxGeneration } from './roster.ts';
 import { gameplayAtLeast } from '../content/eras.ts';
 import { resolveAttack } from './combat.ts';
@@ -212,7 +212,7 @@ function representativeNestSpecies(state: GameState, tileIndex: number, content:
   }
   if (compatible.length) return compatible[randomBelow(state.rng, compatible.length)];
   const fallback = (Object.keys(content.species) as SpeciesId[])
-    .filter(speciesId => content.species[speciesId].spawnBiomes.includes(biome) && !content.species[speciesId].rare)
+    .filter(speciesId => content.species[speciesId].spawnBiomes.includes(biome) && !content.species[speciesId].rare && isRegionalSpecies(content, speciesId))
     .sort((a, b) => a < b ? -1 : a > b ? 1 : 0);
   if (!fallback.length) throw new Error('No representative nest species is compatible with the generated map.');
   return fallback[randomBelow(state.rng, fallback.length)];
@@ -220,7 +220,8 @@ function representativeNestSpecies(state: GameState, tileIndex: number, content:
 
 function rareOverlordSpecies(state: GameState, content: Content): SpeciesId[] {
   const rare = (Object.keys(content.species) as SpeciesId[])
-    .filter(speciesId => content.species[speciesId].rare && speciesGeneration(content, speciesId) <= (content.roster ? maxGeneration(state.setup.eraProgression) : Infinity))
+    .filter(speciesId => content.species[speciesId].rare && speciesGeneration(content, speciesId) <= (content.roster ? maxGeneration(state.setup.eraProgression) : Infinity)
+      && isRegionalSpecies(content, speciesId))
     .sort((a, b) => a < b ? -1 : a > b ? 1 : 0);
   if (rare.length < Object.keys(state.players).length) throw new Error('Not enough rare species for unique overlords.');
   return shuffled(rare, state.rng);
@@ -230,11 +231,13 @@ export function initializeWorld(state: GameState, content: Content = WORLD_CONTE
   if (!state.expansion) throw new Error('Expansion container must exist before world initialization.');
   const definitions = WORLD();
   const players = Object.fromEntries(state.turnOrder.map(playerId => [playerId, blankPlayerState(content, definitions)])) as Record<number, WorldPlayerState>;
+  const baseTarget = gameplayAtLeast(state.setup, 3) ? Math.min(Object.keys(content.species).length, definitions.pokedex.targetDocumentedSpecies + 3 + (content.roster?.pokedexTargetBonus ?? 0) + victoryTargets(state.setup).pokedexBonus) : definitions.pokedex.targetDocumentedSpecies;
   const world: WorldState = {
     version: 'world-v1', initializedAtRound: state.round, nests: {}, rampagingUnitIds: [],
     overlords: {}, resources: {}, players,
     // Gameplay v3 accelerates economies; the documented-species target rises so the Pokédex stays a long-game victory.
-    victory: { targetDocumentedSpecies: gameplayAtLeast(state.setup, 3) ? Math.min(Object.keys(content.species).length, definitions.pokedex.targetDocumentedSpecies + 3 + (content.roster?.pokedexTargetBonus ?? 0) + victoryTargets(state.setup).pokedexBonus) : definitions.pokedex.targetDocumentedSpecies, achievedAtRound: null },
+    // v25 (roster-v25 §2.6): the target scales with the regional Pokédex's share of the mode's pool.
+    victory: { targetDocumentedSpecies: content.regionalDex ? regionalPokedexTarget(baseTarget, content.regionalDex.size, content.regionalDex.pool) : baseTarget, achievedAtRound: null },
   };
   state.expansion.world = world;
 
@@ -622,7 +625,8 @@ function markRecord(next: GameState, playerId: number, speciesId: SpeciesId,
 function checkWorldVictory(next: GameState, playerId: number, events: EventPayload[], content: Content): boolean {
   const world = next.expansion?.world;
   if (!world || world.victory.achievedAtRound !== null || next.outcome) return false;
-  const count = Object.values(world.players[playerId]?.pokedex ?? {}).filter(documented).length;
+  // v25: only regional species count (sanctuary guards and other visitors are not part of this region's Pokédex).
+  const count = Object.values(world.players[playerId]?.pokedex ?? {}).filter(record => documented(record) && isRegionalSpecies(content, record.speciesId)).length;
   if (count < world.victory.targetDocumentedSpecies) return false;
   world.victory.achievedAtRound = next.round;
   events.push({ type: 'WorldVictoryAchieved', playerId, documentedSpecies: count, target: world.victory.targetDocumentedSpecies });

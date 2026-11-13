@@ -46,7 +46,8 @@ import type { ActionMode, PendingTarget } from './unit-panel.ts';
 import type { AiPersonality, CitySummary, Command, GameSetup } from '../core/model.ts';
 import { GameSession } from '../app/session.ts';
 import type { PlayerSession } from '../app/session.ts';
-import { EXPANSION_CONTENT, unitDefinition, contentForView, techOf } from '../content/units.ts';
+import { EXPANSION_CONTENT, unitDefinition, contentForView, techOf, regionalDexDraw, REGIONAL_CONTENT } from '../content/units.ts';
+import { dexSummaryMarkup } from './regional-dex-panel.ts';
 import type { StarterId } from '../content/units.ts';
 import type { BallId } from '../content/economy.ts';
 import { LEADER_IDS } from '../content/leaders.ts';
@@ -1016,9 +1017,8 @@ function transitionBlocked() {
   if (view.outcome || !hasPendingPeace(view)) return false;
   notice = '请先接受或拒绝停战提议，再切换对局。'; controls(); return true;
 }
-function newGame() {
-  if (session && transitionBlocked()) return;
-  try {
+/** The setup the new-game controls describe (also used for the v25 regional Pokédex summary before the game starts). */
+function pendingSetup(): GameSetup {
     const aiCount = Number(document.querySelector<HTMLSelectElement>('#ai-count')!.value);
     const personality = document.querySelector<HTMLSelectElement>('#ai-personality')!.value as AiPersonality;
     const humanLeaderId = selectedLeaderId();
@@ -1035,8 +1035,22 @@ function newGame() {
     const pinned = new URLSearchParams(location.search).get('size') as keyof typeof mapSizes | null;
     const size = (pinned && mapSizes[pinned]) || mapSizes[sizeOption] || mapSizes['40x26'];
     const eraProgression = document.querySelector<HTMLSelectElement>('#era-progression')!.value as EraProgression;
-    driver = new GameSession({ expansionVersion: 1, eraProgression, gameplayVersion: requestedGameplayVersion(), seed: Number(new URLSearchParams(location.search).get('seed') ?? '12345'), ...size,
-      roundLimit: Number(document.querySelector<HTMLSelectElement>('#round-limit')!.value) as GameSetup['roundLimit'], players });
+    return { expansionVersion: 1, eraProgression, gameplayVersion: requestedGameplayVersion(), seed: Number(new URLSearchParams(location.search).get('seed') ?? '12345'), ...size,
+      roundLimit: Number(document.querySelector<HTMLSelectElement>('#round-limit')!.value) as GameSetup['roundLimit'], players };
+}
+/** v25: "地区图鉴：48 种 · 水面 2 线 · 飞行 5 种" beside the start button, from the same pure draw as the game (public setup only). */
+function renderDexSummary() {
+  const root = document.querySelector<HTMLElement>('#regional-dex-summary');
+  if (!root) return;
+  const setup = pendingSetup();
+  root.hidden = (setup.gameplayVersion ?? 0) < 25 || !setup.eraProgression;
+  if (root.hidden) { root.innerHTML = ''; return; }
+  root.innerHTML = dexSummaryMarkup(regionalDexDraw({ ...setup, eraProgression: setup.eraProgression! }), REGIONAL_CONTENT);
+}
+function newGame() {
+  if (session && transitionBlocked()) return;
+  try {
+    driver = new GameSession(pendingSetup());
     session = driver.asPlayerSession();
     timeline.clear(); presenting.clear(); presentationIndex = 0; selected = null; selectedCity = session.getView().economy.player.headquartersCityId; neutralCity = null; inspectedTile = null; keyboardIndex = null; activityLog.length = 0; knownUnitLabels.clear(); knownUnits.clear(); knownCityOwners.clear(); deferredFocus = null;
     rail.clear(); countdownRound = -1; reviewedUnits.clear(); knownOwnCityIds.clear(); resetPresentationState();
@@ -1226,6 +1240,12 @@ for (const button of unitCycle) button.addEventListener('click', () => cycleIdle
 document.querySelector('#skip')!.addEventListener('click', skip);
 document.querySelector('#debug-overlay')!.addEventListener('change', requestFrame);
 document.querySelector('#new-game')!.addEventListener('click', newGame);
+// v25: the summary follows the leader, era and opponent choices.
+for (const type of ['change', 'click'] as const) document.querySelector('#controls')!.addEventListener(type, event => {
+  if ((event.target as HTMLElement).closest('#regional-dex-summary')) return;
+  renderDexSummary();
+});
+renderDexSummary();
 document.querySelector('#fit')!.addEventListener('click', fit);
 document.querySelector('#export')!.addEventListener('click', () => {
   const url = URL.createObjectURL(new Blob([JSON.stringify(driver.exportLog(), null, 2)], { type: 'application/json' }));

@@ -59,6 +59,19 @@ export function canEnter(unit: UnitIdentity, biome: BiomeId, content: Content = 
 /** `canEnter` on a tile of the authoritative map (the v24 passage is passed automatically; identical to the biome test before v24). */
 export const canEnterTile = (unit: UnitIdentity, map: FeatureMap, index: number, content: Content, access?: WaterAccess, harbor?: boolean) =>
   map.tiles[index] !== null && canEnter(unit, map.tiles[index]!, content, { map, index, ...(access ? { access } : {}), ...(harbor ? { harbor } : {}) });
+/** Gameplay v25 rule fixes (docs/design/balance/gate-v24-ai.md, "needs a rule change"). */
+export const usesDeploymentRulesV25 = (source: { setup?: { gameplayVersion?: number }; gameplayVersion?: number }) =>
+  ((source.setup?.gameplayVersion ?? source.gameplayVersion) ?? 0) >= 25;
+/** v25 fix 1: whether a unit trained in a city at `position` could ever be placed (some neighbouring tile accepts it, occupancy aside). */
+export function deploymentTileExists(map: FeatureMap, position: Hex, identity: UnitIdentity, content: Content): boolean {
+  return neighbors(position, map).some(hex => { const index = hexToIndex(hex, map); return index !== null && canEnterTile(identity, map, index, content); });
+}
+/** v25 fix 2: an ownerless Pokémon that does not wander strikes every unit next to it at the end of the round. */
+export function besideStrikingWild(units: readonly { kind: string; ownerId: number | null; position: Hex | null; speciesId?: string }[], hex: Hex,
+  map: FeatureMap, wanderers: readonly string[]): boolean {
+  return units.some(unit => unit.ownerId === null && unit.kind === 'pokemon' && unit.position !== null && !wanderers.includes(unit.speciesId!)
+    && hexDistance(unit.position, hex, map) === 1);
+}
 /** Own cities beside water (v24 A2): naval units dock there, and land units board or leave the water there without ending their move. */
 export function harborTiles(map: FeatureMap, cities: readonly { ownerId: number | null; position: Hex }[], ownerId: number, content: Content): Set<number> {
   const out = new Set<number>();

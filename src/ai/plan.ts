@@ -27,7 +27,7 @@ import type { AiThresholds } from './thresholds.ts';
 import { seekUnknownHeadquarters } from './targets.ts';
 import { AI_STRATEGIES } from './strategies.ts';
 import { campaignPlan, eraCivilizationPolicy, hasEraProgression } from './war-plan.ts';
-import { leaderResearchBonus, roleCaptureBonus, roleTrainingBonus, treeResearchBenefit } from './role-plan.ts';
+import { captureRoleBonus, leaderResearchBonus, recruitResearchBonus, roleTrainingBonus, treeResearchBenefit } from './role-plan.ts';
 import { trainableSpeciesIds } from '../core/role-tactics.ts';
 import { designatedWorkers, improvementSuggestions, wantsBuilder } from './improvement-plan.ts';
 import { usesTactics } from '../core/tactics.ts';
@@ -206,7 +206,7 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
   if (player.research.techId === null) for (const [i, techId] of (Object.keys(content.techs) as TechId[]).entries()) {
     const unlocksLeaderUnit = view.expansion && player.leaderId && techId === 'training' && view.expansion.leaders.recruited === 0;
     if (query.research(player, techId, content)) add({ type: 'SetResearch', techId }, 'research', unlocksLeaderUnit ? 1000
-      : content.techTree ? treeResearchBenefit(view, techId, content) + embarkResearchBonus(view, techId, content, citySite) : 100 - techOf(content, techId).cost + leaderResearchBonus(view, techId), 0, i);
+      : content.techTree ? treeResearchBenefit(view, techId, content) + embarkResearchBonus(view, techId, content, citySite) + recruitResearchBonus(view, techId, content) : 100 - techOf(content, techId).cost + leaderResearchBonus(view, techId), 0, i);
   }
   // Known city sites (computed once per plan; settlers and the v24 overseas checks share the list).
   let siteCache: MapUnit['position'][] | null = null;
@@ -314,7 +314,7 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
         if (canCaptureByPersonality(view, target, query)) for (const ballId of ['pokeBall', 'greatBall'] as BallId[]) {
           const preview = query.capture(view, unit.id, target.id, ballId, content);
           if (preview.ok) add({ type: 'Capture', unitId: unit.id, targetUnitId: target.id, ballId }, 'capture', preview.probability
-            + captureBonus(target) + siegeCaptureBonus(target) + (target.kind === 'pokemon' ? roleCaptureBonus(view, target.speciesId, content) : 0) + researchCaptureScore(view, target), unit.id, target.id);
+            + captureBonus(target) + siegeCaptureBonus(target) + (target.kind === 'pokemon' ? captureRoleBonus(view, target.speciesId, content) : 0) + researchCaptureScore(view, target), unit.id, target.id);
         }
         // v24 C: the own rival's Pokémon are worth +50 (a reward); another civilization's rival is left alone.
         const rival = rivalAttackBonus(view, target);
@@ -409,7 +409,7 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
         if (!canCaptureByPersonality(view, target, query) || !player.research.unlockedIds.includes('domestication') || player.ballInventory.pokeBall + player.ballInventory.greatBall === 0) continue;
         const distance = far(to, target.position);
         if (distance < far(unit.position, target.position)) add(action, 'capture', 10 - distance
-          + captureBonus(target) + siegeCaptureBonus(target) + (target.kind === 'pokemon' ? roleCaptureBonus(view, target.speciesId, content) : 0), unit.id, index);
+          + captureBonus(target) + siegeCaptureBonus(target) + (target.kind === 'pokemon' ? captureRoleBonus(view, target.speciesId, content) : 0), unit.id, index);
       }
       const radius = unitDefinition(unit, content).vision + (view.map.tiles[index] === 'mountain' ? 1 : 0) + featureVision(view.map, index);
       const gain = view.map.tiles.reduce((sum, _, tile) => sum + (!explored.has(tile) && !polarRow(tile) && hexDistance(to, indexToHex(tile, view.map), view.map) <= radius ? 1 : 0), 0);

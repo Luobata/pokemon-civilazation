@@ -6,6 +6,7 @@ import { TYPE_ESSENCE } from '../content/essences.ts';
 import type { EssenceId } from '../content/essences.ts';
 import type { SpeciesId, TypeId } from '../content/species.ts';
 import type { Content, StarterId } from '../content/units.ts';
+import { regionalSpeciesIds } from '../content/roster.ts';
 import { gymTeamPower, world24Tuning } from '../content/world24-tuning.ts';
 import { grantChampionshipTitle, simulateBattle, stableSeed } from './civilization-systems.ts';
 import type { BattleCombatant, BattleTrace } from './civilization-systems.ts';
@@ -105,7 +106,10 @@ export function placeGyms(input: { map: GridSize & Partial<FeatureMap>; seed: nu
     const index = overseas ?? (group === undefined ? undefined : middle(i => routes[group].has(i))) ?? middle(() => true);
     if (index === undefined) continue;
     chosen.push(index);
-    const types = GYM_TYPES[leader];
+    // v25 (roster-v25 §2.4): only types with at least one regional species (all types when none has one).
+    const content = input.content, regional = content?.regionalDex ? GYM_TYPES[leader].filter(type => regionalSpeciesIds(content)
+      .some(id => content.species[id].typeId === type || content.species[id].secondaryTypeId === type)) : [];
+    const types = regional.length ? regional : GYM_TYPES[leader];
     sites.push(site(index, leader, types[stableSeed(seed, leader, 'gym-type') % types.length]));
   }
   return sites;
@@ -135,7 +139,8 @@ export const leaderTeamFor = (badges: number, content?: Content) => {
 };
 /** Species of a type at a stage (primary type first, then secondary, then the nearest stage), sorted by id. */
 function speciesPool(typeId: TypeId, stage: number, content: Content): SpeciesId[] {
-  const ids = Object.keys(content.species).sort() as SpeciesId[];
+  // v25: leaders' teams come from the regional Pokédex only (power is scaled to the table, so strength is unchanged).
+  const ids = [...regionalSpeciesIds(content)].sort() as SpeciesId[];
   for (const offset of [0, -1, 1, -2, 2]) for (const key of ['typeId', 'secondaryTypeId'] as const) {
     const found = ids.filter(id => content.species[id][key] === typeId && content.species[id].stage === stage + offset);
     if (found.length) return found;

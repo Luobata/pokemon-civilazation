@@ -32,6 +32,17 @@ export const OPENING_RULES = {
   cityHealing: 5, wallRounds: 20, wallStep: 3, wallMax: 15, capitalDefense: 6,
 } as const;
 
+/**
+ * v25 (roster-v25 §2.6): the Pokédex target scaled by the regional share of the pool, max(12, round(T × (1 − c + c × N / P))), integers only.
+ * The spec's first guess was c = 1 (T × N / P: 42 → 28 for 48 of 71). Measured on gate-config probes (seeds 31–34) civilizations document
+ * almost as many species in a 48-species region as in the 71-species pool up to round 80 (median 18 vs 19, best 27 vs 32), so the full
+ * scaling made the Pokédex the main victory (34 of 47 smoke games). c = 1/2 (42 → 35) keeps half of the scaling for the saturation late on.
+ */
+export const POKEDEX_POOL_SHARE_PERCENT_V25 = 50;
+export function regionalPokedexTarget(target: number, size: number, pool: number): number {
+  const c = POKEDEX_POOL_SHARE_PERCENT_V25, numerator = target * (100 * pool - c * pool + c * size), denominator = 100 * pool;
+  return Math.max(12, Math.floor((2 * numerator + denominator) / (2 * denominator)));
+}
 /** v21: victory targets scale with the round limit (a 200-round game asks twice as much as a 100-round one). Older rules: fixed. */
 export function victoryTargets(source: { gameplayVersion?: number; roundLimit?: number }) {
   const scale = (source.gameplayVersion ?? 0) >= 21 ? Math.max(1, (source.roundLimit ?? 100) / 100) : 1;

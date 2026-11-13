@@ -13,7 +13,9 @@ import type { BalanceManifest } from './balance-run.ts';
 import { formatSeeds, splitFlags } from './balance-run.ts';
 import { acceptance, BOOTSTRAP_RESAMPLES, CURVE_FIELDS, curveTable, delta, estimate, leaderTable, measure, outcomeTable, personalityTable, roleShares } from './balance-metrics.ts';
 import type { Check, CurveRow, Delta, Estimate, GameMetrics, OutcomeKind } from './balance-metrics.ts';
-import { newcombeInterval } from './balance-metrics.ts';
+import { lineWinDeltas, newcombeInterval, speciesTable } from './balance-metrics.ts';
+import { REGIONAL_CONTENT } from '../src/content/units.ts';
+import { dexMaxGeneration, evolutionLines } from '../src/content/regional-dex.ts';
 
 export type BalanceData = { directory: string; manifest: BalanceManifest; games: GameMetrics[]; curves: CurveRow[] };
 const readJsonl = <T>(file: string): T[] => readFileSync(file, 'utf8').split('\n').filter(line => line.trim()).map(line => JSON.parse(line) as T);
@@ -173,7 +175,13 @@ ${roles ? table(COMBAT_ROLES.map(role => ROLE_NAMES[role] ?? role), [COMBAT_ROLE
 
 每个文明各兵种的峰值数量相加后求占比。
 
-## 曲线（每 10 轮，存活文明，均值 [P10–P90]）
+${games.some(game => game.rivals) ? `## 劲敌（v24 C）
+
+${table(['指标', '值', '95% 区间', ...headers], measureRows(['rivalBeaten1', 'rivalBeaten2', 'rivalBeaten3']))}
+
+按每个文明的每次登场计；"击退"= 劲敌在停留期内被打倒，其余为离开。
+
+` : ''}${rosterSections(data, measureRows)}## 曲线（每 10 轮，存活文明，均值 [P10–P90]）
 
 ${table(['轮', '对局', '文明', ...CURVE_FIELDS.map(field => CURVE_NAMES[field])], curves.map(row => [String(row.round), String(row.games), String(row.civs),
     ...CURVE_FIELDS.map(field => { const cell = row.fields[field]; return cell.mean === null ? '—' : `${cell.mean.toFixed(1)} [${cell.p10!.toFixed(0)}–${cell.p90!.toFixed(0)}]`; })]))}
@@ -201,6 +209,45 @@ ${config.mix === 'same' ? '同性格局里按性格分组的胜率没有意义�
 ${seedStability(data)}
 
 同一批规则下，只取一个种子（${config.players === 4 ? 27 : '每种子'} 局）或只取轮换 0（${config.seeds.length * 3} 局）得到的目标值和全部 ${games.length} 局的值之差，就是小样本验收会看到的摆动；门槛只用全部对局的值和区间下结论。"只算达到的文明"的口径分母随对局组变化，所以与"达不到记 ∞"分开列出。
+`;
+}
+
+/** v25 sections (roster-v25 §4.3): 「物种」 and 「地区图鉴」, only when the run has species records. */
+function rosterSections(data: BalanceData, measureRows: (ids: string[]) => string[][]): string {
+  const games = data.games.filter(game => game.roster);
+  if (!games.length) return '';
+  const name = (id: string) => REGIONAL_CONTENT.species[id]?.name ?? id;
+  const rows = speciesTable(data.games);
+  const top = [...rows].sort((a, b) => b.peakShare - a.peakShare).slice(0, 15);
+  const credit = rows.filter(row => row.creditSeats >= 30).sort((a, b) => (b.winCredit ?? 0) - (a.winCredit ?? 0));
+  const flagged = credit.filter(row => row.winCredit !== null && (row.winCredit < 0.10 || row.winCredit > 0.45));
+  const mode = data.manifest.config.eras === 'full' ? 'full-v1' as const : 'simple-v1' as const;
+  const lines = evolutionLines(REGIONAL_CONTENT.species, dexMaxGeneration(mode));
+  const deltas = lineWinDeltas(data.games, lines).filter(row => row.inSeats && row.outSeats);
+  const outside = deltas.filter(row => row.interval && (row.interval[0] > 0.08 || row.interval[1] < -0.08));
+  const pct = (value: number | null) => value === null ? '—' : `${(value * 100).toFixed(1)}%`;
+  const distinct = new Set(games.map(game => game.roster!.dex.join())).size;
+  return `## 物种（v25）
+
+${table(['物种', '峰值占比', '图鉴里的座位', '出场率', '≥ 2 只的座位', '胜利份额'], top.map(row => [name(row.id), pct(row.peakShare), String(row.inDexSeats), pct(row.fieldedRate),
+    String(row.creditSeats), pct(row.winCredit)]))}
+
+峰值占比 = 每个座位各物种峰值数量之和的占比（前 15 名），线：最高 ≤ 20%。出场率 = 图鉴里有它的座位中，峰值军队里有它的比例（第 5 节新物种验收：新线 ≥ 25%）。胜利份额只算峰值军队里有 ≥ 2 只该物种的座位，公平值 25%。
+
+- 出场 ≥ 30 个座位、胜利份额 < 10% 或 > 45% 的物种：${flagged.map(row => `${name(row.id)} ${pct(row.winCredit)}（${row.creditSeats} 座）`).join('、') || '无'}
+- 出场率最低的 5 种：${[...rows].filter(row => row.fieldedRate !== null && row.inDexSeats >= 30).sort((a, b) => a.fieldedRate! - b.fieldedRate!).slice(0, 5).map(row => `${name(row.id)} ${pct(row.fieldedRate)}`).join('、')}
+
+## 地区图鉴（v25）
+
+${table(['指标', '值', '95% 区间'], measureRows(['dexSize', 'dexUnusedShare', 'recruitEmptySlots', 'recruitFallbackSlots', 'pokedexTarget', 'documentedAtEnd', 'registeredAtEnd',
+    'appealFromSpecies', 'starterWinSpread', 'topSpeciesShare']).map(row => row.slice(0, 3)))}
+
+- ${games.length} 局里有 ${distinct} 套不同的图鉴。
+- 进化线在图鉴里 / 不在时座位胜利份额之差，95% 区间整体超出 ±8 个百分点的线：${outside.map(row => `${name(row.id)} ${pct(row.delta)} [${pct(row.interval![0])}, ${pct(row.interval![1])}]`).join('、') || '无'}
+
+${table(['进化线', '在图鉴的座位', '胜利份额', '不在的座位', '胜利份额', '差 [95% 区间]'], deltas.map(row => [name(row.id), String(row.inSeats), pct(row.inRate), String(row.outSeats), pct(row.outRate),
+    `${pct(row.delta)}${row.interval ? ` [${pct(row.interval[0])}, ${pct(row.interval[1])}]` : ''}`]))}
+
 `;
 }
 

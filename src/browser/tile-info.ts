@@ -3,7 +3,7 @@ import { freshWater, isDeep, isHill, isLake, isLandmarkTile, isPeak, isPolarIce,
 import { ROLE_POKEMON } from '../content/roles.ts';
 import { LEGEND_WONDERS } from '../content/legend-wonders.ts';
 import { legendEffectText } from './legend-panel.ts';
-import { stoneEvolutionsFor } from '../content/roster.ts';
+import { residentsFor, stoneEvolutionsFor } from '../content/roster.ts';
 import { promotionMovement } from '../core/promotions.ts';
 // Describes one map tile from the viewing player's knowledge only (PlayerView): terrain, yields,
 // ownership and everything standing on it, each with a relation tone and a short "what can I do".
@@ -96,7 +96,8 @@ export function describeTile(view: PlayerView, index: number): TileInfo {
   if (landmark) {
     const definition = LANDMARKS[landmark];
     entities.push({ kind: 'landmark', tone: 'info', title: definition.name, subtitle: '自然地标',
-      lines: [definition.effect, `常驻：${definition.residents.map(id => SPECIES_NAMES[id]).join('、')}（附近刷新更常见）`],
+      lines: [definition.effect, (() => { const residents = residentsFor(contentForView(view), landmark); return residents.length
+        ? `常驻：${residents.map(id => SPECIES_NAMES[id]).join('、')}（附近刷新更常见）` : '常驻：本地区没有它的常驻宝可梦'; })()],
       hint: '地标格不可通行、不可耕作、不能建城；效果给城市耕作的相邻格。' });
   }
   const city = view.cities.find(item => at(item.position));

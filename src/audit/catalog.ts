@@ -1,4 +1,5 @@
 import type { Command } from '../core/model.ts';
+import { ROSTER_CONTENT } from '../content/units.ts';
 
 export type AuditSystemStatus = 'implemented' | 'partial' | 'planned';
 
@@ -78,6 +79,17 @@ export const AUDIT_SYSTEMS: readonly AuditSystem[] = [
     checks: ['v22 / v23 固定 48 局改动前后逐文件一致；v24 两次运行逐字节一致。', 'tests/core/rivals.test.ts；tests/browser/rivals.spec.ts。'],
     sources: ['src/content/rivals.ts', 'src/core/rivals.ts', 'src/core/strength.ts', 'src/ai/rival-plan.ts', 'docs/design/world-v24.md'],
     actionTypes: ['Attack', 'Capture'],
+  }),
+  system({
+    id: 's-regional-dex', name: '地区图鉴（v25）', status: 'implemented',
+    summary: 'gameplay v25：每局按图鉴种子（缺省 = 地图种子）、时代模式和在场领袖，用 stableSeed 抽出整条进化线组成的地区图鉴（精简约 48 种、完整约 60 种），满足兵种 × 阶段、属性、世代、群系刷新、巢穴、稀有、水面线和核心招募槽约束；野外、巢穴、霸主、招募、劲敌、道馆、地标常驻和调查卡都只用图鉴物种；招募按槽解析；图鉴目标按图鉴占物种池的份额缩放。另含 v25 规则修正：放不下的单位排产即拒、新单位避开会出手的野生宝可梦、信仰胜利计入中立城、劲敌后两次登场更好打。',
+    rules: ['地区图鉴不存进状态：contentFor(setup) 每次由开局设置重新算出并记忆化；权威与视图共用同一个派生内容对象（PlayerView.regionalDex 只是公开的物种名单，不含位置）。',
+      '抽取只用 stableSeed 与整数、按 id 排序遍历，不读 state.rng；同一输入两次结果相同，tests/core/__golden__/regional-dex-v25.json 冻结已发布的结果。',
+      '派生表（刷新、游荡、招募、巢穴、石头进化、地标常驻、栖息地叠加、深海）由 SPECIES_TAGS 生成；全池派生与 v24 手写表逐项相同（狃拉、皮皮新补栖息地除外）。',
+      '图鉴胜利只计本地区物种；目标 = max(12, round(T × (1 − c + c × N / P)))，c = 1/2。'],
+    checks: ['v22 / v23 / v24 固定 48 局逐字节不变；v25 两次运行一致。', 'tests/core/species-tags.test.ts、regional-dex.test.ts、regional-dex-game.test.ts、rule-fixes-v25.test.ts；node tools/regional-dex.ts --seeds 1-1000：约束 100%。'],
+    sources: ['src/content/species-tags.ts', 'src/content/recruit-slots.ts', 'src/content/regional-dex.ts', 'src/content/units.ts', 'src/browser/regional-dex-panel.ts', 'tools/regional-dex.ts', 'docs/design/roster-v25.md'],
+    actionTypes: ['Capture', 'SetProductionQueue', 'SetResearch'],
   }),
   system({
     id: 's-opening', name: '开局节奏（开局目标、道具球、城墙）', status: 'implemented',
@@ -355,7 +367,7 @@ export const AUDIT_SYSTEMS: readonly AuditSystem[] = [
     id: 's8-species',
     name: '物种数据与登记',
     status: 'implemented',
-    summary: '经典模式 39 种、扩展模式 47 种、阵容包 v14 共 105 种宝可梦作为数据驱动单位；捕捉或训练会登记可生产物种。',
+    summary: `经典模式 39 种、扩展模式 47 种、阵容包 v14 共 ${Object.keys(ROSTER_CONTENT.species).length} 种宝可梦作为数据驱动单位（v25 每局只用其中的地区图鉴）；捕捉或训练会登记可生产物种。`,
     rules: [
       '每种物种定义类型、阶段、角色、数值、行动、射程、视野、地形、刷新群系与进化。',
       '阶段总预算分别限制在 150–170、210–240、280–320，训练成本等于预算 / 8。',

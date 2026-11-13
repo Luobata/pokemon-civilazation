@@ -110,7 +110,9 @@ export function resolveFaithRound(state: GameState, content: Content): EventPayl
   const faith = state.expansion?.faith;
   if (!faith || state.outcome) return [];
   const events: EventPayload[] = [];
-  for (const id of Object.keys(faith.cityFaith).map(Number)) if (!state.cities[id] || state.cities[id].ownerId === null) { delete faith.cityFaith[id]; delete faith.pressure[id]; }
+  // v25 fix 3: a city that turns neutral keeps the faith it followed (no pressure reaches it); before v25 it lost the faith.
+  const keepsNeutral = gameplayAtLeast(state.setup, 25);
+  for (const id of Object.keys(faith.cityFaith).map(Number)) if (!state.cities[id] || (state.cities[id].ownerId === null && !keepsNeutral)) { delete faith.cityFaith[id]; delete faith.pressure[id]; }
   const faithful = Object.values(state.cities).filter(city => city.ownerId !== null && faith.cityFaith[city.id] !== undefined).sort((a, b) => a.id - b.id);
   for (const source of faithful) {
     const founder = faith.cityFaith[source.id];
@@ -131,20 +133,29 @@ export function resolveFaithRound(state: GameState, content: Content): EventPayl
       state.expansion!.world.players[founder].satisfaction = Math.min(100, state.expansion!.world.players[founder].satisfaction + 1);
     }
   }
-  const owned = Object.values(state.cities).filter(city => city.ownerId !== null);
-  if (owned.length >= victoryTargets(state.setup).faithMinimumCities) {
+  const owned = Object.values(state.cities).filter(city => city.ownerId !== null), counted = faithCities(state);
+  if (counted.length >= victoryTargets(state.setup).faithMinimumCities) {
     const winners = Object.keys(faith.faiths).map(Number).filter(founder => !state.players[founder].eliminated
-      && owned.filter(city => faith.cityFaith[city.id] === founder).length >= Math.ceil(owned.length * FAITH_RULES.winShare)
+      && counted.filter(city => faith.cityFaith[city.id] === founder).length >= Math.ceil(counted.length * FAITH_RULES.winShare)
       // Every living rival must follow it in at least one of their cities, so a faith cannot win by isolation.
       && state.turnOrder.filter(id => id !== founder && !state.players[id].eliminated).every(rival => owned.some(city => city.ownerId === rival && faith.cityFaith[city.id] === founder)));
     if (winners.length === 1) events.push(...finishGame(state, 'faith', winners, content));
   }
   return events;
 }
+/**
+ * The cities the faith victory counts (minimum and share). v25 fix 3: every standing city, neutral ones included, and a neutral city keeps
+ * the faith it followed, so eliminating a civilization (its cities turn neutral) changes neither the bar nor the followers. Before v25:
+ * owned cities only (an elimination dropped its cities from the count).
+ */
+export function faithCities(state: Pick<GameState, 'cities' | 'setup'>): GameState['cities'][number][] {
+  const cities = Object.values(state.cities);
+  return gameplayAtLeast(state.setup, 25) ? cities : cities.filter(city => city.ownerId !== null);
+}
 export function observeFaith(state: GameState, playerId: number): FaithView | undefined {
   const faith = state.expansion?.faith;
   if (!faith) return undefined;
-  const owned = Object.values(state.cities).filter(city => city.ownerId !== null);
+  const owned = faithCities(state);
   return {
     faiths: Object.values(faith.faiths).map(item => ({ ...item, tenets: [...item.tenets], followers: owned.filter(city => faith.cityFaith[city.id] === item.founderId).length })),
     cityFaith: { ...faith.cityFaith },

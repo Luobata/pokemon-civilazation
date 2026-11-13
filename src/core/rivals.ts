@@ -1,10 +1,12 @@
 // Gameplay v24 C (docs/design/world-v24.md §4): one rival trainer per civilization — warning, arrival, round-end actions, rewards, departure.
 // Rival Pokémon are ownerless map units listed in `unitTargets`; they hunt only their civilization's Pokémon, never logistics units,
 // never take a city below 1 HP and cannot be captured. Placement uses stableSeed; only the city strike's damage roll uses state.rng.
-import { RIVAL_COUNTERS, RIVAL_LINES, RIVAL_NAMES, RIVAL_RULES_V24, RIVAL_TEAMS } from '../content/rivals.ts';
+import { RIVAL_COUNTERS, RIVAL_COUNTER_TYPES_V25, RIVAL_LINES, RIVAL_NAMES, RIVAL_RULES_V24, RIVAL_TEAMS } from '../content/rivals.ts';
+import { regionalSpeciesIds } from '../content/roster.ts';
+import type { StarterId } from '../content/units.ts';
 import type { SpeciesId } from '../content/species.ts';
 import type { Content } from '../content/units.ts';
-import { world24Tuning } from '../content/world24-tuning.ts';
+import { rivalStayRounds, world24Tuning } from '../content/world24-tuning.ts';
 import { stableSeed } from './civilization-systems.ts';
 import { resolveAttack } from './combat.ts';
 import { dualEffectiveness } from './combat-math.ts';
@@ -95,11 +97,19 @@ function freeTilesNear(state: GameState, from: number, cityTile: number, canStan
   }
   return chosen;
 }
+/** A counter list: the v24 lines, or (v25) the regional land species of the counter type (primary type first, else secondary). */
+export function rivalCounters(content: Content, starterId: StarterId, list: 'primary' | 'secondary'): readonly SpeciesId[] {
+  if (!content.regionalDex) return RIVAL_COUNTERS[starterId][list];
+  const type = RIVAL_COUNTER_TYPES_V25[starterId][list];
+  const land = [...regionalSpeciesIds(content)].sort().filter(id => content.species[id].role !== 'naval' && content.species[id].terrain.includes('grassland'));
+  const primary = land.filter(id => content.species[id].typeId === type);
+  return primary.length ? primary : land.filter(id => content.species[id].secondaryTypeId === type);
+}
 /** The visit's team: counters to the target's starter, by stage (§4.1), picked with stableSeed. */
 export function rivalTeam(state: GameState, playerId: number, encounter: number, content: Content): SpeciesId[] {
-  const counters = RIVAL_COUNTERS[state.players[playerId].starterId];
+  const starterId = state.players[playerId].starterId;
   return RIVAL_TEAMS[encounter].map((slot, index) => {
-    const list = counters[slot.list];
+    const list = rivalCounters(content, starterId, slot.list);
     const pool = [0, -1, -2, 1].map(offset => list.filter(id => content.species[id]?.stage === slot.stage + offset)).find(found => found.length) ?? [...list];
     return pool[stableSeed(state.setup.seed, playerId, encounter, index, 'rival-team') % pool.length];
   });
@@ -247,7 +257,7 @@ export function resolveRivalRound(state: GameState, content: Content, canStand: 
         if (state.outcome) return events;
       }
       events.push(...settleDefeats(state));
-      if (ledger.activeUnitIds.length && (state.round >= (ledger.arrivedAtRound ?? 0) + RULES.staysRounds - 1 || state.players[playerId].eliminated)) {
+      if (ledger.activeUnitIds.length && (state.round >= (ledger.arrivedAtRound ?? 0) + rivalStayRounds(content, ledger.encounter - 1) - 1 || state.players[playerId].eliminated)) {
         for (const id of ledger.activeUnitIds) delete state.units[id];
         forget(state, ledger.activeUnitIds);
         ledger.activeUnitIds = [];

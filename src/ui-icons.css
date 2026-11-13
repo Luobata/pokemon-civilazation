@@ -146,6 +146,18 @@
 .dex-entry:not(.documented) img.px-art { filter: brightness(.55) saturate(.4); }
 .dex-entry.documented { border-color: #4F8A66; background: radial-gradient(circle at 50% 60%, #24452F, #132428 75%); }
 .dex-entry .dex-mark { position: absolute; right: 1px; bottom: 1px; }
+/* v25 regional Pokédex: class × stage grid, silhouettes for regional species not seen yet, new-game summary. */
+.dex-entry.dex-silhouette img.px-art { filter: brightness(0) opacity(.45); }
+.regional-dex { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 11px; }
+.regional-dex th, .regional-dex td { border: 1px solid #34494C; padding: 2px; vertical-align: top; }
+.regional-dex thead th { font-weight: 600; }
+.regional-dex td .dex-entry { display: inline-grid; grid-template-rows: 40px auto; width: 46px; height: auto; margin: 1px; padding-bottom: 1px; }
+.dex-entry .dex-name { font-size: 9px; line-height: 1.1; max-width: 44px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.dex-empty { opacity: .5; }
+.dex-summary { margin: 6px 0; }
+.dex-summary-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; }
+.dex-summary-list .dex-strip { max-height: 160px; overflow-y: auto; }
+.tech-unlocks li.recruit.empty, .unlock-chip.recruit.empty { opacity: .65; }
 .world-row { display: flex; align-items: center; gap: 8px; margin: 6px 0 4px; }
 .world-row-name { min-width: 110px; color: #E6DDC4; }
 .world-row-name small { color: var(--ink-muted); }

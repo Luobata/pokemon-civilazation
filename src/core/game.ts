@@ -35,8 +35,11 @@ export function createGame(setup: GameSetup, content: Content = contentFor(setup
     || setup.players.some(player => player.controller === 'human' && !STARTER_IDS.includes(player.starterId))) {
     throw new Error('Expected 2–4 distinct players and at most one human with a chosen starter.');
   }
+  // v25 (roster-v25 §2.2): the optional regional-Pokédex seed is a non-negative integer and only exists in v25 games.
+  if (setup.dexSeed !== undefined && (!Number.isSafeInteger(setup.dexSeed) || setup.dexSeed < 0 || (setup.gameplayVersion ?? 0) < 25)) throw new Error('dexSeed requires gameplay v25.');
   // v24 (world-v24 §2.1): continents and terrain features come from their own generator.
-  const generated = content.terrain ? generateWorldMap({ ...setup, playerCount: setup.players.length, ...(content.world24 ? { landPercent: content.world24.landPercent } : {}) })
+  const generated = content.terrain ? generateWorldMap({ ...setup, playerCount: setup.players.length, ...(content.world24 ? { landPercent: content.world24.landPercent } : {}),
+    ...(content.regionalDex ? { regionalSpeciesIds: content.regionalDex.speciesIds } : {}) })
     : generateMap({ ...setup, playerCount: setup.players.length, ...(content.wrap ? { wrap: true } : {}) });
   const state: GameState = {
     ...gameVersions(setup), contentVersion: content.version,
