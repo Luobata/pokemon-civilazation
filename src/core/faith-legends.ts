@@ -133,12 +133,15 @@ export function resolveFaithRound(state: GameState, content: Content): EventPayl
       state.expansion!.world.players[founder].satisfaction = Math.min(100, state.expansion!.world.players[founder].satisfaction + 1);
     }
   }
-  const owned = Object.values(state.cities).filter(city => city.ownerId !== null), counted = faithCities(state);
+  const owned = Object.values(state.cities).filter(city => city.ownerId !== null), counted = faithCities(state), followsAll = gameplayAtLeast(state.setup, 26);
   if (counted.length >= victoryTargets(state.setup).faithMinimumCities) {
     const winners = Object.keys(faith.faiths).map(Number).filter(founder => !state.players[founder].eliminated
       && counted.filter(city => faith.cityFaith[city.id] === founder).length >= Math.ceil(counted.length * FAITH_RULES.winShare)
-      // Every living rival must follow it in at least one of their cities, so a faith cannot win by isolation.
-      && state.turnOrder.filter(id => id !== founder && !state.players[id].eliminated).every(rival => owned.some(city => city.ownerId === rival && faith.cityFaith[city.id] === founder)));
+      // Every living rival must follow it in at least one of their cities, so a faith cannot win by isolation. v26: every original rival —
+      // an eliminated one through its former capital (whoever holds it now), so eliminating a non-follower no longer clears the condition.
+      && state.turnOrder.filter(id => id !== founder && (followsAll || !state.players[id].eliminated)).every(rival => state.players[rival].eliminated
+        ? faith.cityFaith[state.players[rival].headquartersCityId] === founder
+        : owned.some(city => city.ownerId === rival && faith.cityFaith[city.id] === founder)));
     if (winners.length === 1) events.push(...finishGame(state, 'faith', winners, content));
   }
   return events;

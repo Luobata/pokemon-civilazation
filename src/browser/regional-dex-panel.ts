@@ -11,6 +11,7 @@ import { TREE_TECHS } from '../content/tech-tree.ts';
 import type { PlayerView } from '../core/model.ts';
 import { pokemonSpritePath } from './sprites.ts';
 import { artImage, escapeAttr, statChip, uiIcon } from './ui-icons.ts';
+import { isStarterRecord } from './dex-owned.ts';
 
 const CLASS_ORDER: readonly UnitClass[] = ['melee', 'ranged', 'fast', 'scout', 'siege', 'air', 'naval'];
 const STAGE_NAMES = ['一阶', '二阶', '三阶'] as const;
@@ -66,10 +67,12 @@ export function regionalDexMarkup(view: PlayerView, content: Content): string {
   const target = view.expansion?.world.victory?.targetDocumentedSpecies ?? 0;
   const entry = (id: SpeciesId) => {
     const record = records[id], seen = Boolean(record?.observed), done = seen && Boolean(record?.battled || record?.captured);
-    const status = done ? (record!.captured ? '已捕捉' : '已对战') : seen ? '已观察' : '未见过';
+    // Playtest 2026-11 B6: the starter is recorded as captured but shown as owned (拥有), as in the classic Pokédex card.
+    const starter = Boolean(record && isStarterRecord(view, record));
+    const status = done ? (starter ? '拥有（初始伙伴）' : record!.captured ? '已捕捉' : '已对战') : seen ? '已观察' : '未见过';
     const label = `${name(content, id)} · ${status} · ${acquisitionText(content, id)}`;
     return `<span class="dex-entry${done ? ' documented' : ''}${seen ? '' : ' dex-silhouette'}" data-species="${id}" title="${escapeAttr(label)}">`
-      + `${artImage(pokemonSpritePath(id), { size: 40, label })}${record?.captured ? uiIcon('pokeBall', { size: 12, className: 'dex-mark' }) : done ? uiIcon('swords', { size: 12, className: 'dex-mark' }) : ''}`
+      + `${artImage(pokemonSpritePath(id), { size: 40, label })}${starter ? uiIcon('star', { size: 12, className: 'dex-mark' }) : record?.captured ? uiIcon('pokeBall', { size: 12, className: 'dex-mark' }) : done ? uiIcon('swords', { size: 12, className: 'dex-mark' }) : ''}`
       + `<small class="dex-name">${escape(name(content, id))}</small></span>`;
   };
   const rows = CLASS_ORDER.map(role => {
