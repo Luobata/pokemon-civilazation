@@ -201,6 +201,22 @@ const GLYPHS = {
     { S: '#DDE3E8', h: '#9A6A3E' }),
   handshake: glyph(['..........', 'YY......BB', 'YYY....BBB', '.YYYSSBBB.', '..YSSSSB..', '...SSSS...', '....SS....'],
     { Y: '#F0C9A0', B: '#C08A52', S: '#E8B07A' }),
+  // World page and victory routes (docs/design/depth-v26.md §6).
+  /** Crosshair of the 定位 (locate) buttons. */
+  locate: glyph(['....YY....', '..YYYYYY..', '.YY.YY.YY.', '.Y..YY..Y.', 'YYYYWWYYYY', 'YYYYWWYYYY', '.Y..YY..Y.', '.YY.YY.YY.', '..YYYYYY..', '....YY....'],
+    { Y: '#F2C14E', W: CREAM }),
+  /** The own rival: a half-length trainer portrait with a red cap (original). */
+  rival: glyph(['...CCCC...', '..CCWCCC..', '.CCCCCCCC.', '.bbbbbbbbb', '.HSSSSSH..', '.HSkSSkS..', '..SSSSSS..', '...SSSS...', '.JJJJJJJJ.', 'JJJJJJJJJJ'],
+    { C: '#D9495B', b: '#8E2A36', W: CREAM, H: '#5A3A2A', S: '#F0C9A0', J: '#3F6FB8' }),
+  /** A league NPC trainer (conference bracket): blue cap, green jacket. */
+  trainer: glyph(['...CCCC...', '..CCWCCC..', '.CCCCCCCC.', '.bbbbbbbbb', '.HSSSSSH..', '.HSkSSkS..', '..SSSSSS..', '...SSSS...', '.JJJJJJJJ.', 'JJJJJJJJJJ'],
+    { C: '#4A7FD8', b: '#2C5296', W: CREAM, H: '#2B2B3A', S: '#F0C9A0', J: '#6BA35A' }),
+  /** An origin stone tablet with a carved rune. */
+  tablet: glyph(['..SSSSSS..', '.SSSSSSSS.', '.SSGGGGSs.', '.SSGSSGSs.', '.SSGGGGSs.', '.SSSGSSSs.', '.SSGGGSSs.', '.SSSSSSSs.', '.ssssssss.'],
+    { S: '#BFC3D6', s: '#7E8496', G: '#4FB998' }),
+  /** A civilization banner on a pole (`F` is recoloured per civilization by `flagImage`). */
+  flag: glyph(['P.........', 'PFFFFFFF..', 'PFWFFFFFF.', 'PFFFFFFFF.', 'PFFFFFFF..', 'PFFFFFF...', 'P.........', 'P.........', 'P.........', 'PP........'],
+    { P: '#9A6A3E', F: '#E6B85C', W: CREAM }),
 } satisfies Record<string, Grid>;
 export type GlyphName = keyof typeof GLYPHS;
 
@@ -244,7 +260,12 @@ const urls = new Map<string, string>();
 export function iconUrl(name: UiIconName): string {
   let url = urls.get(name);
   if (url) return url;
-  const { rows, palette } = gridOf(name);
+  url = gridUrl(gridOf(name));
+  urls.set(name, url);
+  return url;
+}
+/** SVG data URL of any palette grid (one rect per horizontal run, crisp edges): recoloured icons, scene art. */
+export function gridUrl({ rows, palette }: Readonly<Grid>): string {
   let rects = '';
   rows.forEach((row, y) => {
     for (let x = 0; x < row.length;) {
@@ -256,9 +277,7 @@ export function iconUrl(name: UiIconName): string {
     }
   });
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${rows[0].length} ${rows.length}" shape-rendering="crispEdges">${rects}</svg>`;
-  url = `data:image/svg+xml,${encodeURIComponent(svg)}`;
-  urls.set(name, url);
-  return url;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
 export const escapeAttr = (text: string) => text.replace(/[&<>"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[char]!);
@@ -288,3 +307,12 @@ export function statChip(name: UiIconName, value: string | number, label: string
 
 /** Type badge with its Chinese name as the accessible name. */
 export const typeBadge = (type: TypeId, size = 20, label = `${TYPE_NAMES[type]}属性`) => uiIcon(`type:${type}`, { size, label, className: 'type-badge' });
+
+const flagUrls = new Map<string, string>();
+/** A civilization's banner (the `flag` icon in its colour), named like `uiIcon`. */
+export function flagImage(color: string, { size = 24, label, className = '' }: IconOptions = {}): string {
+  let url = flagUrls.get(color);
+  if (!url) { const grid = gridOf('flag'); url = gridUrl({ rows: grid.rows, palette: { ...grid.palette, F: color } }); flagUrls.set(color, url); }
+  const named = label ? `alt="${escapeAttr(label)}" title="${escapeAttr(label)}"` : 'alt="" aria-hidden="true"';
+  return `<img class="px-icon${className ? ` ${className}` : ''}" src="${url}" width="${size}" height="${size}" ${named} draggable="false">`;
+}

@@ -61,7 +61,7 @@ import { createMapRenderer, Timeline } from './render/index.ts';
 import type { DebugOverlay, RenderStats, Track } from './render/index.ts';
 import type { UnitMarkIdentity } from './render/scene.ts';
 import type { Hex } from '../core/hex.ts';
-import { battleTrack, captureTrack, evolveTrack, moveTrack, tapTrack, wonderRevealTrack } from './render/animation.ts';
+import { battleTrack, captureTrack, evolveTrack, locateTrack, moveTrack, tapTrack, wonderRevealTrack } from './render/animation.ts';
 import { bigEventTiles, bigEventTrack } from './event-tracks.ts';
 import { AmbientTransitions } from './ambient-transitions.ts';
 import { WarIntensity, musicMood } from './music-director.ts';
@@ -71,7 +71,7 @@ import { describeTile, tileSummary } from './tile-info.ts';
 import { renderTilePanel } from './tile-panel.ts';
 import { ERA_AGES } from '../content/era-honors.ts';
 import { previewSummary, targetPreviews } from './target-preview.ts';
-import { HEX_RADIUS, fitCamera, hexToWorld, tileToScreen, toWorld, worldToHex, zoomAt } from './camera.ts';
+import { HEX_RADIUS, fitCamera, hexToWorld, mapSpan, tileToScreen, toWorld, worldToHex, zoomAt } from './camera.ts';
 import { combatCard, renderCombatCard } from './combat-preview.ts';
 import { battleLook } from './battle-presentation.ts';
 import { TYPE_COLORS } from '../content/type-colors.ts';
@@ -830,6 +830,31 @@ function focusHex(position: { q: number; r: number }) {
   camera.x = canvas.clientWidth / 2 - point.x * camera.zoom;
   camera.y = canvas.clientHeight / 2 - point.y * camera.zoom;
 }
+/**
+ * World / victory page 定位 (depth-v26 §6.1): closes the page, centres the camera on the tile — on a wrapping map the copy
+ * nearest the current view — inspects it and pulses a chevron there for 1.5 s.
+ */
+function locateTile(index: number) {
+  const view = session.getView(), position = indexToHex(index, view.map);
+  const centre = toWorld({ x: canvas.clientWidth / 2, y: canvas.clientHeight / 2 }, camera), point = hexToWorld(position);
+  if (view.map.wrap) point.x += Math.round((centre.x - point.x) / mapSpan(view.map)) * mapSpan(view.map);
+  closeScreen();
+  deferredFocus = null;
+  keyboardIndex = index;
+  camera.zoom = Math.max(camera.zoom, 1.5);
+  camera.x = canvas.clientWidth / 2 - point.x * camera.zoom;
+  camera.y = canvas.clientHeight / 2 - point.y * camera.zoom;
+  selected = null; selectedCity = null; neutralCity = null; resetAction(); notice = '';
+  inspectedTile = index;
+  timeline.add(locateTrack(position), performance.now());
+  controls(); requestFrame();
+}
+document.addEventListener('click', event => {
+  const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('[data-locate-tile], [data-locate-unit]') : null;
+  if (!button || button.disabled || !session) return;
+  if (button.dataset.locateTile !== undefined) locateTile(Number(button.dataset.locateTile));
+  else { closeScreen(); selectUnit(Number(button.dataset.locateUnit)); }
+});
 function selectUnit(id: number | null, focus = true) {
   const unit = session.getView().units.find(unit => unit.id === id && unit.ownerId === session.getView().playerId);
   selected = unit?.id ?? null; selectedCity = null; neutralCity = null; inspectedTile = null;
