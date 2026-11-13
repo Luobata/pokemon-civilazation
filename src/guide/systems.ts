@@ -3,6 +3,7 @@
 import type { GuideSection } from './sections.ts';
 import * as T from './tables.ts';
 import { civ6Terms } from './civ6.ts';
+import { victoryTargets } from '../content/opening.ts';
 
 const tip = (...lines: string[]) => `<div class="tip">${lines.map(line => `<p>${line}</p>`).join('')}</div>`;
 const link = (id: string, label: string) => `<a href="#${id}">${label}</a>`;
@@ -59,7 +60,7 @@ export const OVERVIEW_SECTIONS: readonly GuideSection[] = [
       ['征服', '占领对手的<strong>首都</strong>就会消灭该文明（其余城市变为中立、单位全部移除）。只剩你一个文明时获胜。', '攻城型 + 投石改装；见 ' + link('combat', '攻城')],
       ['图鉴', `图鉴记录物种数达到 ${world.pokedex.targetDocumentedSpecies + 3} 种（物种被你<strong>看到过</strong>，并且你<strong>看到它参与过战斗</strong>或<strong>捕捉过它</strong>）。先达到者立即获胜。`, '满图侦察、捕捉、清巢穴'],
       ['起源', `拥有全部 ${civ.sanctuaries.definitions.length} 块圣所石板。只有圣所主人能挑战守卫，所以 4 个圣所都要由你建立；任一圣所被对手抢先建立，这条路线就断了。`, '早期派单位占圣所，每个 80 金'],
-      ['冠军赛', `赢得 ${civ.championship.titlesNeededForVictory} 次冠军赛。第 ${civ.championship.firstSeasonRound} 轮开第一届，之后每 ${civ.championship.intervalRounds} 轮一届。`, '6 只高等级宝可梦，报名时与所有文明和平'],
+      ['冠军赛', `冠军头衔达到目标：${[100, 200, 300].map(roundLimit => `${roundLimit} 轮对局 ${victoryTargets({ gameplayVersion: 21, roundLimit }).championshipTitles} 次`).join('、')}（v24 起四天王也计 1 次）。第 ${civ.championship.firstSeasonRound} 轮开第一届，之后每 ${civ.championship.intervalRounds} 轮一届。`, '6 只高等级宝可梦，报名时与所有文明和平'],
       ['华丽大赛', '魅力 ≥ 500，并且至少是每个存活对手的 1.5 倍。', '多建华丽馆、多登记物种和稀有树果'],
       ['信仰', '地图上至少有 6 座有主城市；你的信仰占所有有主城市的 60%（向上取整）以上；并且每个存活对手都至少有 1 座城市信你的信仰。', '先攒供奉点创立信仰，再主动传播'],
       ['计分', '到达轮上限（100 / 200 / 300）那一轮结束时，分数最高者获胜。', '均衡发展'],

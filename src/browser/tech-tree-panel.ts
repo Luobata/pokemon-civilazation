@@ -51,7 +51,8 @@ function stateOf(context: TreeContext, id: TechId): NodeState {
 }
 function roundsLeft(context: TreeContext, id: TechId): number {
   const research = context.view.economy.player.research;
-  return Math.max(1, Math.ceil(Math.max(0, def(context.content, id).cost - research.progressByTech[id]) / Math.max(1, context.perRound)));
+  // Playtest 2026-11 B5: the research reserve flows into the next topic at the round's settlement, so it counts too.
+  return Math.max(1, Math.ceil(Math.max(0, def(context.content, id).cost - research.progressByTech[id] - research.reserve) / Math.max(1, context.perRound)));
 }
 function stateLabel(context: TreeContext, id: TechId): string {
   const state = stateOf(context, id), names = missingPrerequisites(context.view.economy.player, id, context.content).map(item => def(context.content, item).name);

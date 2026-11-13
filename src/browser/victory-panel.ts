@@ -2,6 +2,7 @@ import { victoryTargets } from '../content/opening.ts';
 import { CIVILIZATION_CONTENT } from '../content/civilization-systems.ts';
 import { LEGENDS } from '../content/faith-legends.ts';
 import type { PlayerView } from '../core/model.ts';
+import { dexCaptureCounts } from './dex-owned.ts';
 
 type Path = { id: string; name: string; value: number; target: number; detail: string; hint: string; nav?: string; blocked?: boolean };
 /** Civilization-style victory overview: every win path the current game enables, with own progress and the visible leader. */
@@ -16,7 +17,7 @@ export function victoryPaths(view: PlayerView): Path[] {
   const records = Object.values(exp.world.player?.pokedex ?? {});
   const documented = records.filter(record => record.observed && (record.battled || record.captured)).length;
   paths.push({ id: 'pokedex', name: '图鉴', value: documented, target: exp.world.victory?.targetDocumentedSpecies ?? 18,
-    detail: `观察 ${records.filter(record => record.observed).length} · 捕捉 ${records.filter(record => record.captured).length}`, hint: '观察并对战或捕捉物种，完成图鉴记录。', nav: '#expansion-panel' });
+    detail: `观察 ${records.filter(record => record.observed).length} · 捕捉 ${dexCaptureCounts(view, records).caught}${dexCaptureCounts(view, records).owned ? ` · 拥有 ${dexCaptureCounts(view, records).owned}` : ''}`, hint: '观察并对战或捕捉物种，完成图鉴记录。', nav: '#expansion-panel' });
   const civ = exp.civilization;
   const tablets = CIVILIZATION_CONTENT.sanctuaries.definitions.length;
   const ownTablets = Object.values(civ.tabletOwners).filter(owner => owner === view.playerId).length;

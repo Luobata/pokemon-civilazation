@@ -6,7 +6,8 @@ import type { GameplayVersion } from '../content/eras.ts';
 import { audio, audioSettingsMarkup, bindAudioSettings } from './audio/index.ts';
 import type { SoundId } from './audio/index.ts';
 import { usesMovementPoints } from '../core/movement.ts';
-import { toastFor } from './notifications.ts';
+import { leagueCountdownToast, toastFor } from './notifications.ts';
+import { leagueActivityText, renderLeagueResult, showLatestLeagueSeason } from './league-card.ts';
 import { createNotificationRail } from './notification-rail.ts';
 import { ReviewedUnits, cycleId, idleCityIds, idleUnitIds, turnReminders, turnStep } from './turn-button.ts';
 import type { TurnStep } from './turn-button.ts';
@@ -341,19 +342,26 @@ function activityText(payload: VisibleEvent['payload']) {
     case 'DedicationChosen': return `时代献礼：${payload.dedicationIds.map(id => DEDICATIONS[id].name).join('、')}`;
     case 'GovernmentChanged': return `采用体制「${GOVERNMENTS[payload.governmentId].name}」${payload.goldCost ? `（${payload.goldCost} 金）` : ''}${payload.droppedPolicies.length ? `，取下方针：${payload.droppedPolicies.map(id => POLICIES[id].name).join('、')}` : ''}`;
     case 'PoliciesChanged': return `方针更新：${payload.policyIds.map(id => POLICIES[id].name).join('、') || '无'}${payload.goldCost ? `（${payload.goldCost} 金）` : ''}`;
+    case 'ChampionshipResolved': return leagueActivityText(session.getView(), payload.season);
     case 'DiscoveryMade': return `★ 图鉴发现「${discoveryText(payload.techId, Boolean(contentForView(session.getView()).opening)).name}」：${techOf(contentForView(session.getView()), payload.techId).name} +${payload.bonus}`;
     default: return '';
   }
 }
 // ---------- notifications (Civilization-style rail, notification-rail.ts) ----------
 const rail = createNotificationRail(document.querySelector<HTMLElement>('#toast-host')!, target => {
-  if (target.kind === 'screen') openScreen(target.screen);
+  if (target.kind === 'screen') {
+    openScreen(target.screen);
+    // The league countdown points at the conference card of the world page.
+    if (target.screen === 'world') { const card = document.querySelector<HTMLDetailsElement>('details[data-system="s27-championship"]'); if (card) { card.open = true; card.scrollIntoView({ block: 'nearest' }); } }
+  }
   else if (target.kind === 'city') { closeScreen(); selectCity(target.cityId); }
   else { closeScreen(); selectUnit(target.unitId); }
 });
 /** Cities the viewer owned at the last refresh, so a city taken during the AI turns still reads as "yours". */
 const knownOwnCityIds = new Set<number>();
 const reviewedUnits = new ReviewedUnits();
+/** The round whose league countdown notice was last considered. */
+let countdownRound = -1;
 /** Events that can change the music (mood or war intensity, music-director.ts). */
 const MUSIC_EVENTS = new Set<string>(['DiplomacyChanged', 'GameEnded', 'BattleResolved', 'TurnChanged', 'WorldRampageStruckCity', 'RoundEnded']);
 const warIntensity = new WarIntensity();
@@ -410,12 +418,14 @@ export function soundsFor(payload: VisibleEvent['payload'], view: PlayerView, an
     case 'GameEnded': return payload.outcome.winners.includes(me) ? ['victory'] : ['defeat'];
     case 'DiplomacyChanged': return payload.relation.a !== me && payload.relation.b !== me ? [] : payload.relation.status === 'war' && payload.relation.changedAtRound >= view.round - 1 ? ['war'] : payload.relation.status === 'peace' && payload.relation.changedAtRound >= view.round - 1 ? ['peace'] : [];
     case 'TurnChanged': return payload.activePlayerId === me ? ['turn'] : [];
+    case 'ChampionshipResolved': return [payload.playerId === me ? 'victory' : 'notify'];
     default: return [];
   }
 }
 function recordActivity(payload: VisibleEvent['payload'], animated = false) {
   for (const sound of soundsFor(payload, session.getView(), animated)) audio.play(sound);
   if (payload.type === 'GameEnded') endingPresented = true;
+  if (payload.type === 'ChampionshipResolved') showLatestLeagueSeason();
   if (MUSIC_EVENTS.has(payload.type)) {
     const view = session.getView();
     warIntensity.observe(payload, view, () => payload.type === 'BattleResolved' && battleInvolvesViewer(payload, view),
@@ -519,6 +529,7 @@ function controls() {
   renderNeutralPanel(view, neutralCity, issue, busy() || ended || pendingPeace);
   renderDiplomacyPanel(view, busy() || ended, issue);
   renderOutcome(view, newGame);
+  renderLeagueResult(view);
   const shown = activityLog.filter(entry => !activityImportantOnly || !entry.routine);
   document.querySelector('#activity-list')!.innerHTML = shown.length ? shown.map((entry, index) =>
     `${index === 0 || shown[index - 1].round !== entry.round ? `<li class="activity-round" aria-hidden="true">第 ${entry.round} 轮</li>` : ''}<li class="${entry.routine ? 'routine' : 'important'}">${entry.text}</li>`).join('')
@@ -538,6 +549,8 @@ function controls() {
     knownOwnCityIds.clear(); for (const city of view.economy.cities) knownOwnCityIds.add(city.id);
     for (const city of view.cities) knownCityOwners.set(city.id, city.ownerId);
   }
+  // Playtest 2026-11 B1: the league countdown (5 rounds and 1 round before a season), once per round.
+  if (!busy() && !ended && view.round !== countdownRound) { countdownRound = view.round; rail.push(leagueCountdownToast(view)); }
   rail.sync(view, busy(), { unitId: selected, cityId: selectedCity });
   document.querySelector('#turn-reminders')!.innerHTML = ended ? '' : reminders.map(item => `<button type="button" data-reminder="${item.target}">${item.label}</button>`).join('');
   for (const button of document.querySelectorAll<HTMLButtonElement>('[data-reminder]')) button.onclick = () => {
@@ -873,7 +886,7 @@ function newGame() {
       roundLimit: Number(document.querySelector<HTMLSelectElement>('#round-limit')!.value) as GameSetup['roundLimit'], players });
     session = driver.asPlayerSession();
     timeline.clear(); presenting.clear(); presentationIndex = 0; selected = null; selectedCity = session.getView().economy.player.headquartersCityId; neutralCity = null; inspectedTile = null; keyboardIndex = null; activityLog.length = 0; knownUnitLabels.clear(); knownUnits.clear(); knownCityOwners.clear(); deferredFocus = null;
-    rail.clear(); reviewedUnits.clear(); knownOwnCityIds.clear(); resetPresentationState();
+    rail.clear(); countdownRound = -1; reviewedUnits.clear(); knownOwnCityIds.clear(); resetPresentationState();
     frameDurations.length = 0;
     resetAction(); notice = ''; sequence.value = '0';
     canvas.hidden = false;
@@ -1065,7 +1078,7 @@ const saveKey = 'pokemon-civilization-save';
 function load(text: string) {
   if (transitionBlocked()) return;
   driver.load(text); closeScreen(); timeline.clear(); presenting.clear(); selected = null; selectedCity = session.getView().economy.cities[0]?.id ?? null; neutralCity = null; inspectedTile = null; keyboardIndex = null; activityLog.length = 0; knownUnitLabels.clear(); knownUnits.clear(); knownCityOwners.clear(); deferredFocus = null; resetAction(); notice = '读档完成';
-  rail.clear(); reviewedUnits.clear(); knownOwnCityIds.clear(); resetPresentationState();
+  rail.clear(); countdownRound = -1; reviewedUnits.clear(); knownOwnCityIds.clear(); resetPresentationState();
   frameDurations.length = 0;
   fit();
   const focusCity = session.getView().economy.cities.find(city => city.id === selectedCity);

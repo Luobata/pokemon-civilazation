@@ -21,8 +21,9 @@ import { researchTaskToast } from './research-card.ts';
 import { ESSENCES } from '../content/essences.ts';
 import { GYM_LEADERS } from '../content/gym-circuit.ts';
 import { rivalSays } from './gym-panel.ts';
+import { leagueCountdown, leagueSummary } from './league-card.ts';
 
-export type ToastTarget = { kind: 'screen'; screen: 'research' | 'legends' | 'era' | 'diplomacy' } | { kind: 'city'; cityId: number } | { kind: 'unit'; unitId: number } | null;
+export type ToastTarget = { kind: 'screen'; screen: 'research' | 'legends' | 'era' | 'diplomacy' | 'world' | 'log' } | { kind: 'city'; cityId: number } | { kind: 'unit'; unitId: number } | null;
 export type ToastTone = 'research' | 'production' | 'growth' | 'wonder' | 'war' | 'info';
 /** When a persistent notification has been handled without clicking it (the player made the choice elsewhere). */
 export type ToastResolve = { kind: 'research' } | { kind: 'city-queued'; cityId: number } | { kind: 'peace-answered'; otherId: number }
@@ -184,10 +185,22 @@ export function toastFor(payload: VisibleEvent['payload'], view: PlayerView, mem
     case 'RivalDeparted':
       return toast('info', '…', `劲敌${view.expansion?.rivals?.name ?? ''}离开了`, `“${rivalSays(payload.encounter, 'leave')}”`, null);
     case 'BattleResolved': return battleToast(payload, view, memory);
+    // Playtest 2026-11 B1: the league conference result (public; the card is on the 动态 screen).
+    case 'ChampionshipResolved': {
+      const note = leagueSummary(view, payload.season);
+      return toast(note.own === 'champion' ? 'wonder' : 'info', '♚', note.title, note.detail, { kind: 'screen', screen: 'log' }, '查看对阵',
+        decision(undefined, `league:${payload.season.season}`));
+    }
     case 'CivilizationEliminated':
       return toast('war', '☠', `文明 ${payload.eliminatedPlayerId + 1} 出局`, '', null);
     default: return null;
   }
+}
+
+/** Playtest 2026-11 B1: the notice 5 rounds and 1 round before a league season (null on other rounds). */
+export function leagueCountdownToast(view: PlayerView): Toast | null {
+  const note = leagueCountdown(view);
+  return note && toast('info', '♚', note.title, note.detail, { kind: 'screen', screen: 'world' }, note.registered ? '查看' : '去报名', { key: 'league-countdown' });
 }
 
 /** Battles that hurt the viewer: an own city attacked or taken, an own settler/builder/trader defeated. Knocked-out Pokémon are `UnitRecovering`. */

@@ -139,13 +139,15 @@ function barActions(view: PlayerView, unit: MapUnit, mode: ActionMode, lock: str
       player.gold < (candy ?? evolutionGold(player, evolution.gold)) ? `金币 ${player.gold}/${candy ?? evolutionGold(player, evolution.gold)}` : '',
       evolution.requiresTraining && !player.research.unlockedIds.includes('training') ? '科技「特训法」' : '',
     ].filter(Boolean) : [];
-    const evolveReason = !evolution ? '没有可进化的形态。'
-      : state.stoneEvolution ? `需要${WORLD_DEFINITIONS.stones[state.stoneEvolution.stoneId].name} + EXP ${state.stoneEvolution.requiredXp}，请在「世界 › 树果、进化石与满意度」中使用。`
+    // Playtest 2026-11 B3: a stone path is named before "no form" (stone-only species have no main branch).
+    const evolveReason = state.stoneEvolution ? `需要${WORLD_DEFINITIONS.stones[state.stoneEvolution.stoneId].name} + EXP ${state.stoneEvolution.requiredXp}，请在「世界 › 树果、进化石与满意度」中使用。`
+      : !evolution ? '没有可进化的形态。'
       : state.blocker ? `${EVOLUTION_BLOCKER_TEXT[state.blocker]}。`
       : state.canEvolve ? null : `还差：${missing.join('、') || '条件未满足'}。`;
     actions.push({
       id: 'evolve-unit', action: 'evolve', icon: 'evolve', label: '进化', hotkey: 'E', key: UNIT_BAR_HOTKEYS.evolve,
-      title: evolution ? `${candy !== null ? `神奇糖果 · ${candy} 金 → ` : '进化→'}${content.species[evolution.speciesId].name}` : '不可进化',
+      title: evolution ? `${candy !== null ? `神奇糖果 · ${candy} 金 → ` : '进化→'}${content.species[evolution.speciesId].name}`
+        : state.stoneEvolution ? `进化石进化→${content.species[state.stoneEvolution.intoSpeciesId]?.name ?? ''}` : '不可进化',
       reason: blocked(evolveReason), data: content.roster && evolution ? evolution.speciesId : '',
       detail: evolution ? `进化条件：EXP ${evolution.xp} + ${evolution.gold} 金币${evolution.requiresTraining ? ' + 特训法' : ''}。` : '',
     });

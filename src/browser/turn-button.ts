@@ -8,7 +8,8 @@ import type { EXPANSION_CONTENT } from '../content/units.ts';
 import { CHARTERS } from '../content/policies.ts';
 import { canResearch } from '../core/economy-commands.ts';
 import { hexDistance } from '../core/hex.ts';
-import type { PlayerView } from '../core/model.ts';
+import type { MapUnit, PlayerView } from '../core/model.ts';
+import { ROLE_POKEMON } from '../content/roles.ts';
 
 export type Reminder = { label: string; target: string };
 export type TurnStep =
@@ -26,6 +27,8 @@ export class ReviewedUnits {
   clear(): void { this.round = -1; this.ids.clear(); }
 }
 
+/** Playtest 2026-11 B2: a civilian's role (units from before v20 roles are settlers, as in the unit bar). */
+const civilianRole = (unit: MapUnit) => unit.kind !== 'logistics' ? null : unit.role === 'builder' || unit.role === 'trader' ? unit.role : 'settler';
 export const idleCityIds = (view: PlayerView): number[] => view.economy.cities.filter(city => city.queue.length === 0).map(city => city.id).sort((a, b) => a - b);
 export const idleUnitIds = (view: PlayerView): number[] => view.units.filter(unit => unit.ownerId === view.playerId && unit.actionLeft).map(unit => unit.id).sort((a, b) => a - b);
 /** The id after (step 1) or before (step −1) `current` in a sorted id list, wrapping around. */
@@ -50,11 +53,11 @@ export function turnReminders(view: PlayerView, content: typeof EXPANSION_CONTEN
     && !view.economy.cities.some(city => hexDistance(city.position, unit.position, view.map) === 0)
     && view.units.some(other => other.kind === 'pokemon' && other.ownerId !== view.playerId && (other.ownerId === null || view.diplomacy.some(pair => pair.status === 'war' && (pair.a === other.ownerId || pair.b === other.ownerId) && (pair.a === view.playerId || pair.b === view.playerId))) && hexDistance(other.position, unit.position, view.map) <= 2)
     && !view.units.some(guard => guard.ownerId === view.playerId && guard.kind === 'pokemon' && hexDistance(guard.position, unit.position, view.map) <= 1));
-  if (exposed.length) items.push({ label: `开拓队有危险`, target: `danger:${exposed[0]!.id}` });
+  if (exposed.length) items.push({ label: `${ROLE_POKEMON[civilianRole(exposed[0]!)!].unitName}有危险`, target: `danger:${exposed[0]!.id}` });
   const idleCities = idleCityIds(view).length;
   if (idleCities) items.push({ label: `${idleCities} 城空闲`, target: 'city' });
-  const settler = view.units.find(unit => unit.ownerId === view.playerId && unit.kind === 'logistics' && unit.actionLeft);
-  if (settler && !exposed.length) items.push({ label: '开拓队：去建新城', target: `unit:${settler.id}` });
+  const settler = view.units.find(unit => unit.ownerId === view.playerId && civilianRole(unit) === 'settler' && unit.actionLeft);
+  if (settler && !exposed.some(unit => unit.id === settler.id)) items.push({ label: '开拓队：去建新城', target: `unit:${settler.id}` });
   const idleUnits = idleUnitIds(view).filter(id => !reviewed.has(id)).length;
   if (idleUnits) items.push({ label: `${idleUnits} 单位待命`, target: 'unit' });
   return items;
