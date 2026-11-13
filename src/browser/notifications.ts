@@ -22,8 +22,11 @@ import { ESSENCES } from '../content/essences.ts';
 import { GYM_LEADERS } from '../content/gym-circuit.ts';
 import { rivalSays } from './gym-panel.ts';
 import { leagueCountdown, leagueSummary } from './league-card.ts';
+import { replayKey } from './battle-replay.ts';
 
-export type ToastTarget = { kind: 'screen'; screen: 'research' | 'legends' | 'era' | 'diplomacy' | 'world' | 'log' } | { kind: 'city'; cityId: number } | { kind: 'unit'; unitId: number } | null;
+/** `battle` (depth-v26 §2.5): opens the replay of an own gym / guardian / Elite Four result (battle-replay.ts key). */
+export type ToastTarget = { kind: 'screen'; screen: 'research' | 'legends' | 'era' | 'diplomacy' | 'world' | 'log' } | { kind: 'city'; cityId: number } | { kind: 'unit'; unitId: number }
+  | { kind: 'battle'; key: string } | null;
 export type ToastTone = 'research' | 'production' | 'growth' | 'wonder' | 'war' | 'info';
 /** When a persistent notification has been handled without clicking it (the player made the choice elsewhere). */
 export type ToastResolve = { kind: 'research' } | { kind: 'city-queued'; cityId: number } | { kind: 'peace-answered'; otherId: number }
@@ -166,14 +169,25 @@ export function toastFor(payload: VisibleEvent['payload'], view: PlayerView, mem
       if (payload.playerId !== me) return null;
       const gym = view.expansion?.gymCircuit?.gyms.find(item => item.id === payload.gymId);
       const name = gym ? `${ESSENCES[gym.essence].name}徽章` : '徽章';
+      // depth-v26 §2.5: the result offers its replay.
+      const replay: ToastTarget = { kind: 'battle', key: replayKey(payload) };
       return payload.victory
-        ? toast('growth', '◆', `你赢得了${name}（第 ${payload.badges} 枚）`, `${gym ? `${GYM_LEADERS[gym.leader].name}：` : ''}队伍战力 ${payload.teamPower} 对馆主 ${payload.leaderPower}，${payload.battle.rounds.length} 回合获胜。`, null, undefined, decision())
-        : toast('war', '◇', `道馆挑战失败${gym ? `：${GYM_LEADERS[gym.leader].name}` : ''}`, `队伍战力 ${payload.teamPower} 对馆主 ${payload.leaderPower}。宝可梦恢复后 3 轮可再挑战。`, null);
+        ? toast('growth', '◆', `你赢得了${name}（第 ${payload.badges} 枚）`, `${gym ? `${GYM_LEADERS[gym.leader].name}：` : ''}队伍战力 ${payload.teamPower} 对馆主 ${payload.leaderPower}，${payload.battle.rounds.length} 回合获胜。`, replay, '观看对战', decision())
+        : toast('war', '◇', `道馆挑战失败${gym ? `：${GYM_LEADERS[gym.leader].name}` : ''}`, `队伍战力 ${payload.teamPower} 对馆主 ${payload.leaderPower}。宝可梦恢复后 3 轮可再挑战。`, replay, '观看对战');
     }
-    case 'EliteFourChallenged':
+    case 'EliteFourChallenged': {
       if (payload.playerId !== me) return null;
-      return payload.victory ? toast('wonder', '♛', '你战胜了四天王与冠军！', '冠军赛头衔 +1、金币 +100。', null, undefined, decision())
-        : toast('war', '♚', `四天王挑战止步第 ${payload.reached + 1} 场`, '10 轮后可以再挑战。', null);
+      const replay: ToastTarget = { kind: 'battle', key: replayKey(payload) };
+      return payload.victory ? toast('wonder', '♛', '你战胜了四天王与冠军！', '冠军赛头衔 +1、金币 +100。', replay, '观看对战', decision())
+        : toast('war', '♚', `四天王挑战止步第 ${payload.reached + 1} 场`, '10 轮后可以再挑战。', replay, '观看对战');
+    }
+    case 'GuardianChallenged': {
+      if (payload.playerId !== me) return null;
+      const site = view.expansion?.civilization?.sanctuaries.find(item => item.id === payload.siteId);
+      const replay: ToastTarget = { kind: 'battle', key: replayKey(payload) };
+      return payload.victory ? toast('wonder', '◈', `击败了圣所守卫${site ? `${site.guardianName}` : ''}！`, `${site ? `获得石板「${site.tabletName}」。` : ''}${payload.battle.rounds.length} 回合获胜。`, replay, '观看对战', decision())
+        : toast('war', '◇', `圣所守卫挑战失败${site ? `：${site.guardianName}` : ''}`, `队伍战力 ${payload.teamPower} 对守卫 ${payload.challengePower}。`, replay, '观看对战');
+    }
     // v24 C: the own rival (these events reach only their target).
     case 'RivalAnnounced':
       return toast('war', '!', `劲敌${view.expansion?.rivals?.name ?? ''}将在第 ${payload.round} 轮出现`, `目标：${view.economy.player.headquartersCityId === payload.cityId ? '首都' : `城市 ${payload.cityId}`}。地图上的红色“!”是它的登场地点。`,
