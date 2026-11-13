@@ -199,6 +199,15 @@ const GLYPHS = {
     { S: '#BFC3D6', B: '#9A6A3E', W: '#F2E8D0' }),
   swords: glyph(['S........S', 'SS......SS', '.SS....SS.', '..SS..SS..', '...SSSS...', '...SSSS...', '..hSS.SSh.', '.hh....hh.', 'hh......hh'],
     { S: '#DDE3E8', h: '#9A6A3E' }),
+  // Unit orders (v26 §7, go-to and suggested city sites).
+  goTo: glyph(['P.........', 'PBBBBBB...', 'PBWBBBBBB.', 'PBBBBBBBBB', 'PBBBBBB...', 'P.........', 'P.........', 'P..d..d..d', 'PP........'],
+    { P: '#C9A86A', B: '#4FB0E0', W: CREAM, d: '#F2E3B8' }),
+  sitePin: glyph(['..RRRRRR..', '.RRRRRRRR.', 'RRRWWWWRRR', 'RRWWWWWWRR', 'RRWWWWWWRR', 'RRRWWWWRRR', '.RRRRRRRR.', '..RRRRRR..', '...RRRR...', '....RR....'],
+    { R: '#F2A93B', W: CREAM }),
+  freshWater: glyph(['....BB....', '...BBBB...', '..BBBBBB..', '.BBWBBBBB.', '.BWBBBBBB.', 'BBWBBBBBBb', 'BBBBBBBBBb', '.BBBBBBBb.', '..bbbbbb..'],
+    { B: '#5BB6E8', b: '#2F7FB8', W: CREAM }),
+  coast: glyph(['.BB...BB..', 'BWWB.BWWB.', 'B..BBB..BB', '..........', '.BB...BB..', 'BWWB.BWWB.', 'B..BBB..BB'],
+    { B: '#3F86D8', W: '#CFEFF7' }),
   handshake: glyph(['..........', 'YY......BB', 'YYY....BBB', '.YYYSSBBB.', '..YSSSSB..', '...SSSS...', '....SS....'],
     { Y: '#F0C9A0', B: '#C08A52', S: '#E8B07A' }),
 } satisfies Record<string, Grid>;

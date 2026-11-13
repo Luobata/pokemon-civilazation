@@ -20,6 +20,8 @@ import { actionTargets } from './action-targets.ts';
 import { viewGymBlocksCity } from '../core/gym-circuit.ts';
 import type { ActionMode } from './unit-panel.ts';
 import { gymBarState, gymTitle, nextLeaderText, openGymCard, refreshGymCard } from './gym-panel.ts';
+import { uiIcon } from './ui-icons.ts';
+import type { UiIconName } from './ui-icons.ts';
 
 type Pokemon = Extract<MapUnit, { kind: 'pokemon' }>;
 
@@ -99,18 +101,23 @@ export type UnitBarCallbacks = {
   skip: () => void;
   /** Shows a sentence in the map notice (used when a hotkey hits an unavailable action). */
   explain: (text: string) => void;
+  /** v26 §7.1: toggle the go-to (waypoint) mode, and cancel the unit's standing go-to order. */
+  goTo?: () => void;
+  cancelGoTo?: () => void;
 };
+/** The selected unit's go-to state (client waypoints, waypoints.ts): choosing a target, an order with its turns left, just arrived. */
+export type UnitBarGoTo = { mode: boolean; turns: number | null; arrived: boolean };
 type BarAction = {
-  id: string; action: string; icon: IconName; label: string; hotkey: string; key: string;
+  id: string; action: string; icon?: IconName; kit?: UiIconName; label: string; hotkey: string; key: string;
   /** Full description (title line of the hover card, accessible name). */
-  title: string; reason: string | null; detail: string; selected?: boolean; tone?: 'attack' | 'primary'; data?: string;
+  title: string; reason: string | null; detail: string; selected?: boolean; tone?: 'attack' | 'primary'; data?: string; attention?: boolean;
 };
 const escapeHtml = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 /** Hotkeys of the bar (lower-case `event.key`; Space is ' '). Chosen to avoid C (city), F (fit), R/T, Y, Enter, Esc, +/−. */
-export const UNIT_BAR_HOTKEYS = { move: 'm', attack: 'a', capture: 'q', evolve: 'e', found: 'b', improve: 'i', pillage: 'p', repair: 'x', gym: 'g', skip: ' ' } as const;
+export const UNIT_BAR_HOTKEYS = { move: 'm', goTo: 'w', cancelGoTo: 'backspace', attack: 'a', capture: 'q', evolve: 'e', found: 'b', improve: 'i', pillage: 'p', repair: 'x', gym: 'g', skip: ' ' } as const;
 
 type ImproveOption = { tileIndex: number; kind: ImprovementId; label: string };
-function barActions(view: PlayerView, unit: MapUnit, mode: ActionMode, lock: string | null): { actions: BarAction[]; options: ImproveOption[] } {
+function barActions(view: PlayerView, unit: MapUnit, mode: ActionMode, lock: string | null, goTo: UnitBarGoTo | null): { actions: BarAction[]; options: ImproveOption[] } {
   const content = contentForView(view), player = view.economy.player;
   const spent = unit.actionLeft ? null : '本回合已行动，结束回合后恢复。';
   const blocked = (reason: string | null) => lock ?? spent ?? reason;
@@ -119,6 +126,19 @@ function barActions(view: PlayerView, unit: MapUnit, mode: ActionMode, lock: str
     title: mode === 'move' ? '取消移动' : '移动', reason: blocked(null), selected: mode === 'move',
     detail: mode === 'move' ? '点击地图上的高亮格移动；再按一次取消。' : '显示可到达的格子，点击高亮格移动（也可右键直接移动）。',
   }];
+  // v26 §7.1 go-to: available even with no moves left this round (the order starts next turn).
+  if (goTo) {
+    actions.push({
+      id: 'goto-unit', action: 'goto', kit: 'goTo', label: '前往', hotkey: 'W', key: UNIT_BAR_HOTKEYS.goTo, selected: goTo.mode,
+      title: goTo.mode ? '取消选择路标' : goTo.turns !== null ? `前往 · 路标约 ${goTo.turns} 轮到达` : '前往（多回合）', reason: lock,
+      detail: goTo.mode ? '点击地图上任意格子设路标：虚线是路线，圆圈数字是第几回合走到那里。Esc 取消。'
+        : '设一个远处的路标：之后每回合开始时自动走一段，遇敌、受到攻击、被挡住或你另下命令时停下。也可右键点远处的格子。',
+    });
+    if (goTo.turns !== null) actions.push({
+      id: 'cancel-goto-unit', action: 'cancel-goto', kit: 'goTo', label: '停止', hotkey: '⌫', key: UNIT_BAR_HOTKEYS.cancelGoTo,
+      title: '取消路标', reason: lock, detail: '清除这个单位的路标，它回到待命单位里。',
+    });
+  }
   if (unit.kind === 'pokemon') {
     const targets = unit.actionLeft ? actionTargets(view, unit.id, 'attack', 'pokeBall').length : 0;
     actions.push({
@@ -154,7 +174,7 @@ function barActions(view: PlayerView, unit: MapUnit, mode: ActionMode, lock: str
     const reason = foundingReason(view, unit);
     actions.push({
       id: 'found-city', action: 'found', icon: 'found', label: '建城', hotkey: 'B', key: UNIT_BAR_HOTKEYS.found, tone: 'primary',
-      title: '在此建立城市', reason: lock ?? reason, detail: '已知选址条件满足：建城消耗这支开拓队。',
+      title: '在此建立城市', reason: lock ?? reason, detail: '已知选址条件满足：建城消耗这支开拓队。', attention: Boolean(goTo?.arrived) && !reason,
     });
   }
   const builder = unit.kind === 'logistics' && unit.role === 'builder';
@@ -211,7 +231,7 @@ let current: { callbacks: UnitBarCallbacks; options: ImproveOption[]; unitId: nu
 let menuOpen = false;
 
 /** Renders the bar for the selected own unit (hidden otherwise); `lock` disables every order with its reason. */
-export function renderUnitActionBar(view: PlayerView, selected: number | null, mode: ActionMode, lock: string | null, callbacks: UnitBarCallbacks): void {
+export function renderUnitActionBar(view: PlayerView, selected: number | null, mode: ActionMode, lock: string | null, callbacks: UnitBarCallbacks, goTo: UnitBarGoTo | null = null): void {
   const root = document.querySelector<HTMLElement>('#unit-action-bar');
   if (!root) return;
   const unit = view.units.find(candidate => candidate.id === selected && candidate.ownerId === view.playerId);
@@ -220,15 +240,15 @@ export function renderUnitActionBar(view: PlayerView, selected: number | null, m
   refreshGymCard(view, unit?.id ?? null, lock !== null);
   lastView = view;
   if (!unit) { root.hidden = true; if (rendered) { root.innerHTML = ''; rendered = ''; } return; }
-  const { actions, options } = barActions(view, unit, mode, lock);
+  const { actions, options } = barActions(view, unit, mode, lock, callbacks.goTo ? goTo ?? { mode: false, turns: null, arrived: false } : null);
   current.options = options;
   if (menuOpen && (lock || options.length < 2)) menuOpen = false;
   const name = unitDefinition(unit, contentForView(view)).name;
   const markup = `<span class="unit-action-name">${escapeHtml(name)}</span>${actions.map(item => `<span class="unit-action-slot">
-    <button type="button" id="${item.id}" class="unit-action${item.selected ? ' selected' : ''}${item.tone ? ` ${item.tone}` : ''}" data-action="${item.action}" data-hotkey="${escapeHtml(item.key)}"${item.data ? ` data-species="${item.data}"` : ''}
-      aria-label="${escapeHtml(item.title)}" aria-keyshortcuts="${item.key === ' ' ? 'Space' : item.hotkey}" aria-describedby="${item.id}-tip"${item.selected ? ' aria-pressed="true"' : ''}
+    <button type="button" id="${item.id}" class="unit-action${item.selected ? ' selected' : ''}${item.tone ? ` ${item.tone}` : ''}${item.attention ? ' attention' : ''}" data-action="${item.action}" data-hotkey="${escapeHtml(item.key)}"${item.data ? ` data-species="${item.data}"` : ''}
+      aria-label="${escapeHtml(item.title)}" aria-keyshortcuts="${item.key === ' ' ? 'Space' : item.key === 'backspace' ? 'Backspace' : item.hotkey}" aria-describedby="${item.id}-tip"${item.selected ? ' aria-pressed="true"' : ''}
       title="${escapeHtml(item.reason ? `${item.title}：${item.reason}` : `${item.title}（${item.hotkey}）`)}"${item.reason ? ` data-reason="${escapeHtml(item.reason)}" disabled` : ''}>
-      <span class="unit-action-icon">${ICONS[item.icon]}</span><span class="unit-action-label">${item.label}</span><kbd>${item.hotkey}</kbd></button>
+      <span class="unit-action-icon">${item.kit ? uiIcon(item.kit, { size: 18 }) : ICONS[item.icon!]}</span><span class="unit-action-label">${item.label}</span><kbd>${item.hotkey}</kbd></button>
     <span class="unit-action-tip${item.reason ? ' unavailable' : ''}" id="${item.id}-tip" role="tooltip"><b>${escapeHtml(item.title)} <kbd>${item.hotkey}</kbd></b>${item.reason ? `<span class="unit-action-reason">${escapeHtml(item.reason)}</span>` : ''}${item.detail ? `<small>${escapeHtml(item.detail)}</small>` : ''}</span>
     ${item.action === 'improve' && menuOpen ? `<span class="unit-action-menu" role="menu" aria-label="选择改良">${options.map(option => `<button type="button" role="menuitem" data-action="improve-option" data-tile="${option.tileIndex}" data-kind="${option.kind}">${escapeHtml(option.label)}</button>`).join('')}</span>` : ''}
   </span>`).join('')}`;
@@ -254,6 +274,8 @@ function run(button: HTMLButtonElement) {
     case 'pillage': if (current.unitId !== null) callbacks.order?.({ type: 'PillageImprovement', unitId: current.unitId }); return;
     case 'repair': if (current.unitId !== null && button.dataset.species) callbacks.order?.({ type: 'RepairImprovement', unitId: current.unitId, tileIndex: Number(button.dataset.species) }); return;
     case 'gym': if (current.unitId !== null && lastView && callbacks.order) openGymCard(lastView, current.unitId, callbacks.order); return;
+    case 'goto': callbacks.goTo?.(); return;
+    case 'cancel-goto': callbacks.cancelGoTo?.(); return;
     case 'skip': callbacks.skip(); return;
   }
 }
@@ -275,8 +297,8 @@ export function installUnitActionBar(): void {
     if (document.querySelector('dialog[open]') || !document.querySelector<HTMLElement>('#screen-host')?.hidden) return;
     if (event.key === 'Escape' && menuOpen) { menuOpen = false; rendered = ''; current.callbacks.explain(''); return; }
     const key = event.key.toLowerCase();
-    // Space keeps its native meaning on any focused control (bar buttons and the improvement menu included); skip uses it from the map.
-    if (key === ' ' && target?.matches('button, a, summary, [role="button"], [role="menuitem"]')) return;
+    // Space (and Backspace) keep their native meaning on any focused control (bar buttons and the improvement menu included); skip uses it from the map.
+    if ((key === ' ' || key === 'backspace') && target?.matches('button, a, summary, [role="button"], [role="menuitem"]')) return;
     const button = [...root.querySelectorAll<HTMLButtonElement>('button[data-hotkey]')].find(candidate => candidate.dataset.hotkey === key);
     if (!button) return;
     event.preventDefault();
