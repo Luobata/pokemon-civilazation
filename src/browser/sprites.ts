@@ -68,13 +68,39 @@ export function drawSpritePath(context: CanvasRenderingContext2D, path: string, 
 export function drawPokemonSprite(context: CanvasRenderingContext2D, id: SpeciesId, x: number, y: number, box: number): boolean {
   const image = pokemonSprite(id);
   if (!image) return false;
-  if (!isTightSprite(POKEDEX[id])) { context.drawImage(image, x, y, box, box); return true; }
-  const scale = box * .77 / Math.max(image.naturalWidth, image.naturalHeight);
-  const width = Math.round(image.naturalWidth * scale), height = Math.round(image.naturalHeight * scale);
+  fitSprite(context, image, image.naturalWidth, image.naturalHeight, isTightSprite(POKEDEX[id]), x, y, box);
+  return true;
+}
+function fitSprite(context: CanvasRenderingContext2D, source: CanvasImageSource, naturalWidth: number, naturalHeight: number, tight: boolean, x: number, y: number, box: number) {
+  if (!tight) { context.drawImage(source, x, y, box, box); return; }
+  const scale = box * .77 / Math.max(naturalWidth, naturalHeight);
+  const width = Math.round(naturalWidth * scale), height = Math.round(naturalHeight * scale);
   const smoothing = context.imageSmoothingEnabled;
   context.imageSmoothingEnabled = true; // anti-aliased art downscales cleanly only with smoothing
-  context.drawImage(image, Math.round(x + (box - width) / 2), Math.round(y + box * .92 - height), width, height);
+  context.drawImage(source, Math.round(x + (box - width) / 2), Math.round(y + box * .92 - height), width, height);
   context.imageSmoothingEnabled = smoothing;
+}
+const silhouettes = new Map<string, HTMLCanvasElement>();
+/**
+ * A sprite's one-colour silhouette (white for the evolution flash, red for a recall beam), cached per species and colour:
+ * the sprite is drawn once into a small canvas and filled with `source-in`, so later frames cost one drawImage.
+ */
+export function drawPokemonSilhouette(context: CanvasRenderingContext2D, id: SpeciesId, x: number, y: number, box: number, color = '#FFFFFF'): boolean {
+  const image = pokemonSprite(id);
+  if (!image) return false;
+  const key = `${id}:${color}`;
+  let mask = silhouettes.get(key);
+  if (!mask) {
+    mask = document.createElement('canvas');
+    mask.width = image.naturalWidth; mask.height = image.naturalHeight;
+    const paint = mask.getContext('2d');
+    if (!paint) return false;
+    paint.drawImage(image, 0, 0);
+    paint.globalCompositeOperation = 'source-in';
+    paint.fillStyle = color; paint.fillRect(0, 0, mask.width, mask.height);
+    silhouettes.set(key, mask);
+  }
+  fitSprite(context, mask, image.naturalWidth, image.naturalHeight, isTightSprite(POKEDEX[id]), x, y, box);
   return true;
 }
 export function pokemonSprite(id: SpeciesId): HTMLImageElement | null {
