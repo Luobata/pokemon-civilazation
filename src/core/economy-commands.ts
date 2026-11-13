@@ -10,6 +10,7 @@ import { visibleTiles } from './vision.ts';
 import { ballPrice, playerPolicyEffects } from './policies.ts';
 import { trainableSpeciesIds } from './role-tactics.ts';
 import { isMapUnit } from './model.ts';
+import { deploymentTileExists, usesDeploymentRulesV25 } from './movement.ts';
 import { CONTENT, contentFor, techOf } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
 import type { TechId } from '../content/economy.ts';
@@ -82,6 +83,8 @@ export function validateEconomyAction(state: GameState, actor: number, action: E
       if (!trainableSpeciesIds(player, state.setup.gameplayVersion, content, state.setup.eraProgression).includes(item.defId) || !Object.hasOwn(content.units, item.defId)) return 'invalid-production';
       if (content.species[item.defId].role === 'fast' && !player.research.unlockedIds.includes('riding')) return 'invalid-production';
       if (order.orderId === undefined && classTrainingBlocker(state, player, state.setup.eraProgression, stateBadges(state, actor), item.defId, content)) return 'invalid-production';
+      // v25 fix 1: a Pokémon this city could never place (e.g. water-only in an inland city) would wait forever; refuse it at queue time.
+      if (order.orderId === undefined && usesDeploymentRulesV25(state) && !deploymentTileExists(state.map, city.position, { kind: 'pokemon', speciesId: item.defId }, content)) return 'invalid-production';
     } else if (item.kind !== 'logistics' || (item.defId !== 'settler' && item.defId !== 'trader' && item.defId !== 'builder')) return 'invalid-production';
     // v23: a builder may take an escort (registered species); its type becomes the builder's crew specialty.
     else if (item.defId === 'builder' ? !usesBuilders(state) || (item.escortId !== undefined && (!content.builderCrews || !player.registeredSpeciesIds.includes(item.escortId))) : false) return 'invalid-production';

@@ -13,7 +13,8 @@ import { TREE_RULES } from '../content/tech-tree.ts';
 import { onTechTree, treeGateOpen } from './tech-tree.ts';
 import type { Content, UnitIdentity } from '../content/units.ts';
 import { hexToIndex, neighbors } from './hex.ts';
-import { canEnterTile } from './movement.ts';
+import { besideStrikingWild, canEnterTile, usesDeploymentRulesV25 } from './movement.ts';
+import { wanderersFor } from '../content/roster.ts';
 import { playerPolicyEffects } from './policies.ts';
 import { assignNewWorkers, cityYield, cleanWork, growthThreshold, productionCost, releaseWorker } from './city.ts';
 import type { CityState, EconomyEvent, GameState, PendingDeployment } from './model.ts';
@@ -25,10 +26,13 @@ function deploy(state: GameState, city: CityState, pending: PendingDeployment, c
     : { kind: 'logistics', role: pending.item.defId, ...(pending.item.escortId ? { escortId: pending.item.escortId } : {}), ...(pending.item.defId === 'trader' ? { homeCityId: city.id } : {}) };
   const occupied = new Set([...Object.values(state.units).filter(isMapUnit), ...Object.values(state.cities)]
     .map(entity => hexToIndex(entity.position, state.map)));
-  const position = neighbors(city.position, state.map).filter(hex => {
+  const free = neighbors(city.position, state.map).filter(hex => {
     const index = hexToIndex(hex, state.map);
     return index !== null && !occupied.has(index) && canEnterTile(identity, state.map, index, content);
-  }).sort((a, b) => hexToIndex(a, state.map)! - hexToIndex(b, state.map)!)[0];
+  }).sort((a, b) => hexToIndex(a, state.map)! - hexToIndex(b, state.map)!);
+  // v25 fix 2: prefer a tile that no striking wild Pokémon stands beside (the lowest such tile), else the lowest free tile as before.
+  const units = usesDeploymentRulesV25(state) ? Object.values(state.units).filter(isMapUnit) : [];
+  const position = (units.length ? free.find(hex => !besideStrikingWild(units, hex, state.map, wanderersFor(content))) : undefined) ?? free[0];
   if (!position) return false;
   const id = state.nextEntityId++;
   const xp = city.buildingIds.reduce((total, building) => total + content.buildings[building].trainedXp, 0)
