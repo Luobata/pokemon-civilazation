@@ -53,10 +53,16 @@ export function victoryPaths(view: PlayerView): Path[] {
   if (exp.faith) {
     const mine = exp.faith.faiths.find(item => item.founderId === view.playerId);
     const top = [...exp.faith.faiths].filter(item => item.founderId !== view.playerId).sort((a, b) => b.followers - a.followers)[0];
+    const knownCities = [...view.cities, ...view.economy.cities,
+      ...Object.entries(view.knowledge.lastKnownCities).map(([cityId, city]) => ({ ...city, id: Number(cityId) }))];
     const missingRivals = mine ? unconvertedRivals(view).length : rivals.length;
+    // v26: an eliminated rival counts too, through its former capital (whoever holds it now).
+    const fallen = (view.gameplayVersion ?? 0) >= 26 ? view.civilizations.filter(civ => civ.id !== view.playerId && civ.eliminated) : [];
+    const missingFallen = fallen.filter(civ => !knownCities.some(city => city.headquartersOf === civ.id && exp.faith!.cityFaith[city.id] === view.playerId)).length;
     paths.push({ id: 'faith', name: '传说共鸣（宗教）', value: mine?.followers ?? 0, target: Math.max(victoryTargets(view).faithMinimumCities, Math.ceil(exp.faith.totalCities * exp.faith.winShare)),
-      detail: `${mine ? `${LEGENDS[mine.legend].name}信仰` : '尚未创立'}${top ? ` · 对手最多 ${top.followers} 城（${LEGENDS[top.legend].name}）` : ''}${missingRivals ? ` · 仍有 ${missingRivals} 个对手未皈依` : ''}`,
-      hint: '信仰城市达到全图 60%，且每个对手至少 1 城信仰。', nav: '#expansion-panel', blocked: missingRivals > 0,
+      detail: `${mine ? `${LEGENDS[mine.legend].name}信仰` : '尚未创立'}${top ? ` · 对手最多 ${top.followers} 城（${LEGENDS[top.legend].name}）` : ''}${missingRivals ? ` · 仍有 ${missingRivals} 个对手未皈依` : ''}${missingFallen ? ` · ${missingFallen} 个已出局文明的旧首都未皈依` : ''}`,
+      hint: fallen.length ? '信仰城市达到全图 60%，每个对手至少 1 城信仰；已出局的文明要它的旧首都信仰（v26）。' : '信仰城市达到全图 60%，且每个对手至少 1 城信仰。',
+      nav: '#expansion-panel', blocked: missingRivals + missingFallen > 0,
       why: `取两者较大：${view.roundLimit} 轮对局至少 ${victoryTargets(view).faithMinimumCities} 座，全图有主城市 ${exp.faith.totalCities} × ${Math.round(exp.faith.winShare * 100)}% = ${Math.ceil(exp.faith.totalCities * exp.faith.winShare)} 座；另外每个对手至少 1 城信你的信仰。` });
   }
   return paths;

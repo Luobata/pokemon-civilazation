@@ -7,6 +7,7 @@ import { eraState, gameplayAtLeast } from '../content/eras.ts';
 import type { PolicyEffects } from '../content/policies.ts';
 import type { SpeciesId } from '../content/species.ts';
 import type { EventPayload, GameState } from './model.ts';
+import { evolutionGoalMilestones } from './evolution-goals.ts';
 import { blankDedication, dedicationDeeds, dedicationPicks, goldenDedicationEffects, isHeroic, promisePoints, usesDedications } from './dedications.ts';
 import type { DedicationLedger } from './dedications.ts';
 import type { DedicationId } from '../content/dedications.ts';
@@ -50,7 +51,8 @@ const documentedCount = (state: GameState, playerId: number) => Object.values(st
 
 /** Milestones in one transaction, attributed to the acting civilization. */
 function milestones(before: GameState, after: GameState, events: readonly EventPayload[]): [number, EraMilestone][] {
-  const found: [number, EraMilestone][] = [];
+  // v26 P2 (depth-v26 §4.2): evolution-goal milestones ([] before v26).
+  const found: [number, EraMilestone][] = [...evolutionGoalMilestones(before, after, events)];
   const owner = (cityId: number) => after.cities[cityId]?.ownerId ?? null;
   for (const event of events) {
     switch (event.type) {
@@ -69,7 +71,9 @@ function milestones(before: GameState, after: GameState, events: readonly EventP
       // v24 B / C: badges 1, 4 and 8; the Elite Four; a rival's n-th visit beaten scores n points.
       case 'GymChallenged': if (event.victory && (GYM_RULES_V24.eraBadges as readonly number[]).includes(event.badges)) found.push([event.playerId, 'gymBadge']); break;
       case 'EliteFourChallenged': if (event.victory) found.push([event.playerId, 'eliteFour']); break;
-      case 'RivalDefeated': for (let visit = 0; visit < event.encounter; visit++) found.push([event.playerId, 'rivalDefeated']); break;
+      case 'RivalDefeated': for (let visit = 0; visit < event.encounter + (event.proof ? 1 : 0); visit++) found.push([event.playerId, 'rivalDefeated']); break;
+      // v26 P3: the rival's proof (+1, above) and the rival beaten at the conference (+2).
+      case 'RivalConferenceBeaten': for (let point = 0; point < event.eraScore; point++) found.push([event.playerId, 'rivalDefeated']); break;
       case 'BattleResolved':
         if (event.capturedCity && event.target.kind === 'city') { const id = owner(event.target.id); if (id !== null) found.push([id, 'cityCaptured']); }
         break;

@@ -13,6 +13,7 @@ import type { Command, MapUnit, PlayerView } from '../core/model.ts';
 import { threatenedCityIds } from './bond-plan.ts';
 import { rivalActive, rivalThreatenedCityIds } from './rival-plan.ts';
 import { travelDistance } from './travel.ts';
+import { planTeamBattleAction, teamBattleGymTargets } from './battle-plan.ts';
 
 type Pokemon = Extract<MapUnit, { kind: 'pokemon' }>;
 const own = (view: PlayerView) => view.units.filter((unit): unit is Pokemon => unit.ownerId === view.playerId && unit.kind === 'pokemon').sort((a, b) => a.id - b.id);
@@ -47,6 +48,8 @@ export function eliteFourEstimate(team: readonly Pokemon[], content: Content): n
 
 /** A ChallengeGym / ChallengeEliteFour command when a ready team stands at a gym (or holds eight badges); otherwise null. */
 export function planGymAction(view: PlayerView, content: Content): Command['action'] | null {
+  // v26 (depth-v26 §2.4): lineups by enumeration and win estimates (also guardians and the conference).
+  if (content.teamBattles) return planTeamBattleAction(view, content);
   const circuit = view.expansion?.gymCircuit;
   if (!circuit) return null;
   const units = own(view);
@@ -67,6 +70,7 @@ export function planGymAction(view: PlayerView, content: Content): Command['acti
 
 /** Unit id -> the gym tile it is walking to (the planner scores moves toward it). One gym at a time: the nearest one a ready team can win. */
 export function gymMoveTargets(view: PlayerView, content: Content): Map<number, Hex> {
+  if (content.teamBattles) return teamBattleGymTargets(view, content);
   const circuit = view.expansion?.gymCircuit, targets = new Map<number, Hex>();
   if (!circuit || atWar(view) || rivalActive(view) || threatenedCityIds(view).length || rivalThreatenedCityIds(view).length) return targets;
   const cityTiles = new Set(view.economy.cities.map(city => `${city.position.q},${city.position.r}`));

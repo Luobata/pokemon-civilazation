@@ -1,3 +1,4 @@
+import { traceStrikes, traceTurns } from '../../src/core/team-battle.ts';
 import { describe, expect, test } from 'vitest';
 import { CIVILIZATION_CONTENT } from '../../src/content/civilization-systems.ts';
 import type { CivilizationContent } from '../../src/content/civilization-systems.ts';
@@ -167,8 +168,8 @@ describe('S24–S26 sanctuaries, guardian battles, and origin victory', () => {
     const replay = applyCivilizationAction(replayState, 0, { type: 'ChallengeGuardian', siteId: site.id, unitIds: team })
       .find(event => event.type === 'GuardianChallenged');
     expect(replay).toEqual(challenge);
-    expect(challenge.battle.rounds.length).toBeGreaterThan(0);
-    expect(challenge.battle.rounds.flatMap(round => round.strikes).every(strike => strike.damage >= 0)).toBe(true);
+    expect(traceTurns(challenge.battle)).toBeGreaterThan(0);
+    expect(traceStrikes(challenge.battle).every(strike => strike.damage >= 0)).toBe(true);
     expect(team.map(id => state.units[id]!.actionLeft)).toEqual([0, 0, 0]);
     expect(team.map(id => state.units[id]!.hp).every(hp => hp >= 1)).toBe(true);
     expect(validateCivilizationAction(state, 0, { type: 'ChallengeGuardian', siteId: site.id, unitIds: team })).toBe('guardian-unavailable');
@@ -216,7 +217,7 @@ describe('S27 recurring league championship', () => {
     expect(season.entrants).toHaveLength(6);
     expect(season.entrants.every(entrant => entrant.roster.length === 6)).toBe(true);
     expect(season.matches.map(match => match.label)).toEqual(['preliminary-1', 'preliminary-2', 'semifinal-1', 'semifinal-2', 'final']);
-    expect(season.matches.every(match => match.battle.rounds.length > 0)).toBe(true);
+    expect(season.matches.every(match => traceTurns(match.battle) > 0)).toBe(true);
     expect(civilization.championship.registrations).toEqual({});
     expect(civilization.championship.nextRound).toBe(21);
     expect(civilization.championship.history).toHaveLength(1);

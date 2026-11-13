@@ -11,6 +11,7 @@ import type { MapUnit, PlayerView, GameState } from './model.ts';
 import { featureMoveExtra, isDeep, isLandmarkTile, isPeak } from './terrain.ts';
 import type { FeatureMap } from './terrain.ts';
 import { EMBARK_TECHS } from '../content/terrain.ts';
+import { tileShareAllowed } from './stacking.ts';
 
 /** v24 A2 water access of a civilization: 0 none, 1 shallow water and lakes (近海航行), 2 deep water too (远洋航行). */
 export type WaterAccess = 0 | 1 | 2;
@@ -138,7 +139,8 @@ export function reachablePaths(view: PlayerView, unitId: number,
   const unit = view.units.find(candidate => candidate.id === unitId && candidate.ownerId === view.playerId);
   if (!unit || unit.actionLeft === 0 || view.activePlayerId !== view.playerId) return {};
   const origin = hexToIndex(unit.position, view.map)!;
-  const blocked = new Set(view.units.filter(other => other.id !== unit.id).map(other => hexToIndex(other.position, view.map)));
+  // v26 C2: a tile shared under the stacking rule does not block (src/core/stacking.ts; never before v26).
+  const blocked = new Set(view.units.filter(other => other.id !== unit.id && !tileShareAllowed(unit, other, content)).map(other => hexToIndex(other.position, view.map)));
   for (const city of Object.values(view.knowledge.lastKnownCities)) {
     if (city.ownerId !== view.playerId) blocked.add(hexToIndex(city.position, view.map));
   }

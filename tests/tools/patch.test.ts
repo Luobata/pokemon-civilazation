@@ -10,6 +10,7 @@ import { cityCounterDamage, cityDamage } from '../../src/core/combat-query.ts';
 import { observe } from '../../src/core/vision.ts';
 import { scorePlayer, finishGame, eliminateCivilization } from '../../src/core/victory.ts';
 import { roundSnapshot } from '../../tools/telemetry.ts';
+import { championshipNpcEntrants } from '../../src/core/civilization-systems.ts';
 import { combatFixture, pokemon } from '../core/combat-fixture.ts';
 import { explorationMatches, matchSetup } from '../../tools/matches.ts';
 import { simulateMatch } from '../../tools/simulate.ts';
@@ -170,4 +171,17 @@ test('v24 tuning knobs: patchable on the v24 content only, and they reach map ge
   const land = (content = v24) => createGame(setup, content).map.tiles.filter(tile => tile !== 'ocean').length;
   expect(land(tuned)).toBeGreaterThan(land());
   expect(observe(createGame(setup, tuned), 0, tuned).expansion!.rivals!.nextArrival).toBe(12);
+});
+
+test('v26 tuning knobs: the conference NPC power (base, per season, per slot) and the other depth26 knobs patch the v26 content only', () => {
+  const v26 = contentFor({ expansionVersion: 1, gameplayVersion: 26 }), v25 = contentFor({ expansionVersion: 1, gameplayVersion: 25 });
+  expect(() => parsePatch({ depth26: { npcBasePower: 900 } }, v25)).toThrow('patch.depth26: unknown field');
+  const tuned = parsePatch({ depth26: { npcBasePower: 900, npcSeasonPower: 30, npcSlotPower: 0, gymPowerPercent: 75, guardianHpPercent: { 1: 180 } } }, v26).content;
+  expect(tuned.depth26).toMatchObject({ npcBasePower: 900, npcSeasonPower: 30, npcSlotPower: 0, gymPowerPercent: 75, guardianHpPercent: [150, 180] });
+  expect(v26.depth26!.npcBasePower).not.toBe(900);
+  const power = (content: typeof v26, season: number) => championshipNpcEntrants(31, season, content)[0].roster.reduce((sum, member) => sum + member.maxHp + member.attack + member.defense, 0);
+  // Each member gets floor(total / 6) scaled per stat, so the team total sits just under the target.
+  expect(power(tuned, 2)).toBeLessThanOrEqual(900 + 2 * 30);
+  expect(power(tuned, 2)).toBeGreaterThan(900 + 2 * 30 - 30);
+  expect(() => parsePatch({ depth26: { npcBasePower: 5 } }, v26)).toThrow('patch.depth26.npcBasePower');
 });

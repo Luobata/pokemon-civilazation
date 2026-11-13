@@ -199,8 +199,15 @@ export type World24Record = { badges: number[]; firstBadgeRound: (number | null)
  */
 export type Roster25Record = { dex: string[]; pokedexTarget: number; recruits: string[]; starters: string[]; peakSpecies: Record<string, number>[];
   registered: string[][]; documented: number[]; appealTotal: number[]; appealSpecies: number[] };
+/**
+ * Gameplay v26 only (depth-v26 §9; absent before, so older records are unchanged), read from state changes: per seat the gym and guardian
+ * challenges and wins, rival duels (friendly / serious, won), the rival beaten at the conference; per game the conference seasons won by a
+ * civilization and the guardians beaten.
+ */
+export type World26Record = { gymChallenges: number[]; gymWins: number[]; guardianChallenges: number[]; guardianWins: number[];
+  duels: { spar: number; serious: number; won: number }[]; conferenceRival: (string | null)[]; seasons: number; seasonsWonByCivs: number };
 export type BalanceGameRecord = { schemaVersion: 1; case: BalanceCase; result: LeaderGameResult; samples: RoundSample[]; curves: CurvePoint[]; world24?: World24Record;
-  roster25?: Roster25Record };
+  roster25?: Roster25Record; world26?: World26Record };
 export const CURVE_INTERVAL = 10;
 
 /** Read-only observer for `simulateLeaderCase`: samples every end of round, snapshots every 10 rounds (on a copy of the state). */
@@ -211,6 +218,27 @@ export function createObserver(content: Content) {
   const v24 = Boolean(content.gymCircuit || content.rivals);
   let embarked = new Set<number>(), seaKnockouts = 0, latest: GameState | null = null;
   const eliteRuns = new Map<number, number>(), eliteSeen = new Map<number, number>(), firstBadge = new Map<number, number>();
+  // v26 bookkeeping (read-only): challenge rounds seen per seat and site, badge counts, duel rounds and the duel outcome counts.
+  const v26 = Boolean(content.teamBattles), gymSeen = new Map<string, number>(), guardSeen = new Map<string, number>();
+  const counts = new Map<number, { gym: number; gymWins: number; guard: number; guardWins: number; spar: number; serious: number; won: number }>();
+  const tally = (seat: number) => { let row = counts.get(seat); if (!row) counts.set(seat, row = { gym: 0, gymWins: 0, guard: 0, guardWins: 0, spar: 0, serious: 0, won: 0 }); return row; };
+  const track26 = (state: GameState) => {
+    const circuit = state.expansion?.gymCircuit, civ = state.expansion?.civilization, rivals = state.expansion?.rivals;
+    for (const [seat, gyms] of Object.entries(circuit?.challengedAt ?? {})) for (const [gym, round] of Object.entries(gyms)) {
+      if (gymSeen.get(`${seat}:${gym}`) !== round) { gymSeen.set(`${seat}:${gym}`, round); tally(Number(seat)).gym++; }
+    }
+    for (const [seat, list] of Object.entries(circuit?.badges ?? {})) tally(Number(seat)).gymWins = list.length;
+    for (const site of civ?.sanctuaries ?? []) for (const [seat, round] of Object.entries(site.challengeRoundByPlayer)) {
+      if (guardSeen.get(`${seat}:${site.id}`) !== round) {
+        guardSeen.set(`${seat}:${site.id}`, round); tally(Number(seat)).guard++;
+        if (site.guardianDefeated && civ?.tabletOwners[site.tabletId] === Number(seat)) tally(Number(seat)).guardWins++;
+      }
+    }
+    for (const [seat, ledger] of Object.entries(rivals?.byPlayer ?? {})) {
+      const row = tally(Number(seat)), log = ledger.duels ?? { spar: 0, serious: 0, won: 0 };
+      row.spar = log.spar; row.serious = log.serious; row.won = log.won;
+    }
+  };
   // v25 bookkeeping (read-only): peak own Pokémon per species and contest appeal per seat, sampled at the end of every round.
   const dex = content.regionalDex, peakSpecies = new Map<number, Record<string, number>>(), appeal = new Map<number, { total: number; species: number }>();
   const trackRoster = (state: GameState) => {
@@ -276,8 +304,18 @@ export function createObserver(content: Content) {
         documented: seats.map(seat => pokedex(seat).filter(record => record.observed && (record.battled || record.captured) && regional.has(record.speciesId)).length),
         appealTotal: seats.map(seat => Math.round(appeal.get(seat)?.total ?? 0)), appealSpecies: seats.map(seat => Math.round(appeal.get(seat)?.species ?? 0)) };
     },
+    world26(): World26Record | undefined {
+      if (!v26 || !latest) return undefined;
+      const state: GameState = latest, seats = Object.keys(state.players).map(Number).sort((a, b) => a - b), history = state.expansion?.civilization.championship.history ?? [];
+      const row = (seat: number) => counts.get(seat) ?? { gym: 0, gymWins: 0, guard: 0, guardWins: 0, spar: 0, serious: 0, won: 0 };
+      return { gymChallenges: seats.map(seat => row(seat).gym), gymWins: seats.map(seat => row(seat).gymWins), guardianChallenges: seats.map(seat => row(seat).guard),
+        guardianWins: seats.map(seat => row(seat).guardWins), duels: seats.map(seat => ({ spar: row(seat).spar, serious: row(seat).serious, won: row(seat).won })),
+        conferenceRival: seats.map(seat => state.expansion?.rivals?.byPlayer[seat]?.conference ?? null),
+        seasons: history.length, seasonsWonByCivs: history.filter(season => season.championPlayerId !== null).length };
+    },
     onState(state: GameState) {
       if (dex) latest = state;
+      if (v26) track26(state);
       if (v24) track(state);
       if (lastRound > 0 && state.round !== lastRound) sample(lastRound, state, false);
       lastRound = state.round;
@@ -301,9 +339,9 @@ function overridesFor(job: BalanceJob): LeaderCaseOverrides {
 export function playJob(job: BalanceJob): { status: LeaderGameResult['status'] } {
   const overrides = overridesFor(job), observer = createObserver(overrides.content ?? contentFor(job.case.setup));
   const result = simulateLeaderCase(job.case, observer.onState, overrides);
-  const world24 = observer.world24(), roster25 = observer.roster25();
+  const world24 = observer.world24(), roster25 = observer.roster25(), world26 = observer.world26();
   const record: BalanceGameRecord = { schemaVersion: 1, case: job.case, result, samples: observer.samples, curves: observer.curves, ...(world24 ? { world24 } : {}),
-    ...(roster25 ? { roster25 } : {}) };
+    ...(roster25 ? { roster25 } : {}), ...(world26 ? { world26 } : {}) };
   writeFileSync(job.file, JSON.stringify(record) + '\n');
   return { status: result.status };
 }

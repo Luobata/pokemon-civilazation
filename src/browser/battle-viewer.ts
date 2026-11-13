@@ -3,7 +3,8 @@
 // type-coloured shot, a white hit flash with pooled type-coloured particles, the HP bar draining, 效果拔群 / 效果不太好
 // captions, fainting (sink, grey, fade), the Elite Four's next opponent switched in. Play / pause, step, ×1 / ×2 / ×4 and
 // skip; every strike is also a line of the step list (the accessible record). Under reduced motion the stage is drawn
-// still and the step list is the view. Reads a BattleReplay only (battle-replay.ts); never touches the game.
+// still and the step list is the view. Reads a BattleReplay only (battle-replay.ts); never touches the game. A v26 relay battle
+// (`format: 'relay'`) shows one Pokémon per side: the lead, then whoever the strikes name, with a send-out flash on each switch-in.
 import { TYPE_COLORS } from '../content/type-colors.ts';
 import { TYPE_NAMES } from '../content/type-names.ts';
 import { speciesDisplay } from '../content/species.ts';
@@ -63,6 +64,17 @@ const hpColor = (hp: number, max: number) => hp * 2 > max ? '#58C878' : hp * 5 >
 const lerp = (a: number, b: number, t: number) => a + (b - a) * Math.max(0, Math.min(1, t));
 const easeOut = (t: number) => 1 - (1 - Math.max(0, Math.min(1, t))) ** 2;
 const nameOf = (fighter: ReplayFighter) => `${fighter.side === 'away' ? '对手的' : ''}${speciesDisplay(fighter.speciesId).name}`;
+/** Relay: the two Pokémon on the field at a beat (the lead at the intro, the strike's pair, the last pair afterwards); null = everyone (v24). */
+function relayField(battle: ReplayBattle, beat: Beat): Set<string> | null {
+  if (battle.format !== 'relay' || !battle.lead) return null;
+  const strike = beat.kind === 'strike' ? battle.strikes[beat.strike] : beat.kind === 'intro' ? undefined : battle.strikes.at(-1);
+  return new Set(strike ? [strike.attackerId, strike.defenderId] : [battle.lead.home, battle.lead.away]);
+}
+/** Relay: "X 上场！" for the Pokémon sent in before a strike. */
+function sentText(battle: ReplayBattle, strike: ReplayStrike): string {
+  const all = [...battle.home, ...battle.away];
+  return (strike.sentIn ?? []).map(item => { const who = all.find(member => member.id === item.id); return who ? `${nameOf(who)}${item.switched ? '换上场' : '上场'}！` : ''; }).join('');
+}
 
 /** Pooled square particles (fixed array, fillRect only; no allocation per frame). */
 const POOL = Array.from({ length: 48 }, () => ({ x: 0, y: 0, vx: 0, vy: 0, life: 0, max: 1, size: 1, color: '#FFFFFF' }));
@@ -155,9 +167,11 @@ function draw(state: Viewer, dt: number): boolean {
   context.setTransform(scale, 0, 0, scale, shake * scale, 0);
   context.imageSmoothingEnabled = false;
   context.drawImage(arenaCanvas(battle.arena), 0, 0);
-  const positions = new Map<string, Slot>();
+  const positions = new Map<string, Slot>(), field = relayField(battle, beat);
   for (const side of ['away', 'home'] as const) {
     const team = side === 'home' ? battle.home : battle.away;
+    // Relay: one Pokémon per side, always on the platform's centre slot.
+    if (field) { const [centre] = slots(side, 1); team.forEach(member => positions.set(member.id, centre!)); continue; }
     slots(side, team.length).forEach((slot, order) => positions.set(team[order]!.id, slot));
   }
   const hpOf = (fighter: ReplayFighter) => {
@@ -172,11 +186,12 @@ function draw(state: Viewer, dt: number): boolean {
   };
   // Sprites, back row first (the far side, then the near side).
   for (const fighter of [...battle.away, ...battle.home]) {
+    if (field && !field.has(fighter.id)) continue;
     const slot = positions.get(fighter.id)!, hp = hpOf(fighter), startHp = hpStart.get(qid(battleIndex, fighter.id)) ?? fighter.hp;
     let x = slot.x, feet = slot.feet, alpha = 1, tint: string | undefined, tintAlpha = 0, sink = 0, size = slot.size;
     const persistent = beat.kind === 'intro' && fighter.side === 'home' && battleIndex > 0;
     if (beat.kind === 'intro' && startHp > 0 && !persistent && state.motion) {
-      const order = (fighter.side === 'home' ? battle.home : battle.away).indexOf(fighter), at = local - order * 90 - (fighter.side === 'home' ? 260 : 0);
+      const order = field ? 0 : (fighter.side === 'home' ? battle.home : battle.away).indexOf(fighter), at = local - order * 90 - (fighter.side === 'home' ? 260 : 0);
       if (at < 380) {
         // The Poké Ball arcs in from the side's corner.
         const from = fighter.side === 'home' ? { x: -8, y: 120 } : { x: ARENA_WIDTH + 8, y: 12 }, t = Math.max(0, at) / 380;
@@ -188,6 +203,12 @@ function draw(state: Viewer, dt: number): boolean {
       size = Math.max(4, Math.round(slot.size * (.25 + .75 * grow))); tint = '#FFFFFF'; tintAlpha = 1 - grow;
     }
     if (startHp <= 0 && !(strike && fighter.id === strike.defenderId)) continue; // fainted earlier: back in its ball
+    if (strike?.sentIn?.some(item => item.id === fighter.id) && state.motion && local < LUNGE_AT + 120) {
+      // Relay: sent in (after a faint or the automatic switch) — a white flash growing into the Pokémon.
+      const grow = easeOut(local / (LUNGE_AT + 120));
+      if (!state.fired.has(`in:${index}:${fighter.id}`)) { state.fired.add(`in:${index}:${fighter.id}`); burst(slot.x, slot.feet - slot.size * .45, '#FFFDF7', 6); }
+      size = Math.max(4, Math.round(slot.size * (.25 + .75 * grow))); tint = '#FFFFFF'; tintAlpha = 1 - grow;
+    }
     if (strike && state.motion) {
       if (fighter.id === strike.attackerId && !fighter.ranged) {
         const target = positions.get(strike.defenderId)!, reach = local < MELEE_IMPACT ? easeOut((local - LUNGE_AT) / (MELEE_IMPACT - LUNGE_AT)) : 1 - easeOut((local - MELEE_IMPACT) / 180);
@@ -294,7 +315,7 @@ function resultBanner(context: CanvasRenderingContext2D, replay: BattleReplay, t
 function strikeText(battle: ReplayBattle, strike: ReplayStrike): { line: string; label: string } {
   const all = [...battle.home, ...battle.away], attacker = all.find(item => item.id === strike.attackerId)!, defender = all.find(item => item.id === strike.defenderId)!;
   const tone = effectTone(strike.effectiveness);
-  const line = `${nameOf(attacker)}发动${TYPE_NAMES[strike.typeId]}属性攻击！${nameOf(defender)}受到 ${strike.damage} 点伤害。${EFFECT_TEXT[tone]}${strike.fainted ? `${nameOf(defender)}倒下了！` : ''}`;
+  const line = `${sentText(battle, strike)}${nameOf(attacker)}发动${TYPE_NAMES[strike.typeId]}属性攻击！${nameOf(defender)}受到 ${strike.damage} 点伤害。${EFFECT_TEXT[tone]}${strike.fainted ? `${nameOf(defender)}倒下了！` : ''}`;
   return { line, label: `第 ${strike.round} 回合：${line}（${multiplierText(strike.effectiveness)}，剩余 HP ${strike.hpAfter}/${defender.maxHp}）` };
 }
 function beatCaption(state: Viewer, index: number, local: number): string {
@@ -303,6 +324,10 @@ function beatCaption(state: Viewer, index: number, local: number): string {
   const battle = replay.battles[beat.battle]!;
   if (beat.kind === 'intro') {
     const alive = (team: ReplayFighter[]) => team.filter(item => (state.plan.hp[index]!.get(qid(beat.battle, item.id)) ?? item.hp) > 0).map(item => speciesDisplay(item.speciesId).name).join('、');
+    if (battle.format === 'relay' && battle.lead) {
+      const lead = (id: string) => speciesDisplay([...battle.home, ...battle.away].find(item => item.id === id)!.speciesId).name;
+      return `${battle.healed ? `场间恢复：已损失 HP 的 ${battle.healed}%。` : ''}${battle.awayName}派出了${lead(battle.lead.away)}！去吧，${lead(battle.lead.home)}！`;
+    }
     return `${battle.healed ? `场间恢复：已损失 HP 的 ${battle.healed}%。` : ''}${battle.awayName}派出了${alive(battle.away)}！${beat.battle > 0 && battle.healed ? '' : `去吧，${alive(battle.home)}！`}`;
   }
   if (beat.kind === 'outro') {
@@ -311,7 +336,7 @@ function beatCaption(state: Viewer, index: number, local: number): string {
     return `${battle.winner === 'home' ? `${battle.homeName}获胜` : `${battle.awayName}获胜`}${allDown ? '' : '（回合用尽，按剩余 HP 判定）'}！`;
   }
   const strike = battle.strikes[beat.strike]!, all = [...battle.home, ...battle.away], attacker = all.find(item => item.id === strike.attackerId)!;
-  if (state.motion && local < impactAt(attacker) + 120) return `${nameOf(attacker)}发动${TYPE_NAMES[strike.typeId]}属性攻击！`;
+  if (state.motion && local < impactAt(attacker) + 120) return `${sentText(battle, strike)}${nameOf(attacker)}发动${TYPE_NAMES[strike.typeId]}属性攻击！`;
   return strikeText(battle, strike).line;
 }
 function stepListMarkup(replay: BattleReplay, plan: Plan): string {
@@ -441,7 +466,7 @@ export function openBattleViewer(replay: BattleReplay, options: ViewerOptions = 
   root.setAttribute('role', 'dialog'); root.setAttribute('aria-labelledby', 'bv-title');
   root.dataset.mode = motion ? 'animated' : 'still'; root.dataset.kind = replay.kind;
   const battle = replay.battles[0]!;
-  root.innerHTML = `<header class="bv-head">${uiIcon(replay.kind === 'gym' ? 'badge' : replay.kind === 'guardian' ? 'sanctuary' : 'trophy', { size: 22, label: { gym: '道馆挑战', guardian: '圣所守卫', elite: '四天王', league: '联盟大会' }[replay.kind] })}
+  root.innerHTML = `<header class="bv-head">${uiIcon(replay.kind === 'gym' ? 'badge' : replay.kind === 'guardian' ? 'sanctuary' : replay.kind === 'rival' ? 'swords' : 'trophy', { size: 22, label: { gym: '道馆挑战', guardian: '圣所守卫', elite: '四天王', league: '联盟大会', rival: '劲敌对决' }[replay.kind] })}
       <div><h3 id="bv-title">${escapeAttr(replay.title)}</h3><small id="bv-sub"></small></div>
       <button type="button" class="bv-close" id="bv-close" aria-label="关闭回放（Esc）" title="关闭回放（Esc）">×</button></header>
     <div class="bv-stage"><canvas id="bv-canvas" role="img" aria-label="${escapeAttr(`对战画面：${battle.homeName} 对 ${battle.awayName}，${ARENA_NAMES[battle.arena]}`)}"></canvas></div>

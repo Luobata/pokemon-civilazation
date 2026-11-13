@@ -35,7 +35,7 @@ const stayText = (view: PlayerView) => {
   return stays.every(stay => stay === stays[0]) ? `${stays[0]} 轮` : `分别停留 ${stays.join(' / ')} 轮`;
 };
 export function nextLeaderText(view: PlayerView): string {
-  const row = leaderTeamFor(badgesOf(view).length);
+  const row = leaderTeamFor(badgesOf(view).length, contentForView(view));
   return `${row.members} 只${STAGE_NAMES[row.stage]} · 战力 ${row.power}`;
 }
 const blockerText: Record<string, string> = {
@@ -108,14 +108,18 @@ export function v24PanelCards(view: PlayerView, button: (label: string, action: 
       + `<p class="world-stats">其他文明：${others || '无'}</p>`
       + `<p>集齐 ${GYM_RULES_V24.gymCount} 枚后挑战四天王（${ELITE_FOUR.map(member => member.name).join('、')}）：派 ${GYM_RULES_V24.eliteFour.team} 只宝可梦连战 5 场，赢了得 1 个冠军赛头衔（每局一次）、金币 ${GYM_RULES_V24.eliteFour.gold}。</p>`
       + (circuit.eliteFour[view.playerId]?.won ? '<p>你已战胜四天王，冠军赛头衔 +1。</p>'
-        : button('挑战四天王', { type: 'ChallengeEliteFour', unitIds: own.map(unit => unit.id) }, elite === null) + (elite ? `<small class="gym-blocker">${esc(gymBlockerText(elite))}</small>` : '')));
+        // v26: the lineup picker sets who goes and the order for all five battles.
+        : content.teamBattles && elite !== 'elite-locked' && elite !== 'elite-won' && elite !== 'elite-cooldown'
+          ? `<button type="button" data-lineup="elite:" id="elite-four-lineup">挑战四天王 · 选择阵容</button>`
+          : button('挑战四天王', { type: 'ChallengeEliteFour', unitIds: own.map(unit => unit.id) }, elite === null) + (elite ? `<small class="gym-blocker">${esc(gymBlockerText(elite))}</small>` : '')));
   }
   if (rivals) {
     const status = rivals.pending ? `⚠ 第 ${rivals.pending.round} 轮登场，目标：${view.economy.player.headquartersCityId === rivals.pending.cityId ? '首都' : `城市 ${rivals.pending.cityId}`}`
       : rivals.activeUnitIds.length ? `正在你的领土附近（第 ${rivals.encounter} 次登场，还剩 ${rivals.activeUnitIds.length} 只）`
       : rivals.nextArrival !== null ? `下一次登场：第 ${rivals.nextArrival} 轮（提前 ${RIVAL_RULES_V24.warningRounds} 轮预告）` : '三次登场都已结束。';
     const outcomes = rivals.outcomes.map((outcome, index) => `第 ${index + 1} 次：${({ defeated: '击退', departed: '离开', skipped: '未登场' } as const)[outcome]}`).join(' · ');
-    html += card('s-rivals', `你的劲敌：${rivals.name}`, `<p id="rival-status">${esc(status)}</p><p>劲敌在第 ${RIVAL_RULES_V24.arrivals.join(' / ')} 轮登场，带克制你御三家的宝可梦，强度跟着你第二强的宝可梦走（「劲敌气势」）。只打你的宝可梦和城市（城市不会低于 1 HP），${stayText(view)}后离开；不能捕捉。全部击倒有奖励：${RIVAL_RULES_V24.rewards.map((reward, index) => `第 ${index + 1} 次 金币 ${reward.gold}`).join('、')}。</p>${outcomes ? `<p>${esc(outcomes)}</p>` : ''}`);
+    const duels = content.rivalDuels ? `<p>v26：劲敌在场时可以<strong>对决</strong>（选中 2 格内的宝可梦按 D）：带与在场劲敌同样多的宝可梦单打接力，切磋赢了得一半奖励、劲敌不走；真剑赢了得全额奖励和「劲敌之证」，输了付奖金。劲敌到了你的城旁时，城里和城旁 2 格内的宝可梦可以直接应战。三次登场之后，第 100 轮起你报名的联盟大会上它会作为第四次登场出现，在大会上击败它：金币 100、世代分 +2。${rivals.duels ? `你的对决：切磋 ${rivals.duels.spar} · 真剑 ${rivals.duels.serious} · 胜 ${rivals.duels.won}。` : ''}${rivals.conference === 'beaten' ? ' 你已在联盟大会上击败它。' : ''}</p>` : '';
+    html += card('s-rivals', `你的劲敌：${rivals.name}`, `${duels}<p id="rival-status">${esc(status)}</p><p>劲敌在第 ${RIVAL_RULES_V24.arrivals.join(' / ')} 轮登场，带克制你御三家的宝可梦，强度跟着你第二强的宝可梦走（「劲敌气势」）。只打你的宝可梦和城市（城市不会低于 1 HP），${stayText(view)}后离开；不能捕捉。全部击倒有奖励：${RIVAL_RULES_V24.rewards.map((reward, index) => `第 ${index + 1} 次 金币 ${reward.gold}`).join('、')}。</p>${outcomes ? `<p>${esc(outcomes)}</p>` : ''}`);
   }
   return html;
 }
@@ -127,8 +131,10 @@ export function gymBarState(view: PlayerView, unit: MapUnit): { gym: GymSite; te
   if (unit.kind !== 'pokemon') return null;
   const gym = gymAt(view.expansion?.gymCircuit, hexToIndex(unit.position, view.map)!);
   if (!gym) return null;
-  const team = viewGymTeam(view, gym.id, contentForView(view)), blocked = viewGymBlocker(view, gym.id, team);
-  return { gym, team, reason: blocked ? gymBlockerText(blocked) : null };
+  const content = contentForView(view), team = viewGymTeam(view, gym.id, content), blocked = viewGymBlocker(view, gym.id, team);
+  // v26: equal-size teams (the lineup picker then chooses who and the order).
+  const size = leaderTeamFor(badgesOf(view).length, content).members;
+  return { gym, team, reason: blocked === 'invalid-team' && content.teamBattles ? `要正好带 ${size} 只宝可梦（与馆主同数），都有行动、在道馆 2 格内。` : blocked ? gymBlockerText(blocked) : null };
 }
 type Opened = { unitId: number; confirm: (action: Command['action']) => void } | null;
 let opened: Opened = null, host: HTMLElement | null = null, markup = '';

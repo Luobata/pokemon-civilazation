@@ -673,7 +673,9 @@ function controls() {
   renderLeaderPanel(view);
   renderVictoryPanel(view);
   // depth-v26 §2.5: a guardian / Elite Four challenge from the world panel first opens its preview card (matchups, then 挑战).
-  renderExpansionPanel(view, selected, selectedCity, action => isPreviewedChallenge(action) ? openChallengeCard(session.getView(), action, issue, watchReplay) : issue(action),
+  // Gameplay v26 relay battles: the lineup picker (order, relay matchup grid, estimate) is that preview, so its command goes straight through.
+  renderExpansionPanel(view, selected, selectedCity, action => isPreviewedChallenge(action) && !contentForView(session.getView()).teamBattles
+    ? openChallengeCard(session.getView(), action, issue, watchReplay) : issue(action),
     busy() || ended || pendingPeace);
   document.querySelector<HTMLElement>('#selection-empty')!.hidden = selected !== null || selectedCity !== null || neutralCity !== null || inspectedTile !== null;
   renderTilePanel(view, inspectedTile, { onSelectUnit: id => selectUnit(id, false), selectedUnitId: selected, disabled: busy() || ended || pendingPeace,

@@ -20,9 +20,10 @@ import { LEGEND_WONDERS } from '../content/legend-wonders.ts';
 import { researchTaskToast } from './research-card.ts';
 import { ESSENCES } from '../content/essences.ts';
 import { GYM_LEADERS } from '../content/gym-circuit.ts';
+import { traceTurns } from '../core/team-battle.ts';
 import { rivalSays } from './gym-panel.ts';
 import { leagueCountdown, leagueSummary } from './league-card.ts';
-import { replayKey } from './battle-replay.ts';
+import { latestReplayKey, replayKey } from './battle-replay.ts';
 
 /** `battle` (depth-v26 §2.5): opens the replay of an own gym / guardian / Elite Four result (battle-replay.ts key). */
 export type ToastTarget = { kind: 'screen'; screen: 'research' | 'legends' | 'era' | 'diplomacy' | 'world' | 'log' } | { kind: 'city'; cityId: number } | { kind: 'unit'; unitId: number }
@@ -172,7 +173,7 @@ export function toastFor(payload: VisibleEvent['payload'], view: PlayerView, mem
       // depth-v26 §2.5: the result offers its replay.
       const replay: ToastTarget = { kind: 'battle', key: replayKey(payload) };
       return payload.victory
-        ? toast('growth', '◆', `你赢得了${name}（第 ${payload.badges} 枚）`, `${gym ? `${GYM_LEADERS[gym.leader].name}：` : ''}队伍战力 ${payload.teamPower} 对馆主 ${payload.leaderPower}，${payload.battle.rounds.length} 回合获胜。`, replay, '观看对战', decision())
+        ? toast('growth', '◆', `你赢得了${name}（第 ${payload.badges} 枚）`, `${gym ? `${GYM_LEADERS[gym.leader].name}：` : ''}队伍战力 ${payload.teamPower} 对馆主 ${payload.leaderPower}，${traceTurns(payload.battle)} 回合获胜。`, replay, '观看对战', decision())
         : toast('war', '◇', `道馆挑战失败${gym ? `：${GYM_LEADERS[gym.leader].name}` : ''}`, `队伍战力 ${payload.teamPower} 对馆主 ${payload.leaderPower}。宝可梦恢复后 3 轮可再挑战。`, replay, '观看对战');
     }
     case 'EliteFourChallenged': {
@@ -185,7 +186,7 @@ export function toastFor(payload: VisibleEvent['payload'], view: PlayerView, mem
       if (payload.playerId !== me) return null;
       const site = view.expansion?.civilization?.sanctuaries.find(item => item.id === payload.siteId);
       const replay: ToastTarget = { kind: 'battle', key: replayKey(payload) };
-      return payload.victory ? toast('wonder', '◈', `击败了圣所守卫${site ? `${site.guardianName}` : ''}！`, `${site ? `获得石板「${site.tabletName}」。` : ''}${payload.battle.rounds.length} 回合获胜。`, replay, '观看对战', decision())
+      return payload.victory ? toast('wonder', '◈', `击败了圣所守卫${site ? `${site.guardianName}` : ''}！`, `${site ? `获得石板「${site.tabletName}」。` : ''}${traceTurns(payload.battle)} 回合获胜。`, replay, '观看对战', decision())
         : toast('war', '◇', `圣所守卫挑战失败${site ? `：${site.guardianName}` : ''}`, `队伍战力 ${payload.teamPower} 对守卫 ${payload.challengePower}。`, replay, '观看对战');
     }
     // v24 C: the own rival (these events reach only their target).
@@ -198,8 +199,24 @@ export function toastFor(payload: VisibleEvent['payload'], view: PlayerView, mem
     case 'RivalStruckCity':
       return toast('war', '⚔', `劲敌攻击城市 ${payload.cityId}`, `造成 ${payload.damage} 伤害，城防剩余 ${payload.cityHpAfter}（劲敌不会把城市打到 1 HP 以下）。`, { kind: 'city', cityId: payload.cityId }, '查看城市',
         decision(undefined, `city-attacked:${payload.cityId}`));
-    case 'RivalDefeated':
-      return toast('growth', '★', `击退了劲敌${view.expansion?.rivals?.name ?? ''}！`, `“${rivalSays(payload.encounter, 'beaten')}” 金币 +${payload.gold}${payload.pokeBalls ? `、精灵球 +${payload.pokeBalls}` : ''}${payload.research ? `、科研 +${payload.research}` : ''}${payload.xpUnitIds.length ? `、${payload.xpUnitIds.length} 只参战宝可梦经验 +50` : ''}。`, null, undefined, decision());
+    case 'RivalDefeated': {
+      // v26: a serious duel's win offers the duel's replay (recorded just before, from the RivalDuel event).
+      const duel = payload.proof ? latestReplayKey('rival') : null;
+      return toast('growth', '★', `${payload.proof ? '真剑对决胜利，' : ''}击退了劲敌${view.expansion?.rivals?.name ?? ''}！`, `“${rivalSays(payload.encounter, 'beaten')}”${payload.proof ? ' 劲敌之证：世代分 +1。' : ''} 金币 +${payload.gold}${payload.pokeBalls ? `、精灵球 +${payload.pokeBalls}` : ''}${payload.research ? `、科研 +${payload.research}` : ''}${payload.xpUnitIds.length ? `、${payload.xpUnitIds.length} 只参战宝可梦经验 +50` : ''}。`,
+        duel ? { kind: 'battle', key: duel } : null, duel ? '观看对战' : undefined, decision());
+    }
+    // v26 P3: duels and the rival at the conference (own events only).
+    case 'RivalDuel': {
+      const name = view.expansion?.rivals?.name ?? '';
+      // A won serious duel is announced by RivalDefeated (which offers this replay).
+      if (payload.victory && payload.stake === 'serious') return null;
+      const replay: ToastTarget = { kind: 'battle', key: replayKey(payload) };
+      return payload.victory
+        ? toast('growth', '★', `切磋赢了劲敌${name}！`, payload.gold ? `金币 +${payload.gold}${payload.pokeBalls ? `、精灵球 +${payload.pokeBalls}` : ''}${payload.research ? `、科研 +${payload.research}` : ''}。劲敌还在场，可以再真剑对决。` : '这次登场的切磋奖励已经领过。', replay, '观看对战', decision())
+        : toast('war', '✖', `${payload.stake === 'serious' ? '真剑' : '切磋'}输给了劲敌${name}`, payload.prize ? `劲敌拿走奖金 ${payload.prize} 金，本次剩余轮里气势 +3。` : '宝可梦带着战损回到地图。', replay, '观看对战');
+    }
+    case 'RivalConferenceBeaten':
+      return strategic(toast('wonder', '★', `宿命的对决：在联盟大会上击败了劲敌${view.expansion?.rivals?.name ?? ''}！`, `金币 +${payload.gold}，世代分 +${payload.eraScore}。`, null, undefined, decision()));
     case 'RivalDeparted':
       return toast('info', '…', `劲敌${view.expansion?.rivals?.name ?? ''}离开了`, `“${rivalSays(payload.encounter, 'leave')}”`, null);
     case 'BattleResolved': return battleToast(payload, view, memory);

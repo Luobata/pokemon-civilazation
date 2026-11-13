@@ -651,3 +651,64 @@
 - **单元测试**：`tests/core/team-battle.test.ts`（先手、属性选择、换人只一次、历练、平局判定、HP 写回、种子来自 `state.rng`、预览 = 结算接口）、`rival-duels.test.ts`、`stacking.test.ts`、`gold-sinks.test.ts`、`contest-seasons.test.ts`、`legend-race.test.ts`（迷雾：未相遇不可见、档位不泄露轮数）、`raids.test.ts`。
 - **浏览器**（真实 AI 对局存档，Shift+点击结束回合）：对阵卡改顺序与估计胜率、回放器播放与跳过、大会对阵表、劲敌对决、进化面板与动画、世界页定位、路标自动移动与中断、推荐城址图钉；截图 `test-results/screenshots/depth-v26-*.png`。
 - 门禁：`npm run build && npm run lint && npm run lint:tools && npx vitest run`，再 `npx playwright test`。
+
+## 14. 实施记录
+
+### 14.1 脚手架（第 1 批第 1 步）
+
+- 版本：`gameplayVersion: 26` → schema 21、`rulesVersion: 'depth-v26'`；`isGameplayVersion` 上限 26；`LATEST_GAMEPLAY_VERSION` 仍为 24（第 1 批全部合入、最终门槛之后再切）。工具范围：`district-smoke` / `simulate` / `leader-balance` 接受 26。
+- 内容：`src/content/depth-v26.ts` 定义 9 个内容标记（`DepthFlags`：`teamBattles`、`rivalDuels`、`evolutionGoals`、`goldSinks`、`contestSeasons`、`legendRace`、`raids`、`stacking`、`openingGift`；第 1 节的 `lateGame.*` 写成平铺标记）和调平旋钮 `content.depth26`（`Depth26Tuning`，`tools/patch.ts` 可改）。`DEPTH_CONTENT = { ...REGIONAL_CONTENT, version: 'depth-v26', ...DEPTH_FLAGS }`，自带一份 `world24` 与 `depth26`；一局的内容是 `depthContentFor(setup)` = 这局 v25 地区图鉴内容加同样的覆盖层（按 v25 内容对象记忆化，权威与视图共用一个对象）。v≤25 的内容没有任何 v26 标记。
+- 每条并行线一个桩模块、每个挂点只接一次（不改规则：v≤25 与 v26 现在的行为都同 v25）：
+
+  | 线 | 规则桩（`src/core/`） | AI 桩（`src/ai/`） | 已接的挂点 |
+  | --- | --- | --- | --- |
+  | 金币出口 5.1 | `gold-sinks.ts`：`RushProduction` / `RushRecovery` / `SpecialTraining` / `TeachMove` 声明并拒绝；`resolveGoldSinkRound`；`observeGoldSinks`；`taughtMoveType`（对战层读学习器属性） | `gold-sink-plan.ts` `planGoldSinkAction` | 命令字段、`expansion.ts` 校验 / 执行 / 轮末、视图 `expansion.goldSinks`、`plan.ts`（华丽大赛之后） |
+  | 华丽大赛季 5.2 | `contest-seasons.ts`：`EnterContest` 声明并拒绝；`resolveContestSeasonRound`；`observeContestSeasons` | `contest-season-plan.ts` `planContestSeasonAction` | 同上；视图 `expansion.contestSeasons` |
+  | 传说竞赛 5.3 | `legend-race.ts`：`observeLegendRace`、`recordLegendRace` | `legend-race-plan.ts` `legendRaceVeto` | `recordExpansion`；`legend-plan.ts` 选传说时 |
+  | 团体战 5.4 | `raids.ts`：`initializeRaids`、`resolveRaidRound`、`recordRaids`、`observeRaids` | `raid-plan.ts` `raidAttackBonus`、`raidMoveTargets` | 初始化、轮末、`recordExpansion`、视图 `expansion.raids`、`plan.ts` 攻击打分与移动目标 |
+  | 接近胜利预警 5.5 | `victory-watch.ts` `resolveVictoryWatchRound` | — | 轮末 |
+  | 同格 7.2 | `stacking.ts` `tileShareAllowed(mover, occupant, content)`（现在恒为 false） | — | `reachablePaths` 的阻挡集合、`step.ts` 的 `Move` 逐格检查 |
+  | 开局礼物 8 | `opening-gift.ts` `recordOpeningGift` | — | `recordExpansion` |
+  | 进化目标 4.2 | `evolution-goals.ts` `evolutionGoalMilestones` | — | `era-honors.ts` 的里程碑汇总 |
+  | 物种补完批 4.3 | `src/content/roster-v26-data.ts`：`ROSTER_V26_SPECIES` / `ROSTER_V26_TAGS` / `ROSTER_V26_EVOLUTIONS`（空） | — | `units.ts` `depthContentFor`（补完批在这里把 v25 抽取换成“v25 物种 + 本批”的抽取） |
+  | 劲敌对决 3 | `rival-duels.ts`：`ChallengeRival { unitIds, stake }` 声明并拒绝 | `rival-duel-plan.ts` `planRivalDuel` | 命令字段、`expansion.ts`、`plan.ts`（道馆之前） |
+
+- 对战层（第 2 节）与劲敌对决（第 3 节）由第一条线直接实现，不留桩：`src/core/team-battle.ts`、`src/ai/battle-plan.ts`、`src/browser/lineup-picker.ts`（选阵界面单独成文件，便于与另一分支的克制格 / 回放器合并）。
+- 验证：`district-smoke` 23 / 24 / 25 与改动前基线逐字节 49/49；v26 两次 49/49 一致，且除版本字段外与 v25 相同。
+
+### 14.2 对战层（P1，第 2 节）
+
+- 规则：`src/core/team-battle.ts` `resolveTeamBattle`（单打接力、先手档、最佳属性、每方一次自动换人、历练、60 回合按 HP 比例判）；回放记录 `BattleTraceV26`。v26 的道馆、四天王、圣所守卫、联盟大会都改用它，每场从 `state.rng` 抽一个种子；v≤25 仍走 v24 混战与 `stableSeed`（逐字节不变）。
+- 视图侧：`src/core/team-battle-views.ts`（道馆 / 四天王 / 守卫 / 大会 / 劲敌的选阵规格、对手队伍、16 个固定估算种子的估计胜率）；权威与预览共用 `leaderTeam`、`eliteFourTeam`、`guardianFighter`、`championshipNpcEntrants`。
+- AI：`src/ai/battle-plan.ts` `chooseLineup`（道馆最多 6 选 3 的全排列 = 120 种，每种 4 个估算种子；六只队伍取最强六只、首发两位全排列、其余按平均克制排序）；道馆 ≥ 75%、四天王 ≥ 50%、守卫 ≥ 50% 且每圣所每 3 轮一次；大会赛前 5 轮报名、赛前 1 轮按公布的名单重排。`planGymAction` / `gymMoveTargets` 在 v26 转到这里。
+- 界面：`src/browser/lineup-picker.ts`（独立模块，`src/lineup.css`）：点选加入 / 移出、↑ ↓、拖动、选中行按 [ ] 调序；克制格（你打它 / 它打你 / 先手）；估计胜率与 16 段条；「建议顺序」= AI 的 `chooseLineup`。入口：单位栏「道馆」G、世界页的四天王 / 守卫 / 大会按钮。只读视图，命令走正常路径。
+- 校准（`node tools/team-battle-calibrate.ts`，种子 31–38 的地区图鉴，满 HP 随机队伍）：
+
+  | 项 | 取值 | 结果 |
+  | --- | --- | --- |
+  | 四天王 `eliteFourPowerPercent` | 64（v24 表的 64%） | 六只随机三阶：57.8%（63% → 65.7%，65% → 49.0%）；目标约 60% |
+  | 守卫 HP | 150%（620）→ 200%（860） | 三只随机二 / 三阶满 HP：86% / 73% / 73% / 86% |
+  | 大会 `npcBasePower` | 1150（每届 +40、每名次 +20） | 六只随机三阶对单支 NPC：第 1 届 73.7%、第 4 届 42.8%、第 8 届 16.6% |
+  | 道馆 `gymPowerPercent` | 80（spec 0.2 节原型） | 门槛里再看首枚徽章 |
+
+- 偏差：四天王“约 60%”是相对 v24 表缩到 64%（单打接力里六只三阶的随机队伍对原表 0%）；大会 NPC 用 `Depth26Tuning.npcBasePower`（v26 自己的值），不再读 `CIVILIZATION_CONTENT.championship.npcBasePower`。大会报名在 v26 可以重复提交（替换队伍与顺序），代替单独的 `SetChampionshipOrder` 命令。存档读取改为按开局设置派生内容（v25 / v26 的地区图鉴内容不在 `STOCK_CONTENTS` 里，之前读真实 v25 / v26 存档会因内容不对而重放失败）。
+
+### 14.3 劲敌对决（P3，第 3 节）
+
+- 规则：`src/core/rival-duels.ts`（`ChallengeRival { unitIds, stake }`、`duelBlocker` 权威与视图共用、切磋 / 真剑、奖金、气势 +3、对决记录）；`src/core/rivals.ts` 抽出 `settleVisit` / `defeatRivalVisit`（真剑胜利与地图击倒走同一套结算，`RivalDefeated.proof` 记劲敌之证）、连胜（前两次登场都击退 → 本次气势 +3、奖励 ×1.25）。世代分：劲敌之证 +1，大会上击败劲敌 +2（`RivalConferenceBeaten`）。
+- 大会劲敌：`conferenceRivals`（第 100 轮起，三次登场结束、本文明报名的第一届；主克制三阶 + 副克制三阶 + 4 只本地区三阶，战力 = 该名次 NPC 战力 + `conferenceRivalPower` 60），先占 NPC 名额；视图的赛前名单里同样出现。
+- AI：`src/ai/rival-duel-plan.ts`（≥ 60% 真剑；城门口 ≥ 50% 真剑；35–60% 且劲敌离己方城 ≤ 2 格时切磋，每次登场一次）。实测 AI 只在有“不被克制”的宝可梦时才对决（多数情况下 2 格内只有御三家，估计 0%，照旧地图战斗）。
+- 强度：`RIVAL_RULES_V26.strengthOffsets = [-4, -4, -2]`（在场轮数沿用 v25 的 6 / 7 / 9）。门槛结果见 `docs/design/balance/gate-v26-core.md`。
+- 界面：选阵界面加 `rival` 一种（赌注切换、奖励 / 奖金预览）；单位栏「对决」D；劲敌卡写对决规则和战绩；通知 `RivalDuel` / `RivalConferenceBeaten`；大会对阵卡把劲敌写成“劲敌 某某”。
+- 未做（留给表现线）：劲敌半身像、对白卡、回放器入口。
+
+### 14.4 v25 遗留
+
+- **信仰胜利与消灭解耦**（`gate-v25.md` 修正 3 的遗留）：v25 的“每个存活对手至少有一座城信它”可以靠消灭一个不信的对手满足（v25 门槛 24 局信仰胜利全部发生在有文明被消灭之后，14 局在 10 轮内）。v26 改为**每个开局时的对手**都要信：存活的对手至少一座城，已出局的对手要它的**旧首都**（`headquartersCityId`，城市不会被摧毁，不论现在归谁）。理由：门槛（城数、份额）在 v25 已经不受消灭影响，剩下的捷径只有“对手名单变短”；旧首都是那个文明在地图上唯一不变的代表，信仰仍可以靠压力或传播拿下它，但消灭本身不再算数。v≤25 不变。界面：胜利页列出“已出局文明的旧首都未皈依”，手册与审计同步。门槛结果见 `gate-v26-core.md`。
+- **B6**：`src/browser/regional-dex-panel.ts` 的地区图鉴格子把御三家显示为“拥有（初始伙伴）”和星标（记录仍是已捕捉），与旧图鉴条和胜利页一致。
+
+### 14.5 门槛与临时默认（第一条线）
+
+- 报告：`docs/design/balance/gate-v26-core.md`（两轮 216 局，对 v25 锚点）。第 1 轮（大会 NPC 1150 / +40、道馆 80%、偏移 −4 / −4 / −2）冠军赛 3.2%；第 2 轮（1080 / +5、90%、−5 / −4 / 0）冠军赛 53.2%。
+- 提交的**临时默认**：大会 NPC `npcBasePower` 1110、`npcSeasonPower` 20、`npcSlotPower` 20（两轮之间的插值，未单独测）；`gymPowerPercent` 90；劲敌偏移 −5 / −4 / 0；四天王 64%、守卫 150–200% 不变。上面 14.2 / 14.3 节里的 1150、80、−4 / −4 / −2 是第 1 轮的值。
+- 协调方决定（2026-11-14）：冠军赛份额取决于第二条线的华丽大赛季能吸收多少，在合并后的 v26 上用 `tools/balance-sweep.ts` 扫 `depth26.npcBasePower` / `npcSeasonPower`（都可以打补丁）。劲敌难度看“登场时最佳阵容的估计胜率”，不看击退率。

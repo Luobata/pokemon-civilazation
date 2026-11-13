@@ -726,6 +726,22 @@ export function inspectSystem(systemId: string, state: GameState): AuditSystemIn
       data: { speciesIds: dex.speciesIds, recruitSlots: slots, outsideUnits: outside.map(unit => ({ id: unit.id, speciesId: unit.kind === 'pokemon' ? unit.speciesId : null })),
         byClass: Object.fromEntries(['melee', 'ranged', 'fast', 'scout', 'siege', 'air', 'naval'].map(role => [role, dex.speciesIds.filter(id => content.species[id]?.role === role)])) } };
   }
+  if (system.id === 's-rival-duels') {
+    const content = contentOf(state), rivals = state.expansion?.rivals;
+    if (!content.rivalDuels || !rivals) return { metrics: [metric('当前规则', '未启用（需 v26）')], data: {} };
+    return { metrics: [metric('当前规则', '劲敌对决 v26'), metric('气势偏移', (content.world24?.rivalStrengthOffsets ?? []).join(' / ')),
+      ...Object.entries(rivals.byPlayer).map(([id, ledger]) => metric(`玩家 ${id} 对决`, ledger.duels ? `切磋 ${ledger.duels.spar} · 真剑 ${ledger.duels.serious} · 胜 ${ledger.duels.won}` : '无'))],
+      data: { byPlayer: Object.fromEntries(Object.entries(rivals.byPlayer).map(([id, ledger]) => [id, { duels: ledger.duels ?? null, conference: ledger.conference ?? null, outcomes: ledger.outcomes }])) } };
+  }
+  if (system.id === 's-team-battles') {
+    const content = contentOf(state);
+    if (!content.teamBattles) return { metrics: [metric('当前规则', '未启用（需 v26，之前是 v24 混战）')], data: {} };
+    const tuning = content.depth26!, circuit = state.expansion?.gymCircuit, civ = state.expansion?.civilization;
+    return { metrics: [metric('当前规则', '单打接力 v26'), metric('馆主强度', `${tuning.gymPowerPercent}%`), metric('四天王强度', `${tuning.eliteFourPowerPercent}%`),
+      metric('守卫 HP', `${tuning.guardianHpPercent[0]}%–${tuning.guardianHpPercent[1]}%`), metric('大会 NPC 基础战力', tuning.npcBasePower),
+      metric('历练', `每 ${tuning.veteranXp} 经验 +1，最多 +${tuning.veteranCap}`), metric('联盟大会已举办', civ?.championship.history.length ?? 0)],
+      data: { tuning, badges: circuit?.badges ?? {}, guardians: (civ?.sanctuaries ?? []).map(site => ({ id: site.id, defeated: site.guardianDefeated, challenges: site.challengeRoundByPlayer })) } };
+  }
   if (system.id === 's-gym-circuit') {
     const circuit = state.expansion?.gymCircuit;
     if (!circuit) return { metrics: [metric('当前规则', '未启用（需 v24）')], data: {} };

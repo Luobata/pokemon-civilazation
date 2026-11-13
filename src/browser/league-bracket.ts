@@ -7,6 +7,7 @@ import type { ChampionshipEntrant, ChampionshipMatch, ChampionshipSeason } from 
 import type { PlayerView } from '../core/model.ts';
 import { contentForView } from '../content/units.ts';
 import { LEAGUE_MATCH_NAMES } from './battle-replay.ts';
+import { traceTurns } from '../core/team-battle.ts';
 import { FACTIONS } from './render/canvas2d.ts';
 import { pokemonSpritePath } from './sprites.ts';
 import { artImage, escapeAttr, statChip, uiIcon } from './ui-icons.ts';
@@ -42,9 +43,9 @@ function slot(view: PlayerView, season: ChampionshipSeason, match: ChampionshipM
 }
 function box(view: PlayerView, season: ChampionshipSeason, match: ChampionshipMatch, names: EntrantNamer, replay: boolean): string {
   const [a, b] = match.entrantIds.map(id => season.entrants.find(entrant => entrant.entrantId === id)!), at = LAYOUT[match.label];
-  const label = `${LEAGUE_MATCH_NAMES[match.label]}：${names(a)} 对 ${names(b)}，${names(match.winnerEntrantId === a.entrantId ? a : b)}胜，${match.battle.rounds.length} 回合`;
+  const label = `${LEAGUE_MATCH_NAMES[match.label]}：${names(a)} 对 ${names(b)}，${names(match.winnerEntrantId === a.entrantId ? a : b)}胜，${traceTurns(match.battle)} 回合`;
   return `<li class="league-match lb-match${match.label === 'final' ? ' final' : ''}" data-match="${match.label}" style="left:${at.x}px;top:${at.y}px" aria-label="${escapeAttr(label)}">
-    <small class="league-match-head">${LEAGUE_MATCH_NAMES[match.label]} ${statChip('turns', match.battle.rounds.length, '回合数')}${replay ? `<button type="button" class="lb-replay" data-league-replay="${match.label}" aria-label="${escapeAttr(`观看回放：${LEAGUE_MATCH_NAMES[match.label]}`)}" title="观看回放">${uiIcon('play', { size: 10 })}</button>` : ''}</small>
+    <small class="league-match-head">${LEAGUE_MATCH_NAMES[match.label]} ${statChip('turns', traceTurns(match.battle), '回合数')}${replay ? `<button type="button" class="lb-replay" data-league-replay="${match.label}" aria-label="${escapeAttr(`观看回放：${LEAGUE_MATCH_NAMES[match.label]}`)}" title="观看回放">${uiIcon('play', { size: 10 })}</button>` : ''}</small>
     <ol class="league-pair">${slot(view, season, match, 0, names)}${slot(view, season, match, 1, names)}</ol></li>`;
 }
 /** The bracket of one season; `replay` adds a ▶ button to every match. */

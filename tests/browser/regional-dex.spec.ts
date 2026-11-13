@@ -40,7 +40,12 @@ test('v25: the new-game summary, the regional Pokédex page and the recruit rows
   await expect(silhouette).toHaveAttribute('title', /未见过 · (野外|招募|巢穴|进化自|仅通过对战记录)/);
   await expect(silhouette.locator('img')).toHaveAttribute('alt', /未见过/);
   // The starter is seen from the start.
-  await expect(grid.locator(`.dex-entry[data-species="${game.players[0].starterId}"]`)).not.toHaveClass(/dex-silhouette/);
+  const starter = grid.locator(`.dex-entry[data-species="${game.players[0].starterId}"]`);
+  await expect(starter).not.toHaveClass(/dex-silhouette/);
+  // Playtest B6: the starter reads as owned (拥有), not caught, in the regional grid too; the record stays captured.
+  await expect(starter).toHaveAttribute('title', /拥有（初始伙伴）/);
+  await expect(starter.locator('img').first()).not.toHaveAttribute('alt', /已捕捉/);
+  expect(game.expansion!.world.players[0].pokedex[game.players[0].starterId]!.captured).toBe(true);
   await card.scrollIntoViewIfNeeded();
   await page.screenshot({ path: `${reports}/regional-dex-pokedex.png` });
 

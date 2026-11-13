@@ -12,6 +12,7 @@ import { leagueBracketMarkup } from './league-bracket.ts';
 import { leagueMatchReplay } from './battle-replay.ts';
 import type { BattleReplay } from './battle-replay.ts';
 import '../league.css';
+import { traceStrikes } from '../core/team-battle.ts';
 
 /** Rounds before a season at which the countdown notice appears. */
 export const LEAGUE_COUNTDOWN = [5, 1] as const;
@@ -25,10 +26,11 @@ export function placementOf(season: ChampionshipSeason, entrantId: string): Plac
   return !lost ? 'semifinal' : lost.label === 'final' ? 'final' : lost.label.startsWith('semifinal') ? 'semifinal' : 'preliminary';
 }
 /** Display name of an entrant from the viewer's side. */
-export function entrantName(view: PlayerView, entrant: Pick<ChampionshipEntrant, 'playerId' | 'entrantId'>): string {
+export function entrantName(view: PlayerView, entrant: Pick<ChampionshipEntrant, 'playerId' | 'entrantId' | 'name'>): string {
   if (entrant.playerId === view.playerId) return '你的队伍';
   if (entrant.playerId !== null) return `文明 ${entrant.playerId + 1}`;
-  return `联盟训练家 ${entrant.entrantId.split('-').at(-1)}`;
+  if (entrant.entrantId.startsWith('rival-')) return `劲敌${entrant.name ?? ''}`;
+  return entrant.name ? `训练家 ${entrant.name}` : `联盟训练家 ${entrant.entrantId.split('-').at(-1)}`;
 }
 const ownEntrant = (view: PlayerView, season: ChampionshipSeason) => season.entrants.find(entrant => entrant.playerId === view.playerId) ?? null;
 
@@ -36,7 +38,7 @@ const ownEntrant = (view: PlayerView, season: ChampionshipSeason) => season.entr
 export function seasonDamage(season: ChampionshipSeason, entrant: ChampionshipEntrant) {
   return entrant.roster.map(combatant => {
     let dealt = 0, taken = 0;
-    for (const match of season.matches) for (const round of match.battle.rounds) for (const strike of round.strikes) {
+    for (const match of season.matches) for (const strike of traceStrikes(match.battle)) {
       if (strike.attackerId === combatant.id) dealt += strike.damage;
       if (strike.defenderId === combatant.id) taken += strike.damage;
     }

@@ -45,6 +45,8 @@
 .mu-cell.bad { background: #47262A; border-color: #8A4E4E; }
 .mu-out { position: absolute; top: 2px; left: 3px; line-height: 0; }
 .mu-in { position: absolute; right: 2px; bottom: 2px; line-height: 0; opacity: .9; }
+.mu-first { position: absolute; right: 3px; top: 1px; font-size: 9px; line-height: 1; color: #F6C945; }
+.mu-first-key { color: #F6C945; margin-right: 2px; }
 .matchup-legend { display: flex; margin-bottom: 0; flex-wrap: wrap; justify-content: center; gap: 4px 10px; margin-top: 3px; color: var(--ink-muted); font-size: 11px; }
 .matchup-legend > span { display: inline-flex; align-items: center; gap: 3px; }
 .matchup-legend .mu-key .mu-out, .matchup-legend .mu-key .mu-in { position: static; }

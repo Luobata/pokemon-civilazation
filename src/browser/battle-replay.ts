@@ -3,9 +3,13 @@
 // matchup and HP after) come from the events and the season history; the line-ups are rebuilt from public rules
 // (leader / Elite Four / guardian teams) and, for the viewer's own challenges, from a snapshot of the team taken when the
 // command was issued. Every HP step is checked against the trace: a replay that does not add up is not offered. Pure
-// (no DOM): the viewer is battle-viewer.ts.
+// (no DOM): the viewer is battle-viewer.ts. Gameplay v26 relay battles (`BattleTraceV26`: turns of send / switch / strike / faint
+// acts) are replayed the same way, one Pokémon per side on the field (`format: 'relay'`), and so are the v26 rival duels.
 import type { BattleCombatant, BattleTrace, ChampionshipMatch, ChampionshipSeason } from '../core/civilization-systems.ts';
-import { guardianCombatant } from '../core/civilization-systems.ts';
+import { guardianCombatant, guardianFighter } from '../core/civilization-systems.ts';
+import type { BattleTraceV26 } from '../core/team-battle.ts';
+import { viewRivalTeam } from '../core/team-battle-views.ts';
+import { hexToIndex } from '../core/hex.ts';
 import { CIVILIZATION_CONTENT } from '../content/civilization-systems.ts';
 import { eliteFourTeam, leaderTeam } from '../core/gym-circuit.ts';
 import { ELITE_FOUR, GYM_LEADERS, GYM_RULES_V24 } from '../content/gym-circuit.ts';
@@ -23,12 +27,22 @@ export type ReplayFighter = { id: string; speciesId: SpeciesId; typeIds: readonl
 /** One strike as the trace recorded it, with the defender's HP before (rebuilt) and after (recorded). */
 export type ReplayStrike = { round: number; attackerId: string; defenderId: string; damage: number; effectiveness: number; hpBefore: number; hpAfter: number;
   /** The attack's type: the attacker's primary type (the auto-battle's matchup rule). */
-  typeId: TypeId; fainted: boolean };
+  typeId: TypeId; fainted: boolean;
+  /** Relay: Pokémon sent in (after a faint, or the one automatic switch) since the previous strike. */
+  sentIn?: { side: ReplaySide; id: string; switched: boolean }[] };
 export type ReplayBattle = { title: string; arena: ArenaId; homeName: string; awayName: string; home: ReplayFighter[]; away: ReplayFighter[];
   strikes: ReplayStrike[]; rounds: number; winner: ReplaySide;
   /** Elite Four: the share of lost HP the challengers recovered before this battle (percent). */
-  healed?: number };
-export type BattleKind = 'gym' | 'guardian' | 'elite' | 'league';
+  healed?: number;
+  /** v26 singles relay: one Pokémon per side on the field; `lead` is who each side sends first. */
+  format?: 'relay'; lead?: { home: string; away: string } };
+export type BattleKind = 'gym' | 'guardian' | 'elite' | 'league' | 'rival';
+type AnyTrace = BattleTrace | BattleTraceV26;
+const isRelay = (trace: AnyTrace): trace is BattleTraceV26 => (trace as BattleTraceV26).format === 'relay';
+/** Every hit of a trace in order (either format): defender, damage and its HP after. */
+const traceHits = (trace: AnyTrace): { defenderId: string; damage: number; hpAfter: number }[] => isRelay(trace)
+  ? trace.turns.flatMap(turn => turn.acts.flatMap(act => act.kind === 'strike' ? [{ defenderId: act.defenderId, damage: act.damage, hpAfter: act.hpAfter }] : []))
+  : trace.rounds.flatMap(round => round.strikes.map(strike => ({ defenderId: strike.defenderId, damage: strike.damage, hpAfter: strike.defenderHpAfter })));
 export type BattleReplay = { key: string; kind: BattleKind; title: string; battles: ReplayBattle[]; victory: boolean; outcome: string };
 
 type Starter = { id: string; speciesId: SpeciesId; typeIds: readonly TypeId[]; hp: number; maxHp: number };
@@ -47,8 +61,9 @@ const starterOf = (combatant: BattleCombatant, hp = combatant.hp): Starter =>
   ({ id: combatant.id, speciesId: combatant.speciesId, typeIds: combatant.typeIds, hp, maxHp: combatant.maxHp });
 
 /** Walks a trace from known starting HP; null when any strike names an unknown fighter or its HP does not add up. */
-export function replayBattle(home: readonly Starter[], away: readonly Starter[], trace: BattleTrace, info: Pick<ReplayBattle, 'title' | 'arena' | 'homeName' | 'awayName' | 'healed'>,
+export function replayBattle(home: readonly Starter[], away: readonly Starter[], trace: AnyTrace, info: Pick<ReplayBattle, 'title' | 'arena' | 'homeName' | 'awayName' | 'healed'>,
   content: Content): ReplayBattle | null {
+  if (isRelay(trace)) return replayRelay(home, away, trace, info, content);
   const fighters = [...home.map(item => fighter(item, 'home', content)), ...away.map(item => fighter(item, 'away', content))];
   const hp = new Map(fighters.map(item => [item.id, item.hp]));
   const byId = new Map(fighters.map(item => [item.id, item]));
@@ -64,6 +79,31 @@ export function replayBattle(home: readonly Starter[], away: readonly Starter[],
   return { ...info, home: fighters.filter(item => item.side === 'home'), away: fighters.filter(item => item.side === 'away'),
     strikes, rounds: trace.rounds.length, winner };
 }
+/** v26 relay: the same walk over strike acts; sends and switches ride on the next strike, the attack type is the recorded one. */
+function replayRelay(home: readonly Starter[], away: readonly Starter[], trace: BattleTraceV26, info: Pick<ReplayBattle, 'title' | 'arena' | 'homeName' | 'awayName' | 'healed'>,
+  content: Content): ReplayBattle | null {
+  const fighters = [...home.map(item => fighter(item, 'home', content)), ...away.map(item => fighter(item, 'away', content))];
+  const hp = new Map(fighters.map(item => [item.id, item.hp])), byId = new Map(fighters.map(item => [item.id, item]));
+  const lead: Partial<Record<ReplaySide, string>> = {}, strikes: ReplayStrike[] = [];
+  let sent: NonNullable<ReplayStrike['sentIn']> = [];
+  for (const turn of trace.turns) for (const act of turn.acts) {
+    if (act.kind === 'faint') continue;
+    if (act.kind !== 'strike') {
+      if (byId.get(act.id)?.side !== act.side) return null;
+      if (turn.turn === 0) lead[act.side] = act.id; else sent.push({ side: act.side, id: act.id, switched: act.kind === 'switch' });
+      continue;
+    }
+    const before = hp.get(act.defenderId);
+    if (!byId.has(act.attackerId) || before === undefined || Math.max(0, before - act.damage) !== act.hpAfter) return null;
+    hp.set(act.defenderId, act.hpAfter);
+    strikes.push({ round: turn.turn, attackerId: act.attackerId, defenderId: act.defenderId, damage: act.damage, effectiveness: act.effectiveness,
+      hpBefore: before, hpAfter: act.hpAfter, typeId: act.typeId, fainted: act.hpAfter === 0, ...(sent.length ? { sentIn: sent } : {}) });
+    sent = [];
+  }
+  if (!lead.home || !lead.away) return null;
+  return { ...info, home: fighters.filter(item => item.side === 'home'), away: fighters.filter(item => item.side === 'away'),
+    strikes, rounds: Math.max(0, trace.turns.length - 1), winner: trace.winnerSide, format: 'relay', lead: { home: lead.home, away: lead.away } };
+}
 /** HP of every fighter after the battle (for the next Elite Four stage). */
 export function finalHp(battle: ReplayBattle): Map<string, number> {
   const hp = new Map([...battle.home, ...battle.away].map(item => [item.id, item.hp]));
@@ -73,39 +113,53 @@ export function finalHp(battle: ReplayBattle): Map<string, number> {
 
 // ---------- the viewer's own challenges (snapshot when the command is issued) ----------
 
-export type ChallengeAction = Extract<Command['action'], { type: 'ChallengeGym' | 'ChallengeGuardian' | 'ChallengeEliteFour' }>;
+export type ChallengeAction = Extract<Command['action'], { type: 'ChallengeGym' | 'ChallengeGuardian' | 'ChallengeEliteFour' | 'ChallengeRival' }>;
 export const isChallengeAction = (action: Command['action']): action is ChallengeAction =>
-  action.type === 'ChallengeGym' || action.type === 'ChallengeGuardian' || action.type === 'ChallengeEliteFour';
+  action.type === 'ChallengeGym' || action.type === 'ChallengeGuardian' || action.type === 'ChallengeEliteFour' || action.type === 'ChallengeRival';
 /** The team the viewer sends, as the authority builds it (id prefix, current HP, the species' max HP). */
-export type ChallengeSnapshot = { action: ChallengeAction; playerId: number; team: { unitId: number; speciesId: SpeciesId; typeIds: TypeId[]; hp: number; maxHp: number }[] };
+export type ChallengeSnapshot = { action: ChallengeAction; playerId: number; team: { unitId: number; speciesId: SpeciesId; typeIds: TypeId[]; hp: number; maxHp: number }[];
+  /** v26 rival duel: the rival Pokémon in sight, in duel order, and the terrain under the first one. */
+  rival?: Starter[]; arena?: BiomeId };
 export function snapshotChallenge(view: PlayerView, action: ChallengeAction): ChallengeSnapshot | null {
   const content = contentForView(view);
   const team = action.unitIds.map(id => view.units.find((unit): unit is Extract<MapUnit, { kind: 'pokemon' }> => unit.id === id && unit.kind === 'pokemon'));
   if (!team.every(Boolean)) return null;
-  return { action, playerId: view.playerId, team: team.map(unit => {
+  const rival = action.type === 'ChallengeRival' ? viewRivalTeam(view, content).map((item, index) => ({ id: `rival-${view.playerId}-${index}`, speciesId: item.speciesId,
+    typeIds: item.typeIds, hp: item.hp, maxHp: item.maxHp })) : undefined;
+  const first = action.type === 'ChallengeRival' ? view.units.find(unit => unit.id === view.expansion?.rivals?.activeUnitIds[0]) : undefined;
+  const arena: BiomeId = first ? view.map.tiles[hexToIndex(first.position, view.map) ?? -1] ?? 'grassland' : 'grassland';
+  return { action, playerId: view.playerId, ...(rival ? { rival, arena } : {}), team: team.map(unit => {
     const species = content.species[unit!.speciesId];
     return { unitId: unit!.id, speciesId: unit!.speciesId, typeIds: [species.typeId, ...(species.secondaryTypeId ? [species.secondaryTypeId] : [])], hp: unit!.hp, maxHp: species.maxHp };
   }) };
 }
-type ChallengePayload = Extract<VisibleEvent['payload'], { type: 'GymChallenged' | 'GuardianChallenged' | 'EliteFourChallenged' }>;
+type ChallengePayload = Extract<VisibleEvent['payload'], { type: 'GymChallenged' | 'GuardianChallenged' | 'EliteFourChallenged' | 'RivalDuel' }>;
 export const isChallengeEvent = (payload: VisibleEvent['payload']): payload is ChallengePayload =>
-  payload.type === 'GymChallenged' || payload.type === 'GuardianChallenged' || payload.type === 'EliteFourChallenged';
+  payload.type === 'GymChallenged' || payload.type === 'GuardianChallenged' || payload.type === 'EliteFourChallenged' || payload.type === 'RivalDuel';
 /** A stable key for a challenge result (also the toast's target). */
 export function replayKey(payload: ChallengePayload): string {
   if (payload.type === 'GymChallenged') return `gym:${payload.playerId}:${payload.gymId}:${payload.battle.seed}`;
   if (payload.type === 'GuardianChallenged') return `guardian:${payload.playerId}:${payload.siteId}:${payload.battle.seed}`;
+  if (payload.type === 'RivalDuel') return `rival:${payload.playerId}:${payload.battle.seed}`;
   return `elite:${payload.playerId}:${payload.battles[0]?.seed ?? 0}`;
 }
 const OWN = '你的队伍';
 /** Builds the replay of the viewer's own challenge from the snapshot taken when it was issued (null when they do not match). */
 export function challengeReplay(view: PlayerView, snapshot: ChallengeSnapshot, payload: ChallengePayload): BattleReplay | null {
   const content = contentForView(view), me = snapshot.playerId;
-  if (payload.playerId !== me || snapshot.action.type !== ({ GymChallenged: 'ChallengeGym', GuardianChallenged: 'ChallengeGuardian', EliteFourChallenged: 'ChallengeEliteFour' } as const)[payload.type]) return null;
+  if (payload.playerId !== me || snapshot.action.type !== ({ GymChallenged: 'ChallengeGym', GuardianChallenged: 'ChallengeGuardian', EliteFourChallenged: 'ChallengeEliteFour', RivalDuel: 'ChallengeRival' } as const)[payload.type]) return null;
   const starters = (prefix: string, hp?: Map<string, number>) => snapshot.team.map((member, index) => {
     const id = `${prefix}-${index}`;
     return { id, speciesId: member.speciesId, typeIds: member.typeIds, hp: hp?.get(id) ?? member.hp, maxHp: member.maxHp };
   });
   const key = replayKey(payload);
+  if (payload.type === 'RivalDuel') {
+    const name = view.expansion?.rivals?.name ?? '';
+    const battle = snapshot.rival ? replayBattle(starters(`duel-${me}`), snapshot.rival, payload.battle,
+      { title: `劲敌对决 · ${name}（${payload.stake === 'serious' ? '真剑' : '切磋'}）`, arena: snapshot.arena ?? 'grassland', homeName: OWN, awayName: `劲敌${name}` }, content) : null;
+    return battle && { key, kind: 'rival', title: `劲敌对决 · ${name}`, battles: [battle], victory: payload.victory,
+      outcome: payload.victory ? payload.stake === 'serious' ? '真剑对决胜利，劲敌离场' : '切磋获胜' : payload.prize ? `落败：劲敌拿走奖金 ${payload.prize} 金` : '落败' };
+  }
   if (payload.type === 'GymChallenged') {
     const gym = view.expansion?.gymCircuit?.gyms.find(item => item.id === payload.gymId);
     if (!gym) return null;
@@ -118,8 +172,9 @@ export function challengeReplay(view: PlayerView, snapshot: ChallengeSnapshot, p
   if (payload.type === 'GuardianChallenged') {
     const site = view.expansion?.civilization?.sanctuaries.find(item => item.id === payload.siteId);
     if (!site) return null;
-    const guardian = guardianCombatant(site, { ...CIVILIZATION_CONTENT, world: content });
-    const battle = replayBattle(starters(`challenge-${me}-${site.id}`), [starterOf(guardian)], payload.battle,
+    // v26: the guardian fights as a boss (guardianFighter); before v26 as a scaled combatant.
+    const guardian = content.teamBattles ? guardianFighter(site, content) : guardianCombatant(site, { ...CIVILIZATION_CONTENT, world: content });
+    const battle = replayBattle(starters(`challenge-${me}-${site.id}`), [{ id: guardian.id, speciesId: guardian.speciesId, typeIds: guardian.typeIds, hp: guardian.hp, maxHp: guardian.maxHp }], payload.battle,
       { title: `圣所守卫 · ${site.guardianName}`, arena: 'altar', homeName: OWN, awayName: `守卫${site.guardianName}` }, content);
     return battle && { key, kind: 'guardian', title: `${site.name} · 守卫${site.guardianName}`, battles: [battle], victory: payload.victory,
       outcome: payload.victory ? `获得石板「${site.tabletName}」` : '守卫依然屹立' };
@@ -155,9 +210,9 @@ export function leagueMatchReplay(view: PlayerView, season: ChampionshipSeason, 
   const [first, second] = match.entrantIds.map(id => season.entrants.find(entrant => entrant.entrantId === id));
   if (!first || !second) return null;
   const startHp = (combatant: BattleCombatant) => {
-    for (const later of season.matches.slice(index)) for (const round of later.battle.rounds) for (const strike of round.strikes) {
+    for (const later of season.matches.slice(index)) for (const strike of traceHits(later.battle)) {
       if (strike.defenderId !== combatant.id) continue;
-      return strike.defenderHpAfter > 0 ? strike.defenderHpAfter + strike.damage : Math.min(combatant.maxHp, strike.damage);
+      return strike.hpAfter > 0 ? strike.hpAfter + strike.damage : Math.min(combatant.maxHp, strike.damage);
     }
     return combatant.hp;
   };
@@ -188,4 +243,6 @@ export function recordChallengeResult(view: PlayerView, payload: VisibleEvent['p
   return replay.key;
 }
 export const storedReplay = (key: string) => store.get(key) ?? null;
+/** The key of the most recent stored replay of this kind (a won serious rival duel's toast comes from RivalDefeated). */
+export const latestReplayKey = (kind: BattleKind) => [...store.values()].reverse().find(replay => replay.kind === kind)?.key ?? null;
 export function clearReplays(): void { store.clear(); pending = null; }
