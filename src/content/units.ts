@@ -262,13 +262,17 @@ export function depthDexDraw(setup: { seed: number; dexSeed?: number; eraProgres
   }
   return draw;
 }
-/** v26: the content of a regional Pokédex over the v26 species (memoized by mode and species list, so the authority and every view share one object). */
+/**
+ * v26: the content of a regional Pokédex over the v26 species (memoized by mode and species list, so the authority and every view share one
+ * object). `pool` stays the v25 pool: the Pokédex target scales with size / pool (§2.6), and the batch widens the draw, not the target
+ * (with the v26 pool the mean target of the gate setups fell from 35.2 to 33.7).
+ */
 export function depthContentFromIds(speciesIds: readonly SpeciesId[], mode: EraProgression): Content {
   const sorted = [...new Set(speciesIds)].filter(id => depthSpecies[id]).sort(), key = `${mode}|${sorted.join(',')}`;
   let content = depthContents.get(key);
   if (!content) {
     if (depthContents.size > 512) depthContents.clear();
-    content = depthOverlay({ ...DEPTH_REGIONAL_CONTENT, roster: depthRoster(sorted, mode), regionalDex: { speciesIds: Object.freeze(sorted), size: sorted.length, pool: depthPoolSize(mode) } });
+    content = depthOverlay({ ...DEPTH_REGIONAL_CONTENT, roster: depthRoster(sorted, mode), regionalDex: { speciesIds: Object.freeze(sorted), size: sorted.length, pool: regionalPoolSize(mode) } });
     derivedContents.add(content);
     depthContents.set(key, content);
   }

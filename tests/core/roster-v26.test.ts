@@ -153,7 +153,8 @@ test('a v26 game draws from the v26 species; authority and view share one conten
   expect(content).toBe(depthContentFor(setup(26)));
   expect(content.version).toBe('depth-v26');
   expect(DEPTH_CONTENT.species).toBe(content.species);
-  expect(content.regionalDex!.pool).toBe(regionalPoolSize('simple-v1') + 10);
+  // The Pokédex target keeps the v25 scale: the pool is the v25 pool (the batch widens the draw, not the target).
+  expect(content.regionalDex!.pool).toBe(regionalPoolSize('simple-v1'));
   expect(content.regionalDex!.speciesIds).not.toEqual(v25.regionalDex!.speciesIds);
   expect(isStockContent(content)).toBe(true);
   expect(Object.keys(DEPTH_CONTENT.species).length).toBe(Object.keys(REGIONAL_CONTENT.species).length + 10);
