@@ -6,6 +6,7 @@ import { toastResolved } from './notifications.ts';
 import type { Toast, ToastTarget } from './notifications.ts';
 import type { PlayerView } from '../core/model.ts';
 import { uiIcon } from './ui-icons.ts';
+import '../playtest-ui.css';
 import type { UiIconName } from './ui-icons.ts';
 
 /** Pixel icon for each notification glyph (docs/design/ui-icons/README.md); unknown glyphs stay as text. */
@@ -15,7 +16,7 @@ const GLYPH_ICONS: Record<string, UiIconName> = {
   '⚔': 'swords', '✕': 'damaged', '✖': 'heart', '☠': 'damaged', '!': 'swords', '…': 'move', '⌃': 'eraScore', '✉': 'handshake', '◷': 'eraScore',
   '✧': 'wonder', '♛': 'wonder',
 };
-const railIcon = (glyph: string) => GLYPH_ICONS[glyph] ? uiIcon(GLYPH_ICONS[glyph]!, { size: 24, className: 'toast-pixel' }) : glyph;
+const railIcon = (glyph: string, size = 24) => GLYPH_ICONS[glyph] ? uiIcon(GLYPH_ICONS[glyph]!, { size, className: 'toast-pixel' }) : glyph;
 
 const MAX_ITEMS = 12;
 export const INFO_MS = 10_000;
@@ -35,13 +36,15 @@ export type NotificationRail = {
 
 const escape = (text: string) => text.replace(/[&<>"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[char]!);
 
+/** U8: strategic events sit above routine pings (newest first within each tier). */
+export const railOrder = (entries: readonly Toast[]): Toast[] => [...entries.filter(item => item.strategic), ...entries.filter(item => !item.strategic)];
 export function railMarkup(entries: readonly Toast[], peekId: number | null): string {
-  return entries.map(item => {
+  return railOrder(entries).map(item => {
     const label = `${item.title}${item.detail ? `：${item.detail}` : ''}`;
     const actionable = Boolean(item.target);
-    return `<div class="toast toast-${item.tone}${item.persistent ? ' is-persistent' : ''}${item.id === peekId ? ' is-peek' : ''}" data-toast="${item.id}" role="status">
-    <button type="button" class="toast-icon" data-toast-open="${item.id}" title="${escape(label)}${actionable ? '（点击前往，右键忽略）' : '（右键忽略）'}" aria-label="${escape(label)}">${railIcon(item.icon)}</button>
-    <div class="toast-card"><div class="toast-body"><strong>${item.title}</strong>${item.detail ? `<small>${item.detail}</small>` : ''}</div>
+    return `<div class="toast toast-${item.tone}${item.persistent ? ' is-persistent' : ''}${item.strategic ? ' is-strategic' : ''}${item.id === peekId ? ' is-peek' : ''}" data-toast="${item.id}" role="${item.strategic ? 'alert' : 'status'}">
+    <button type="button" class="toast-icon" data-toast-open="${item.id}" title="${item.strategic ? '大事：' : ''}${escape(label)}${actionable ? '（点击前往，右键忽略）' : '（右键忽略）'}" aria-label="${item.strategic ? '大事：' : ''}${escape(label)}">${railIcon(item.icon, item.strategic ? 30 : 24)}</button>
+    <div class="toast-card"><div class="toast-body">${item.strategic ? '<em class="toast-kicker">大事</em>' : ''}<strong>${item.title}</strong>${item.detail ? `<small>${item.detail}</small>` : ''}</div>
     ${item.target && item.action ? `<button type="button" class="toast-action" data-toast-action="${item.id}">${item.action}</button>` : ''}
     <button type="button" class="toast-close" data-toast-close="${item.id}" aria-label="忽略：${escape(item.title)}" title="忽略">×</button></div></div>`;
   }).join('');
@@ -114,10 +117,11 @@ export function createNotificationRail(host: HTMLElement, activate: (target: Non
       if (!item) return;
       if (item.key) remove(entry => entry.toast.key === item.key);
       entries.unshift({ toast: item, expiresAt: null, fresh: true });
-      // Overflow: drop the oldest informational item first, then the oldest of any kind.
+      // Overflow: drop the oldest informational item first, then the oldest routine one, then the oldest of any kind.
       while (entries.length > MAX_ITEMS) {
-        const informational = entries.map(entry => !entry.toast.persistent).lastIndexOf(true);
-        entries.splice(informational >= 0 ? informational : entries.length - 1, 1);
+        const informational = entries.map(entry => !entry.toast.persistent && !entry.toast.strategic).lastIndexOf(true);
+        const routine = entries.map(entry => !entry.toast.strategic).lastIndexOf(true);
+        entries.splice(informational >= 0 ? informational : routine >= 0 ? routine : entries.length - 1, 1);
       }
       render();
     },
@@ -135,7 +139,8 @@ export function createNotificationRail(host: HTMLElement, activate: (target: Non
       // The player has control again: informational items start to fade, the newest arrival opens briefly.
       const fresh = entries.filter(entry => entry.fresh);
       for (const entry of fresh) { entry.fresh = false; if (!entry.toast.persistent) entry.expiresAt = now() + INFO_MS; }
-      if (fresh.length) { peek(fresh[0]!.toast.id); scheduleFade(); }
+      // U8: a strategic arrival opens its card first, even when routine pings came after it.
+      if (fresh.length) { peek((fresh.find(entry => entry.toast.strategic) ?? fresh[0]!).toast.id); scheduleFade(); }
     },
     screenOpened(screen) {
       if (screen === null) return;

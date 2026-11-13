@@ -30,8 +30,8 @@ export const CIV_GLOSSARY = {
   government: { term: '联盟体制', aliases: ['体制'], civ: '政体', group: '市政与政体', section: 'governments',
     note: '6 种分两层，提供额外方针槽和一项常驻加成；没有传承加成。' },
 
-  era: { term: '世代', aliases: ['时代'], civ: '时代', group: '时代', section: 'techs',
-    note: '按你自己完成的科技数推进，各文明分别计算；文明 6 的时代是全世界一起推进。' },
+  era: { term: '时代', aliases: ['第 N 时代'], civ: '时代', group: '时代', section: 'techs',
+    note: '按你自己完成的科技数推进，各文明分别计算；文明 6 的时代是全世界一起推进。“世代”只指黄金/黑暗世代。' },
   eraAge: { term: '黄金世代', aliases: ['黑暗世代', '英雄世代', '世代荣誉'], civ: '黄金时代 / 黑暗时代', group: '时代', section: 'techs',
     note: '按上一世代平均每轮的世代分判定，不看总分。' },
   eraScore: { term: '世代分', aliases: ['世代得分'], civ: '时代得分', group: '时代', section: 'techs',

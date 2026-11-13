@@ -49,7 +49,7 @@ test('new games default to three eras; full mode keeps the selected round limit'
   expect((await state(page)).setup.eraProgression).toBe('simple-v1');
   await startNewGame(page);
   expect((await state(page)).setup).toMatchObject({ eraProgression: 'full-v1', roundLimit: 200 });
-  await expect(page.locator('#era-panel')).toContainText('完整世代');
+  await expect(page.locator('#era-panel')).toContainText('完整时代');
   await expect(page.locator('#era-panel')).toContainText('还需 2 项科技');
 });
 
@@ -70,7 +70,7 @@ test('multiplayer submits selected eras and leaders and restores its panel after
     const invite = await page.locator('#invite-list a').first().getAttribute('href');
     await page.locator('#room-url').fill(invite!);
     await page.locator('#join-room').click();
-    await expect(page.locator('#era-panel')).toContainText('完整世代');
+    await expect(page.locator('#era-panel')).toContainText('完整时代');
     await expect(page.locator('#era-panel')).toContainText('乔伊小姐');
     await page.locator('#save-room').click();
     await expect(page.locator('#network-notice')).toContainText('已保存');
@@ -82,7 +82,7 @@ test('multiplayer submits selected eras and leaders and restores its panel after
     await expect(page.locator('#connection-status')).toContainText('轮到你行动');
     await expect(page.locator('#end-turn')).toBeEnabled();
     await page.reload();
-    await expect(page.locator('#era-panel')).toContainText('完整世代');
+    await expect(page.locator('#era-panel')).toContainText('完整时代');
     await expect(page.locator('#era-panel')).toContainText('乔伊小姐');
   } finally {
     await context.close();

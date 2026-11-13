@@ -26,6 +26,7 @@ import type { UiIconName } from './ui-icons.ts';
 import { MAP_ICON_NAMES } from './map-icons.ts';
 import { pokemonSpritePath } from './sprites.ts';
 import { v24PanelCards } from './gym-panel.ts';
+import { dexCaptureCounts, isStarterRecord } from './dex-owned.ts';
 
 const escape = (value: unknown) => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 export function renderExpansionPanel(view: PlayerView, selectedUnitId: number | null, selectedCityId: number | null,
@@ -39,9 +40,9 @@ export function renderExpansionPanel(view: PlayerView, selectedUnitId: number | 
   const unit = own.find(unit => unit.id === selectedUnitId) ?? own.find(unit => unit.actionLeft);
   const city = view.economy.cities.find(city => city.id === selectedCityId) ?? view.economy.cities[0];
   const actions: Command['action'][] = [];
-  const button = (label: string, action: Command['action'], available = true) => {
+  const button = (label: string, action: Command['action'], available = true, reason?: string) => {
     const id = actions.push(action) - 1;
-    return `<button type="button" data-expansion-action="${id}"${disabled || !available ? ' disabled' : ''}>${escape(label)}</button>`;
+    return `<button type="button" data-expansion-action="${id}"${disabled || !available ? ' disabled' : ''}${reason ? ` title="${escape(reason)}"` : ''}>${escape(label)}</button>`;
   };
   const card = (id: string, title: string, body: string) => `<details data-system="${id}"><summary>${title}</summary>${body}<p><a href="/audit.html?system=${id}" target="_blank" rel="noopener">规则与独立调试 ↗</a></p></details>`;
   let html = '<h2>文明与探索</h2><p>地图标记：巢 · 暴走巢穴，霸 · 霸主，果 · 树果，石 · 矿脉，圣 / 碑 · 圣所与已取得石板。</p>';
@@ -52,7 +53,7 @@ export function renderExpansionPanel(view: PlayerView, selectedUnitId: number | 
       + button(`建造${leader.building} · 90 金`, { type: 'BuildLeaderBuilding', cityId: city.id }, player.gold >= 90 && !exp.leaders.uniqueCityIds.includes(city.id))
       + button(`招募${unitDefinition({ kind: 'pokemon', speciesId: leaderUnitFor(CONTENT, player.leaderId!, leader.unit) }, CONTENT).name} · 100 金`, { type: 'RecruitLeaderUnit', cityId: city.id }, player.gold >= 100 && exp.leaders.recruited < 3 && player.research.unlockedIds.includes('training')) : ''));
   const world = exp.world, records = Object.values(world.player?.pokedex ?? {});
-  html += card('s22-pokedex', '图鉴与探索胜利', `<p class="world-stats">${statChip('pokedex', `${records.filter(record => record.observed && (record.battled || record.captured)).length}/${world.victory?.targetDocumentedSpecies ?? 18}`, '完整记录')}${statChip('class:scout', records.filter(record => record.observed).length, '观察')}${statChip('swords', records.filter(record => record.battled).length, '对战')}${statChip('pokeBall', records.filter(record => record.captured).length, '捕捉')}</p><p class="unit-note">已观察且战斗或捕捉的物种计入完整记录。</p><div class="dex-strip">${records.filter(record => record.observed).map(record => `<span class="dex-entry${record.battled || record.captured ? ' documented' : ''}">${artImage(pokemonSpritePath(record.speciesId), { size: 40, label: `${CONTENT.species[record.speciesId].name}${record.captured ? ' · 已捕捉' : record.battled ? ' · 已对战' : ' · 已观察'}` })}${record.captured ? uiIcon('pokeBall', { size: 12, className: 'dex-mark' }) : record.battled ? uiIcon('swords', { size: 12, className: 'dex-mark' }) : ''}</span>`).join('') || '<p>尚未观察</p>'}</div>${researchBookMarkup(view, CONTENT)}`);
+  html += card('s22-pokedex', '图鉴与探索胜利', `<p class="world-stats">${statChip('pokedex', `${records.filter(record => record.observed && (record.battled || record.captured)).length}/${world.victory?.targetDocumentedSpecies ?? 18}`, '完整记录')}${statChip('class:scout', records.filter(record => record.observed).length, '观察')}${statChip('swords', records.filter(record => record.battled).length, '对战')}${statChip('pokeBall', dexCaptureCounts(view, records).caught, '捕捉')}${dexCaptureCounts(view, records).owned ? statChip('star', dexCaptureCounts(view, records).owned, '拥有（初始伙伴，非捕捉）') : ''}</p><p class="unit-note">已观察且战斗或捕捉的物种计入完整记录。</p><div class="dex-strip">${records.filter(record => record.observed).map(record => `<span class="dex-entry${record.battled || record.captured ? ' documented' : ''}">${artImage(pokemonSpritePath(record.speciesId), { size: 40, label: `${CONTENT.species[record.speciesId].name}${isStarterRecord(view, record) ? ' · 拥有（初始伙伴）' : record.captured ? ' · 已捕捉' : record.battled ? ' · 已对战' : ' · 已观察'}` })}${isStarterRecord(view, record) ? uiIcon('star', { size: 12, className: 'dex-mark' }) : record.captured ? uiIcon('pokeBall', { size: 12, className: 'dex-mark' }) : record.battled ? uiIcon('swords', { size: 12, className: 'dex-mark' }) : ''}</span>`).join('') || '<p>尚未观察</p>'}</div>${researchBookMarkup(view, CONTENT)}`);
   html += card('s18-nests', `暴走巢穴 ${civHint('nest')}`, '<p>靠近巢穴后派宝可梦清剿，消耗行动点；巢穴会周期性派出敌对野生单位。</p>'
     + world.nests.map(nest => `<p class="world-row">${uiIcon('nest', { size: 28 })}<span class="world-row-name">巢穴 #${nest.id} <small>(${nest.position.q},${nest.position.r})</small></span><span class="hp-bar" role="img" aria-label="HP ${nest.hp}/${nest.maxHp}" title="HP ${nest.hp}/${nest.maxHp}"><span style="width:${Math.round(nest.hp * 100 / Math.max(1, nest.maxHp))}%"></span></span>${statChip('heart', `${nest.hp}/${nest.maxHp}`, 'HP')}${statChip('turns', nest.nextSpawnRound, '下次刷新（轮）')}</p>`
       + (unit ? button(`以 #${unit.id} 清剿`, { type: 'ClearNest', unitId: unit.id, nestId: nest.id }, Boolean(unit.actionLeft) && hexDistance(unit.position, nest.position, view.map) <= (unit.kind === 'pokemon' ? CONTENT.species[unit.speciesId].range : 1)) : '')).join(''));
@@ -81,7 +82,13 @@ export function renderExpansionPanel(view: PlayerView, selectedUnitId: number | 
       + `<p>当前每轮 +${contest.own.perRound} · 大赛馆 ${contest.own.halls.length} 座${Object.keys(contest.own.building).length ? ` · 建造中 ${Object.entries(contest.own.building).map(([id, progress]) => `城市 ${id} ${progress}/${CONTEST_RULES.hallCost}`).join('、')}` : ''}${leader ? ` · 最高对手：文明 ${leader.playerId + 1} ${leader.appeal}` : ''}</p>`
       + (!treeGateOpen(player, 'contestHall') ? `<p id="contest-hall-locked">建造大赛馆需要先研究「${techOf(contentForView(view), TREE_GATES.contestHall).name}」。</p>`
         : city ? button(`在城市 #${city.id} 建造大赛馆 · ${CONTEST_RULES.hallGold} 金`, { type: 'BuildContestHall', cityId: city.id }, player.gold >= CONTEST_RULES.hallGold && !contest.own.halls.includes(city.id) && contest.own.building[city.id] === undefined) : '')
-      + button(`举办华丽大赛 · ${CONTEST_RULES.showGold} 金（+${contest.own.halls.length * CONTEST_RULES.showPerHall} 人气）`, { type: 'HoldContest' }, contest.own.halls.length > 0 && player.gold >= CONTEST_RULES.showGold && view.round >= contest.own.showReadyAtRound)
+      // Playtest 2026-11 U7: the button says how long the cooldown still runs (and any other reason it is off).
+      + (() => {
+        const wait = contest.own.showReadyAtRound - view.round;
+        const reason = wait > 0 ? `冷却中：还剩 ${wait} 轮，第 ${contest.own.showReadyAtRound} 轮可再举办。` : !contest.own.halls.length ? '还没有建成的大赛馆。'
+          : player.gold < CONTEST_RULES.showGold ? `金币不足：需要 ${CONTEST_RULES.showGold}，现有 ${player.gold}。` : undefined;
+        return `<span class="contest-show" id="contest-show">${button(wait > 0 ? `举办华丽大赛 · 冷却 ${wait} 轮` : `举办华丽大赛 · ${CONTEST_RULES.showGold} 金（+${contest.own.halls.length * CONTEST_RULES.showPerHall} 人气）`, { type: 'HoldContest' }, !reason, reason)}${reason ? `<small class="contest-reason">${escape(reason)}</small>` : ''}</span>`;
+      })()
       + `<p>建造期间该城每轮一半生产投入大赛馆，共需 ${CONTEST_RULES.hallCost}；举办大赛冷却 ${CONTEST_RULES.showCooldown} 轮。</p>`);
   }
   const legendFaith = exp.faith;
@@ -130,8 +137,10 @@ export function renderExpansionPanel(view: PlayerView, selectedUnitId: number | 
     }).join('') + `<p>已知石板：${Object.entries(civ.tabletOwners).map(([tablet, owner]) => `${escape(tablet)} → 文明 ${owner + 1}`).join('、') || '无'}</p>`);
   // v24 B / C: badge box, circuit gyms, the Elite Four, the own rival.
   html += v24PanelCards(view, button, card);
+  // Playtest 2026-11 B4: the titles needed come from the victory targets (v21+: by round limit), as the victory page shows.
+  const titlesNeeded = (view.gameplayVersion ?? 0) >= 21 ? victoryTargets(view).championshipTitles : CIVILIZATION_CONTENT.championship.titlesNeededForVictory;
   const peaceful = !view.diplomacy.some(pair => pair.status === 'war' && [pair.a, pair.b].includes(player.id));
-  html += card('s27-championship', '六只队伍与联盟大会', `<p>下一届：第 ${civ.championship.nextRound} 轮。六只宝可梦报名，六队锦标赛、前两名轮空，获得两届冠军即胜利。大会战损会写回参赛单位，HP 至少保留 1，并消耗行动。</p><p>当前冠军数 ${civ.championship.titlesByPlayer[player.id] ?? 0} · ${civ.championship.registration ? '已报名' : '未报名'}</p>`
+  html += card('s27-championship', '六只队伍与联盟大会', `<p>下一届：第 ${civ.championship.nextRound} 轮。六只宝可梦报名，六队锦标赛、前两名轮空，获得 ${titlesNeeded} 届冠军即胜利。大会战损会写回参赛单位，HP 至少保留 1，并消耗行动。</p><p>当前冠军数 ${civ.championship.titlesByPlayer[player.id] ?? 0}/${titlesNeeded} · ${civ.championship.registration ? '已报名' : '未报名'}</p>`
     + button('报名当前六只宝可梦', { type: 'RegisterChampionshipTeam', unitIds: own.slice(0, 6).map(unit => unit.id) }, peaceful && own.length >= 6 && !civ.championship.registration)
     + `<p>阵容：${own.slice(0, 6).map(unit => `#${unit.id} ${unit.kind === 'pokemon' ? CONTENT.species[unit.speciesId].name : ''}`).join('、')}</p><p>最近冠军：${civ.championship.history.map(season => `第${season.season}届 ${season.championPlayerId === null ? 'NPC' : `文明${season.championPlayerId + 1}`}`).join('；') || '尚未举办'}</p>`);
   html += card('s28-deep-diplomacy', '联盟、贸易与信任', '<p>和平时期可提议结盟与贸易。贸易每五轮给双方 4 金币并增进信任；背叛需 20 金币，信任降至 -50 并进入冷却。</p>'

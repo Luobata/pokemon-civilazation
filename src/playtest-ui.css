@@ -1,0 +1,26 @@
+/* Playtest 2026-11 batch B: strategic notifications (U8), the ball stock (U6), research and contest reasons (U1, U7). */
+
+/* U8: strategic events — a larger, gold-ringed icon above the routine pings, with a 大事 kicker in the card. */
+.toast.is-strategic { width: 48px; height: 48px; }
+.toast.is-strategic .toast-icon { width: 48px; height: 48px; border-width: 3px; box-shadow: 0 0 0 2px #0B181C, 0 0 0 4px var(--gold), 0 4px 14px #0009; }
+.toast.is-strategic .toast-card { width: 330px; border-color: var(--gold); }
+.toast.is-strategic + .toast:not(.is-strategic) { margin-top: 6px; }
+.toast-kicker { display: inline-block; margin-bottom: 2px; padding: 0 6px; border-radius: 4px; background: var(--tone); color: #0B181C; font-size: 11px; font-style: normal; font-weight: 800; letter-spacing: .1em; }
+@media (prefers-reduced-motion: no-preference) {
+  .toast.is-strategic.is-peek .toast-icon { animation: strategic-pulse 1.4s ease-in-out 2; }
+}
+@keyframes strategic-pulse { 50% { box-shadow: 0 0 0 2px #0B181C, 0 0 0 7px var(--gold), 0 4px 14px #0009; } }
+
+/* U6: the ball stock in the top bar (a button to the purchase tab) and on the capture button. */
+.hud-balls { display: inline-flex; align-items: center; gap: 6px; min-height: 0; padding: 2px 8px; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.hud-balls:hover:not(:disabled) { border-color: var(--gold); background: var(--surface-raised); }
+.hud-balls .icon-stat b { color: var(--ink); font-size: 15px; }
+.hud-balls.is-empty .icon-stat b { color: var(--danger); }
+.unit-action { position: relative; }
+.unit-action-count { position: absolute; top: 1px; right: 2px; min-width: 15px; padding: 0 3px; border-radius: 8px; background: var(--accent); color: #0B181C; font-size: 10px; font-weight: 800; line-height: 15px; text-align: center; }
+.unit-action-count.empty { background: var(--danger); }
+
+/* U1 / U7: reasons shown next to disabled buttons. */
+.research-empty, .contest-reason { display: block; color: var(--warning); font-size: 12px; }
+.research-empty[hidden] { display: none; }
+.contest-show { display: inline-grid; gap: 2px; }

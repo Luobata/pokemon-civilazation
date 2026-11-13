@@ -2,8 +2,13 @@ import { victoryTargets } from '../content/opening.ts';
 import { CIVILIZATION_CONTENT } from '../content/civilization-systems.ts';
 import { LEGENDS } from '../content/faith-legends.ts';
 import type { PlayerView } from '../core/model.ts';
+import { dexCaptureCounts } from './dex-owned.ts';
+import { bindTip } from './ui-tip.ts';
+import { escapeAttr } from './ui-icons.ts';
 
-type Path = { id: string; name: string; value: number; target: number; detail: string; hint: string; nav?: string; blocked?: boolean };
+type Path = { id: string; name: string; value: number; target: number; detail: string; hint: string; nav?: string; blocked?: boolean;
+  /** Playtest 2026-11 U9: where the target number comes from (hover card on the victory page). */
+  why?: string };
 /** Civilization-style victory overview: every win path the current game enables, with own progress and the visible leader. */
 export function victoryPaths(view: PlayerView): Path[] {
   const exp = view.expansion;
@@ -11,24 +16,29 @@ export function victoryPaths(view: PlayerView): Path[] {
   const paths: Path[] = [{
     id: 'conquest', name: '征服', value: view.civilizations.filter(civ => civ.id !== view.playerId && civ.eliminated).length, target: view.civilizations.length - 1,
     detail: `剩余对手 ${rivals.length}`, hint: '攻占对手的联盟总部即可使其出局。', nav: '#diplomacy',
+    why: `开局时的对手数（${view.civilizations.length - 1} 个）：每攻占一个对手的联盟总部计 1。`,
   }];
   if (!exp) return paths;
   const records = Object.values(exp.world.player?.pokedex ?? {});
   const documented = records.filter(record => record.observed && (record.battled || record.captured)).length;
   paths.push({ id: 'pokedex', name: '图鉴', value: documented, target: exp.world.victory?.targetDocumentedSpecies ?? 18,
-    detail: `观察 ${records.filter(record => record.observed).length} · 捕捉 ${records.filter(record => record.captured).length}`, hint: '观察并对战或捕捉物种，完成图鉴记录。', nav: '#expansion-panel' });
+    detail: `观察 ${records.filter(record => record.observed).length} · 捕捉 ${dexCaptureCounts(view, records).caught}${dexCaptureCounts(view, records).owned ? ` · 拥有 ${dexCaptureCounts(view, records).owned}` : ''}`, hint: '观察并对战或捕捉物种，完成图鉴记录。', nav: '#expansion-panel',
+    why: `本局图鉴胜利的目标：随阵容规模和对局轮数（${view.roundLimit} 轮）设定。看到过、并且对战过或捕捉过的物种计 1。` });
   const civ = exp.civilization;
   const tablets = CIVILIZATION_CONTENT.sanctuaries.definitions.length;
   const ownTablets = Object.values(civ.tabletOwners).filter(owner => owner === view.playerId).length;
   const tabletLeader = Math.max(0, ...rivals.map(rival => Object.values(civ.tabletOwners).filter(owner => owner === rival.id).length));
-  paths.push({ id: 'origin', name: '起源（石板）', value: ownTablets, target: tablets, detail: `对手最多 ${tabletLeader}`, hint: '建立圣所并击败守卫获得石板。', nav: '#expansion-panel' });
+  paths.push({ id: 'origin', name: '起源（石板）', value: ownTablets, target: tablets, detail: `对手最多 ${tabletLeader}`, hint: '建立圣所并击败守卫获得石板。', nav: '#expansion-panel',
+    why: `全图圣所石板共 ${tablets} 块，集齐全部即胜。` });
   const titles = civ.championship.titlesByPlayer;
   paths.push({ id: 'championship', name: '冠军（联盟大会）', value: titles[view.playerId] ?? 0, target: (view.gameplayVersion ?? 0) >= 21 ? victoryTargets(view).championshipTitles : CIVILIZATION_CONTENT.championship.titlesNeededForVictory,
-    detail: `下一届第 ${civ.championship.nextRound} 轮 · 对手最多 ${Math.max(0, ...rivals.map(rival => titles[rival.id] ?? 0))}`, hint: '和平时报名六只宝可梦参加联盟大会。', nav: '#expansion-panel' });
+    detail: `下一届第 ${civ.championship.nextRound} 轮 · 对手最多 ${Math.max(0, ...rivals.map(rival => titles[rival.id] ?? 0))}`, hint: '和平时报名六只宝可梦参加联盟大会。', nav: '#expansion-panel',
+    why: (view.gameplayVersion ?? 0) >= 21 ? `${view.roundLimit} 轮对局的冠军头衔目标（100 轮 2 届，每多 100 轮 +1）。` : '固定 2 届（v21 以前的规则）。' });
   if (exp.contests) {
     const top = Math.max(0, ...exp.contests.rivals.map(rival => rival.appeal));
     paths.push({ id: 'contest', name: '华丽大赛（文化）', value: exp.contests.own.appeal, target: Math.max(exp.contests.target, Math.ceil(top * 1.5)),
-      detail: `每轮 +${exp.contests.own.perRound} · 对手最高 ${top}`, hint: `人气 ≥ ${exp.contests.target} 且为每个对手 1.5 倍。`, nav: '#expansion-panel' });
+      detail: `每轮 +${exp.contests.own.perRound} · 对手最高 ${top}`, hint: `人气 ≥ ${exp.contests.target} 且为每个对手 1.5 倍。`, nav: '#expansion-panel',
+      why: `取两者较大：${view.roundLimit} 轮对局的人气门槛 ${exp.contests.target}，最高对手人气 ${top} × 1.5 = ${Math.ceil(top * 1.5)}。` });
   }
   if (exp.faith) {
     const mine = exp.faith.faiths.find(item => item.founderId === view.playerId);
@@ -39,7 +49,8 @@ export function victoryPaths(view: PlayerView): Path[] {
       && knownCities.some(city => city.id === Number(cityId) && city.ownerId === rival.id))).length : rivals.length;
     paths.push({ id: 'faith', name: '传说共鸣（宗教）', value: mine?.followers ?? 0, target: Math.max(victoryTargets(view).faithMinimumCities, Math.ceil(exp.faith.totalCities * exp.faith.winShare)),
       detail: `${mine ? `${LEGENDS[mine.legend].name}信仰` : '尚未创立'}${top ? ` · 对手最多 ${top.followers} 城（${LEGENDS[top.legend].name}）` : ''}${missingRivals ? ` · 仍有 ${missingRivals} 个对手未皈依` : ''}`,
-      hint: '信仰城市达到全图 60%，且每个对手至少 1 城信仰。', nav: '#expansion-panel', blocked: missingRivals > 0 });
+      hint: '信仰城市达到全图 60%，且每个对手至少 1 城信仰。', nav: '#expansion-panel', blocked: missingRivals > 0,
+      why: `取两者较大：${view.roundLimit} 轮对局至少 ${victoryTargets(view).faithMinimumCities} 座，全图有主城市 ${exp.faith.totalCities} × ${Math.round(exp.faith.winShare * 100)}% = ${Math.ceil(exp.faith.totalCities * exp.faith.winShare)} 座；另外每个对手至少 1 城信你的信仰。` });
   }
   return paths;
 }
@@ -52,8 +63,13 @@ export function renderVictoryPanel(view: PlayerView): void {
   const best = [...paths].sort((a, b) => percent(b) - percent(a))[0];
   root.innerHTML = `<div class="subpanel-head"><strong>胜利进度</strong><span>第 ${view.round}/${view.roundLimit} 轮 · 到期按分数</span></div>
     <p class="victory-best">最接近：<b>${best.name}</b> ${percent(best)}%</p>
-    <ul class="victory-list">${paths.map(path => `<li data-victory="${path.id}"><div class="victory-row"><span>${path.name}</span><span>${path.value}/${path.target}</span></div>
+    <ul class="victory-list">${paths.map(path => `<li data-victory="${path.id}"><div class="victory-row"><span>${path.name}</span><span class="victory-target" data-victory-why="${path.id}"${path.why ? ` tabindex="0" aria-label="${escapeAttr(`${path.name} ${path.value}/${path.target}。目标 ${path.target}：${path.why}`)}"` : ''}>${path.value}/${path.target}</span></div>
       <div class="victory-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percent(path)}"><i style="width:${percent(path)}%"></i></div>
       <small>${path.detail}</small></li>`).join('')}</ul>
     <details${opened ? ' open' : ''}><summary>各胜利条件说明</summary><ul class="victory-hints">${paths.map(path => `<li><b>${path.name}</b>：${path.hint}</li>`).join('')}<li><b>分数</b>：轮次用尽时总分最高者获胜。</li></ul></details>`;
+  // U9: hovering (or focusing) a target explains its denominator.
+  for (const element of root.querySelectorAll<HTMLElement>('[data-victory-why]')) {
+    const path = paths.find(item => item.id === element.dataset.victoryWhy);
+    if (path?.why) bindTip(element, () => `<b>${escapeAttr(path.name)} · 目标 ${path.target}</b><small>${escapeAttr(path.why!)}</small>`);
+  }
 }

@@ -182,10 +182,10 @@ export function speciesTable(): string {
   const generationRecruit = (id: SpeciesId) => Object.entries(content.roster?.generationRecruits ?? {}).find(([, s]) => s === id)?.[0];
   const leaderOf = (id: SpeciesId) => LEADER_IDS.find(leader => leaderUnitFor(content, leader, LEADER_KITS[leader].unit) === id);
   const dex = (id: SpeciesId) => Number(/(\d+)\.png$/.exec(pokemonSpritePath(id))![1]);
-  const conditionText = (option: EvolutionOption) => [option.minGeneration && option.minGeneration > 1 ? `第 ${option.minGeneration} 世代起` : '',
+  const conditionText = (option: EvolutionOption) => [option.minGeneration && option.minGeneration > 1 ? `第 ${option.minGeneration} 时代起` : '',
     option.time === 'day' ? '白天' : option.time === 'night' ? '夜晚' : '', option.biome ? `站在${biomeList([option.biome])}` : ''].filter(Boolean).join('、');
   ids.sort((a, b) => dex(a) - dex(b));
-  return table(['#', '宝可梦', '属性', '阶段', '定位', 'HP', '攻', '防', '移动', '射程', '视野', '训练', '维护', '世代', '野外出没', '进化 / 获取'],
+  return table(['#', '宝可梦', '属性', '阶段', '定位', 'HP', '攻', '防', '移动', '射程', '视野', '训练', '维护', '原作世代', '野外出没', '进化 / 获取'],
     ids.map(id => {
       const s = content.species[id];
       const stone = stones.get(id);
@@ -194,7 +194,7 @@ export function speciesTable(): string {
       const evolution = [stone ? `→ ${speciesName(stone.intoSpeciesId)}（只能用${WORLD_DEFINITIONS.stones[stone.stoneId].name}，需 ${stone.requiredXp} 经验，不花金币）` : '',
         ...options.map(option => `→ ${speciesName(option.speciesId)}（${option.xp} 经验 + ${option.gold} 金${option.requiresTraining ? '，需特训法' : ''}${conditionText(option) ? `，${conditionText(option)}` : ''}）`)].filter(Boolean).join('；');
       const sources = [evolution,
-        recruitTech(id) ? `研究${techName(recruitTech(id)!)}后各城可招募` : '', generationRecruit(id) ? `进入第 ${generationRecruit(id)} 世代后各城可招募` : '',
+        recruitTech(id) ? `研究${techName(recruitTech(id)!)}后各城可招募` : '', generationRecruit(id) ? `进入第 ${generationRecruit(id)} 时代后各城可招募` : '',
         leaderOf(id) ? `${LEADERS[leaderOf(id)!].name}的专属宝可梦` : '',
         s.rare ? '稀有（出现率 ×0.25，捕捉率减半）' : ''].filter(Boolean);
       return [String(dex(id)).padStart(3, '0'), `<img class="sprite" loading="lazy" src="${pokemonSpritePath(id)}" alt=""> ${s.name}`,
@@ -205,7 +205,7 @@ export function speciesTable(): string {
 }
 /** v14: one recruit per reached generation. */
 export function generationRecruitTable(): string {
-  return table(['进入世代', '各城可招募'], Object.entries(content.roster?.generationRecruits ?? {}).map(([generation, id]) => [`第 ${generation} 世代`, speciesName(id!)]), [0]);
+  return table(['进入时代', '各城可招募'], Object.entries(content.roster?.generationRecruits ?? {}).map(([generation, id]) => [`第 ${generation} 时代`, speciesName(id!)]), [0]);
 }
 export function roleTable(): string {
   const roles = Object.keys(ROLE_CITY_ASSAULT) as (keyof typeof ROLE_CITY_ASSAULT)[];
@@ -266,7 +266,7 @@ export function policyTable(): string {
 export const policySwapGold = POLICY_SWAP_GOLD;
 export const governmentSwapGold = GOVERNMENT_SWAP_GOLD;
 export function legendWonderTable(): string {
-  return table(['#', '传说 · 奇观', '世代', '线索', '造价', '效果'], LEGEND_WONDER_IDS.map(id => {
+  return table(['#', '传说 · 奇观', '时代', '线索', '造价', '效果'], LEGEND_WONDER_IDS.map(id => {
     const legend = LEGEND_WONDERS[id];
     return [String(legend.dex).padStart(3, '0'), `<img class="sprite" loading="lazy" src="${legendSprite(id)}" alt=""> ${legend.name} · ${legend.wonderName}`, String(legend.generation),
       LEGEND_CLUE_TEXT(legend.clue) + (legend.clue.kind === 'trace' ? `（${legend.clue.coastal ? '海边' : biomeList(legend.clue.biomes.slice(0, 1))}）` : ''), String(legendCost(id)), legendEffectText(id)];
@@ -388,7 +388,7 @@ export function essenceTable(): string {
 }
 export const essenceRules = ESSENCE_RULES;
 export function eraAbilityTable(): string {
-  return table(['能力', '解锁时代', '效果'], ERA_ABILITY_IDS.map(id => [ERA_ABILITIES[id].name, `第 ${ERA_ABILITIES[id].generation} 世代（${ERA_ABILITIES[id].era}）`, ERA_ABILITIES[id].description]));
+  return table(['能力', '解锁时代', '效果'], ERA_ABILITY_IDS.map(id => [ERA_ABILITIES[id].name, `第 ${ERA_ABILITIES[id].generation} 时代（${ERA_ABILITIES[id].era}）`, ERA_ABILITIES[id].description]));
 }
 export function weatherTable(): string {
   return table(['天气', '消耗精华', '增强', '削弱'], WEATHER_IDS.map(id => {

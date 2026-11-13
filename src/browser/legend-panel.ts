@@ -32,7 +32,7 @@ const siteText = (legends: LegendView, id: LegendWonderId) => {
 export function legendStartBlocker(view: PlayerView, city: ViewCity, id: LegendWonderId): string | null {
   const reason = viewLegendBlocker(view, city, id), legends = view.expansion?.legends;
   if (!reason) return null;
-  return { unavailable: '本局没有传说奇观', built: '已被建成', 'no-clue': '还没有线索', generation: `需要进入第 ${LEGEND_WONDERS[id].generation} 世代`,
+  return { unavailable: '本局没有传说奇观', built: '已被建成', 'no-clue': '还没有线索', generation: `需要进入第 ${LEGEND_WONDERS[id].generation} 时代`,
     elsewhere: '另一座城市正在建造', queued: '已在本城队列中', site: legends ? siteText(legends, id) : '' }[reason];
 }
 export const buildableLegends = (view: PlayerView, city: ViewCity) => LEGEND_WONDER_IDS.filter(id => legendStartBlocker(view, city, id) === null);
@@ -65,7 +65,7 @@ export function legendScreenMarkup(view: PlayerView): string {
     const state: CardState = wonder ? wonder.ownerId === view.playerId ? 'mine' : 'theirs' : building ? 'building' : clue && legends.generation >= legend.generation ? 'ready' : clue ? 'clue' : legends.generation < legend.generation ? 'locked' : 'unknown';
     const status = { mine: `已建成 · 你的城市 ${wonder?.cityId ?? ''}（第 ${wonder?.round} 轮）`, theirs: `已被${civName(wonder?.ownerId ?? null)}建成（第 ${wonder?.round} 轮）`,
       building: `建造中 · 城市 ${building?.cityId} · ${building?.progress}/${building?.cost}`, ready: `有线索，可以开工（${siteText(legends, id)}）`,
-      clue: `有线索 · 进入第 ${legend.generation} 世代后可以开工`, unknown: `线索：${LEGEND_CLUE_TEXT(legend.clue)}`, locked: `第 ${legend.generation} 世代 · 线索：${LEGEND_CLUE_TEXT(legend.clue)}` }[state];
+      clue: `有线索 · 进入第 ${legend.generation} 时代后可以开工`, unknown: `线索：${LEGEND_CLUE_TEXT(legend.clue)}`, locked: `第 ${legend.generation} 时代 · 线索：${LEGEND_CLUE_TEXT(legend.clue)}` }[state];
     const chapters = story ? [clue || wonder ? ['第一章 · 线索', story.clue] : null, building || state === 'mine' ? ['第二章 · 筑殿', story.building] : null,
       state === 'mine' ? ['终章 · 降临', story.complete] : null].filter((item): item is string[] => item !== null) : [];
     const site = legends.sites.find(item => item.legendId === id);
@@ -75,8 +75,8 @@ export function legendScreenMarkup(view: PlayerView): string {
       ${site && !wonder ? `<button type="button" data-legend-site="${site.tileIndex}">在地图上定位踪迹</button>` : ''}
       ${chapters.length ? `<details class="legend-story"><summary>剧情（${chapters.length}/3）</summary>${chapters.map(([title, text]) => `<h4>${title}</h4><p>${text}</p>`).join('')}</details>` : ''}</div></article>`;
   };
-  return `<div class="legend-screen"><p class="legend-summary">你建成 ${built} 座传说奇观 · 全世界已建成 ${legends.wonders.length}/${ids.length} 座 · 你的线索 ${legends.clues.length} · 当前第 ${legends.generation} 世代 ${civHint('wonder')}</p>
-    ${groups.map(generation => `<section class="legend-generation"><h2>第 ${generation} 世代</h2><div class="legend-grid">${ids.filter(id => LEGEND_WONDERS[id].generation === generation).map(card).join('')}</div></section>`).join('')}</div>`;
+  return `<div class="legend-screen"><p class="legend-summary">你建成 ${built} 座传说奇观 · 全世界已建成 ${legends.wonders.length}/${ids.length} 座 · 你的线索 ${legends.clues.length} · 当前第 ${legends.generation} 时代 ${civHint('wonder')}</p>
+    ${groups.map(generation => `<section class="legend-generation"><h2>第 ${generation} 时代</h2><div class="legend-grid">${ids.filter(id => LEGEND_WONDERS[id].generation === generation).map(card).join('')}</div></section>`).join('')}</div>`;
 }
 
 /** Full-screen story card shown to the builder when a wonder completes. */

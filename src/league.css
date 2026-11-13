@@ -1,0 +1,37 @@
+/* Playtest 2026-11 B1: Pokémon League result card on the 动态 screen (src/browser/league-card.ts). */
+#league-result[hidden] { display: none; }
+.league-card { display: grid; gap: 12px; padding: 14px; border: 2px solid var(--gold); border-radius: 12px; background: linear-gradient(160deg, #2A3A2C, #17282D 60%); }
+.league-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.league-head > div { display: grid; flex: 1 1 200px; }
+.league-head strong { color: #FFF8E5; font-size: 18px; }
+.league-head small { color: var(--ink-muted); }
+.league-own { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--border-strong); border-radius: 999px; color: var(--ink-secondary); font-weight: 700; }
+.league-own.champion { border-color: var(--gold); background: var(--gold-soft); color: #FFE7A8; }
+.league-own.final, .league-own.semifinal { border-color: #75AFC7; color: #CFE6EF; }
+.league-champion { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 10px; border-radius: 10px; background: #403722aa; }
+.league-champion b { color: #FFE7A8; font-size: 15px; }
+.league-team-sprites { display: inline-flex; gap: 2px; }
+.league-team-sprites .px-art { image-rendering: pixelated; }
+.league-bracket { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; align-items: center; }
+.league-bracket h4, .league-roster h4 { margin: 0 0 6px; color: var(--ink-secondary); font-size: 13px; }
+.league-bracket h4 small { color: var(--ink-muted); font-weight: 400; }
+.league-bracket ol, .league-pair, .league-damage { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.league-match { padding: 6px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+.league-match.final { border-color: var(--gold); }
+.league-match-head { display: flex; justify-content: space-between; align-items: center; color: var(--ink-muted); }
+.league-pair { gap: 3px; }
+.league-team { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "name name name" "sprites power score"; gap: 2px 6px; align-items: center; padding: 3px 5px; border-radius: 6px; }
+.league-team-name { grid-area: name; display: inline-flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.league-team .league-team-sprites { grid-area: sprites; }
+.league-team .league-power { grid-area: power; } .league-team .league-score { grid-area: score; }
+.league-team.won { background: #2A4A3C; }
+.league-team.lost { opacity: .72; }
+.league-team.mine { outline: 2px solid var(--accent); }
+.league-team.champion .league-team-name b { color: #FFE7A8; }
+.league-damage li { display: grid; grid-template-columns: 40px minmax(60px, 1fr) auto auto auto; align-items: center; gap: 8px; }
+.league-bar { height: 8px; border-radius: 4px; background: var(--surface-muted); overflow: hidden; }
+.league-bar i { display: block; height: 100%; background: #E5554A; }
+.league-history { display: flex; gap: 6px; flex-wrap: wrap; }
+.league-history button { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; font-size: 12px; }
+.league-history button[aria-pressed="true"] { border-color: var(--gold); color: #FFE7A8; }
+@media (max-width: 900px) { .league-bracket { grid-template-columns: 1fr; } }

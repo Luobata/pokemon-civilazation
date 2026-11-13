@@ -3,6 +3,7 @@
 import type { GuideSection } from './sections.ts';
 import * as T from './tables.ts';
 import { civ6Terms } from './civ6.ts';
+import { victoryTargets } from '../content/opening.ts';
 
 const tip = (...lines: string[]) => `<div class="tip">${lines.map(line => `<p>${line}</p>`).join('')}</div>`;
 const link = (id: string, label: string) => `<a href="#${id}">${label}</a>`;
@@ -21,7 +22,7 @@ export const OVERVIEW_SECTIONS: readonly GuideSection[] = [
       ['宝可梦单位、捕捉、进化', '基础', '48 种宝可梦，7 种定位', '点单位', link('pokemon', '宝可梦图鉴')],
       ['18 属性战斗、攻城定位', '扩展', '属性克制、地形、攻城倍率', '点单位', link('combat', '战斗与捕捉')],
       ['领袖与时代方针', '扩展 / v4', '9 位领袖，被动、主动、专属单位与建筑', '领袖面板', link('leaders', '领袖')],
-      ['时代（世代）' + civ6Terms('era'), '扩展', '按完成科技数推进世代', '时代面板', link('techs', '科技与时代')],
+      ['时代' + civ6Terms('era'), '扩展', '按完成科技数推进时代（第 N 时代）', '时代面板', link('techs', '科技与时代')],
       ['世界：图鉴、巢穴、霸主、树果、进化石、满意度' + civ6Terms('nest', 'overlord', 'satisfaction'), '扩展', '地图上的中立资源与威胁', '点单位 / 扩展面板', link('world', '世界系统')],
       ['文明：供奉、幻影、圣所、冠军赛、外交' + civ6Terms('offering', 'phantom'), '扩展', '伟人、起源胜利、冠军赛胜利、贸易与结盟', '扩展面板 / 外交面板', link('civilization', '供奉、幻影与圣所')],
       ['地块改良、控制区、夹击' + civ6Terms('improvement', 'flanking'), 'v2', '宝可梦施工；近战/快速型阻挡敌人', '点单位', link('improvements', '地块改良')],
@@ -59,7 +60,7 @@ export const OVERVIEW_SECTIONS: readonly GuideSection[] = [
       ['征服', '占领对手的<strong>首都</strong>就会消灭该文明（其余城市变为中立、单位全部移除）。只剩你一个文明时获胜。', '攻城型 + 投石改装；见 ' + link('combat', '攻城')],
       ['图鉴', `图鉴记录物种数达到 ${world.pokedex.targetDocumentedSpecies + 3} 种（物种被你<strong>看到过</strong>，并且你<strong>看到它参与过战斗</strong>或<strong>捕捉过它</strong>）。先达到者立即获胜。`, '满图侦察、捕捉、清巢穴'],
       ['起源', `拥有全部 ${civ.sanctuaries.definitions.length} 块圣所石板。只有圣所主人能挑战守卫，所以 4 个圣所都要由你建立；任一圣所被对手抢先建立，这条路线就断了。`, '早期派单位占圣所，每个 80 金'],
-      ['冠军赛', `赢得 ${civ.championship.titlesNeededForVictory} 次冠军赛。第 ${civ.championship.firstSeasonRound} 轮开第一届，之后每 ${civ.championship.intervalRounds} 轮一届。`, '6 只高等级宝可梦，报名时与所有文明和平'],
+      ['冠军赛', `冠军头衔达到目标：${[100, 200, 300].map(roundLimit => `${roundLimit} 轮对局 ${victoryTargets({ gameplayVersion: 21, roundLimit }).championshipTitles} 次`).join('、')}（v24 起四天王也计 1 次）。第 ${civ.championship.firstSeasonRound} 轮开第一届，之后每 ${civ.championship.intervalRounds} 轮一届。`, '6 只高等级宝可梦，报名时与所有文明和平'],
       ['华丽大赛', '魅力 ≥ 500，并且至少是每个存活对手的 1.5 倍。', '多建华丽馆、多登记物种和稀有树果'],
       ['信仰', '地图上至少有 6 座有主城市；你的信仰占所有有主城市的 60%（向上取整）以上；并且每个存活对手都至少有 1 座城市信你的信仰。', '先攒供奉点创立信仰，再主动传播'],
       ['计分', '到达轮上限（100 / 200 / 300）那一轮结束时，分数最高者获胜。', '均衡发展'],
@@ -83,14 +84,14 @@ export const SYSTEM_SECTIONS: readonly GuideSection[] = [
     </ul>` },
 
   { id: 'era-abilities', group: '文明发展', title: '时代能力与天气', badge: 'v5', html: `
-    <p>每进入一个新世代解锁一项能力。除昼夜外，主动能力都要消耗精华。<strong>精简进程只能到第 3 世代</strong>，所以只有昼夜和天气；Mega、Z 招式、极巨化、太晶化只在完整进程中出现。</p>
+    <p>每进入一个新时代解锁一项能力。除昼夜外，主动能力都要消耗精华。<strong>精简进程只能到第 3 时代</strong>，所以只有昼夜和天气；Mega、Z 招式、极巨化、太晶化只在完整进程中出现。</p>
     ${T.eraAbilityTable()}
     <h3>天气</h3>
     ${T.weatherTable()}
     <ul>
       <li>天气以你的一座城市为中心，半径 3，持续 3 轮，冷却 8 轮。效果只看<strong>攻击方所在位置和主属性</strong>，范围内的敌人同样受影响。</li>
       <li>夜晚是每 4 轮中的后 2 轮，对所有文明生效：恶、幽灵系主动攻击 +15%。</li>
-      <li>亲密度：第 2 世代起，你城市劳动范围内的宝可梦每轮 +3 经验。</li>
+      <li>亲密度：第 2 时代起，你城市劳动范围内的宝可梦每轮 +3 经验。</li>
       <li>Mega 只能给最终形态，永久生效，同时只能有一只；太晶化同理。</li>
     </ul>
     ${tip('下雨/大晴天要放在“你的攻击方”站的位置，而不是敌人站的位置。火系部队进攻时，别在自己头顶下雨。')}` },

@@ -51,7 +51,8 @@ function stateOf(context: TreeContext, id: TechId): NodeState {
 }
 function roundsLeft(context: TreeContext, id: TechId): number {
   const research = context.view.economy.player.research;
-  return Math.max(1, Math.ceil(Math.max(0, def(context.content, id).cost - research.progressByTech[id]) / Math.max(1, context.perRound)));
+  // Playtest 2026-11 B5: the research reserve flows into the next topic at the round's settlement, so it counts too.
+  return Math.max(1, Math.ceil(Math.max(0, def(context.content, id).cost - research.progressByTech[id] - research.reserve) / Math.max(1, context.perRound)));
 }
 function stateLabel(context: TreeContext, id: TechId): string {
   const state = stateOf(context, id), names = missingPrerequisites(context.view.economy.player, id, context.content).map(item => def(context.content, item).name);
@@ -65,7 +66,7 @@ function nodeMarkup(context: TreeContext, id: TechId, row: number): string {
   const chips = techUnlocks(id, context.content, context.view.gameplayVersion).map(item => unlockChip(item, id, 22)).join('');
   const line = TECH_LINES[tech.line ?? 'capture'], badge = STATE_ICON[state];
   return `<button type="button" class="tech-node ${state}${selected === id ? ' selected' : ''}" data-tree-node="${id}" style="grid-column:${tech.tier};grid-row:${row + 1};--line:${line.color}"
-      aria-pressed="${selected === id}" aria-label="${tech.name} · ${stateLabel(context, id)}">
+      aria-pressed="${selected === id}" aria-label="${tech.name} · ${stateLabel(context, id)}${state === 'available' && !context.disabled ? ' · 点击开始研究' : ''}">
       <span class="node-icon">${uiIcon(TECH_ICONS[id], { size: 36 })}${badge ? `<span class="node-state-badge">${uiIcon(badge, { size: 16, label: STATE_NAME[state] })}</span>` : ''}</span>
       <span class="node-main"><strong>${tech.name}</strong>
         <span class="node-meta">${statChip('research', tech.cost, '科研', 'node-cost')}${state === 'done' ? '' : statChip('turns', `≈${roundsLeft(context, id)}`, '约轮数', 'node-rounds')}</span></span>
@@ -124,8 +125,32 @@ function highlight(root: HTMLElement, content: Content, id: TechId | null): void
   }
 }
 
+/**
+ * Playtest 2026-11 U1: one research flow. The select and its button follow the tree's selection (an available topic is
+ * preselected, so the button is never a no-op); with nothing to research the button is disabled and says why.
+ */
+function syncTopic(root: HTMLElement, context: TreeContext, id: TechId | null): void {
+  const picker = root.querySelector<HTMLSelectElement>('#research-topic'), button = root.querySelector<HTMLButtonElement>('#set-research');
+  if (!picker || !button) return;
+  const research = context.view.economy.player.research, topics = [...picker.options].map(option => option.value).filter(Boolean) as TechId[];
+  const topic = id && topics.includes(id) ? id : topics.includes(picker.value as TechId) ? picker.value as TechId : research.techId ?? topics[0] ?? null;
+  picker.value = topic ?? '';
+  const reason = !topics.length ? noTopicReason(context) : topic === research.techId ? `正在研究「${def(context.content, topic!).name}」。点科技树上另一项可研究的节点即可改研。` : null;
+  button.textContent = topic && topic !== research.techId ? `研究「${def(context.content, topic).name}」` : topic ? '正在研究' : '选择研究';
+  button.disabled = context.disabled || reason !== null;
+  button.title = reason ?? `开始研究「${def(context.content, topic!).name}」（已有进度保留）`;
+  const note = root.querySelector<HTMLElement>('#research-empty');
+  if (note) { note.hidden = topics.length > 0; note.textContent = topics.length ? '' : noTopicReason(context); }
+}
+function noTopicReason(context: TreeContext): string {
+  const research = context.view.economy.player.research, all = ids(context.content);
+  return research.unlockedIds.length >= all.length ? '所有科技都已完成。' : research.techId ? `正在研究「${def(context.content, research.techId).name}」，其余科技的前置还没完成。`
+    : '暂无可研究的科技：先完成前置科技。';
+}
+
 function select(root: HTMLElement, context: TreeContext, id: TechId): void {
   selected = id;
+  syncTopic(root, context, id);
   for (const node of root.querySelectorAll<HTMLElement>('[data-tree-node]')) {
     node.classList.toggle('selected', node.dataset.treeNode === id);
     node.setAttribute('aria-pressed', String(node.dataset.treeNode === id));
@@ -155,10 +180,10 @@ export function renderTechTree(root: HTMLElement, view: PlayerView, content: Con
       <div class="research-summary"><div class="research-current">${current ? `<span class="detail-icon active">${uiIcon(TECH_ICONS[current], { size: 36 })}</span>` : ''}<div><small>当前研究</small><strong id="research-status">${current ? `${def(content, current).name} ${research.progressByTech[current]}/${def(content, current).cost}` : '未选课题，科研进入储备'}</strong>
         <span class="research-stats">${statChip('research', `+${perRound}`, '每轮科研')}${statChip('turns', research.reserve, '储备科研')}${statChip('check', `${research.unlockedIds.length}/${all.length}`, '已完成科技')}${found ? `${statChip('pokedex', `${found.length}/${all.length}`, '图鉴发现')} ${civHint('discovery')}` : ''}</span></div></div>
         <div class="research-controls"><label>研究课题<select id="research-topic" ${disabled ? 'disabled' : ''}><option value="">选择课题</option>${topics.map(id => `<option value="${id}" ${id === current ? 'selected' : ''}>第${def(content, id).tier}列 ${def(content, id).name} ${research.progressByTech[id]}/${def(content, id).cost}${found?.includes(id) ? ' ★' : ''}</option>`).join('')}</select></label>
-        <button id="set-research" ${disabled || !topics.length ? 'disabled' : ''}>选择研究</button></div></div>
+        <button id="set-research" ${disabled || !topics.length ? 'disabled' : ''}>选择研究</button><small id="research-empty" class="research-empty" role="note" hidden></small></div></div>
       ${current ? `<div class="research-progress" aria-hidden="true"><span style="width:${percent}%"></span></div>` : ''}
     </section>
-    <p class="tech-tree-help">科技有<strong>指定前置</strong>：连线左端的科技全部完成后才能研究。悬停或选中一项会高亮它的前置链。滚轮、触控板或 ←/→ 键左右浏览。</p>
+    <p class="tech-tree-help">科技有<strong>指定前置</strong>：连线左端的科技全部完成后才能研究。<strong>点一项可研究的科技即开始研究</strong>（已有进度保留）；悬停或选中一项会高亮它的前置链。滚轮、触控板或 ←/→ 键左右浏览。</p>
     <ul class="tech-line-legend" aria-label="科技路线">${TECH_LINE_IDS.map(line => `<li style="--line:${TECH_LINES[line].color}">${TECH_LINES[line].name}</li>`).join('')}</ul>
     <ul class="tech-icon-legend" aria-label="图例">${(['done', 'active', 'available', 'locked'] as const).map(state => `<li class="legend-state ${state}"><span class="legend-frame">${STATE_ICON[state] ? uiIcon(STATE_ICON[state]!, { size: 14 }) : ''}</span>${STATE_NAME[state]}</li>`).join('')}
       ${found ? `<li class="legend-gap">${uiIcon('pokedex', { size: 16 })}图鉴发现</li>` : ''}<li>${uiIcon('research', { size: 16 })}科研</li><li>${uiIcon('turns', { size: 16 })}轮数</li>
@@ -177,12 +202,21 @@ export function renderTechTree(root: HTMLElement, view: PlayerView, content: Con
     </div>`;
   root.querySelector('#set-research')!.addEventListener('click', () => {
     const techId = root.querySelector<HTMLSelectElement>('#research-topic')!.value as TechId;
-    if (techId) issue({ type: 'SetResearch', techId });
+    if (techId && techId !== research.techId) issue({ type: 'SetResearch', techId });
+  });
+  // The select previews its topic in the tree (and the detail beside it) before the button commits it.
+  root.querySelector<HTMLSelectElement>('#research-topic')!.addEventListener('change', event => {
+    const techId = (event.target as HTMLSelectElement).value as TechId;
+    if (techId) select(root, context, techId); else syncTopic(root, context, null);
   });
   const scroll = root.querySelector<HTMLElement>('.tech-tree-scroll')!, tree = root.querySelector<HTMLElement>('.tech-tree-v22')!;
   for (const node of root.querySelectorAll<HTMLButtonElement>('[data-tree-node]')) {
     const id = node.dataset.treeNode as TechId;
-    node.addEventListener('click', () => select(root, context, id));
+    // U1: clicking a researchable node starts it (Civilization-style); any other node only opens its details.
+    node.addEventListener('click', () => {
+      select(root, context, id);
+      if (!disabled && stateOf(context, id) === 'available') issue({ type: 'SetResearch', techId: id });
+    });
     node.addEventListener('mouseenter', () => highlight(root, content, id));
     node.addEventListener('focus', () => highlight(root, content, id));
     node.addEventListener('mouseleave', () => highlight(root, content, selected));

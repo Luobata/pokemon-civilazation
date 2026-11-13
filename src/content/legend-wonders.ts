@@ -109,7 +109,7 @@ export const LEGEND_CLUE_TEXT = (clue: LegendClue): string => {
     case 'rareBerries': return `拥有 ${clue.count} 种稀有树果`;
     case 'traits': return `一只宝可梦拥有 ${clue.count} 个特性`;
     case 'traitPair': return '一只宝可梦同时拥有两种指定特性';
-    case 'generation': return `进入第 ${clue.generation} 世代`;
+    case 'generation': return `进入第 ${clue.generation} 时代`;
     case 'explored': return `探索地图 ${clue.percent}%`;
     case 'nightKnockdown': return '夜晚，用指定属性的宝可梦主动击倒一个单位';
     case 'dayKnockdown': return '白天，用指定属性的宝可梦主动击倒一个单位';
