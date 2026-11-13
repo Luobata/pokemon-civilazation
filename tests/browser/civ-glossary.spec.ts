@@ -107,13 +107,13 @@ test('in game, hovering a 文明 6 chip or a nest on the map shows the Civ VI an
   await closeScreen(page);
   await expect(page.locator('#civ-hint-card')).toBeHidden();
 
-  // End the turn (Shift+click skips the reminders); after the AI turns the era screen still explains 世代.
+  // End the turn (Shift+click skips the reminders); after the AI turns the era screen still explains 时代.
   const round = fixture.state.round;
   await page.locator('#end-turn').click({ modifiers: ['Shift'] });
   await expect.poll(async () => page.evaluate(async () => { const path = '/src/browser/main.ts'; return (await import(path)).developerAdapter.getState().round; }), { timeout: 60_000 }).toBeGreaterThan(round);
   await openScreen(page, 'era');
   card = await hoverHint(page, page.locator('#era-panel [data-civ-hint="era"]'));
-  await expect(card).toContainText('世代 ≈ 《文明 6》的时代');
+  await expect(card).toContainText('时代 ≈ 《文明 6》的时代');
   // Keyboard users get the same card on focus.
   await page.mouse.move(5, 5);
   await page.locator('#era-panel [data-civ-hint="era"]').focus();

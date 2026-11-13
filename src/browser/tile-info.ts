@@ -202,7 +202,7 @@ export function describeTile(view: PlayerView, index: number): TileInfo {
   if (trace && !expansion!.legends!.wonders.some(wonder => wonder.legendId === trace.legendId)) {
     const legends = expansion!.legends!, legend = LEGEND_WONDERS[trace.legendId], hasClue = legends.clues.includes(trace.legendId);
     const observing = view.economy.player.research.unlockedIds.includes('fieldObservation');
-    entities.push({ kind: 'legend', tone: 'info', title: `传说踪迹 · ${legend.name}`, subtitle: `第 ${legend.generation} 世代 · ${legend.wonderName}`,
+    entities.push({ kind: 'legend', tone: 'info', title: `传说踪迹 · ${legend.name}`, subtitle: `第 ${legend.generation} 时代 · ${legend.wonderName}`,
       lines: [hasClue ? '你已经得到这条线索，可以在合适的城市建造奇观。' : '派一只宝可梦站到这里，就能得到这位传说的线索（剧情第一章）。',
         `奇观效果：${legendEffectText(trace.legendId)}`],
       hint: hasClue ? '打开顶栏「传说」查看剧情与可建造的城市。' : observing ? '任何宝可梦走到这一格，回合内即可记录。' : '需要先研究「野外观察」。' });

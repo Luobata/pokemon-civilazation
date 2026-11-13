@@ -182,11 +182,11 @@ export function renderUnitPanel(view: PlayerView, selected: number | null, mode:
   }
   const teraOptions = era && stock && era.unlocked.includes('tera') && !status.tera && era.own.teraUnitId === null
     ? (Object.keys(TYPE_ESSENCE) as TypeId[]).filter(type => stock[TYPE_ESSENCE[type]] >= ERA_ABILITY_RULES.teraCost) : [];
-  const eraMarkup = era ? `<section class="era-ability-box" id="era-ability-box"><p class="section-label">时代能力 · 第 ${era.generation} 世代${era.night ? ' · 夜晚' : ' · 白天'}</p>
+  const eraMarkup = era ? `<section class="era-ability-box" id="era-ability-box"><p class="section-label">时代能力 · 第 ${era.generation} 时代${era.night ? ' · 夜晚' : ' · 白天'}</p>
     ${eraButtons.length ? `<div class="era-ability-actions">${eraButtons.join('')}</div>` : ''}
     ${status.tera ? `<p class="unit-note">太晶属性：${TYPE_NAMES[status.tera]}</p>` : teraOptions.length ? `<div class="tera-row"><select id="tera-type">${teraOptions.map(type => `<option value="${type}">${TYPE_NAMES[type]}（${ESSENCES[TYPE_ESSENCE[type]].name}）</option>`).join('')}</select><button type="button" id="terastallize" ${busy ? 'disabled' : ''} title="${ERA_ABILITIES.tera.description}">太晶化 · ${ERA_ABILITY_RULES.teraCost}</button></div>` : ''}
     ${essence && stock && eraButtons.length ? `<p class="unit-note">消耗本属性精华「${ESSENCES[essence].name}」，来自${ESSENCES[essence].biome === 'ocean' ? '海洋' : ({ grassland: '草原', forest: '森林', mountain: '山地', desert: '荒漠', snow: '雪原', volcano: '火山' } as Record<string, string>)[ESSENCES[essence].biome]}地块；城市耕作对应地形即可积累。</p>` : ''}
-    ${!eraButtons.length && !teraOptions.length && !status.tera ? `<p class="unit-note">${era.unlocked.length ? '本单位暂无可用时代能力。' : '进入金银时代后解锁昼夜，宝石时代解锁天气；完整世代模式还有 Mega、Z 招式、极巨化与太晶化。'}</p>` : ''}</section>` : '';
+    ${!eraButtons.length && !teraOptions.length && !status.tera ? `<p class="unit-note">${era.unlocked.length ? '本单位暂无可用时代能力。' : '进入金银时代后解锁昼夜，宝石时代解锁天气；完整时代进程还有 Mega、Z 招式、极巨化与太晶化。'}</p>` : ''}</section>` : '';
   // v24 D: the research card of the targeted wild / enemy Pokémon, else of this unit's species (keeps its open state across refreshes).
   const researchSpecies = targetUnit?.kind === 'pokemon' ? targetUnit.speciesId : unit.speciesId;
   const researchOpen = root.querySelector<HTMLDetailsElement>('#research-card')?.open ?? false;

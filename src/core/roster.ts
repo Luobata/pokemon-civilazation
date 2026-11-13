@@ -36,7 +36,7 @@ export function evolutionBlocker(content: Content, option: EvolutionOption, cont
   return null;
 }
 export const EVOLUTION_BLOCKER_TEXT: Record<'generation' | 'day' | 'night' | 'biome', string> = {
-  generation: '需要进入更晚的世代', day: '只能在白天进化', night: '只能在夜晚进化', biome: '需要站在指定地形上',
+  generation: '需要进入更晚的时代', day: '只能在白天进化', night: '只能在夜晚进化', biome: '需要站在指定地形上',
 };
 
 /** Generation that decides wild spawns in a map region: the civilization whose city is nearest the region centre. */
