@@ -1,6 +1,9 @@
 import { LANDMARKS, LANDMARK_IDS, TERRAIN_RULES_V24 } from '../content/terrain.ts';
 import { discoveryText } from '../content/discoveries.ts';
-import { ITEM_BALLS, ITEM_BALL_KINDS, OBJECTIVES, OBJECTIVE_IDS, OPENING_RULES, victoryTargets } from '../content/opening.ts';
+import { ITEM_BALLS, ITEM_BALL_KINDS, OBJECTIVES, OBJECTIVE_IDS, OPENING_RULES, regionalPokedexTarget, victoryTargets } from '../content/opening.ts';
+import { REGIONAL_DEX_RULES } from '../content/regional-dex.ts';
+import { RECRUIT_SLOTS } from '../content/recruit-slots.ts';
+import { SPECIES_TAGS } from '../content/species-tags.ts';
 import { STRENGTH_RULES, strengthFromPermille } from '../core/strength.ts';
 import { CLASS_COUNTERS, CLASS_HMS, CLASS_IDS, CLASS_NAMES, CLASS_NATIVE_TYPES, CLASS_RULES } from '../content/unit-classes.ts';
 import { hasAffinity } from '../core/unit-classes.ts';
@@ -53,7 +56,7 @@ import { DEDICATION_IDS, DEDICATION_RULES, DEDICATIONS } from '../content/dedica
 import { PROMOTION_RULES, PROMOTION_TRAITS, PROMOTION_TRAIT_IDS } from '../content/promotions.ts';
 import { techUnlocks } from '../browser/tech-info.ts';
 import { ELITE_FOUR, GYM_LEADERS, GYM_LEADER_ORDER, GYM_RULES_V24, GYM_TYPES, HOME_GYMS, STAGE_NAMES } from '../content/gym-circuit.ts';
-import { RIVAL_COUNTERS, RIVAL_RULES_V24, RIVAL_TEAMS } from '../content/rivals.ts';
+import { RIVAL_COUNTERS, RIVAL_RULES_V24, RIVAL_RULES_V25, RIVAL_TEAMS } from '../content/rivals.ts';
 
 const content = contentFor({ expansionVersion: 1, gameplayVersion: LATEST_GAMEPLAY_VERSION });
 
@@ -460,6 +463,44 @@ export function researchRewardTable(): string {
 // ---------- v24 B gym circuit / C rival trainers (docs/design/world-v24.md §3, §4) ----------
 export const gymRules = GYM_RULES_V24;
 export const rivalRules = RIVAL_RULES_V24;
+export const rivalRulesV25 = RIVAL_RULES_V25;
+/** v25 regional Pokédex (roster-v25 §2–§3): size, coverage constraints, recruit slots and the scaled Pokédex target. */
+export const regionalDexRules = REGIONAL_DEX_RULES;
+export function regionalDexConstraintTable(): string {
+  const rows: [string, string, string][] = [
+    ['兵种 × 阶段', '物种池里有属性契合候选的格子，图鉴至少 1 种契合的；只有不契合候选的格子，至少 1 种', '每个兵种在每个阶段都有可选的宝可梦'],
+    ['属性', '池里出现的每种属性（主或副）至少 1 种；抽取时任一属性不超过目标的 25%', '属性克制是主轴，又不让一种属性挤满'],
+    ['世代', '第 2 世代起，每个世代都有一 / 二阶的该世代物种', '世代招募总有对象'],
+    ['群系刷新', `每种群系至少 ${REGIONAL_DEX_RULES.biomeSpawns} 种第 1 世代的野生宝可梦`, '开局每种地形都有可抓的'],
+    ['巢穴与稀有', `至少 ${REGIONAL_DEX_RULES.nests} 种巢穴物种；稀有物种 ${REGIONAL_DEX_RULES.rareMin}–${REGIONAL_DEX_RULES.rareMax} 种（锚定线可能超出上限）`, '巢穴、霸主有候选'],
+    ['水面', `至少 ${REGIONAL_DEX_RULES.navalLines} 条含水面兵种的进化线`, '近海 / 远洋航行与小霞'],
+    ['核心招募槽', '驯化、碎石工艺、近海航行、骑行驯服、特训法、飞行训练和各世代招募不能空', '秘传与开局招募不落空'],
+  ];
+  return table(['约束', '规则', '为什么'], rows);
+}
+export function recruitSlotTable(): string {
+  return table(['招募槽', '首选', '兵种', '属性', '核心'], RECRUIT_SLOTS.map(slot => [slot.techId ? TREE_TECHS[slot.techId]?.name ?? slot.id : `第 ${slot.generation} 世代`,
+    speciesName(slot.preferred), slot.role ? ROLE_NAMES[slot.role] ?? slot.role : '—', slot.types?.map(type => TYPE_NAMES[type]).join(' / ') ?? '—', slot.core ? '✓' : '']));
+}
+/** v25 species tags (src/content/species-tags.ts): the one row per species that the regional tables are generated from. */
+export function speciesTagTable(): string {
+  const habitat = (id: string) => Object.entries(SPECIES_TAGS[id].habitat ?? {}).map(([key, weight]) => `${(BIOME_NAMES as Record<string, string>)[key] ?? ({ hill: '丘陵', river: '河流', peakside: '高峰旁' } as Record<string, string>)[key]} ${weight}`).join('、');
+  const slotName = (slot: string) => { const item = RECRUIT_SLOTS.find(entry => entry.id === slot)!; return item.techId ? TREE_TECHS[item.techId]?.name ?? slot : `第 ${item.generation} 世代`; };
+  const rarity = { common: '常见', uncommon: '少见', rare: '稀有' } as const;
+  return table(['宝可梦', '野外栖息地（权重）', '稀有度', '首选招募槽', '巢穴', '其他'], (Object.keys(SPECIES_TAGS).sort() as SpeciesId[]).filter(id => content.species[id]).map(id => {
+    const tags = SPECIES_TAGS[id];
+    return [speciesName(id), habitat(id) || '—', rarity[tags.rarity], (tags.recruit ?? []).map(slotName).join('、') || '—', tags.nest ? `权重 ${tags.nest}` : '—',
+      [tags.iconic === 'anchor' ? '每局必有' : tags.iconic === 'favored' ? '抽取 2 票' : '', tags.draw ? `抽取 ${tags.draw} 票` : '', tags.wanderer ? '游荡' : '',
+        tags.leader?.length ? `领袖专属（${tags.leader.map(leader => LEADERS[leader].name).join('、')}）` : ''].filter(Boolean).join('、') || '—'];
+  }));
+}
+/** Stone evolutions of the latest content, for the prose ("皮卡丘、妙蛙草、…"). */
+export const stoneEvolutionNames = (): string => stoneEvolutionsFor(content).map(path => speciesName(path.fromSpeciesId)).join('、');
+export function regionalTargetTable(): string {
+  const base = (roundLimit: 100 | 200 | 300) => Math.min(105, 18 + 3 + 5 + victoryTargets({ gameplayVersion: 25, roundLimit }).pokedexBonus);
+  return table(['轮上限', 'v24 目标', '精简 48 种（池 71）', '完整 60 种（池 105）'], ([100, 200, 300] as const).map(roundLimit => [`${roundLimit} 轮`, String(base(roundLimit)),
+    String(regionalPokedexTarget(base(roundLimit), REGIONAL_DEX_RULES.size['simple-v1'], 71)), String(regionalPokedexTarget(base(roundLimit), REGIONAL_DEX_RULES.size['full-v1'], 105))]), [1, 2, 3]);
+}
 export function gymLeaderTable(): string {
   return table(['精华', '馆主', '属性（按种子在组内选一种）', '家门口道馆'], GYM_LEADER_ORDER.map(id => [id === 'dragon' ? '（第 8 座）' : ESSENCES[id].name, GYM_LEADERS[id].name,
     GYM_TYPES[id].map(type => TYPE_NAMES[type]).join(' / '),

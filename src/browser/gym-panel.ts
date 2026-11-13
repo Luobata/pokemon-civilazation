@@ -3,6 +3,7 @@
 import { ELITE_FOUR, GYM_LEADERS, GYM_RULES_V24, STAGE_NAMES } from '../content/gym-circuit.ts';
 import { ESSENCES } from '../content/essences.ts';
 import { RIVAL_RULES_V24 } from '../content/rivals.ts';
+import { rivalStayRounds } from '../content/world24-tuning.ts';
 import { TYPE_NAMES } from '../content/type-names.ts';
 import { contentForView, unitDefinition } from '../content/units.ts';
 import { gymAt, leaderTeamFor, unitPower, viewEliteFourBlocker, viewGymBlocker, viewGymTeam } from '../core/gym-circuit.ts';
@@ -20,6 +21,11 @@ const civ = (view: PlayerView, id: number) => id === view.playerId ? '你' : `�
 export const gymTitle = (gym: GymSite) => `${GYM_LEADERS[gym.leader].name}的${ESSENCES[gym.essence].name}道馆`;
 const badgesOf = (view: PlayerView) => view.expansion?.gymCircuit?.badges[view.playerId] ?? [];
 /** "2 只一阶 · 战力 300": the viewer's next leader team (the same at every gym, §3.1 5A). */
+/** "6 轮", or per visit "6 / 9 / 12 轮" when the visits stay differently (v25). */
+const stayText = (view: PlayerView) => {
+  const stays = [0, 1, 2].map(visit => rivalStayRounds(contentForView(view), visit));
+  return stays.every(stay => stay === stays[0]) ? `${stays[0]} 轮` : `分别停留 ${stays.join(' / ')} 轮`;
+};
 export function nextLeaderText(view: PlayerView): string {
   const row = leaderTeamFor(badgesOf(view).length);
   return `${row.members} 只${STAGE_NAMES[row.stage]} · 战力 ${row.power}`;
@@ -54,7 +60,7 @@ export function v24TileEntities(view: PlayerView, index: number): (TileEntity & 
   if (rivals && pending?.tileIndex === index) {
     const capital = view.economy.player.headquartersCityId === pending.cityId;
     entities.push({ kind: 'rival', tone: 'enemy', title: `⚠ 劲敌${rivals.name}将在第 ${pending.round} 轮出现`, subtitle: `目标：${capital ? '首都' : `城市 ${pending.cityId}`}（只有你看得到这条预告）`,
-      lines: [`劲敌第 ${rivals.encounter + 1} 次登场，带着克制你御三家的宝可梦。它们只打你的宝可梦和城市（城市不会低于 1 HP），不打开拓队、工匠和商队，${RIVAL_RULES_V24.staysRounds} 轮后离开。`],
+      lines: [`劲敌第 ${rivals.encounter + 1} 次登场，带着克制你御三家的宝可梦。它们只打你的宝可梦和城市（城市不会低于 1 HP），不打开拓队、工匠和商队，${rivalStayRounds(contentForView(view), rivals.encounter)} 轮后离开。`],
       hint: '在目标城市附近留几只宝可梦；全部击倒有奖励。' });
   }
   return entities;
@@ -101,7 +107,7 @@ export function v24PanelCards(view: PlayerView, button: (label: string, action: 
       : rivals.activeUnitIds.length ? `正在你的领土附近（第 ${rivals.encounter} 次登场，还剩 ${rivals.activeUnitIds.length} 只）`
       : rivals.nextArrival !== null ? `下一次登场：第 ${rivals.nextArrival} 轮（提前 ${RIVAL_RULES_V24.warningRounds} 轮预告）` : '三次登场都已结束。';
     const outcomes = rivals.outcomes.map((outcome, index) => `第 ${index + 1} 次：${({ defeated: '击退', departed: '离开', skipped: '未登场' } as const)[outcome]}`).join(' · ');
-    html += card('s-rivals', `你的劲敌：${rivals.name}`, `<p id="rival-status">${esc(status)}</p><p>劲敌在第 ${RIVAL_RULES_V24.arrivals.join(' / ')} 轮登场，带克制你御三家的宝可梦，强度跟着你第二强的宝可梦走（「劲敌气势」）。只打你的宝可梦和城市（城市不会低于 1 HP），${RIVAL_RULES_V24.staysRounds} 轮后离开；不能捕捉。全部击倒有奖励：${RIVAL_RULES_V24.rewards.map((reward, index) => `第 ${index + 1} 次 金币 ${reward.gold}`).join('、')}。</p>${outcomes ? `<p>${esc(outcomes)}</p>` : ''}`);
+    html += card('s-rivals', `你的劲敌：${rivals.name}`, `<p id="rival-status">${esc(status)}</p><p>劲敌在第 ${RIVAL_RULES_V24.arrivals.join(' / ')} 轮登场，带克制你御三家的宝可梦，强度跟着你第二强的宝可梦走（「劲敌气势」）。只打你的宝可梦和城市（城市不会低于 1 HP），${stayText(view)}后离开；不能捕捉。全部击倒有奖励：${RIVAL_RULES_V24.rewards.map((reward, index) => `第 ${index + 1} 次 金币 ${reward.gold}`).join('、')}。</p>${outcomes ? `<p>${esc(outcomes)}</p>` : ''}`);
   }
   return html;
 }

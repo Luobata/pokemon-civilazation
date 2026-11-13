@@ -13,6 +13,7 @@ import { BUILDER_RULES } from '../content/roles.ts';
 import { SPECIES_NAMES } from '../content/species.ts';
 import { IMPROVEMENTS, IMPROVEMENT_IDS_V23 } from '../content/improvements.ts';
 import { EMBARK_TECHS } from '../content/terrain.ts';
+import { RECRUIT_SLOTS } from '../content/recruit-slots.ts';
 import { ERA_SIEGE_TECH_MULTIPLIER, ERA_TECH_RECRUITS } from '../core/role-tactics.ts';
 
 export const TECH_EFFECTS: Record<LegacyTechId, string> = {
@@ -59,7 +60,7 @@ export function techUnlocks(id: TechId, content?: Content, gameplayVersion?: num
     ...Object.entries(content?.buildings ?? BUILDINGS).filter(([, building]) => building.requiredTech === id).map(([ref, building]) => ({ kind: 'building' as const, text: `建筑「${building.name}」`, ref })),
     ...DISTRICT_IDS.filter(district => districtTech(district, tree) === id).map(district => ({ kind: 'district' as const, text: `设施区「${DISTRICTS[district].name}」`, ref: district })),
     ...(hm ? [{ kind: 'class' as const, text: `学会秘传「${hm[1].hm}」：可训练${CLASS_NAMES[hm[0]]}宝可梦`, ref: hm[0] }] : []),
-    ...(recruit ? [{ kind: 'recruit' as const, text: `各城可招募${SPECIES_NAMES[recruit]}`, ref: recruit }] : []),
+    ...recruitUnlock(id, recruit, content),
     // v24 A2: the two water-access technologies (from content.embark).
     ...(content?.embark && id === EMBARK_TECHS.shallow ? [{ kind: 'effect' as const, text: '乘浪：陆地单位可下浅海与湖（下水 / 上岸结束移动，防守 −10，不能攻击）' }] : []),
     ...(content?.embark && id === EMBARK_TECHS.deep ? [{ kind: 'effect' as const, text: '远洋冲浪：陆地单位可下深海' }] : []),
@@ -68,6 +69,13 @@ export function techUnlocks(id: TechId, content?: Content, gameplayVersion?: num
     ...(content?.resourceImprovements ? IMPROVEMENT_IDS_V23.filter(kind => IMPROVEMENTS[kind].requiredTech && IMPROVEMENTS[kind].boostTech === id)
       .map(kind => ({ kind: 'improvement' as const, text: `${IMPROVEMENTS[kind].name}再加${Object.entries(IMPROVEMENTS[kind].boost!).filter(([, v]) => v > 0).map(([k, v]) => `${({ food: '食物', production: '生产', gold: '金币', research: '科研' } as const)[k as 'food']} +${v}`).join('、')}`, ref: kind, boost: true as const })) : []),
   ];
+}
+/** v25: a regional recruit names its slot ("本地区的水面宝可梦"); an empty slot says so. Before v25: "各城可招募 X". */
+function recruitUnlock(id: TechId, recruit: string | undefined, content?: Content): TechUnlock[] {
+  const slot = content?.regionalDex ? RECRUIT_SLOTS.find(entry => entry.techId === id) : undefined;
+  if (slot) return [recruit ? { kind: 'recruit', text: `可训练：${SPECIES_NAMES[recruit as keyof typeof SPECIES_NAMES]}（本地区的${slot.kind}）`, ref: recruit }
+    : { kind: 'recruit', text: '本地区没有合适的宝可梦（招募槽空着；其他解锁照旧）' }];
+  return recruit ? [{ kind: 'recruit', text: `各城可招募${SPECIES_NAMES[recruit as keyof typeof SPECIES_NAMES]}`, ref: recruit }] : [];
 }
 export const TECH_TIERS = [1, 2, 3] as const;
 export const techsInTier = (tier: number) => (Object.keys(TECHS) as LegacyTechId[]).filter(id => TECHS[id].tier === tier);

@@ -715,6 +715,17 @@ export function inspectSystem(systemId: string, state: GameState): AuditSystemIn
     return { metrics: [metric('当前规则', '图鉴调查任务 v24'), ...Object.entries(book).map(([id, cards]) =>
       metric(`玩家 ${id} 调查卡`, `${Object.keys(cards).length} 种 · 2 项+ ${count(cards, 2)} · 4 项+ ${count(cards, 4)} · 完成 ${count(cards, 5)}`))], data: { researchTasks: book } };
   }
+  if (system.id === 's-regional-dex') {
+    const content = contentOf(state), dex = content.regionalDex;
+    if (!dex) return { metrics: [metric('当前规则', '未启用（需 v25）')], data: {} };
+    const regional = new Set(dex.speciesIds), outside = Object.values(state.units).filter(unit => unit.kind === 'pokemon' && unit.position && !regional.has(unit.speciesId));
+    const slots = content.roster?.recruitSlots ?? [];
+    return { metrics: [metric('当前规则', '地区图鉴 v25'), metric('图鉴物种', `${dex.size}/${dex.pool}`), metric('图鉴胜利目标', state.expansion?.world.victory.targetDocumentedSpecies ?? '—'),
+      metric('地图上不在图鉴里的宝可梦', outside.length), metric('空招募槽', slots.filter(item => !item.speciesId).length), metric('补位招募槽', slots.filter(item => item.level > 1 && item.level < 6).length),
+      ...Object.values(state.players).map(player => metric(`玩家 ${player.id} 已登记`, player.registeredSpeciesIds.length))],
+      data: { speciesIds: dex.speciesIds, recruitSlots: slots, outsideUnits: outside.map(unit => ({ id: unit.id, speciesId: unit.kind === 'pokemon' ? unit.speciesId : null })),
+        byClass: Object.fromEntries(['melee', 'ranged', 'fast', 'scout', 'siege', 'air', 'naval'].map(role => [role, dex.speciesIds.filter(id => content.species[id]?.role === role)])) } };
+  }
   if (system.id === 's-gym-circuit') {
     const circuit = state.expansion?.gymCircuit;
     if (!circuit) return { metrics: [metric('当前规则', '未启用（需 v24）')], data: {} };
