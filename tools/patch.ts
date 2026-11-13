@@ -45,6 +45,7 @@ export function patchSchema(base: Content): Schema {
     landPercent: [30, 80], rivalArrivals: indexed(base.world24.rivalArrivals, [2, 300]), rivalStrengthOffsets: indexed(base.world24.rivalStrengthOffsets, [-30, 30]),
     rivalStepsPerRound: [1, 6], gymTeamPower: indexed(base.world24.gymTeamPower, [10, 5000]), gymLatePowerPercent: [10, 300],
     eliteFourPower: indexed(base.world24.eliteFourPower, [10, 5000]),
+    ...(base.world24.rivalStayRounds ? { rivalStayRounds: indexed(base.world24.rivalStayRounds, [1, 30]) } : {}),
   } } : {}),
   };
 }

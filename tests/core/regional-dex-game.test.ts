@@ -33,8 +33,8 @@ test('views: v25 carries the public regional Pokédex and maps to the authority 
   expect(view.regionalDex).toEqual([...content.regionalDex!.speciesIds]);
   expect(contentForView(view)).toBe(content);
   expect(observe(createGame(setup(24)), 0).regionalDex).toBeUndefined();
-  // Pokédex target 42 at 200 rounds scales by N / 71; at 100 rounds the base is 26.
-  expect(state.expansion!.world.victory.targetDocumentedSpecies).toBe(Math.max(12, Math.round(26 * content.regionalDex!.size / 71)));
+  // Pokédex target: at 100 rounds the base is 26, scaled by half the regional share of the pool (1/2 + N / 142).
+  expect(state.expansion!.world.victory.targetDocumentedSpecies).toBe(Math.max(12, Math.round(26 * (0.5 + content.regionalDex!.size / 142))));
   for (const nest of Object.values(state.expansion!.world.nests)) expect(content.regionalDex!.speciesIds).toContain(nest.speciesId);
   for (const overlord of Object.values(state.expansion!.world.overlords)) expect(content.regionalDex!.speciesIds).toContain(overlord.speciesId);
   for (const starter of ['bulbasaur', 'charmander', 'squirtle'] as const) for (const list of ['primary', 'secondary'] as const) {

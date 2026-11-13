@@ -6,7 +6,7 @@ import { regionalSpeciesIds } from '../content/roster.ts';
 import type { StarterId } from '../content/units.ts';
 import type { SpeciesId } from '../content/species.ts';
 import type { Content } from '../content/units.ts';
-import { world24Tuning } from '../content/world24-tuning.ts';
+import { rivalStayRounds, world24Tuning } from '../content/world24-tuning.ts';
 import { stableSeed } from './civilization-systems.ts';
 import { resolveAttack } from './combat.ts';
 import { dualEffectiveness } from './combat-math.ts';
@@ -257,7 +257,7 @@ export function resolveRivalRound(state: GameState, content: Content, canStand: 
         if (state.outcome) return events;
       }
       events.push(...settleDefeats(state));
-      if (ledger.activeUnitIds.length && (state.round >= (ledger.arrivedAtRound ?? 0) + RULES.staysRounds - 1 || state.players[playerId].eliminated)) {
+      if (ledger.activeUnitIds.length && (state.round >= (ledger.arrivedAtRound ?? 0) + rivalStayRounds(content, ledger.encounter - 1) - 1 || state.players[playerId].eliminated)) {
         for (const id of ledger.activeUnitIds) delete state.units[id];
         forget(state, ledger.activeUnitIds);
         ledger.activeUnitIds = [];

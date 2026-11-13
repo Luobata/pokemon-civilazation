@@ -12,6 +12,8 @@ export type World24Tuning = {
   rivalArrivals: number[]; rivalStrengthOffsets: number[];
   /** Tiles a rival Pokémon walks per round. */
   rivalStepsPerRound: number;
+  /** v25: rounds each visit stays (visit 1, 2, 3); absent = `RIVAL_RULES_V24.staysRounds` for every visit (v24). */
+  rivalStayRounds?: number[];
   /** §3.1 leader team power by the challenger's badges held (0..7); `gymLatePowerPercent` scales the rows for badges 5–8 (4..7 held). */
   gymTeamPower: number[]; gymLatePowerPercent: number;
   /** §3.2 Elite Four and champion team power (five battles). */
@@ -28,6 +30,9 @@ export const WORLD24_TUNING: World24Tuning = {
 };
 /** The tuning a content carries (the stock values when it has none, e.g. a view built without the v24 content). */
 export const world24Tuning = (content: { world24?: World24Tuning } | undefined): World24Tuning => content?.world24 ?? WORLD24_TUNING;
+/** Rounds rival visit `visit` (0-based) stays before leaving. */
+export const rivalStayRounds = (content: { world24?: World24Tuning } | undefined, visit: number): number =>
+  world24Tuning(content).rivalStayRounds?.[visit] ?? RIVAL_RULES_V24.staysRounds;
 /** Leader team power for a challenger holding `badges` badges (index clamped to the table). */
 export function gymTeamPower(content: { world24?: World24Tuning } | undefined, badges: number): number {
   const tuning = world24Tuning(content), row = Math.max(0, Math.min(tuning.gymTeamPower.length - 1, badges));

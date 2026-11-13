@@ -14,6 +14,12 @@ export const RIVAL_RULES_V24 = {
   strengthOffsets: [-10, -2, 2], strengthCap: 12,
   rewards: [{ gold: 25, pokeBalls: 2, eraScore: 1 }, { gold: 50, research: 20, eraScore: 2 }, { gold: 80, xp: 50, eraScore: 3 }],
 } as const;
+/**
+ * v25 (fix 4 of docs/design/balance/gate-v24-ai.md): later visits were almost never beaten (v24 gate: 30% / 5% / 1.5% of visits). The
+ * offsets are capped by `strengthCap` (±12 around each species' attack), so the later visits also stay longer. Probe, seeds 31–34 × 27
+ * gate games to round 60: [-10, -12, -13] with stays [6, 7, 9] → 25% / 23% / 22% beaten (offsets alone at stay 6: 31% / 10% / 10%).
+ */
+export const RIVAL_RULES_V25 = { strengthOffsets: [-10, -12, -13], staysRounds: [6, 7, 9] } as const;
 /** Primary and secondary counters to each starter (§4.1), whole evolution lines so every visit finds its stage. */
 export const RIVAL_COUNTERS: Record<StarterId, { primary: readonly SpeciesId[]; secondary: readonly SpeciesId[] }> = {
   bulbasaur: { primary: ['charmander', 'charmeleon', 'charizard', 'ponyta', 'rapidash'], secondary: ['pidgey', 'pidgeotto', 'pidgeot'] },

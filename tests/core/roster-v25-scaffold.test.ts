@@ -13,7 +13,10 @@ test('v25 envelope: schema 20, rules roster-v25, its own content built on v24', 
   expect(contentFor({ expansionVersion: 1, gameplayVersion: 25 })).toBe(REGIONAL_CONTENT);
   expect(contentFor({ expansionVersion: 1, gameplayVersion: 24 })).toBe(WORLD24_CONTENT);
   expect(REGIONAL_CONTENT.version).toBe('roster-v25');
-  expect(REGIONAL_CONTENT.world24).toEqual(WORLD24_CONTENT.world24);
+  // v25 tunes the later rival visits (fix 4): stronger offsets and longer stays; the rest of the v24 tuning is unchanged.
+  expect({ ...REGIONAL_CONTENT.world24, rivalStrengthOffsets: undefined, rivalStayRounds: undefined }).toEqual({ ...WORLD24_CONTENT.world24, rivalStrengthOffsets: undefined });
+  expect(REGIONAL_CONTENT.world24!.rivalStrengthOffsets).toEqual([-10, -12, -13]);
+  expect(REGIONAL_CONTENT.world24!.rivalStayRounds).toEqual([6, 7, 9]);
   expect(REGIONAL_CONTENT.world24).not.toBe(WORLD24_CONTENT.world24);
   expect(STOCK_CONTENTS).toContain(REGIONAL_CONTENT);
   expect(WORLD24_CONTENT.regionalDex).toBeUndefined();

@@ -14,6 +14,7 @@ import type { BuildingId, TechDefinition, TechId, TechTable } from './economy.ts
 import { TREE_BUILDING_TECH, TREE_RECRUITS, TREE_TECHS } from './tech-tree.ts';
 import type { BiomeId } from './rules.ts';
 import { WORLD24_TUNING } from './world24-tuning.ts';
+import { RIVAL_RULES_V25 } from './rivals.ts';
 import type { World24Tuning } from './world24-tuning.ts';
 import type { EraProgression } from './eras.ts';
 import type { LandmarkId } from './terrain.ts';
@@ -179,7 +180,8 @@ const regionalRoster = (speciesIds: readonly SpeciesId[], mode: EraProgression):
 /** v25 base (spec docs/design/roster-v25.md): the v24 content with roster tables derived from the species tags over the whole pool. A game's
  * own content (`regionalContentFor`) narrows the tables to its regional Pokédex; this base serves setups without a seed (the manual). */
 export const REGIONAL_CONTENT: Content = { ...WORLD24_CONTENT, version: 'roster-v25', species: regionalSpecies, units: { ...WORLD24_CONTENT.units, ...regionalSpecies },
-  world24: JSON.parse(JSON.stringify(WORLD24_CONTENT.world24)) as World24Tuning, roster: regionalRoster(Object.keys(regionalSpecies).sort() as SpeciesId[], 'full-v1') };
+  world24: { ...JSON.parse(JSON.stringify(WORLD24_CONTENT.world24)) as World24Tuning, rivalStrengthOffsets: [...RIVAL_RULES_V25.strengthOffsets],
+    rivalStayRounds: [...RIVAL_RULES_V25.staysRounds] }, roster: regionalRoster(Object.keys(regionalSpecies).sort() as SpeciesId[], 'full-v1') };
 const regionalContents = new Map<string, Content>(), regionalDraws = new Map<string, RegionalDexDraw>(), bySetup = new WeakMap<object, Content>();
 const derivedContents = new WeakSet<Content>();
 /** Pool size of a mode (P in the Pokédex target scaling, §2.6). */
