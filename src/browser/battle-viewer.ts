@@ -465,6 +465,8 @@ export function openBattleViewer(replay: BattleReplay, options: ViewerOptions = 
   root.id = 'battle-viewer'; root.className = `battle-viewer${motion ? '' : ' still'}`;
   root.setAttribute('role', 'dialog'); root.setAttribute('aria-labelledby', 'bv-title');
   root.dataset.mode = motion ? 'animated' : 'still'; root.dataset.kind = replay.kind;
+  // v26 relay battles show one Pokémon per side; v≤25 auto-battles show every fighter.
+  root.dataset.format = replay.battles[0]?.format ?? 'melee';
   const battle = replay.battles[0]!;
   root.innerHTML = `<header class="bv-head">${uiIcon(replay.kind === 'gym' ? 'badge' : replay.kind === 'guardian' ? 'sanctuary' : replay.kind === 'rival' ? 'swords' : 'trophy', { size: 22, label: { gym: '道馆挑战', guardian: '圣所守卫', elite: '四天王', league: '联盟大会', rival: '劲敌对决' }[replay.kind] })}
       <div><h3 id="bv-title">${escapeAttr(replay.title)}</h3><small id="bv-sub"></small></div>

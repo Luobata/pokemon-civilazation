@@ -69,6 +69,19 @@ test('gym lineup picker: equal size, matchup grid, estimate, suggested lineup, c
   await expect.poll(async () => (await view(page)).expansion!.gymCircuit!.readyAt[gymId] ?? null).toBe(before.round + 3);
   const after = await view(page);
   expect(chosen.every(id => after.units.find(item => item.id === id)?.actionLeft === 0)).toBe(true);
+  // The result's notification opens the replay of the relay battle (one Pokémon per side, a step per strike).
+  const toast = page.locator('#toast-host [data-toast]', { hasText: '馆主' }).first();
+  await expect(toast.locator('.toast-action')).toHaveText('观看对战');
+  await toast.locator('.toast-icon').click();
+  const viewer = page.locator('#battle-viewer');
+  await expect(viewer).toBeVisible();
+  await expect(viewer).toHaveAttribute('data-format', 'relay');
+  expect(await viewer.locator('.bv-step').count()).toBeGreaterThan(0);
+  await viewer.locator('#bv-skip').click();
+  await expect(viewer.locator('#bv-caption')).toContainText(/胜利！|落败/);
+  await page.screenshot({ path: `${reports}/depth-v26-gym-replay.png` });
+  await page.keyboard.press('Escape');
+  await expect(viewer).toBeHidden();
   const round = after.round;
   await endTurn(page);
   await expect.poll(async () => (await view(page)).round, { timeout: 120_000 }).toBe(round + 1);

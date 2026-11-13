@@ -113,7 +113,7 @@ export function rivalCounters(content: Content, starterId: StarterId, list: 'pri
 }
 /**
  * v26 (gate-v26 fix 2): the first visit's species — regional land species neutral to the starter both ways: the best type of either side
- * (the relay battle's rule) hits the other at exactly ×1. At the first visit 80% of civilizations own only their starter, which a counter
+ * hits the other at exactly ×1 on the plain type chart (with the relay's research bonus a ×2 × ×0.5 dual matchup is ×1.1, for both alike). At the first visit 80% of civilizations own only their starter, which a counter
  * beats outright; a neutral rival leaves the duel to stats and the 劲敌气势 offset. Empty when no regional species qualifies (counters then).
  */
 export function rivalNeutrals(content: Content, starterId: StarterId): readonly SpeciesId[] {
