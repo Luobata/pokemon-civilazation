@@ -3,6 +3,7 @@
 // 300 + 5 × upkeep, rushes (units in threatened cities first, then the most productive cities), a TM against the next gym leader's
 // type and special training for a Pokémon within 40 XP of evolving. In the opening a settler may be rushed when it is cheap.
 import { TYPE_ESSENCE } from '../content/essences.ts';
+import { lateTuning } from '../content/depth-v26.ts';
 import type { TypeId } from '../content/species.ts';
 import type { Content } from '../content/units.ts';
 import { unitDefinition } from '../content/units.ts';
@@ -71,6 +72,19 @@ export function planGoldSinkAction(view: PlayerView, content: Content): Command[
   for (const city of cities) {
     const quote = viewGoldSinkQuote(view, { type: 'RushProduction', cityId: city.id }, content);
     if (quote.ok && spare(quote.gold)) return { type: 'RushProduction', cityId: city.id };
+  }
+  // 4b. Rich (reserve + 300): a city working on something that cannot be bought (a district, a legend) puts an available building in
+  // front of it and buys that next (the Civilization VI habit); the district keeps its progress behind it.
+  if (player.gold >= reserve + 300) for (const city of [...view.economy.cities].sort((a, b) => b.yields.production - a.yields.production || a.id - b.id)) {
+    const head = city.queue[0];
+    if (!head || (head.item.kind !== 'district' && head.item.kind !== 'legend') || city.queue.length >= 5 || sinks.rushedCityIds.includes(city.id)) continue;
+    const building = (Object.keys(content.buildings) as (keyof typeof content.buildings)[]).find(id => {
+      const definition = content.buildings[id];
+      return definition.cost !== null && !city.buildingIds.includes(id) && !city.queue.some(order => order.item.kind === 'building' && order.item.defId === id)
+        && (!definition.requiredTech || player.research.unlockedIds.includes(definition.requiredTech)) && spare(definition.cost * lateTuning(content).rushBuildingGold);
+    });
+    if (building) return { type: 'SetProductionQueue', cityId: city.id, orders: [{ item: { kind: 'building', defId: building } },
+      ...city.queue.map(order => ({ orderId: order.id, item: order.item }))] };
   }
   // 5. A TM against the next gym leader's type for the strongest Pokémon without one.
   if (nextGym) {

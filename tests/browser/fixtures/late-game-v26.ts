@@ -48,5 +48,3 @@ function first(key: string, seeds: number[], pick: (view: PlayerView) => number 
 /** Seat 0's turn with the first contest season announced and a hall (id = the round). */
 export const seasonFixture = () => first('season', [1, 2, 3, 4], view =>
   view.expansion?.contestSeasons?.category && view.expansion.contests?.own.halls.length ? view.round : undefined);
-/** Seat 0's turn with a Max Raid den active (id = the round); null when no seed reaches one. */
-export const raidFixture = () => first('raid', [1, 2, 3], view => view.expansion?.raids?.active ? view.round : undefined);

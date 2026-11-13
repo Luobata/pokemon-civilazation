@@ -23,6 +23,7 @@ import { victoryProgress } from '../../src/core/victory-watch.ts';
 import { evolutionLines, firstFinalOfLine } from '../../src/core/evolution-goals.ts';
 import { previewAttack } from '../../src/core/preview.ts';
 import { planNext } from '../../src/ai/plan.ts';
+import { depthWorldCards } from '../../src/browser/late-game-ui.ts';
 import { deserializeSave, serializeSave } from '../../src/app/save.ts';
 import { gameVersions } from '../../src/core/versions.ts';
 
@@ -165,6 +166,12 @@ describe('v26 raids, the near-victory warning, the opening gift, evolution goals
     const raid = next.expansion!.raids!.active!;
     expect(raid).not.toBeNull();
     const boss = next.units[raid.unitId];
+    // Every civilization gets a raid card; only those that explored the den see where it is.
+    for (const playerId of [0, 1]) {
+      const card = depthWorldCards(observe(next, playerId, content), content).find(item => item.id === 'raid')!;
+      expect(card.title).toContain('极巨巢穴');
+      expect(card.tileIndex === undefined).toBe(!next.knowledge[playerId].exploredTileIds.includes(raid.tileIndex));
+    }
     expect(boss.hp).toBe(lateTuning(content).raidBaseHp + 2 * lateTuning(content).raidHpPerCiv);
     expect(Object.values(next.cities).every(city => hexDistance(city.position, indexToHex(raid.tileIndex, next.map), next.map) >= 3)).toBe(true);
     // Knock it out with a strong own Pokémon next to it.

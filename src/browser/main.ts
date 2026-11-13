@@ -46,7 +46,7 @@ import type { ActionMode, PendingTarget } from './unit-panel.ts';
 import type { AiPersonality, CitySummary, Command, GameSetup } from '../core/model.ts';
 import { GameSession } from '../app/session.ts';
 import type { PlayerSession } from '../app/session.ts';
-import { EXPANSION_CONTENT, unitDefinition, contentForView, techOf, regionalDexDraw, REGIONAL_CONTENT } from '../content/units.ts';
+import { EXPANSION_CONTENT, unitDefinition, contentForView, techOf, regionalDexDraw, REGIONAL_CONTENT, DEPTH_CONTENT } from '../content/units.ts';
 import { dexSummaryMarkup } from './regional-dex-panel.ts';
 import type { StarterId } from '../content/units.ts';
 import type { BallId } from '../content/economy.ts';
@@ -1070,7 +1070,8 @@ function renderDexSummary() {
   const setup = pendingSetup();
   root.hidden = (setup.gameplayVersion ?? 0) < 25 || !setup.eraProgression;
   if (root.hidden) { root.innerHTML = ''; return; }
-  root.innerHTML = dexSummaryMarkup(regionalDexDraw({ ...setup, eraProgression: setup.eraProgression! }), REGIONAL_CONTENT);
+  // v26: names of the species batch come from the v26 pool.
+  root.innerHTML = dexSummaryMarkup(regionalDexDraw({ ...setup, eraProgression: setup.eraProgression! }), (setup.gameplayVersion ?? 0) >= 26 ? DEPTH_CONTENT : REGIONAL_CONTENT);
 }
 function newGame() {
   if (session && transitionBlocked()) return;

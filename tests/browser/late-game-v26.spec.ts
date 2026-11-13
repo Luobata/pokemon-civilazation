@@ -1,8 +1,8 @@
-// depth-v26 lane 2 (late game): the contest-season and raid next-action cards, the city panel's rush button and the training / TM
-// section, from real v26 games (the AI plays every seat) loaded through the menu. Icons and buttons carry accessible names.
+// depth-v26 lane 2 (late game): the contest-season next-action card (the raid card is covered in tests/core/late-game-v26.test.ts),
+// the city panel's rush button and the training / TM section, from real v26 games (the AI plays every seat) loaded through the menu. Icons and buttons carry accessible names.
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { raidFixture, seasonFixture } from './fixtures/late-game-v26.ts';
+import { seasonFixture } from './fixtures/late-game-v26.ts';
 import { closeScreen, openScreen } from './ui.ts';
 
 const shots = process.env.E2E_SCREENSHOT_DIR ?? 'test-results/screenshots';
@@ -21,7 +21,8 @@ async function expectNamed(page: Page, root: string) {
 }
 
 test('v26 contest season: the world card, the training / TM section and the city rush button', async ({ page }) => {
-  test.setTimeout(300_000);
+  // The fixture plays a real 4-seat v26 game to round 40+ first (minutes under load).
+  test.setTimeout(900_000);
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(String(error)));
   const fixture = seasonFixture();
@@ -49,21 +50,5 @@ test('v26 contest season: the world card, the training / TM section and the city
   await expect(rush).toHaveAttribute('aria-label', /^加急/);
   await expectNamed(page, '#economy .gold-sinks');
   await page.screenshot({ path: `${shots}/depth-v26-rush.png` });
-  expect(errors).toEqual([]);
-});
-
-test('v26 Max Raid: the raid card names the boss and locates the den', async ({ page }) => {
-  test.setTimeout(300_000);
-  const errors: string[] = [];
-  page.on('pageerror', error => errors.push(String(error)));
-  const fixture = raidFixture();
-  test.skip(!fixture, 'no seed reached a raid in 100 rounds');
-  await importSave(page, fixture!.save);
-  await openScreen(page, 'world');
-  const card = page.locator('#expansion-panel .next-card[data-card="raid"]');
-  await expect(card).toBeVisible();
-  await expect(card).toHaveAttribute('aria-label', /极巨巢穴/);
-  await page.screenshot({ path: `${shots}/depth-v26-raid-card.png` });
-  await expectNamed(page, '#expansion-panel .next-cards');
   expect(errors).toEqual([]);
 });
