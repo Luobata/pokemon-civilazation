@@ -13,6 +13,7 @@ import { CLASS_NATIVE_TYPES } from './unit-classes.ts';
 import { HABITAT_FEATURE_KEYS, SPECIES_TAGS } from './species-tags.ts';
 import type { SpeciesTags } from './species-tags.ts';
 import { RECRUIT_SLOTS, resolveRecruits } from './recruit-slots.ts';
+import { ROSTER_V26_SPECIES, ROSTER_V26_TAGS } from './roster-v26-data.ts';
 import type { RecruitSlotId, ResolvedRecruit } from './recruit-slots.ts';
 import type { TechId } from './economy.ts';
 import { stableSeed } from './stable-seed.ts';
@@ -44,7 +45,9 @@ export const REGIONAL_DEX_RULES = {
 export const dexMaxGeneration = (mode: EraProgression): number => mode === 'full-v1' ? 9 : 3;
 const generationOf = (species: Species, id: SpeciesId): number => species[id]?.generation ?? 1;
 const typesOf = (definition: SpeciesDefinition): TypeId[] => definition.secondaryTypeId ? [definition.typeId, definition.secondaryTypeId] : [definition.typeId];
-const tagsOf = (id: SpeciesId): SpeciesTags => SPECIES_TAGS[id] ?? { rarity: 'common' };
+/** Tag rows of every species any content defines: the v25 rows plus the roster-v26 batch (new ids only, so v25 pools read the same rows). */
+export const ALL_SPECIES_TAGS: Readonly<Record<string, SpeciesTags>> = { ...SPECIES_TAGS, ...ROSTER_V26_TAGS };
+const tagsOf = (id: SpeciesId): SpeciesTags => ALL_SPECIES_TAGS[id] ?? { rarity: 'common' };
 const byId = (a: string, b: string) => a < b ? -1 : a > b ? 1 : 0;
 
 export type DexLine = { id: SpeciesId; speciesIds: readonly SpeciesId[] };
@@ -131,8 +134,14 @@ function constraintsFor(maxGeneration: number, types: readonly TypeId[]): Constr
   return all;
 }
 type ModeRules = { context: Context; lines: DexLine[]; constraints: Constraint[] };
+/** Content-batch species (roster-v26, depth-v26 §4.3): they never make a class × stage cell (C1 / C2) required. A cell that only they can
+ * fill stays optional, so their lines enter a regional Pokédex through the normal draw like any other candidate. v25 tables contain none of
+ * them, so the v25 constraint set is unchanged. */
+const BATCH_SPECIES: ReadonlySet<string> = new Set(Object.keys(ROSTER_V26_SPECIES));
+const isCellConstraint = (constraint: Constraint) => constraint.id.startsWith('C1:') || constraint.id.startsWith('C2:');
 const modeCache = new WeakMap<Species, Map<number, ModeRules>>();
-/** Lines, starters and the constraints the pool itself can meet (the others are content gaps, §2.3, and are not checked). */
+/** Lines, starters and the constraints the pool itself can meet (the others are content gaps, §2.3, and are not checked); class × stage
+ * cells must also be fillable without the content-batch species. */
 function modeRules(species: Species, maxGeneration: number): ModeRules {
   let byGeneration = modeCache.get(species);
   if (!byGeneration) modeCache.set(species, byGeneration = new Map());
@@ -143,7 +152,9 @@ function modeRules(species: Species, maxGeneration: number): ModeRules {
     lineOf: new Map(lines.flatMap(line => line.speciesIds.map(id => [id, line.id] as [SpeciesId, SpeciesId]))) };
   const all = lines.flatMap(line => line.speciesIds), full = profileOf(context, all);
   const types = [...new Set(all.flatMap(id => typesOf(species[id])))].sort(byId);
-  const rules = { context, lines, constraints: constraintsFor(maxGeneration, types).filter(constraint => constraint.deficit(full) === 0) };
+  const baseline = profileOf(context, all.filter(id => !BATCH_SPECIES.has(id)));
+  const rules = { context, lines, constraints: constraintsFor(maxGeneration, types)
+    .filter(constraint => constraint.deficit(full) === 0 && (!isCellConstraint(constraint) || constraint.deficit(baseline) === 0)) };
   byGeneration.set(maxGeneration, rules);
   return rules;
 }

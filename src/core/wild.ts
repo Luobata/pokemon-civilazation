@@ -13,6 +13,8 @@ import { createMapUnit } from './unit.ts';
 import { workRadius } from './city.ts';
 import { resolveAttack } from './combat.ts';
 import { isRivalUnit } from './rivals.ts';
+import { stateProtectedCivilian } from './stacking.ts';
+import { isRaidUnit } from './raids.ts';
 import { isDeep, isHill, isLandmarkTile, isPeak, isRiver } from './terrain.ts';
 import type { FeatureMap } from './terrain.ts';
 import { adjacentLandmarks } from './landmarks.ts';
@@ -108,7 +110,8 @@ export function actWild(state: GameState, content: Content = contentFor(state.se
   for (const id of Object.values(state.units).filter(unit => unit.ownerId === null).map(unit => unit.id).sort((a, b) => a - b)) {
     const unit = state.units[id];
     // v24 C: rival trainers act in resolveRivalRound, not as wild Pokémon.
-    if (!unit || !isMapUnit(unit) || unit.kind !== 'pokemon' || state.expansion?.world.rampagingUnitIds.includes(id) || isRivalUnit(state, id)) continue;
+    // v26 D: a raid boss strikes in resolveRaidRound and never wanders.
+    if (!unit || !isMapUnit(unit) || unit.kind !== 'pokemon' || state.expansion?.world.rampagingUnitIds.includes(id) || isRivalUnit(state, id) || isRaidUnit(state, id)) continue;
     if (wanderersFor(content).includes(unit.speciesId)) {
       const occupied = new Set(Object.values(state.units).filter(isMapUnit).map(other => hexToIndex(other.position, state.map)));
       const candidates = neighbors(unit.position, state.map).filter(position => {
@@ -121,7 +124,8 @@ export function actWild(state: GameState, content: Content = contentFor(state.se
       unit.position = position;
       events.push({ type: 'Moved', unitId: id, path: [from, { ...position }] });
     } else {
-      const target = Object.values(state.units).filter(isMapUnit).filter(other => other.ownerId !== null && hexDistance(unit.position, other.position, state.map) === 1)
+      // v26 C2: a logistics unit sharing its tile with an own Pokémon is not struck (never before v26).
+      const target = Object.values(state.units).filter(isMapUnit).filter(other => other.ownerId !== null && hexDistance(unit.position, other.position, state.map) === 1 && !stateProtectedCivilian(state, other, content))
         .sort((a, b) => a.id - b.id)[0];
       if (target) events.push(...resolveAttack(state, id, { kind: 'unit', id: target.id }, content, true));
     }

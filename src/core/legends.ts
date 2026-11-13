@@ -18,6 +18,7 @@ import { isMapUnit } from './model.ts';
 import type { CityState, EventPayload, GameState, PlayerView } from './model.ts';
 import { ownedRareBerries } from './rare-berries.ts';
 import { playerGeneration } from './roster.ts';
+import type { LegendRaceEntry } from './legend-race.ts';
 
 export type LegendWonderRecord = { cityId: number; builderId: number; round: number };
 export type LegendState = {
@@ -36,6 +37,8 @@ export type LegendView = {
   /** The viewer's own cities building a wonder. */
   building: { legendId: LegendWonderId; cityId: number; progress: number; cost: number }[];
   generation: number; maxGeneration: number;
+  /** Gameplay v26 (depth-v26 §5.3, src/core/legend-race.ts): met civilizations' wonders under way, by stage only. */
+  race?: LegendRaceEntry[];
 };
 export type LegendEvent =
   | { type: 'LegendClueFound'; playerId: number; legendId: LegendWonderId }

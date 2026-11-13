@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { DEPTH_CONTENT, REGIONAL_CONTENT, STOCK_CONTENTS, contentFor, contentForView, isStockContent, regionalContentFor } from '../../src/content/units.ts';
+import { DEPTH_CONTENT, REGIONAL_CONTENT, STOCK_CONTENTS, contentFor, contentForView, depthDexDraw, isStockContent, regionalContentFor } from '../../src/content/units.ts';
 import { DEPTH26_TUNING, DEPTH_FLAGS } from '../../src/content/depth-v26.ts';
 import { createGame } from '../../src/core/game.ts';
 import { observe } from '../../src/core/vision.ts';
@@ -28,11 +28,11 @@ test('v26 envelope: schema 21, rules depth-v26, the v25 regional content plus th
   expect(REGIONAL_CONTENT.depth26).toBeUndefined();
 });
 
-test('a v26 game keeps its v25 regional Pokédex; the view derives the same content object', () => {
+test('a v26 game uses the v26 regional Pokédex draw (roster-v26); the view derives the same content object', () => {
   const v25 = regionalContentFor(setup(25)), content = contentFor(setup(26));
   expect(content).not.toBe(v25);
-  expect(content.regionalDex).toEqual(v25.regionalDex);
-  expect(content.roster).toBe(v25.roster);
+  expect(content.regionalDex!.speciesIds).toEqual(depthDexDraw({ ...setup(26), eraProgression: 'simple-v1' }).speciesIds);
+  expect(content.roster).not.toBe(v25.roster);
   expect(contentFor(setup(26))).toBe(content);
   expect(isStockContent(content)).toBe(true);
   const state = createGame(setup(26));

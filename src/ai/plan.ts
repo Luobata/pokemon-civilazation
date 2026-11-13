@@ -44,7 +44,9 @@ import { gymMoveTargets, planGymAction } from './gym-plan.ts';
 import { ownRivalHunters, rivalAttackBonus, rivalResponseTeam, rivalThreatenedCityIds, rivalTrainingBonus } from './rival-plan.ts';
 import { viewIsRivalUnit } from '../core/rivals.ts';
 import { planGoldSinkAction } from './gold-sink-plan.ts';
-import { planContestSeasonAction } from './contest-season-plan.ts';
+import { contestMoveTargets, planContestSeasonAction } from './contest-season-plan.ts';
+import { legendRaceSwitch } from './legend-race-plan.ts';
+import { escortedSettler, stackEscorts } from './escort-plan.ts';
 import { planRivalDuel } from './rival-duel-plan.ts';
 import { raidAttackBonus, raidMoveTargets } from './raid-plan.ts';
 import { researchCaptureScore } from './research-plan.ts';
@@ -142,6 +144,8 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
   if (seasonAction) return result(seasonAction);
   const goldSinkAction = planGoldSinkAction(view, content);
   if (goldSinkAction) return result(goldSinkAction);
+  const raceAction = legendRaceSwitch(view);
+  if (raceAction) return result(raceAction);
   const faithAction = planFaithAction(view);
   if (faithAction) return result(faithAction);
   // v24 C: a rival's warned / attacked cities count as threatened too.
@@ -281,7 +285,7 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
   const workers = designatedWorkers(view, content, atWar || campaignActive || preparingSiege);
   const traceTargets = legendTraceTargets(view, content), ballTargets = itemBallTargets(view), gymTargets = gymMoveTargets(view, content), rivalHunters = ownRivalHunters(view);
   // v26 D: raid dens (empty before v26).
-  const raidTargets = raidMoveTargets(view);
+  const raidTargets = raidMoveTargets(view), contestTargets = contestMoveTargets(view, content);
   // v24 integration fix (crowded continent): with no known site reachable over land from the capital and water access, Pokémon may board
   // to explore and stay out instead of heading home; a settler whose sites all lie across water gets the nearest Pokémon as its escort.
   const seaPlans = Boolean(content.embark && view.map.features) && waterAccess(player, content) >= 1 && cities.length > 0;
@@ -311,9 +315,17 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
     || known.some(city => city.ownerId !== null && warEnemies.has(city.ownerId) && hexDistance(city.position, unit.position, view.map) <= 3));
   // v24 AI (sea safety): a land unit on the water cannot strike back, so it never steps onto a water tile next to a striking wild Pokémon,
   // within 2 of its own rival's Pokémon or within 3 of an enemy at war (landing is always allowed), and leaves such a tile when on one.
+  // v26 C2: settler escorts sharing the settler's tile (empty before v26).
+  const stackEscort = stackEscorts(view, content, unit => escortTargets.has(unit.id) || sanctuaryTeam.includes(unit.id) || rivalTeam.has(unit.id));
+  const wildBeside = (position: MapUnit['position']) => strikers.filter(other => other.ownerId === null && hexDistance(other.position, position, view.map) <= 1).length;
+  const escortedStep = (settlerId: number, position: MapUnit['position']) => escortedSettler(stackEscort, view, settlerId) && wildBeside(position) <= 1
+    && !strikers.some(other => other.ownerId !== null && hexDistance(other.position, position, view.map) <= 3);
   const ownRivals = v24Ai ? view.units.filter(other => view.expansion?.rivals?.sightings.some(sighting => sighting.unitId === other.id && sighting.targetPlayerId === actorId)) : [];
   const seaThreat = (position: MapUnit['position']) => exposed(position) || ownRivals.some(other => hexDistance(other.position, position, view.map) <= 2);
   for (const unit of units.filter(unit => unit.actionLeft)) {
+    // v26 C2: an escort on its settler's tile waits until the settler has moved, then follows it.
+    const escort = stackEscort.get(unit.id);
+    if (escort?.joined && escort.settlerReady) continue;
     const trader = traderPlan(view, unit);
     if (trader.action) add(trader.action, 'economy', 900, unit.id);
     if (unit.kind === 'logistics' && unit.role !== 'settler') { /* traders and builders: handled by their own plans */ } else if (unit.kind === 'logistics') {
@@ -369,7 +381,13 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
       // v24 A2: board only when it is safe (no sea threat nearby, escorted), and never just to look around.
       const boarding = isBoarding(view, unit, to, content);
       if (boarding && !safeToBoard(view, unit, to, content)) continue;
-      if (unit.kind === 'logistics' && strikers.length && exposed(to) && !(unit.role === 'settler' && citySite(to))) continue;
+      if (unit.kind === 'logistics' && strikers.length && exposed(to) && !(unit.role === 'settler' && (citySite(to) || escortedStep(unit.id, to)))) continue;
+      if (escort) {
+        const before = hexDistance(unit.position, escort.position, view.map), after = hexDistance(to, escort.position, view.map);
+        if (after === 0) add(action, 'found', 95, unit.id, index);
+        else if (after < before) add(action, 'found', 50 - after, unit.id, index);
+        continue;
+      }
       if (lands && view.map.tiles[index] === 'ocean' && seaThreat(to)) continue;
       if (atSeaThreat) add(action, rivalGoal, 200, unit.id, index);
       if (unit.kind === 'logistics' && strikers.length && exposed(unit.position)) add(action, unit.role === 'settler' ? 'found' : 'economy', 200, unit.id, index);
@@ -388,6 +406,8 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
       if (ball && far(to, ball) < far(unit.position, ball)) add(action, 'explore', 125 - far(to, ball), unit.id, index);
       const gym = gymTargets.get(unit.id);
       if (gym && travelCloser(view, unit, to, gym)) add(action, 'military', 90 - travelDistance(view, unit, to, gym), unit.id, index);
+      const hall = contestTargets.get(unit.id);
+      if (hall && travelCloser(view, unit, to, hall)) add(action, 'economy', 95 - travelDistance(view, unit, to, hall), unit.id, index);
       const raid = raidTargets.get(unit.id);
       if (raid && travelCloser(view, unit, to, raid)) add(action, 'military', 80 - travelDistance(view, unit, to, raid), unit.id, index);
       if (seek && far(to, seek) < far(unit.position, seek)) {

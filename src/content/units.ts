@@ -23,6 +23,7 @@ import { deriveRosterTables, drawRegionalDex, dexMaxGeneration, evolutionLines }
 import type { RegionalDexDraw } from './regional-dex.ts';
 import { SPECIES_TAGS } from './species-tags.ts';
 import { DEPTH26_TUNING, DEPTH_FLAGS } from './depth-v26.ts';
+import { ROSTER_V26_EVOLUTIONS, ROSTER_V26_SPECIES, ROSTER_V26_TAGS, ROSTER_V26_VERSION } from './roster-v26-data.ts';
 import type { Depth26Tuning, DepthFlags } from './depth-v26.ts';
 
 export const STARTER_IDS = ['bulbasaur', 'charmander', 'squirtle'] as const;
@@ -190,8 +191,10 @@ const regionalContents = new Map<string, Content>(), regionalDraws = new Map<str
 const derivedContents = new WeakSet<Content>();
 /** Pool size of a mode (P in the Pokédex target scaling, §2.6). */
 export const regionalPoolSize = (mode: EraProgression): number => evolutionLines(regionalSpecies, dexMaxGeneration(mode)).reduce((sum, line) => sum + line.speciesIds.length, 0);
-/** v25 §2.2: the regional Pokédex draw of a setup (dexSeed, else the map seed; era mode; seated leaders). Memoized; pure. */
-export function regionalDexDraw(setup: { seed: number; dexSeed?: number; eraProgression: EraProgression; players: readonly { leaderId?: LeaderId }[] }): RegionalDexDraw {
+/** v25 §2.2: the regional Pokédex draw of a setup (dexSeed, else the map seed; era mode; seated leaders). Memoized; pure. Setups of
+ * gameplay v26 or later draw from the v26 species (`depthDexDraw`). */
+export function regionalDexDraw(setup: { seed: number; dexSeed?: number; eraProgression: EraProgression; players: readonly { leaderId?: LeaderId }[]; gameplayVersion?: number }): RegionalDexDraw {
+  if ((setup.gameplayVersion ?? 0) >= 26) return depthDexDraw(setup);
   const leaders = [...new Set(setup.players.flatMap(player => player.leaderId ? [player.leaderId] : []))].sort();
   const dexSeed = setup.dexSeed ?? setup.seed, key = `${dexSeed}|${setup.eraProgression}|${leaders.join(',')}`;
   let draw = regionalDraws.get(key);
@@ -222,29 +225,72 @@ export function regionalContentFor(setup: ContentSetup): Content {
   bySetup.set(setup, content);
   return content;
 }
-/** v26 (docs/design/depth-v26.md): the v25 regional content with the depth flags, its own knobs and its own copy of the world24 tuning. */
+/** v26 (docs/design/depth-v26.md): a regional content with the depth flags, its own knobs and its own copy of the world24 tuning. */
 const depthOverlay = (base: Content): Content => ({ ...base, version: 'depth-v26', ...DEPTH_FLAGS,
+  // v26 core: the rival's strength offsets (劲敌气势) are v26's own.
   world24: { ...JSON.parse(JSON.stringify(base.world24)) as World24Tuning, rivalStrengthOffsets: [...RIVAL_RULES_V26.strengthOffsets] },
   depth26: JSON.parse(JSON.stringify(DEPTH26_TUNING)) as Depth26Tuning });
-/** v26 base: the v25 base plus the depth flags (setups without a seed, the manual). */
-export const DEPTH_CONTENT: Content = depthOverlay(REGIONAL_CONTENT);
-const depthContents = new WeakMap<Content, Content>();
-/** v26 of a v25 regional content (memoized, so the authority and every view of one game share one object). */
-function depthOf(regional: Content): Content {
-  if (regional === REGIONAL_CONTENT) return DEPTH_CONTENT;
-  let content = depthContents.get(regional);
+/** v26 species (species batch §4.3, `roster-v26`, src/content/roster-v26-data.ts): the v25 species with the batch's evolutions (caterpie →
+ * metapod, meowth → persian) plus the new species; as in v25, every tagged wild habitat is also a spawn biome. */
+const depthSpecies = (() => {
+  const species = { ...regionalSpecies } as Record<SpeciesId, SpeciesDefinition>;
+  for (const [id, { evolution }] of Object.entries(ROSTER_V26_EVOLUTIONS) as [SpeciesId, Pick<SpeciesDefinition, 'evolution'>][]) {
+    species[id] = { ...species[id], evolution: evolution && { ...evolution } };
+  }
+  for (const [id, definition] of Object.entries(ROSTER_V26_SPECIES) as [keyof typeof ROSTER_V26_SPECIES, SpeciesDefinition][]) {
+    const biomes = Object.keys(ROSTER_V26_TAGS[id].habitat ?? {}).filter((key): key is BiomeId => key in BIOME_YIELDS);
+    species[id] = { ...definition, immunities: [...definition.immunities], terrain: [...definition.terrain], spawnBiomes: [...new Set([...definition.spawnBiomes, ...biomes])],
+      evolution: definition.evolution && { ...definition.evolution } };
+  }
+  return species;
+})();
+const depthRoster = (speciesIds: readonly SpeciesId[], mode: EraProgression): RosterTables => deriveRosterTables(depthSpecies, speciesIds, mode);
+/** v26 regional base before the depth overlay: the v25 base over the v26 species (version `roster-v26` until the overlay stamps `depth-v26`). */
+const DEPTH_REGIONAL_CONTENT: Content = { ...REGIONAL_CONTENT, version: ROSTER_V26_VERSION, species: depthSpecies, units: { ...REGIONAL_CONTENT.units, ...depthSpecies },
+  roster: depthRoster(Object.keys(depthSpecies).sort() as SpeciesId[], 'full-v1') };
+/** v26 base: the whole v26 pool plus the depth flags (setups without a seed, the manual). */
+export const DEPTH_CONTENT: Content = depthOverlay(DEPTH_REGIONAL_CONTENT);
+const depthContents = new Map<string, Content>(), depthDraws = new Map<string, RegionalDexDraw>(), depthBySetup = new WeakMap<object, Content>();
+/** Pool size of a mode in v26 (the v25 pool plus the batch). */
+export const depthPoolSize = (mode: EraProgression): number => evolutionLines(depthSpecies, dexMaxGeneration(mode)).reduce((sum, line) => sum + line.speciesIds.length, 0);
+/** v26: the regional Pokédex draw over the v26 species (same rules and inputs as `regionalDexDraw`). Memoized; pure. */
+export function depthDexDraw(setup: { seed: number; dexSeed?: number; eraProgression: EraProgression; players: readonly { leaderId?: LeaderId }[] }): RegionalDexDraw {
+  const leaders = [...new Set(setup.players.flatMap(player => player.leaderId ? [player.leaderId] : []))].sort();
+  const dexSeed = setup.dexSeed ?? setup.seed, key = `${dexSeed}|${setup.eraProgression}|${leaders.join(',')}`;
+  let draw = depthDraws.get(key);
+  if (!draw) {
+    if (depthDraws.size > 512) depthDraws.clear();
+    depthDraws.set(key, draw = drawRegionalDex({ species: depthSpecies, mode: setup.eraProgression, dexSeed, leaders }));
+  }
+  return draw;
+}
+/**
+ * v26: the content of a regional Pokédex over the v26 species (memoized by mode and species list, so the authority and every view share one
+ * object). `pool` stays the v25 pool: the Pokédex target scales with size / pool (§2.6), and the batch widens the draw, not the target
+ * (with the v26 pool the mean target of the gate setups fell from 35.2 to 33.7).
+ */
+export function depthContentFromIds(speciesIds: readonly SpeciesId[], mode: EraProgression): Content {
+  const sorted = [...new Set(speciesIds)].filter(id => depthSpecies[id]).sort(), key = `${mode}|${sorted.join(',')}`;
+  let content = depthContents.get(key);
   if (!content) {
-    depthContents.set(regional, content = depthOverlay(regional));
+    if (depthContents.size > 512) depthContents.clear();
+    content = depthOverlay({ ...DEPTH_REGIONAL_CONTENT, roster: depthRoster(sorted, mode), regionalDex: { speciesIds: Object.freeze(sorted), size: sorted.length, pool: regionalPoolSize(mode) } });
     derivedContents.add(content);
+    depthContents.set(key, content);
   }
   return content;
 }
 /**
- * v26: the content of one game. Species batch (§4.3, src/content/roster-v26-data.ts): the batch lane replaces the v25 draw here with a
- * draw over the v25 species plus `ROSTER_V26_SPECIES` (empty for now, so v26 draws the v25 Pokédex).
+ * v26: the content of one game. Species batch (§4.3, src/content/roster-v26-data.ts): the regional Pokédex is drawn over the v25 species
+ * plus `ROSTER_V26_SPECIES` (with `ROSTER_V26_EVOLUTIONS` and `ROSTER_V26_TAGS`); setups without a seed or era mode get the whole-pool base.
  */
 export function depthContentFor(setup: ContentSetup): Content {
-  return depthOf(regionalContentFor(setup));
+  if (setup.seed === undefined || setup.eraProgression === undefined || !setup.players) return DEPTH_CONTENT;
+  const cached = depthBySetup.get(setup);
+  if (cached) return cached;
+  const content = depthContentFromIds(depthDexDraw(setup as Parameters<typeof depthDexDraw>[0]).speciesIds, setup.eraProgression);
+  depthBySetup.set(setup, content);
+  return content;
 }
 /** Stock contents plus the derived v25 regional contents (saves re-derive them from the setup). */
 export const isStockContent = (content: Content): boolean => STOCK_CONTENTS.includes(content) || derivedContents.has(content);
@@ -259,7 +305,7 @@ export function contentFor(setup: ContentSetup): Content {
 }
 /** Same choice from a player's view (views carry `expansion` and `gameplayVersion` but not the setup; v25 views carry the regional Pokédex). */
 export function contentForView(view: { expansion?: unknown; gameplayVersion?: number; eraProgression?: EraProgression; regionalDex?: readonly SpeciesId[] }): Content {
-  if (view.expansion && view.regionalDex && view.eraProgression && (view.gameplayVersion ?? 0) >= 26) return depthOf(regionalContentFromIds(view.regionalDex, view.eraProgression));
+  if (view.expansion && view.regionalDex && view.eraProgression && (view.gameplayVersion ?? 0) >= 26) return depthContentFromIds(view.regionalDex, view.eraProgression);
   if (view.expansion && view.regionalDex && view.eraProgression && (view.gameplayVersion ?? 0) >= 25) return regionalContentFromIds(view.regionalDex, view.eraProgression);
   return view.expansion ? contentFor({ expansionVersion: 1, gameplayVersion: view.gameplayVersion }) : CONTENT;
 }

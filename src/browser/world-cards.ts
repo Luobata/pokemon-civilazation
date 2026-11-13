@@ -24,16 +24,21 @@ import { pokemonSpritePath } from './sprites.ts';
 import { artImage, escapeAttr, flagImage, statChip, uiIcon } from './ui-icons.ts';
 import type { UiIconName } from './ui-icons.ts';
 import { captureBlocker, evolutionState } from './unit-action-bar.ts';
+import { depthWorldCards } from './late-game-ui.ts';
 
 type Pokemon = Extract<MapUnit, { kind: 'pokemon' }>;
-export type WorldCardId = 'gym' | 'rival' | 'conference' | 'contest' | 'nest' | 'sanctuary' | 'legend' | 'capture' | 'evolution';
+export type WorldCardId = 'gym' | 'rival' | 'conference' | 'contest' | 'nest' | 'sanctuary' | 'legend' | 'capture' | 'evolution'
+  /** v26 late game (late-game-ui.ts). */
+  | 'season' | 'raid' | 'legendRace' | 'alarm' | 'goldSink';
 export type CardArt = { icon: UiIconName } | { sprite: string };
 /**
  * One next-action card. `tileIndex`: what the locate button centres on (always a tile the viewer sees or has explored);
  * `unitId`: an own unit to select instead. `urgency`: 0 = a countdown of 2 rounds or less, 1 = can act now, 2 = soon, 3 = later.
  */
 export type WorldCard = { id: WorldCardId; title: string; status: string; tip: string; art: CardArt; urgency: number; distance: number | null;
-  tileIndex?: number; unitId?: number; action?: { label: string; command: Command['action']; available: boolean } };
+  tileIndex?: number; unitId?: number; action?: { label: string; command: Command['action']; available: boolean };
+  /** v26 relay battles: opens the lineup picker (`data-lineup`, bound by the world panel) instead of issuing a default team. */
+  lineup?: { label: string; target: string; available: boolean } };
 
 /** Civilization colours of the map (render/canvas2d.ts FACTIONS). */
 export const CIV_COLORS = ['#3BA68A', '#D3655C', '#9B83D0', '#D59A45'];
@@ -113,7 +118,8 @@ export function worldCards(view: PlayerView, content: Content = contentForView(v
       status: `${left <= 0 ? '本轮' : `${left} 轮后`} · ${championship.registration ? '已报名' : '未报名'} · 冠军 ${titles}/${need}`,
       tip: `第 ${championship.nextRound} 轮举办，六队淘汰赛（前两名轮空）。和平时报名六只宝可梦。\n冠军头衔 ${titles}/${need}：本局（${view.roundLimit} 轮）要 ${need} 个头衔；${circuit ? '四天王最多算 1 个，其余' : '头衔都'}来自联盟大会冠军。`,
       urgency: left <= 2 && !championship.registration ? 0 : left <= 2 ? 1 : 3, distance: null,
-      ...(championship.registration ? {} : { action: { label: '报名', command: { type: 'RegisterChampionshipTeam', unitIds: team } as Command['action'], available: peaceful && own.length >= 6 } }) });
+      ...(content.teamBattles ? { lineup: { label: championship.registration ? '调整顺序' : '报名', target: 'championship:', available: peaceful && own.length >= 6 } }
+        : championship.registration ? {} : { action: { label: '报名', command: { type: 'RegisterChampionshipTeam', unitIds: team } as Command['action'], available: peaceful && own.length >= 6 } }) });
   }
 
   // Contest: appeal, cooldown, the hall to locate.
@@ -186,7 +192,9 @@ export function worldCards(view: PlayerView, content: Content = contentForView(v
       tip: `${unitDefinition(unit, content).name}（#${unit.id}）进化成${into}：EXP ${unit.xp}/${state.evolution!.xp}，需 ${state.evolution!.gold} 金。选中它后在单位操作栏进化。`,
       urgency: state.canEvolve ? 1 : 3, distance: 0, unitId: unit.id });
   }
-  const order: WorldCardId[] = ['rival', 'conference', 'gym', 'evolution', 'capture', 'contest', 'nest', 'sanctuary', 'legend'];
+  // v26 late game: contest season, Max Raid, legend race, near-victory warning, spare gold (none before v26).
+  cards.push(...depthWorldCards(view, content));
+  const order: WorldCardId[] = ['alarm', 'rival', 'raid', 'conference', 'gym', 'season', 'evolution', 'capture', 'contest', 'goldSink', 'legendRace', 'nest', 'sanctuary', 'legend'];
   return cards.sort((a, b) => a.urgency - b.urgency || (a.distance ?? 99) - (b.distance ?? 99) || order.indexOf(a.id) - order.indexOf(b.id));
 }
 
@@ -207,7 +215,7 @@ export function worldCardsMarkup(cards: readonly WorldCard[], button: (label: st
       <div class="next-art">${artMarkup(card.art, name)}</div>
       <div class="next-text"><b>${esc(card.title)}</b><span>${esc(card.status)}</span></div>
       <div class="next-foot">${card.distance !== null && card.distance > 0 ? statChip('move', `${card.distance} 格`, '距最近的己方单位或城市') : '<span></span>'}
-        <span class="next-actions">${card.action ? button(card.action.label, card.action.command, card.action.available) : ''}${card.tileIndex !== undefined ? locateButton(card.tileIndex, card.title)
+        <span class="next-actions">${card.action ? button(card.action.label, card.action.command, card.action.available) : ''}${card.lineup ? `<button type="button" data-lineup="${esc(card.lineup.target)}"${card.lineup.available ? '' : ' disabled'}>${esc(card.lineup.label)}</button>` : ''}${card.tileIndex !== undefined ? locateButton(card.tileIndex, card.title)
           : card.unitId !== undefined ? selectUnitButton(card.unitId, card.title) : ''}</span></div></article>`;
   }).join('')}</div></section>`;
 }

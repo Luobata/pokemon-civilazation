@@ -30,6 +30,8 @@ import { visibleTiles } from './vision.ts';
 import { researchCaptureBonus } from './research-tasks.ts';
 import { cityCounterTerrain, cityStrikeTerrain, isEmbarked, unitStrikeTerrain } from './terrain.ts';
 import { isRivalUnit, rivalSpirit } from './rivals.ts';
+import { stateProtectedCivilian } from './stacking.ts';
+import { isRaidUnit } from './raids.ts';
 
 type Rejection = Extract<StepResult, { ok: false }>['reason'];
 const hasTech = (state: GameState, owner: number | null, tech: TechId) => owner !== null && state.players[owner].research.unlockedIds.includes(tech);
@@ -62,11 +64,15 @@ export function validateCombatAction(state: GameState, actor: number, action: Co
   if (action.type === 'Capture') {
     // v24 C: a rival trainer's Pokémon cannot be caught.
     if ('kind' in target && isRivalUnit(state, target.id)) return 'capture-rival';
+    // v26 D: a raid boss cannot be caught (the top damage dealer receives it).
+    if ('kind' in target && isRaidUnit(state, target.id)) return unavailable;
     return 'kind' in target && target.kind === 'pokemon' && target.ownerId === null && distance === 1
       && hasTech(state, actor, 'domestication') && Object.hasOwn(content.balls, action.ballId)
       && hasTech(state, actor, content.balls[action.ballId].requiredTech) && player.ballInventory[action.ballId] > 0 ? null : unavailable;
   }
   if (target.ownerId === actor || (target.ownerId !== null && !atWar(state, actor, target.ownerId))) return unavailable;
+  // v26 C2: a logistics unit sharing its tile with an own Pokémon cannot be targeted (never before v26).
+  if ('kind' in target && stateProtectedCivilian(state, target as MapUnit, content)) return unavailable;
   if (distance < 1 || distance > definition.range || ('kind' in target && target.kind === 'logistics' && distance !== 1)) return unavailable;
   return null;
 }

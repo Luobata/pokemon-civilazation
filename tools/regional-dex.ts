@@ -2,16 +2,18 @@
  * Regional Pokédex checker (docs/design/roster-v25.md §4.2): draws the regional Pokédex for many seeds with the game's own
  * `drawRegionalDex` / `deriveRosterTables` and reports content gaps, constraint coverage, variety, inclusion rates and recruit slots.
  *
- *   node tools/regional-dex.ts --eras simple --seeds 1-1000 [--size 48] [--leaders rotation|none|oak,misty] [--show 31] [--gaps] [--json out.json]
+ *   node tools/regional-dex.ts --eras simple --seeds 1-1000 [--roster v25|v26] [--size 48] [--leaders rotation|none|oak,misty] [--show 31] [--gaps] [--json out.json]
+ *
+ * `--roster v26` draws over the v26 species (the v25 pool plus the roster-v26 batch, docs/design/depth-v26.md §4.3); the default is v25.
  */
 import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { REGIONAL_CONTENT } from '../src/content/units.ts';
+import { DEPTH_CONTENT, REGIONAL_CONTENT } from '../src/content/units.ts';
 import type { SpeciesId } from '../src/content/units.ts';
 import { deriveRosterTables, dexMaxGeneration, drawRegionalDex, evolutionLines, REGIONAL_DEX_RULES } from '../src/content/regional-dex.ts';
 import type { RegionalDexDraw } from '../src/content/regional-dex.ts';
-import { RECRUIT_SLOTS } from '../src/content/recruit-slots.ts';
+import { RECRUIT_SLOTS, firstChoiceOf } from '../src/content/recruit-slots.ts';
 import { CLASS_NATIVE_TYPES } from '../src/content/unit-classes.ts';
 import { LEADER_IDS, isLeaderId } from '../src/content/leaders.ts';
 import type { LeaderId } from '../src/content/leaders.ts';
@@ -20,14 +22,16 @@ import type { TypeId } from '../src/content/species.ts';
 import { TYPE_NAMES } from '../src/content/type-names.ts';
 import { parseSeeds, splitFlags } from './balance-run.ts';
 
-export type RegionalDexOptions = { mode: EraProgression; seeds: number[]; size?: number; leaders: 'rotation' | 'none' | LeaderId[]; show?: number; gapsOnly?: boolean };
-const USAGE = 'Usage: node tools/regional-dex.ts --eras simple|full --seeds 1-1000 [--size 48] [--leaders rotation|none|oak,misty,...] [--show 31] [--gaps] [--json out.json]';
+export type RegionalDexOptions = { mode: EraProgression; seeds: number[]; size?: number; roster?: 'v25' | 'v26'; leaders: 'rotation' | 'none' | LeaderId[]; show?: number; gapsOnly?: boolean };
+const USAGE = 'Usage: node tools/regional-dex.ts --eras simple|full --seeds 1-1000 [--roster v25|v26] [--size 48] [--leaders rotation|none|oak,misty,...] [--show 31] [--gaps] [--json out.json]';
 const ROLES = ['melee', 'ranged', 'fast', 'scout', 'siege', 'air', 'naval'] as const;
 const ROLE_NAMES: Record<string, string> = { melee: '近战', ranged: '远程', fast: '快速', scout: '侦察', siege: '攻城', air: '飞行', naval: '水面' };
 const SOURCE_NAMES: Record<string, string> = { anchor: '锚定', leader: '领袖专属', repair: '修补约束', draw: '抽取' };
-const species = REGIONAL_CONTENT.species;
-const name = (id: string) => species[id]?.name ?? id;
-const typesOf = (id: string): TypeId[] => species[id].secondaryTypeId ? [species[id].typeId, species[id].secondaryTypeId!] : [species[id].typeId];
+/** The species a report draws from: v25 (default) or v26 (v25 plus the roster-v26 batch). Names and types read the superset (shared ids agree). */
+const speciesOf = (roster: RegionalDexOptions['roster']) => roster === 'v26' ? DEPTH_CONTENT.species : REGIONAL_CONTENT.species;
+const allSpecies = DEPTH_CONTENT.species;
+const name = (id: string) => allSpecies[id]?.name ?? id;
+const typesOf = (id: string): TypeId[] => allSpecies[id].secondaryTypeId ? [allSpecies[id].typeId, allSpecies[id].secondaryTypeId!] : [allSpecies[id].typeId];
 /** Rotating seats: seed s seats leaders s, s+1, s+2, s+3 (mod 9), like the balance gate's rotations. */
 export const leadersFor = (option: RegionalDexOptions['leaders'], seed: number): LeaderId[] =>
   option === 'none' ? [] : option === 'rotation' ? [0, 1, 2, 3].map(index => LEADER_IDS[(seed + index) % LEADER_IDS.length]) : option;
@@ -37,7 +41,8 @@ const percent = (value: number) => `${(value * 100).toFixed(1)}%`;
 const table = (headers: string[], rows: string[][]) => [`| ${headers.join(' | ')} |`, `| ${headers.map(() => '---').join(' | ')} |`, ...rows.map(row => `| ${row.join(' | ')} |`)].join('\n');
 
 /** The class × stage matrix of a mode's pool: native-type candidates and all candidates per cell. */
-export function poolMatrix(mode: EraProgression) {
+export function poolMatrix(mode: EraProgression, roster: RegionalDexOptions['roster'] = 'v25') {
+  const species = speciesOf(roster);
   const pool = evolutionLines(species, dexMaxGeneration(mode)).flatMap(line => line.speciesIds);
   return ROLES.map(role => ({ role, stages: [1, 2, 3].map(stage => {
     const any = pool.filter(id => species[id].role === role && species[id].stage === stage);
@@ -47,8 +52,8 @@ export function poolMatrix(mode: EraProgression) {
 }
 
 export function regionalDexReport(options: RegionalDexOptions): { markdown: string; json: Record<string, unknown> } {
-  const { mode } = options, maxGeneration = dexMaxGeneration(mode), lines = evolutionLines(species, maxGeneration);
-  const pool = lines.flatMap(line => line.speciesIds), matrix = poolMatrix(mode);
+  const { mode } = options, species = speciesOf(options.roster), maxGeneration = dexMaxGeneration(mode), lines = evolutionLines(species, maxGeneration);
+  const pool = lines.flatMap(line => line.speciesIds), matrix = poolMatrix(mode, options.roster);
   const gaps = matrix.flatMap(row => row.stages.filter(cell => cell.any.length === 0).map(cell => `${ROLE_NAMES[row.role]}${cell.stage}阶`));
   const single = matrix.flatMap(row => row.stages.filter(cell => cell.lines === 1 || (cell.native.length > 0 && new Set(cell.native.map(id => lines.find(line => line.speciesIds.includes(id))!.id)).size === 1))
     .map(cell => `${ROLE_NAMES[row.role]}${cell.stage}阶（${(cell.native.length ? cell.native : cell.any).map(name).join('、')}）`));
@@ -57,7 +62,7 @@ export function regionalDexReport(options: RegionalDexOptions): { markdown: stri
   const scarce = [...typeLines].filter(([, set]) => set.size <= 2).sort((a, b) => a[1].size - b[1].size || (a[0] < b[0] ? -1 : 1));
   const matrixMd = table(['兵种', '一阶', '二阶', '三阶'], matrix.map(row => [ROLE_NAMES[row.role], ...row.stages.map(cell => cell.any.length
     ? `${cell.native.map(name).join('、') || '—'}（${cell.any.length}）` : '**—**（0）')]));
-  const gapsMd = `## 1. 物种池与兵种 × 阶段矩阵（${mode === 'full-v1' ? '完整' : '精简'}模式，${pool.length} 种、${lines.length} 条线）
+  const gapsMd = `## 1. 物种池与兵种 × 阶段矩阵（${options.roster === 'v26' ? 'roster-v26，' : ''}${mode === 'full-v1' ? '完整' : '精简'}模式，${pool.length} 种、${lines.length} 条线）
 
 格子里是属性契合的候选，括号里是不论属性的候选数。
 
@@ -92,9 +97,10 @@ ${matrixMd}
     const counts = new Map<string, number>();
     for (const result of results) counts.set(result.speciesId ?? '—', (counts.get(result.speciesId ?? '—') ?? 0) + 1);
     const levels = [1, 2, 3, 4, 5, 6].map(level => results.filter(result => result.level === level).length);
-    return [`${slot.id}${slot.core ? '（核心）' : ''}`, name(slot.preferred), percent(levels[0] / n), percent(levels[5] / n),
+    const first = firstChoiceOf(slot, species);
+    return [`${slot.id}${slot.core ? '（核心）' : ''}`, name(first), percent(levels[0] / n), percent(levels[5] / n),
       levels.slice(1, 5).map((count, index) => count ? `${index + 2}级 ${count}` : '').filter(Boolean).join('、') || '—',
-      [...counts].filter(([id]) => id !== slot.preferred).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([id, count]) => `${id === '—' ? '空' : name(id)} ${count}`).join('、') || '—'];
+      [...counts].filter(([id]) => id !== first).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([id, count]) => `${id === '—' ? '空' : name(id)} ${count}`).join('、') || '—'];
   });
   const empties = draws.map(item => item.tables.recruitSlots.filter(entry => !entry.speciesId).length);
   const rares = draws.map(item => item.draw.speciesIds.filter(id => species[id].rare).length);
@@ -144,7 +150,7 @@ ${showMd}`;
 
 /** `--show N`: one seed's regional Pokédex (lines by source, classes and recruits), the format of roster-v25 §0.4. */
 export function showDraw(options: RegionalDexOptions, seed: number): string {
-  const leaders = leadersFor(options.leaders, seed);
+  const leaders = leadersFor(options.leaders, seed), species = speciesOf(options.roster);
   const draw = drawRegionalDex({ species, mode: options.mode, dexSeed: seed, leaders, ...(options.size ? { size: options.size } : {}) });
   const tables = deriveRosterTables(species, draw.speciesIds, options.mode);
   const bySource = (['anchor', 'leader', 'repair', 'draw'] as const).map(source => [SOURCE_NAMES[source], draw.lines.filter(line => line.source === source).map(line => name(line.id)).join('、') || '—']);
@@ -160,7 +166,9 @@ ${table(['来源', '进化线'], [...bySource, ['兵种', ROLES.map(role => `${R
 
 export function parseRegionalDexArgs(args: readonly string[]): RegionalDexOptions & { json: string | null } {
   const rest = args.filter(arg => arg !== '--gaps'), gapsOnly = rest.length !== args.length;
-  const { flags } = splitFlags(rest, ['--eras', '--seeds', '--size', '--leaders', '--show', '--json'], USAGE);
+  const { flags } = splitFlags(rest, ['--eras', '--seeds', '--roster', '--size', '--leaders', '--show', '--json'], USAGE);
+  const roster = flags['--roster'] ?? 'v25';
+  if (roster !== 'v25' && roster !== 'v26') throw new Error(`${USAGE}\n(--roster: v25 or v26)`);
   const eras = flags['--eras'] ?? 'simple';
   if (eras !== 'simple' && eras !== 'full') throw new Error(`${USAGE}\n(--eras: simple or full)`);
   const leadersText = flags['--leaders'] ?? 'rotation';
@@ -172,7 +180,7 @@ export function parseRegionalDexArgs(args: readonly string[]): RegionalDexOption
   if (size !== undefined && (!Number.isSafeInteger(size) || size < 20 || size > 105)) throw new Error('--size: 20..105');
   const show = flags['--show'] === undefined ? undefined : Number(flags['--show']);
   if (show !== undefined && !Number.isSafeInteger(show)) throw new Error('--show: a seed');
-  return { mode: eras === 'full' ? 'full-v1' : 'simple-v1', seeds: parseSeedsWide(flags['--seeds'] ?? '1-200'), leaders, gapsOnly,
+  return { mode: eras === 'full' ? 'full-v1' : 'simple-v1', seeds: parseSeedsWide(flags['--seeds'] ?? '1-200'), leaders, gapsOnly, ...(roster === 'v26' ? { roster } : {}),
     ...(size === undefined ? {} : { size }), ...(show === undefined ? {} : { show }), json: flags['--json'] ?? null };
 }
 /** Like the balance runner's seed list, but up to 10 000 seeds. */

@@ -249,6 +249,27 @@ const GLYPHS = {
   snowflake: glyph(['....S....', '.S..S..S.', '..S.S.S..', '...SSS...', 'SSSSWSSSS', '...SSS...', '..S.S.S..', '.S..S..S.', '....S....'],
     { S: '#BFE3F7', W: CREAM }),
   volcanoCone: glyph(['...O.O...', '....O....', '...RRR...', '..SSRSS..', '.SSSSSSS.', 'SSSSSSSSS'], { O: '#F2A93B', R: '#E0483A', S: '#5C4A44' }),
+  // Gameplay v26 late game (docs/design/depth-v26.md §4.2, §5, §10): original glyphs.
+  /** A Max Raid den: a red-violet glow over a dark den. */
+  raid: glyph(['....RR....', '...RWWR...', '..RWRRWR..', '.RRRRRRRR.', 'RRMRRRRMRR', '.MMMMMMMM.', 'MMbbbbbbMM', 'bbbbbbbbbb'],
+    { R: '#E0405A', M: '#9A3AC8', W: CREAM, b: '#5A3A2A' }),
+  /** A TM disc with its label hole. */
+  tm: glyph(['...SSSS...', '.SSWWSSSS.', '.SWSSSSSSs', 'SSSSkkSSSs', 'SSSkTTkSss', 'SSSSkkSSss', '.SSSSSSss.', '.SSSSSsss.', '...ssss...'],
+    { S: '#9AA7C8', s: '#6A7590', T: '#E3C34F', W: CREAM }),
+  /** Rush production: an hourglass. */
+  rush: glyph(['YYYYYYYY', '.WSSSSW.', '..WSSW..', '...WW...', '...WW...', '..W..W..', '.WSSSSW.', 'YYYYYYYY'],
+    { Y: '#C08A52', W: '#CFEFF7', S: '#F2C14E' }),
+  /** Special training: a dumbbell. */
+  training: glyph(['BB......BB', 'BBB....BBB', 'BBBSSSSBBB', 'BBB....BBB', 'BB......BB'], { B: '#5A6A80', S: '#BFC3D6' }),
+  /** Near-victory warning: an alarm bell. */
+  alarm: glyph(['....YY....', '...YYYY...', '..YWYYYY..', '..YWYYYY..', '.YYYYYYYY.', '.YYYYYYYY.', 'YYYYYYYYYy', '..........', '....RR....'],
+    { Y: '#F2C14E', y: '#C8932E', R: '#E0405A', W: CREAM }),
+  /** Contest categories: cool (flame), beauty (bubble), cute (heart), smart (spectacles), tough (fist). */
+  contestCool: glyph(['...R....', '..RR..R.', '..RRR.RR', '.RROORRR', '.ROOYORR', 'RROYYORR', '.ROYYOR.', '..RRRR..'], { R: '#D9495B', O: '#F08A4B', Y: '#F2C14E' }),
+  contestBeauty: glyph(['..BBBB..', '.BWBBBB.', 'BWBBBBBB', 'BBBBBBBb', 'BBBBBBbb', '.BBBBbb.', '..bbbb..'], { B: '#5B9BD0', b: '#3F6FA0', W: '#CFEFF7' }),
+  contestCute: glyph(['.PP..PP.', 'PWPPPPPP', 'PPPPPPPP', '.PPPPPP.', '..PPPP..', '...PP...'], { P: '#F0A0C8', W: CREAM }),
+  contestSmart: glyph(['GGGG..GGGG', 'GWWG..GWWG', 'GWWGGGGWWG', 'GWWG..GWWG', 'GGGG..GGGG'], { G: '#4FB998', W: '#CFEFF7' }),
+  contestTough: glyph(['.YYYYYY.', 'YYYYYYYY', 'Y.Y.Y.YY', 'YYYYYYYY', 'YYYYYYYY', '.YYYYYY.', '..YYYY..'], { Y: '#C9A04A' }),
 } satisfies Record<string, Grid>;
 /** The terrain-condition icon of a biome (evolution conditions, arena captions). */
 export const BIOME_ICONS = { grassland: 'grassTuft', forest: 'tree', mountain: 'peak', ocean: 'coast', desert: 'dune', snow: 'snowflake', volcano: 'volcanoCone' } as const;

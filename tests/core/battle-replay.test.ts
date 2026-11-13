@@ -147,8 +147,10 @@ describe('battle replay model: v26 relay battles', () => {
     expect(battle.rounds).toBe(payload.battle.turns.length - 1);
     expect(battle.winner === 'home').toBe(payload.victory);
     const sends = payload.battle.turns.slice(1).flatMap(turn => turn.acts).filter(act => act.kind === 'send' || act.kind === 'switch').length;
-    const lastIsSend = (() => { const acts = payload.battle.turns.flatMap(turn => turn.acts); const last = acts.findLastIndex(act => act.kind === 'strike'); return acts.slice(last + 1).filter(act => act.kind === 'send' || act.kind === 'switch').length; })();
-    expect(battle.strikes.reduce((sum, strike) => sum + (strike.sentIn?.length ?? 0), 0)).toBe(sends - lastIsSend);
+    // Sends after the last strike (the loser's next Pokémon when time ran out) ride on no strike.
+    const acts = payload.battle.turns.flatMap(turn => turn.acts), afterLast = acts.length - 1 - [...acts].reverse().findIndex(act => act.kind === 'strike');
+    const trailing = acts.slice(afterLast + 1).filter(act => act.kind === 'send' || act.kind === 'switch').length;
+    expect(battle.strikes.reduce((sum, strike) => sum + (strike.sentIn?.length ?? 0), 0)).toBe(sends - trailing);
     ids.forEach((id, index) => expect(view.units.find(unit => unit.id === id)!.hp).toBe(Math.max(1, finalHp(battle).get(`challenger-0-${index}`)!)));
   });
 

@@ -1,9 +1,8 @@
 import { LANDMARKS, LANDMARK_IDS, TERRAIN_RULES_V24 } from '../content/terrain.ts';
 import { discoveryText } from '../content/discoveries.ts';
 import { ITEM_BALLS, ITEM_BALL_KINDS, OBJECTIVES, OBJECTIVE_IDS, OPENING_RULES, regionalPokedexTarget, victoryTargets } from '../content/opening.ts';
-import { REGIONAL_DEX_RULES } from '../content/regional-dex.ts';
-import { RECRUIT_SLOTS } from '../content/recruit-slots.ts';
-import { SPECIES_TAGS } from '../content/species-tags.ts';
+import { ALL_SPECIES_TAGS, REGIONAL_DEX_RULES } from '../content/regional-dex.ts';
+import { RECRUIT_SLOTS, firstChoiceOf } from '../content/recruit-slots.ts';
 import { STRENGTH_RULES, strengthFromPermille } from '../core/strength.ts';
 import { CLASS_COUNTERS, CLASS_HMS, CLASS_IDS, CLASS_NAMES, CLASS_NATIVE_TYPES, CLASS_RULES } from '../content/unit-classes.ts';
 import { hasAffinity } from '../core/unit-classes.ts';
@@ -335,7 +334,7 @@ export function promotionTraitTable(): string {
   return table(['特性', '效果'], PROMOTION_TRAIT_IDS.map(id => [PROMOTION_TRAITS[id].name, PROMOTION_TRAITS[id].summary]));
 }
 export function eraMilestoneTable(): string {
-  return table(['里程碑', '世代分'], ERA_MILESTONE_IDS.map(id => [ERA_MILESTONES[id].name, `+${ERA_MILESTONES[id].points}`]), [1]);
+  return table(['里程碑', '世代分'], ERA_MILESTONE_IDS.map(id => [ERA_MILESTONES[id].name, ERA_MILESTONES[id].points < 0 ? `−${-ERA_MILESTONES[id].points}` : `+${ERA_MILESTONES[id].points}`]), [1]);
 }
 export function eraAgeTable(): string {
   const line = (age: 'golden' | 'normal' | 'dark') => age === 'golden' ? `≥ ${ERA_HONOR_RULES_V22.goldenRatePermille / 1000}（v≤21：≥ ${ERA_HONOR_RULES.goldenRatePermille / 1000}）`
@@ -480,15 +479,15 @@ export function regionalDexConstraintTable(): string {
 }
 export function recruitSlotTable(): string {
   return table(['招募槽', '首选', '兵种', '属性', '核心'], RECRUIT_SLOTS.map(slot => [slot.techId ? TREE_TECHS[slot.techId]?.name ?? slot.id : `第 ${slot.generation} 世代`,
-    speciesName(slot.preferred), slot.role ? ROLE_NAMES[slot.role] ?? slot.role : '—', slot.types?.map(type => TYPE_NAMES[type]).join(' / ') ?? '—', slot.core ? '✓' : '']));
+    speciesName(firstChoiceOf(slot, content.species)), slot.role ? ROLE_NAMES[slot.role] ?? slot.role : '—', slot.types?.map(type => TYPE_NAMES[type]).join(' / ') ?? '—', slot.core ? '✓' : '']));
 }
-/** v25 species tags (src/content/species-tags.ts): the one row per species that the regional tables are generated from. */
+/** v25 species tags (src/content/species-tags.ts, plus the roster-v26 rows): the one row per species that the regional tables are generated from. */
 export function speciesTagTable(): string {
-  const habitat = (id: string) => Object.entries(SPECIES_TAGS[id].habitat ?? {}).map(([key, weight]) => `${(BIOME_NAMES as Record<string, string>)[key] ?? ({ hill: '丘陵', river: '河流', peakside: '高峰旁' } as Record<string, string>)[key]} ${weight}`).join('、');
+  const habitat = (id: string) => Object.entries(ALL_SPECIES_TAGS[id].habitat ?? {}).map(([key, weight]) => `${(BIOME_NAMES as Record<string, string>)[key] ?? ({ hill: '丘陵', river: '河流', peakside: '高峰旁' } as Record<string, string>)[key]} ${weight}`).join('、');
   const slotName = (slot: string) => { const item = RECRUIT_SLOTS.find(entry => entry.id === slot)!; return item.techId ? TREE_TECHS[item.techId]?.name ?? slot : `第 ${item.generation} 世代`; };
   const rarity = { common: '常见', uncommon: '少见', rare: '稀有' } as const;
-  return table(['宝可梦', '野外栖息地（权重）', '稀有度', '首选招募槽', '巢穴', '其他'], (Object.keys(SPECIES_TAGS).sort() as SpeciesId[]).filter(id => content.species[id]).map(id => {
-    const tags = SPECIES_TAGS[id];
+  return table(['宝可梦', '野外栖息地（权重）', '稀有度', '首选招募槽', '巢穴', '其他'], (Object.keys(ALL_SPECIES_TAGS).sort() as SpeciesId[]).filter(id => content.species[id]).map(id => {
+    const tags = ALL_SPECIES_TAGS[id];
     return [speciesName(id), habitat(id) || '—', rarity[tags.rarity], (tags.recruit ?? []).map(slotName).join('、') || '—', tags.nest ? `权重 ${tags.nest}` : '—',
       [tags.iconic === 'anchor' ? '每局必有' : tags.iconic === 'favored' ? '抽取 2 票' : '', tags.draw ? `抽取 ${tags.draw} 票` : '', tags.wanderer ? '游荡' : '',
         tags.leader?.length ? `领袖专属（${tags.leader.map(leader => LEADERS[leader].name).join('、')}）` : ''].filter(Boolean).join('、') || '—'];

@@ -1,5 +1,6 @@
 import type { BaseSpeciesId, SpeciesId } from '../content/species.ts';
 import { ROSTER_V14_SPECIES } from '../content/roster-v14-data.ts';
+import { ROSTER_V26_SPECIES } from '../content/roster-v26-data.ts';
 import type { BuildingId } from '../content/economy.ts';
 import { buildingArtPath } from './building-art.ts';
 
@@ -14,7 +15,7 @@ const BASE_POKEDEX: Record<BaseSpeciesId, number> = {
   dratini: 147, dragonair: 148, dragonite: 149,
 };
 
-const POKEDEX = { ...BASE_POKEDEX, ...Object.fromEntries(Object.entries(ROSTER_V14_SPECIES).map(([id, species]) => [id, species.dex])) } as Record<SpeciesId, number>;
+const POKEDEX = { ...BASE_POKEDEX, ...Object.fromEntries([...Object.entries(ROSTER_V14_SPECIES), ...Object.entries(ROSTER_V26_SPECIES)].map(([id, species]) => [id, species.dex!])) } as Record<SpeciesId, number>;
 /** Sprite folder per Pokédex number (generations 1–3 share the Emerald set). */
 // Sources (public/sprites/<folder>/manifest.json): Emerald, Platinum, Black/White, X/Y renders, Scarlet/Violet art for gens 7–9.
 const spriteFolder = (dex: number) => dex <= 386 ? 'gen3' : dex <= 493 ? 'gen4' : dex <= 649 ? 'gen5' : dex <= 721 ? 'gen6' : dex <= 809 ? 'gen7' : dex <= 905 ? 'gen8' : 'gen9';

@@ -4,7 +4,8 @@ import type { PolicyEffects } from './policies.ts';
 export type EraAge = 'normal' | 'golden' | 'dark';
 export type EraMilestone = 'documentedSpecies' | 'cityFounded' | 'evolution' | 'capture' | 'charterAdopted' | 'districtCompleted'
   | 'nestCleared' | 'sanctuaryEstablished' | 'guardianDefeated' | 'faithFounded' | 'contestHallBuilt' | 'discovery' | 'cityCaptured' | 'legendWonder'
-  | 'landmarkDiscovered' | 'researchComplete' | 'gymBadge' | 'eliteFour' | 'rivalDefeated';
+  | 'landmarkDiscovered' | 'researchComplete' | 'gymBadge' | 'eliteFour' | 'rivalDefeated'
+  | 'candyEvolution' | 'finalEvolution' | 'raidWon';
 export const ERA_MILESTONES: Record<EraMilestone, { name: string; points: number }> = {
   documentedSpecies: { name: '图鉴新记录物种', points: 1 },
   cityFounded: { name: '建立新城市', points: 3 },
@@ -29,6 +30,12 @@ export const ERA_MILESTONES: Record<EraMilestone, { name: string; points: number
   gymBadge: { name: '巡回徽章', points: 1 },
   eliteFour: { name: '战胜四天王', points: 3 },
   rivalDefeated: { name: '击退劲敌', points: 1 },
+  /** Gameplay v26 only (depth-v26 §4.2): a Rare Candy evolution scores 2 − 1 = 1 (the `evolution` milestone still counts it). */
+  candyEvolution: { name: '神奇糖果进化（世代分减半）', points: -1 },
+  /** Gameplay v26 only: a civilization's first final form of an evolution line (at most 3 per era). */
+  finalEvolution: { name: '最终进化', points: 1 },
+  /** Gameplay v26 only (§5.4): the top damage dealer of a Max Raid. */
+  raidWon: { name: '极巨团体战夺魁', points: 1 },
 };
 export const ERA_MILESTONE_IDS = Object.keys(ERA_MILESTONES) as EraMilestone[];
 export const ERA_HONOR_RULES = {

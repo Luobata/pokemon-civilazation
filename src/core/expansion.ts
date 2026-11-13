@@ -11,13 +11,13 @@ import { applyGymCircuitAction, initializeGymCircuit, isGymCircuitAction, valida
 import { initializeRivals, recordRivals, resolveRivalRound } from './rivals.ts';
 import { landRule } from './reach.ts';
 import { initializeResearchTasks, recordResearchTasks } from './research-tasks.ts';
-import { applyGoldSinkAction, isGoldSinkAction, resolveGoldSinkRound, validateGoldSinkAction } from './gold-sinks.ts';
-import { applyContestSeasonAction, isContestSeasonAction, resolveContestSeasonRound, validateContestSeasonAction } from './contest-seasons.ts';
+import { applyGoldSinkAction, initializeGoldSinks, isGoldSinkAction, resolveGoldSinkRound, validateGoldSinkAction } from './gold-sinks.ts';
+import { applyContestSeasonAction, initializeContestSeasons, isContestSeasonAction, resolveContestSeasonRound, validateContestSeasonAction } from './contest-seasons.ts';
 import { applyRivalDuelAction, isRivalDuelAction, validateRivalDuelAction } from './rival-duels.ts';
 import { initializeRaids, recordRaids, resolveRaidRound } from './raids.ts';
 import { recordLegendRace } from './legend-race.ts';
 import { recordOpeningGift } from './opening-gift.ts';
-import { resolveVictoryWatchRound } from './victory-watch.ts';
+import { initializeVictoryWatch, resolveVictoryWatchRound } from './victory-watch.ts';
 import { CIVILIZATION_CONTENT } from '../content/civilization-systems.ts';
 import type { Content } from '../content/units.ts';
 import type { Command, EventPayload, GameState } from './model.ts';
@@ -64,6 +64,9 @@ export function initializeExpansion(state: GameState, content: Content): void {
   initializeResearchTasks(state, content);
   // v26 (depth-v26 §5.4): no-op unless the content has raids.
   initializeRaids(state, content);
+  initializeVictoryWatch(state, content);
+  initializeGoldSinks(state, content);
+  initializeContestSeasons(state, content);
 }
 export function validateExpansionAction(state: GameState, actorId: number, action: Command['action'], content: Content): boolean {
   if (!state.expansion || !expansionActionType(action.type)) return false;
@@ -154,6 +157,6 @@ export function recordExpansion(before: GameState, after: GameState, command: Co
   const landmarks = recordLandmarks(after, [...events, ...world, ...discoveries, ...honors, ...legends, ...opening]);
   const tasks = recordResearchTasks(before, after, [...events, ...world, ...discoveries, ...honors, ...legends, ...opening, ...landmarks]);
   // v26 (depth-v26 §5.3, §5.4, §8): the legend race, raid ledgers and the opening gift ([] before v26).
-  const depth = [...recordLegendRace(before, after, events), ...recordRaids(before, after, events), ...recordOpeningGift(before, after, events, content)];
+  const depth = [...recordLegendRace(before, after, events, content), ...recordRaids(before, after, events, content), ...recordOpeningGift(before, after, events, content)];
   return [...world, ...discoveries, ...honors, ...legends, ...opening, ...landmarks, ...tasks, ...depth];
 }

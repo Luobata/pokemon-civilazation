@@ -24,6 +24,7 @@ import { traceTurns } from '../core/team-battle.ts';
 import { rivalSays } from './gym-panel.ts';
 import { leagueCountdown, leagueSummary } from './league-card.ts';
 import { latestReplayKey, replayKey } from './battle-replay.ts';
+import { depthToast } from './late-game-ui.ts';
 
 /** `battle` (depth-v26 §2.5): opens the replay of an own gym / guardian / Elite Four result (battle-replay.ts key). */
 export type ToastTarget = { kind: 'screen'; screen: 'research' | 'legends' | 'era' | 'diplomacy' | 'world' | 'log' } | { kind: 'city'; cityId: number } | { kind: 'unit'; unitId: number }
@@ -228,7 +229,13 @@ export function toastFor(payload: VisibleEvent['payload'], view: PlayerView, mem
     }
     case 'CivilizationEliminated':
       return strategic(toast('war', '☠', `文明 ${payload.eliminatedPlayerId + 1} 出局`, '', null));
-    default: return null;
+    default: {
+      // v26 late game: contest seasons, raids, the near-victory warning, the legend race, the opening gift (late-game-ui.ts).
+      const note = depthToast(payload, view);
+      if (!note) return null;
+      const item = toast(note.tone, note.icon, note.title, note.detail, note.target, note.action, note.persistent ? decision(undefined, note.key) : { ...(note.key ? { key: note.key } : {}) });
+      return note.strategic ? strategic(item) : item;
+    }
   }
 }
 

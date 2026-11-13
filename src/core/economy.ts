@@ -15,6 +15,7 @@ import type { Content, UnitIdentity } from '../content/units.ts';
 import { hexToIndex, neighbors } from './hex.ts';
 import { besideStrikingWild, canEnterTile, usesDeploymentRulesV25 } from './movement.ts';
 import { wanderersFor } from '../content/roster.ts';
+import { placementBlocked } from './stacking.ts';
 import { playerPolicyEffects } from './policies.ts';
 import { assignNewWorkers, cityYield, cleanWork, growthThreshold, productionCost, releaseWorker } from './city.ts';
 import type { CityState, EconomyEvent, GameState, PendingDeployment } from './model.ts';
@@ -24,8 +25,8 @@ function deploy(state: GameState, city: CityState, pending: PendingDeployment, c
   const identity: UnitIdentity = pending.item.kind === 'pokemon'
     ? { kind: 'pokemon', speciesId: pending.item.defId }
     : { kind: 'logistics', role: pending.item.defId, ...(pending.item.escortId ? { escortId: pending.item.escortId } : {}), ...(pending.item.defId === 'trader' ? { homeCityId: city.id } : {}) };
-  const occupied = new Set([...Object.values(state.units).filter(isMapUnit), ...Object.values(state.cities)]
-    .map(entity => hexToIndex(entity.position, state.map)));
+  // v26 C2: a new unit may share a tile with an own unit of the other layer (every unit blocks before v26).
+  const occupied = new Set([...placementBlocked(state, identity, city.ownerId, content), ...Object.values(state.cities).map(entity => hexToIndex(entity.position, state.map))]);
   const free = neighbors(city.position, state.map).filter(hex => {
     const index = hexToIndex(hex, state.map);
     return index !== null && !occupied.has(index) && canEnterTile(identity, state.map, index, content);

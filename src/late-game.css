@@ -1,0 +1,14 @@
+/* Gameplay v26 late game (src/browser/late-game-ui.ts): rush buttons, the training / TM rows, the legend race bar. */
+.gold-sinks { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.gold-sink-btn { display: inline-flex; align-items: center; gap: 4px; }
+.depth-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.depth-actions { display: flex; flex-wrap: wrap; gap: 4px; }
+.depth-actions button { font-size: 12px; padding: 2px 6px; }
+.legend-race { margin: 8px 0 12px; padding: 8px; border: 1px solid var(--border, #3a4a48); border-radius: 10px; }
+.legend-race h3 { display: flex; align-items: center; gap: 6px; margin: 0 0 6px; font-size: 15px; }
+.race-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 4px 0; }
+.race-entry { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; }
+.race-entry.own { font-weight: 600; }
+.race-cells { display: inline-flex; gap: 2px; }
+.race-cells i { width: 8px; height: 8px; background: #3a4a48; image-rendering: pixelated; }
+.race-cells i.on { background: #F2C14E; }

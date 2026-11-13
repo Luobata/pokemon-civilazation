@@ -4,6 +4,7 @@ import type { LeaderId } from '../content/leaders.ts';
 import * as T from './tables.ts';
 import { OVERVIEW_SECTIONS, SYSTEM_SECTIONS } from './systems.ts';
 import { civ6Section } from './civ6.ts';
+import { LATE_GAME_SECTIONS } from './late-game.ts';
 
 export type GuideSection = { id: string; group: string; title: string; badge?: string; html: string };
 
@@ -399,6 +400,8 @@ const CHAPTERS: readonly GuideSection[] = [
     </ul>
     ${tip('道馆别只看数值：带一只克制馆主属性、又不被它克制的宝可梦，往往比两只高阶的更稳。被克制的首发会自动换下一次，所以把抗性好的放在替补里。')}` },
 
+  // v26 late game (src/guide/late-game.ts).
+  ...LATE_GAME_SECTIONS,
   ...SYSTEM_SECTIONS,
 ];
 

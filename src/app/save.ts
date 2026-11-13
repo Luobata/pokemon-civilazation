@@ -20,8 +20,10 @@ export function serializeSave(state: GameState, log: CommandLog): string {
 }
 export function deserializeSave(text: string, content?: Content): SaveFile {
   const save = JSON.parse(text) as SaveFile;
-  // v25+: a game's content is derived from its setup (the regional Pokédex); the stock base of that version would replay another game.
-  const derived = save?.state?.setup ? contentFor(save.state.setup) : undefined;
+  // v25+: a game's content is derived from its setup (its regional Pokédex; v26 over the v26 species), not the stock base of the same
+  // version, which would replay another game. A setup that cannot be derived falls back to the stock contents (and fails validation there).
+  let derived: Content | undefined;
+  try { derived = save?.state?.setup ? contentFor(save.state.setup) : undefined; } catch { derived = undefined; }
   content ??= derived?.version === save?.contentVersion ? derived : STOCK_CONTENTS.find(stock => stock.version === save?.contentVersion) ?? CONTENT;
   const versions = gameVersions(save?.state?.setup ?? {});
   if (save?.formatVersion !== 1 || save.schemaVersion !== versions.schemaVersion || save.rulesVersion !== versions.rulesVersion || save.contentVersion !== content.version

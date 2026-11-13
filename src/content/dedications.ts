@@ -21,6 +21,7 @@ export const DEDICATION_TRIGGERS: Record<DedicationTrigger, string> = {
   districtCompleted: '建成设施区', nestCleared: '清除巢穴', sanctuaryEstablished: '建立圣所', guardianDefeated: '击败圣所守卫', faithFounded: '创立信仰',
   contestHallBuilt: '建成华丽馆', discovery: '图鉴发现', cityCaptured: '攻占城市', legendWonder: '建成传说奇观', landmarkDiscovered: '发现自然地标', researchComplete: '图鉴调查完成',
   gymBadge: '巡回徽章', eliteFour: '战胜四天王', rivalDefeated: '击退劲敌',
+  candyEvolution: '神奇糖果进化', finalEvolution: '最终进化', raidWon: '极巨团体战夺魁',
   techCompleted: '完成科技', buildingCompleted: '建成建筑', enemyDefeated: '击倒敌方文明的单位', contestHeld: '举办华丽大赛', cityConverted: '城市改宗本文明信仰',
   tradeRoute: '开通商路', exploration: '每新探索 15 格',
 };

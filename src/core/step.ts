@@ -15,7 +15,7 @@ import { canEnterTile, harborTiles, movementBudget, pathCost, reachablePaths, us
 import { inZoc, usesTactics, zocTiles } from './tactics.ts';
 import { observe, refreshKnowledge, visibleTiles } from './vision.ts';
 import { isEmbarked } from './terrain.ts';
-import { tileShareAllowed } from './stacking.ts';
+import { tileShareAllowed, trimToStop } from './stacking.ts';
 import type { Command, EventPayload, GameState, StepResult } from './model.ts';
 
 const EMBARKED_BLOCKED = new Set(['ImproveTile', 'RepairImprovement', 'PillageImprovement', 'HarvestResource', 'ClearNest']);
@@ -43,6 +43,8 @@ export function step(state: GameState, command: Command, content: Content = cont
         || Object.values(state.cities).some(city => city.ownerId !== unit.ownerId && hexToIndex(city.position, state.map) === index)) break;
       path.push(position);
     }
+    // v26 C2: stop on the last tile the unit may share (unchanged before v26).
+    path = trimToStop(path, unit, state, content);
     if (path.length === 1) return { ok: false, reason: 'unreachable' };
   } else if (action.type === 'Attack' || action.type === 'Capture' || action.type === 'Evolve') {
     const reason = validateCombatAction(state, command.actorId, action, content);

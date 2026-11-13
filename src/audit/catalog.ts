@@ -996,6 +996,38 @@ export const AUDIT_SYSTEMS: readonly AuditSystem[] = [
     sources: ["src/content/faith-legends.ts", "src/core/faith-legends.ts", "src/ai/faith-plan.ts", "tests/core/faith-legends.test.ts"],
     actionTypes: ["FoundFaith", "SpreadFaith", "MakeOffering", "EndTurn"],
   }),
+  system({
+    id: 's-gold-sinks', name: '金币出口（v26）', status: 'implemented',
+    summary: 'gameplay v26 D §5.1：加急采购（剩余生产 × 4 / × 3 金，每城每轮 1 次，传说与设施区不可买）、宝可梦中心（休养立刻归队，15 金/轮，最多 45）、特训（宝可梦中心旁 40 金 +40 经验，每只每 8 轮）、招式学习器（徽章精华内的 1 个对战属性，60 / 100 金，每枚巡回徽章送 1 张）。AI 在国库 ≥ 300 + 5 × 维护费时使用。',
+    rules: ['四条命令共用 goldSinkQuote（权威）与 viewGoldSinkQuote（界面、AI）：同样的价格与拒绝原因。', '加急只把当前订单的进度补满，本轮末与正常生产同一时机完成；不引入回合中途出生。', '账本 expansion.goldSinks 记每文明各出口的花费；视图只给自己的学习器、特训轮次与免费学习器。'],
+    checks: ['tests/core/late-game-v26.test.ts：价格、每轮一次、v25 拒绝、学习器徽章门槛与免费张数、宝可梦中心归队、AI 花钱且无被拒命令。', 'district-smoke 23 / 24 / 25 逐字节不变。'],
+    sources: ['src/core/gold-sinks.ts', 'src/ai/gold-sink-plan.ts', 'src/browser/late-game-ui.ts', 'src/content/depth-v26.ts', 'docs/design/depth-v26.md'],
+    actionTypes: ['RushProduction', 'RushRecovery', 'SpecialTraining', 'TeachMove'],
+  }),
+  system({
+    id: 's-contest-seasons', name: '华丽大赛季与文化防守（v26）', status: 'implemented',
+    summary: 'gameplay v26 D §5.2：第 45 轮起每 15 轮一届，赛前 5 轮公布类别（stableSeed 轮换），EnterContest 派 1 只宝可梦；得分 = 20 × 匹配属性 + 10 × 阶段 + 历练 + 5 × 大赛馆 + 决胜；名次人气 60 / 30 / 15 / 5 与缎带。AI 文化防守：所有性格至少 1 座大赛馆，对手到 60% 时加馆并按冷却举办。',
+    rules: ['参赛与结果事件公开；类别只用公开的种子；不消耗 state.rng。', '评审在本届轮末，排在华丽大赛胜利检查之后（新增人气从下一轮起算）。'],
+    checks: ['tests/core/late-game-v26.test.ts：届次、类别轮换、得分公式、报名窗口、名次与缎带。'],
+    sources: ['src/core/contest-seasons.ts', 'src/ai/contest-season-plan.ts', 'src/browser/late-game-ui.ts'],
+    actionTypes: ['EnterContest', 'BuildContestHall', 'HoldContest'],
+  }),
+  system({
+    id: 's-late-events', name: '传说竞赛、极巨巢穴、接近胜利预警（v26）', status: 'implemented',
+    summary: 'gameplay v26 D §5.3–5.5：传说视图 race 只给已相遇文明的档位（开工 / 过半 / 即将完成）；第 90 轮起每 20 轮一个极巨巢穴（不动、不可捕捉、轮末打相邻单位，伤害第一得到它）；任一路线达到 75% 时公开预警。',
+    rules: ['“已相遇” = 观察者记得对方的领土或城市；不给城市与轮数。', '巢穴地点与物种用 stableSeed；地点只给探索过该格的文明；账本公开。', '预警每文明每路线一次；进度与胜利判定用同一组数字。'],
+    checks: ['tests/core/late-game-v26.test.ts：档位、未相遇不可见、巢穴出现与奖励、预警一次。'],
+    sources: ['src/core/legend-race.ts', 'src/core/raids.ts', 'src/core/victory-watch.ts', 'src/ai/legend-race-plan.ts', 'src/ai/raid-plan.ts'],
+    actionTypes: ['Attack', 'SetProductionQueue', 'EndTurn'],
+  }),
+  system({
+    id: 's-stacking', name: '同格护送、开局礼物、进化目标（v26）', status: 'implemented',
+    summary: 'gameplay v26 C2 / O / P2：1 只宝可梦 + 1 个职能单位同格（同一主人），被护送的职能单位不能被选为目标；AI 在不足 4 城时护送开拓队；驯化完成送 3 个精灵球；神奇糖果进化世代分 +1（原 +2），每条线首个最终形态 +1（每世代最多 3）。',
+    rules: ['stacking.ts 是唯一的判定：寻路可穿过己方单位、只停在本层空格；权威 Move 截到最后一个可停的格。', '攻击、预览、野生与巢穴打击共用 protectedCivilian。', 'v≤25 的内容没有这些标记，行为逐字节不变。'],
+    checks: ['tests/core/late-game-v26.test.ts：v25 仍然阻挡、v26 同格、护送不可被攻击、驯化送球一次、最终形态判定。'],
+    sources: ['src/core/stacking.ts', 'src/ai/escort-plan.ts', 'src/core/opening-gift.ts', 'src/core/evolution-goals.ts'],
+    actionTypes: ['Move', 'Attack', 'FoundCity', 'Evolve'],
+  }),
 ];
 
 export const AUDIT_SYSTEM_BY_ID: ReadonlyMap<string, AuditSystem> = new Map(AUDIT_SYSTEMS.map(item => [item.id, item]));

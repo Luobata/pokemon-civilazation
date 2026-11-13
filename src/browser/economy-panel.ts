@@ -1,4 +1,5 @@
 import { classTrainingBlocker, usesUnitClasses, viewBadges } from '../core/unit-classes.ts';
+import { bindGoldSinkButtons, cityGoldSinkMarkup } from './late-game-ui.ts';
 import { CLASS_IDS, CLASS_NAMES } from '../content/unit-classes.ts';
 import { usesBuilders, usesImprovementsV23 } from '../core/improvements.ts';
 import { BUILDER_RULES, ROLE_POKEMON } from '../content/roles.ts';
@@ -222,7 +223,7 @@ export function renderEconomyPanel(view: PlayerView, selectedCity: number | null
       }).join('')}</tbody></table></div></section>
       <section class="production-section" ${citySection !== 'production' ? 'hidden' : ''}>
       <div class="production-current" aria-label="当前生产与队列"><p class="section-label queue-heading"><span>生产队列 ${city.queue.length}/5</span><span>每轮 ${rate} 生产${hallShare ? `（另 ${hallShare} 投入华丽大赛馆）` : ''}</span></p>
-      <ol id="production-queue">${queueMarkup}</ol>
+      <ol id="production-queue">${queueMarkup}</ol>${cityGoldSinkMarkup(view, city.id, disabled)}
       ${city.queue.length ? '' : '<p class="empty-note">队列为空。点击下方项目开始生产。</p>'}
       ${city.pendingDeployments.length ? `<p id="pending-deployments">待出场 ${city.pendingDeployments.length}：${city.pendingDeployments.map(p => itemName(p.item)).join('、')}</p>` : ''}</div>
       <div class="production-tabs" role="group" aria-label="生产类别">${(Object.keys(productionLabels) as ProductionItem['kind'][]).filter(kind => (kind !== 'district' || view.expansion?.districts) && (kind !== 'legend' || view.expansion?.legends)).map(kind => `<button data-production-kind="${kind}" aria-pressed="${kind === productionKind}" ${disabled ? 'disabled' : ''}>${productionLabels[kind]}</button>`).join('')}</div>
@@ -309,6 +310,7 @@ export function renderEconomyPanel(view: PlayerView, selectedCity: number | null
     } else lockedTileIds = input.checked ? [...lockedTileIds, id] : lockedTileIds.filter(tile => tile !== id);
     issue({ type: 'AssignWork', cityId: city.id, workedTileIds, lockedTileIds });
   });
+  bindGoldSinkButtons(root, issue);
   root.querySelector('#buy-ball')!.addEventListener('click', () => issue({ type: 'BuyBall', cityId: city.id,
     ballId: root.querySelector<HTMLSelectElement>('#ball-kind')!.value as BallId,
     quantity: Number(root.querySelector<HTMLInputElement>('#ball-quantity')!.value) }));
