@@ -21,6 +21,8 @@ import { viewGymBlocksCity } from '../core/gym-circuit.ts';
 import type { ActionMode } from './unit-panel.ts';
 import { gymBarState, gymTitle, nextLeaderText, openGymCard, refreshGymCard } from './gym-panel.ts';
 import { openLineupPicker, refreshLineupPicker } from './lineup-picker.ts';
+import { viewDuelCandidates } from '../core/rival-duels.ts';
+import { rivalDuelSpec } from '../ai/rival-duel-plan.ts';
 import { uiIcon } from './ui-icons.ts';
 import type { UiIconName } from './ui-icons.ts';
 
@@ -117,7 +119,7 @@ type BarAction = {
 };
 const escapeHtml = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 /** Hotkeys of the bar (lower-case `event.key`; Space is ' '). Chosen to avoid C (city), F (fit), R/T, Y, Enter, Esc, +/−. */
-export const UNIT_BAR_HOTKEYS = { move: 'm', goTo: 'w', cancelGoTo: 'backspace', attack: 'a', capture: 'q', evolve: 'e', found: 'b', improve: 'i', pillage: 'p', repair: 'x', gym: 'g', skip: ' ' } as const;
+export const UNIT_BAR_HOTKEYS = { move: 'm', goTo: 'w', cancelGoTo: 'backspace', attack: 'a', capture: 'q', evolve: 'e', found: 'b', improve: 'i', pillage: 'p', repair: 'x', gym: 'g', duel: 'd', skip: ' ' } as const;
 
 type ImproveOption = { tileIndex: number; kind: ImprovementId; label: string };
 function barActions(view: PlayerView, unit: MapUnit, mode: ActionMode, lock: string | null, goTo: UnitBarGoTo | null): { actions: BarAction[]; options: ImproveOption[] } {
@@ -223,6 +225,15 @@ function barActions(view: PlayerView, unit: MapUnit, mode: ActionMode, lock: str
     detail: contentForView(view).teamBattles ? `单打接力：带与馆主同数的宝可梦（2 格内），自己选人和出场顺序。你的下一位馆主：${nextLeaderText(view)}。`
       : `带上 2 格内最多 3 只宝可梦。你的下一位馆主：${nextLeaderText(view)}。`,
   });
+  // v26 P3: a Pokémon in reach of the own rival's team can open the duel picker (who, the order, the stake).
+  if (unit.kind === 'pokemon' && content.rivalDuels && viewDuelCandidates(view).candidates.includes(unit.id)) {
+    const spec = rivalDuelSpec(view, content);
+    actions.push({
+      id: 'duel-unit', action: 'duel', icon: 'attack', label: '对决', hotkey: 'D', key: UNIT_BAR_HOTKEYS.duel, tone: 'primary',
+      title: `劲敌对决 · ${view.expansion?.rivals?.name ?? ''}`, reason: lock ?? (spec ? null : '劲敌这次登场的宝可梦要全部在视野里，且你有同样多只在 2 格内的宝可梦（每轮一次）。'),
+      detail: '单打接力：带与在场劲敌同样多的宝可梦，选切磋（一半奖励，劲敌不走）或真剑（全额奖励，输了付奖金）。',
+    });
+  }
   const others = view.units.some(other => other.ownerId === view.playerId && other.actionLeft && other.id !== unit.id);
   actions.push({
     id: 'skip-unit', action: 'skip', icon: 'skip', label: '跳过', hotkey: '空格', key: UNIT_BAR_HOTKEYS.skip,
@@ -288,6 +299,7 @@ function run(button: HTMLButtonElement) {
       else openGymCard(lastView, current.unitId, callbacks.order);
       return;
     }
+    case 'duel': if (lastView && callbacks.order) openLineupPicker(lastView, { kind: 'rival', key: '' }, callbacks.order); return;
     case 'goto': callbacks.goTo?.(); return;
     case 'cancel-goto': callbacks.cancelGoTo?.(); return;
     case 'skip': callbacks.skip(); return;

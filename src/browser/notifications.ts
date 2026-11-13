@@ -186,7 +186,17 @@ export function toastFor(payload: VisibleEvent['payload'], view: PlayerView, mem
       return toast('war', '⚔', `劲敌攻击城市 ${payload.cityId}`, `造成 ${payload.damage} 伤害，城防剩余 ${payload.cityHpAfter}（劲敌不会把城市打到 1 HP 以下）。`, { kind: 'city', cityId: payload.cityId }, '查看城市',
         decision(undefined, `city-attacked:${payload.cityId}`));
     case 'RivalDefeated':
-      return toast('growth', '★', `击退了劲敌${view.expansion?.rivals?.name ?? ''}！`, `“${rivalSays(payload.encounter, 'beaten')}” 金币 +${payload.gold}${payload.pokeBalls ? `、精灵球 +${payload.pokeBalls}` : ''}${payload.research ? `、科研 +${payload.research}` : ''}${payload.xpUnitIds.length ? `、${payload.xpUnitIds.length} 只参战宝可梦经验 +50` : ''}。`, null, undefined, decision());
+      return toast('growth', '★', `${payload.proof ? '真剑对决胜利，' : ''}击退了劲敌${view.expansion?.rivals?.name ?? ''}！`, `“${rivalSays(payload.encounter, 'beaten')}”${payload.proof ? ' 劲敌之证：世代分 +1。' : ''} 金币 +${payload.gold}${payload.pokeBalls ? `、精灵球 +${payload.pokeBalls}` : ''}${payload.research ? `、科研 +${payload.research}` : ''}${payload.xpUnitIds.length ? `、${payload.xpUnitIds.length} 只参战宝可梦经验 +50` : ''}。`, null, undefined, decision());
+    // v26 P3: duels and the rival at the conference (own events only).
+    case 'RivalDuel': {
+      const name = view.expansion?.rivals?.name ?? '';
+      if (payload.victory && payload.stake === 'serious') return null;
+      return payload.victory
+        ? toast('growth', '★', `切磋赢了劲敌${name}！`, payload.gold ? `金币 +${payload.gold}${payload.pokeBalls ? `、精灵球 +${payload.pokeBalls}` : ''}${payload.research ? `、科研 +${payload.research}` : ''}。劲敌还在场，可以再真剑对决。` : '这次登场的切磋奖励已经领过。', null, undefined, decision())
+        : toast('war', '✖', `${payload.stake === 'serious' ? '真剑' : '切磋'}输给了劲敌${name}`, payload.prize ? `劲敌拿走奖金 ${payload.prize} 金，本次剩余轮里气势 +3。` : '宝可梦带着战损回到地图。', null);
+    }
+    case 'RivalConferenceBeaten':
+      return strategic(toast('wonder', '★', `宿命的对决：在联盟大会上击败了劲敌${view.expansion?.rivals?.name ?? ''}！`, `金币 +${payload.gold}，世代分 +${payload.eraScore}。`, null, undefined, decision()));
     case 'RivalDeparted':
       return toast('info', '…', `劲敌${view.expansion?.rivals?.name ?? ''}离开了`, `“${rivalSays(payload.encounter, 'leave')}”`, null);
     case 'BattleResolved': return battleToast(payload, view, memory);

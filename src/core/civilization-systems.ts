@@ -18,6 +18,8 @@ import { depth26Tuning } from '../content/depth-v26.ts';
 import { CONFERENCE_TRAINERS } from '../content/conference.ts';
 import { regionalSpeciesIds } from '../content/roster.ts';
 import { taughtMoveType } from './gold-sinks.ts';
+import { conferenceRivals, settleConferenceRivals } from './rival-duels.ts';
+import type { ConferenceRival } from './rival-duels.ts';
 import { battleSeed, fighterFromCombatant, fighterFromUnit, healBetween, resolveTeamBattle } from './team-battle.ts';
 import type { BattleTraceV26, RelayFighter } from './team-battle.ts';
 
@@ -306,6 +308,17 @@ export function championshipNpcEntrants(seed: number, season: number, content: C
     });
     return { entrantId: `npc-${season}-${slot}`, name: CONFERENCE_TRAINERS[tag('npc-name') % CONFERENCE_TRAINERS.length], roster };
   });
+}
+/**
+ * v26: the NPC entrants of the next season for these entered civilizations — first their rivals at the conference (§3.1, the 4th visit),
+ * then the season's NPC teams in slot order. The view shows the same list (for the civilizations entered so far).
+ */
+export function seasonNpcEntrants(state: CivilizationHost, content: CivilizationContent, entered: readonly number[]): { npcs: ChampionshipNpc[]; rivals: ConferenceRival[] } {
+  const championship = civilization(state)!.championship, season = championship.nextSeason, tuning = depth26Tuning(content.world);
+  const slots = Math.max(0, content.championship.entrantCount - entered.length);
+  const rivals = conferenceRivals(state, content.world, season, entered, slots, slot => tuning.npcBasePower + season * tuning.npcSeasonPower + slot * tuning.npcSlotPower, entered.length + 1);
+  const npcs = championshipNpcEntrants(state.setup.seed, season, content.world).slice(0, slots - rivals.length);
+  return { npcs: [...rivals.map(rival => ({ entrantId: rival.entrantId, name: rival.name, roster: rival.roster })), ...npcs], rivals };
 }
 /** v26 (depth-v26 §2.2): a guardian keeps its species' attack and defence; its HP is 150% (challenge power 620) to 200% (860), linear. */
 export function guardianFighter(site: Pick<SanctuarySite, 'id' | 'guardianSpeciesId' | 'challengePower'>, content: Content): RelayFighter {
@@ -859,12 +872,16 @@ function resolveChampionship(state: CivilizationHost, content: CivilizationConte
   if (content.world.teamBattles) {
     const relays = new Map<string, RelayFighter[]>();
     for (const entrant of entrants) relays.set(entrant.entrantId, relayFighters(state, entrant.unitIds, entrant.entrantId, content.world));
-    for (const npc of championshipNpcEntrants(state.setup.seed, championship.nextSeason, content.world).slice(0, content.championship.entrantCount - entrants.length)) {
+    const { npcs, rivals } = seasonNpcEntrants(state, content, entrants.map(entrant => entrant.playerId!));
+    for (const npc of npcs) {
       entrants.push({ entrantId: npc.entrantId, playerId: null, name: npc.name, unitIds: [], power: npc.roster.reduce((total, member) => total + member.maxHp + member.attack + member.defense, 0), roster: npc.roster });
       relays.set(npc.entrantId, npc.roster.map(member => fighterFromCombatant(member, content.world)));
     }
     const fought = new Set<string>();
-    return finishChampionship(state, content, events, entrants, (label, first, second) => relayChampionshipMatch(label, first, second, relays, fought, state));
+    finishChampionship(state, content, events, entrants, (label, first, second) => relayChampionshipMatch(label, first, second, relays, fought, state));
+    // v26 P3: a civilization that knocked its own rival out of the conference earns the fated-duel reward.
+    if (rivals.length) events.push(...settleConferenceRivals(state, rivals, state.expansion!.civilization.championship.history.at(-1)!.matches));
+    return;
   }
   for (let npcIndex = 1; entrants.length < content.championship.entrantCount; npcIndex++) {
     const slot = entrants.length + 1;
@@ -1024,8 +1041,8 @@ export function observeCivilization(state: CivilizationHost, playerId: number, v
       titlesByPlayer: clone(civilizationState.championship.titlesByPlayer),
       victory: clone(civilizationState.championship.victory),
       registrationCount: Object.keys(civilizationState.championship.registrations).length,
-      ...(content.world.teamBattles && civilizationState.championship.nextRound - state.round <= 5 ? { lineup: clone(championshipNpcEntrants(state.setup.seed,
-        civilizationState.championship.nextSeason, content.world).slice(0, Math.max(1, content.championship.entrantCount - Object.keys(civilizationState.championship.registrations).length))) } : {}),
+      ...(content.world.teamBattles && civilizationState.championship.nextRound - state.round <= 5 ? { lineup: clone(seasonNpcEntrants(state, content,
+        Object.keys(civilizationState.championship.registrations).map(Number).sort((a, b) => a - b)).npcs) } : {}),
     },
     relations: Object.entries(civilizationState.relations)
       .filter(([key]) => key.split(':').map(Number).includes(playerId))

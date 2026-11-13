@@ -92,6 +92,16 @@ export const AUDIT_SYSTEMS: readonly AuditSystem[] = [
     actionTypes: ['ChallengeGym', 'ChallengeEliteFour', 'ChallengeGuardian', 'RegisterChampionshipTeam'],
   }),
   system({
+    id: 's-rival-duels', name: '劲敌对决（v26）', status: 'implemented',
+    summary: 'gameplay v26：ChallengeRival { unitIds, stake }——与在场劲敌同数的单打接力（2 格内、至少一只相邻，或在城门口应战），每轮一次；切磋赢了得一半奖励（每次登场一次）、劲敌不走；真剑赢了全额奖励 + 劲敌之证（世代分 +1）、劲敌离场，输了付奖金并气势 +3；满 HP ×1.5 金币、连续两次击退后气势 +3 与奖励 ×1.25；第 100 轮起劲敌作为第四次登场进入联盟大会，击败它金币 100、世代分 +2。劲敌气势偏移改为 −4 / −4 / −2。',
+    rules: ['对决只用参战者与地图上的劲敌单位；每场从 state.rng 抽一个种子；劲敌 HP 在地图战斗与对决之间共享。',
+      '奖金、连胜、对决记录只记在目标文明自己的劲敌账本里（视图只给本人）；对决事件只发给目标文明。',
+      'AI（src/ai/rival-duel-plan.ts）用 chooseLineup 估计：≥ 60% 真剑，城门口 ≥ 50% 真剑，35–60% 且劲敌离己方城 ≤ 2 格时切磋（每次登场一次），否则照旧地图战斗。'],
+    checks: ['tests/core/rival-duels.test.ts（同数、距离、每轮一次、切磋 / 真剑 / 奖金 / 气势、大会劲敌、真实 AI 对局 0 次被拒）；tests/browser/depth-v26-battles.spec.ts 对决。'],
+    sources: ['src/core/rival-duels.ts', 'src/core/rivals.ts', 'src/ai/rival-duel-plan.ts', 'src/browser/lineup-picker.ts', 'src/content/rivals.ts', 'docs/design/depth-v26.md'],
+    actionTypes: ['ChallengeRival'],
+  }),
+  system({
     id: 's-regional-dex', name: '地区图鉴（v25）', status: 'implemented',
     summary: 'gameplay v25：每局按图鉴种子（缺省 = 地图种子）、时代模式和在场领袖，用 stableSeed 抽出整条进化线组成的地区图鉴（精简约 48 种、完整约 60 种），满足兵种 × 阶段、属性、世代、群系刷新、巢穴、稀有、水面线和核心招募槽约束；野外、巢穴、霸主、招募、劲敌、道馆、地标常驻和调查卡都只用图鉴物种；招募按槽解析；图鉴目标按图鉴占物种池的份额缩放。另含 v25 规则修正：放不下的单位排产即拒、新单位避开会出手的野生宝可梦、信仰胜利计入中立城、劲敌后两次登场更好打。',
     rules: ['地区图鉴不存进状态：contentFor(setup) 每次由开局设置重新算出并记忆化；权威与视图共用同一个派生内容对象（PlayerView.regionalDex 只是公开的物种名单，不含位置）。',

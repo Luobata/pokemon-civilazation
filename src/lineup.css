@@ -34,5 +34,8 @@
 .lineup-picker .lp-bar { display: inline-flex; gap: 2px; }
 .lineup-picker .lp-bar i { width: 8px; height: 14px; background: rgba(255, 255, 255, 0.15); }
 .lineup-picker .lp-bar i.on { background: #6fdc6f; }
+.lineup-picker .lp-stakes { display: flex; gap: 6px; justify-content: center; margin: 4px 0; }
+.lineup-picker .lp-stakes button[aria-checked='true'] { background: #f6c945; color: #222; }
+.lineup-picker .lp-stake-note { font-size: 12px; text-align: center; margin: 2px 0 6px; }
 .lineup-picker footer { display: flex; justify-content: flex-end; gap: 8px; }
 @media (max-width: 720px) { .lineup-picker .lp-columns { grid-template-columns: 1fr; } }

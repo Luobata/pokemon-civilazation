@@ -14,7 +14,7 @@ import type { BuildingId, TechDefinition, TechId, TechTable } from './economy.ts
 import { TREE_BUILDING_TECH, TREE_RECRUITS, TREE_TECHS } from './tech-tree.ts';
 import type { BiomeId } from './rules.ts';
 import { WORLD24_TUNING } from './world24-tuning.ts';
-import { RIVAL_RULES_V25 } from './rivals.ts';
+import { RIVAL_RULES_V25, RIVAL_RULES_V26 } from './rivals.ts';
 import type { World24Tuning } from './world24-tuning.ts';
 import type { EraProgression } from './eras.ts';
 import type { LandmarkId } from './terrain.ts';
@@ -224,7 +224,8 @@ export function regionalContentFor(setup: ContentSetup): Content {
 }
 /** v26 (docs/design/depth-v26.md): the v25 regional content with the depth flags, its own knobs and its own copy of the world24 tuning. */
 const depthOverlay = (base: Content): Content => ({ ...base, version: 'depth-v26', ...DEPTH_FLAGS,
-  world24: JSON.parse(JSON.stringify(base.world24)) as World24Tuning, depth26: JSON.parse(JSON.stringify(DEPTH26_TUNING)) as Depth26Tuning });
+  world24: { ...JSON.parse(JSON.stringify(base.world24)) as World24Tuning, rivalStrengthOffsets: [...RIVAL_RULES_V26.strengthOffsets] },
+  depth26: JSON.parse(JSON.stringify(DEPTH26_TUNING)) as Depth26Tuning });
 /** v26 base: the v25 base plus the depth flags (setups without a seed, the manual). */
 export const DEPTH_CONTENT: Content = depthOverlay(REGIONAL_CONTENT);
 const depthContents = new WeakMap<Content, Content>();

@@ -28,6 +28,7 @@ export function placementOf(season: ChampionshipSeason, entrantId: string): Plac
 export function entrantName(view: PlayerView, entrant: Pick<ChampionshipEntrant, 'playerId' | 'entrantId' | 'name'>): string {
   if (entrant.playerId === view.playerId) return '你的队伍';
   if (entrant.playerId !== null) return `文明 ${entrant.playerId + 1}`;
+  if (entrant.entrantId.startsWith('rival-')) return `劲敌${entrant.name ?? ''}`;
   return entrant.name ? `训练家 ${entrant.name}` : `联盟训练家 ${entrant.entrantId.split('-').at(-1)}`;
 }
 const ownEntrant = (view: PlayerView, season: ChampionshipSeason) => season.entrants.find(entrant => entrant.playerId === view.playerId) ?? null;

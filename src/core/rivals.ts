@@ -25,19 +25,25 @@ import type { StandRule } from './reach.ts';
 
 /** `encounter`: visits started so far (0–3); `fought`: own Pokémon that dealt damage to (or took a strike back from) this visit's rivals. */
 export type RivalLedger = { name: string; encounter: number; pending?: { round: number; cityId: number; tileIndex: number };
-  activeUnitIds: number[]; arrivedAtRound?: number; targetCityId?: number; fought?: number[]; outcomes: ('defeated' | 'departed' | 'skipped')[] };
+  activeUnitIds: number[]; arrivedAtRound?: number; targetCityId?: number; fought?: number[]; outcomes: ('defeated' | 'departed' | 'skipped')[];
+  /** v26 duels (depth-v26 §3.1), this visit only: the round of the last duel, a friendly win already paid, the two-visit streak bonus. */
+  duelRound?: number; sparRewarded?: true; streak?: true;
+  /** v26: the rival's conference appearance (the 4th visit); every duel fought this game (friendly, serious, won). */
+  conference?: 'entered' | 'beaten'; duels?: { spar: number; serious: number; won: number } };
 /** `unitTargets`: rival unit id -> the civilization it hunts; `spirit`: rival unit id -> its 劲敌气势 bonus. */
 export type RivalState = { byPlayer: Record<number, RivalLedger>; unitTargets: Record<number, number>; spirit: Record<number, number> };
 /** A rival Pokémon in sight: who it hunts and its public strength bonus. */
 export type RivalSighting = { unitId: number; targetPlayerId: number; name: string; spirit: number };
 /** Only the target sees its warning and its own ledger (§4.5); rival units in sight are physical and visible to anyone. */
 export type RivalView = { name: string; encounter: number; pending?: { round: number; cityId: number; tileIndex: number }; activeUnitIds: number[];
-  arrivedAtRound?: number; nextArrival: number | null; outcomes: RivalLedger['outcomes']; sightings: RivalSighting[] };
+  arrivedAtRound?: number; nextArrival: number | null; outcomes: RivalLedger['outcomes']; sightings: RivalSighting[];
+  /** v26 (own ledger only): this visit's last duel round, a friendly win already paid, the streak bonus, the conference appearance. */
+  duelRound?: number; sparRewarded?: boolean; streak?: boolean; conference?: RivalLedger['conference']; duels?: RivalLedger['duels'] };
 export type RivalEvent =
   | { type: 'RivalAnnounced'; playerId: number; encounter: number; round: number; cityId: number; tileIndex: number }
   | { type: 'RivalArrived'; playerId: number; encounter: number; unitIds: number[]; spirit: number }
   | { type: 'RivalStruckCity'; playerId: number; unitId: number; cityId: number; position: Hex; damage: number; cityHpBefore: number; cityHpAfter: number }
-  | { type: 'RivalDefeated'; playerId: number; encounter: number; gold: number; research: number; pokeBalls: number; xpUnitIds: number[] }
+  | { type: 'RivalDefeated'; playerId: number; encounter: number; gold: number; research: number; pokeBalls: number; xpUnitIds: number[]; proof?: true }
   | { type: 'RivalDeparted'; playerId: number; encounter: number }
   | { type: 'RivalSkipped'; playerId: number; encounter: number; reason: 'eliminated' | 'no-site' };
 
@@ -141,19 +147,37 @@ function settleDefeats(state: GameState): EventPayload[] {
     forget(state, ledger.activeUnitIds.filter(id => !alive.includes(id)));
     ledger.activeUnitIds = alive;
     if (alive.length) continue;
-    const visit = ledger.encounter - 1, reward = RULES.rewards[visit] as { gold: number; pokeBalls?: number; research?: number; xp?: number };
-    const player = state.players[playerId], fought = (ledger.fought ?? []).filter(id => state.units[id]?.ownerId === playerId);
-    delete ledger.arrivedAtRound; delete ledger.targetCityId; delete ledger.fought;
-    ledger.outcomes.push('defeated');
-    if (player.eliminated) continue;
-    player.gold += reward.gold;
-    player.ballInventory.pokeBall += reward.pokeBalls ?? 0;
-    player.research.reserve += reward.research ?? 0;
-    for (const id of reward.xp ? fought : []) state.units[id]!.xp += reward.xp!;
-    events.push({ type: 'RivalDefeated', playerId, encounter: ledger.encounter, gold: reward.gold, research: reward.research ?? 0, pokeBalls: reward.pokeBalls ?? 0,
-      xpUnitIds: reward.xp ? fought : [] });
+    events.push(...settleVisit(state, playerId, {}));
   }
   return events;
+}
+/** A visit beaten (all rival Pokémon down, or a won serious duel): the reward, the outcome, the ledger cleared. */
+function settleVisit(state: GameState, playerId: number, options: { goldPercent?: number; proof?: true }): EventPayload[] {
+  const ledger = ledgerOf(state, playerId), visit = ledger.encounter - 1, reward = RULES.rewards[visit] as { gold: number; pokeBalls?: number; research?: number; xp?: number };
+  const player = state.players[playerId], fought = (ledger.fought ?? []).filter(id => state.units[id]?.ownerId === playerId);
+  delete ledger.arrivedAtRound; delete ledger.targetCityId; delete ledger.fought;
+  clearDuels(ledger);
+  ledger.outcomes.push('defeated');
+  if (player.eliminated) return [];
+  const gold = Math.floor(reward.gold * (options.goldPercent ?? 100) / 100);
+  player.gold += gold;
+  player.ballInventory.pokeBall += reward.pokeBalls ?? 0;
+  player.research.reserve += reward.research ?? 0;
+  for (const id of reward.xp ? fought : []) state.units[id]!.xp += reward.xp!;
+  return [{ type: 'RivalDefeated', playerId, encounter: ledger.encounter, gold, research: reward.research ?? 0, pokeBalls: reward.pokeBalls ?? 0,
+    xpUnitIds: reward.xp ? fought : [], ...(options.proof ? { proof: true as const } : {}) }];
+}
+/** v26: the duel notes belong to one visit. */
+function clearDuels(ledger: RivalLedger): void {
+  delete ledger.duelRound; delete ledger.sparRewarded; delete ledger.streak;
+}
+/** v26 (depth-v26 §3.1): a won serious duel ends the visit — the rival team leaves the map and the visit is settled as beaten. */
+export function defeatRivalVisit(state: GameState, playerId: number, options: { goldPercent?: number; proof?: true }): EventPayload[] {
+  const ledger = ledgerOf(state, playerId);
+  for (const id of ledger.activeUnitIds) delete state.units[id];
+  forget(state, ledger.activeUnitIds);
+  ledger.activeUnitIds = [];
+  return settleVisit(state, playerId, options);
 }
 function nearestOwnCity(state: GameState, playerId: number, from: Hex) {
   return Object.values(state.cities).filter(city => city.ownerId === playerId)
@@ -232,12 +256,15 @@ function arrive(state: GameState, playerId: number, canStand: StandRule, content
   const tiles = freeTilesNear(state, pending.tileIndex, cityTile, canStand, team, content);
   if (!tiles.length) return skip('no-site');
   const unitIds: number[] = [];
+  // v26 (depth-v26 §3.1): after two visits beaten in a row the rival comes back fired up (+3 气势) and pays more (×1.25).
+  const streak = Boolean(content.rivalDuels) && ledger.outcomes.length >= 2 && ledger.outcomes.slice(-2).every(outcome => outcome === 'defeated');
+  if (streak) ledger.streak = true;
   for (const [index, tile] of tiles.entries()) {
     const id = state.nextEntityId++, unit = createMapUnit({ kind: 'pokemon', speciesId: team[index] }, id, null, indexToHex(tile, state.map), content);
     unit.wildHome = null;
     state.units[id] = unit;
     rivals.unitTargets[id] = playerId;
-    rivals.spirit[id] = spiritFor(state, playerId, visit, team[index], content);
+    rivals.spirit[id] = spiritFor(state, playerId, visit, team[index], content) + (streak ? 3 : 0);
     unitIds.push(id);
   }
   Object.assign(ledger, { activeUnitIds: unitIds, arrivedAtRound: pending.round, targetCityId: cityId, fought: [] });
@@ -262,6 +289,7 @@ export function resolveRivalRound(state: GameState, content: Content, canStand: 
         forget(state, ledger.activeUnitIds);
         ledger.activeUnitIds = [];
         delete ledger.arrivedAtRound; delete ledger.targetCityId; delete ledger.fought;
+        clearDuels(ledger);
         ledger.outcomes.push('departed');
         events.push({ type: 'RivalDeparted', playerId, encounter: ledger.encounter });
       }
@@ -302,7 +330,9 @@ export function observeRivals(state: GameState, playerId: number, visible: Reado
   });
   return { name: ledger.name, encounter: ledger.encounter, ...(ledger.pending ? { pending: { ...ledger.pending } } : {}), activeUnitIds: [...ledger.activeUnitIds],
     ...(ledger.arrivedAtRound !== undefined ? { arrivedAtRound: ledger.arrivedAtRound } : {}),
-    nextArrival: ledger.pending?.round ?? world24Tuning(content).rivalArrivals[ledger.encounter] ?? null, outcomes: [...ledger.outcomes], sightings };
+    nextArrival: ledger.pending?.round ?? world24Tuning(content).rivalArrivals[ledger.encounter] ?? null, outcomes: [...ledger.outcomes], sightings,
+    ...(ledger.duelRound !== undefined ? { duelRound: ledger.duelRound } : {}), ...(ledger.sparRewarded ? { sparRewarded: true } : {}),
+    ...(ledger.streak ? { streak: true } : {}), ...(ledger.conference ? { conference: ledger.conference } : {}), ...(ledger.duels ? { duels: { ...ledger.duels } } : {}) };
 }
 /** Original lines for a visit (1-based). */
 export const rivalLines = (encounter: number) => RIVAL_LINES[Math.max(0, Math.min(RIVAL_LINES.length - 1, encounter - 1))];

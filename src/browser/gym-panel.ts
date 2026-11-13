@@ -110,7 +110,8 @@ export function v24PanelCards(view: PlayerView, button: (label: string, action: 
       : rivals.activeUnitIds.length ? `正在你的领土附近（第 ${rivals.encounter} 次登场，还剩 ${rivals.activeUnitIds.length} 只）`
       : rivals.nextArrival !== null ? `下一次登场：第 ${rivals.nextArrival} 轮（提前 ${RIVAL_RULES_V24.warningRounds} 轮预告）` : '三次登场都已结束。';
     const outcomes = rivals.outcomes.map((outcome, index) => `第 ${index + 1} 次：${({ defeated: '击退', departed: '离开', skipped: '未登场' } as const)[outcome]}`).join(' · ');
-    html += card('s-rivals', `你的劲敌：${rivals.name}`, `<p id="rival-status">${esc(status)}</p><p>劲敌在第 ${RIVAL_RULES_V24.arrivals.join(' / ')} 轮登场，带克制你御三家的宝可梦，强度跟着你第二强的宝可梦走（「劲敌气势」）。只打你的宝可梦和城市（城市不会低于 1 HP），${stayText(view)}后离开；不能捕捉。全部击倒有奖励：${RIVAL_RULES_V24.rewards.map((reward, index) => `第 ${index + 1} 次 金币 ${reward.gold}`).join('、')}。</p>${outcomes ? `<p>${esc(outcomes)}</p>` : ''}`);
+    const duels = content.rivalDuels ? `<p>v26：劲敌在场时可以<strong>对决</strong>（选中 2 格内的宝可梦按 D）：带与在场劲敌同样多的宝可梦单打接力，切磋赢了得一半奖励、劲敌不走；真剑赢了得全额奖励和「劲敌之证」，输了付奖金。劲敌到了你的城旁时，城里和城旁 2 格内的宝可梦可以直接应战。三次登场之后，第 100 轮起你报名的联盟大会上它会作为第四次登场出现，在大会上击败它：金币 100、世代分 +2。${rivals.duels ? `你的对决：切磋 ${rivals.duels.spar} · 真剑 ${rivals.duels.serious} · 胜 ${rivals.duels.won}。` : ''}${rivals.conference === 'beaten' ? ' 你已在联盟大会上击败它。' : ''}</p>` : '';
+    html += card('s-rivals', `你的劲敌：${rivals.name}`, `${duels}<p id="rival-status">${esc(status)}</p><p>劲敌在第 ${RIVAL_RULES_V24.arrivals.join(' / ')} 轮登场，带克制你御三家的宝可梦，强度跟着你第二强的宝可梦走（「劲敌气势」）。只打你的宝可梦和城市（城市不会低于 1 HP），${stayText(view)}后离开；不能捕捉。全部击倒有奖励：${RIVAL_RULES_V24.rewards.map((reward, index) => `第 ${index + 1} 次 金币 ${reward.gold}`).join('、')}。</p>${outcomes ? `<p>${esc(outcomes)}</p>` : ''}`);
   }
   return html;
 }

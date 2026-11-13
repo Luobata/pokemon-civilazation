@@ -692,3 +692,12 @@
   | 道馆 `gymPowerPercent` | 80（spec 0.2 节原型） | 门槛里再看首枚徽章 |
 
 - 偏差：四天王“约 60%”是相对 v24 表缩到 64%（单打接力里六只三阶的随机队伍对原表 0%）；大会 NPC 用 `Depth26Tuning.npcBasePower`（v26 自己的值），不再读 `CIVILIZATION_CONTENT.championship.npcBasePower`。大会报名在 v26 可以重复提交（替换队伍与顺序），代替单独的 `SetChampionshipOrder` 命令。存档读取改为按开局设置派生内容（v25 / v26 的地区图鉴内容不在 `STOCK_CONTENTS` 里，之前读真实 v25 / v26 存档会因内容不对而重放失败）。
+
+### 14.3 劲敌对决（P3，第 3 节）
+
+- 规则：`src/core/rival-duels.ts`（`ChallengeRival { unitIds, stake }`、`duelBlocker` 权威与视图共用、切磋 / 真剑、奖金、气势 +3、对决记录）；`src/core/rivals.ts` 抽出 `settleVisit` / `defeatRivalVisit`（真剑胜利与地图击倒走同一套结算，`RivalDefeated.proof` 记劲敌之证）、连胜（前两次登场都击退 → 本次气势 +3、奖励 ×1.25）。世代分：劲敌之证 +1，大会上击败劲敌 +2（`RivalConferenceBeaten`）。
+- 大会劲敌：`conferenceRivals`（第 100 轮起，三次登场结束、本文明报名的第一届；主克制三阶 + 副克制三阶 + 4 只本地区三阶，战力 = 该名次 NPC 战力 + `conferenceRivalPower` 60），先占 NPC 名额；视图的赛前名单里同样出现。
+- AI：`src/ai/rival-duel-plan.ts`（≥ 60% 真剑；城门口 ≥ 50% 真剑；35–60% 且劲敌离己方城 ≤ 2 格时切磋，每次登场一次）。实测 AI 只在有“不被克制”的宝可梦时才对决（多数情况下 2 格内只有御三家，估计 0%，照旧地图战斗）。
+- 强度：`RIVAL_RULES_V26.strengthOffsets = [-4, -4, -2]`（在场轮数沿用 v25 的 6 / 7 / 9）。门槛结果见 `docs/design/balance/gate-v26-core.md`。
+- 界面：选阵界面加 `rival` 一种（赌注切换、奖励 / 奖金预览）；单位栏「对决」D；劲敌卡写对决规则和战绩；通知 `RivalDuel` / `RivalConferenceBeaten`；大会对阵卡把劲敌写成“劲敌 某某”。
+- 未做（留给表现线）：劲敌半身像、对白卡、回放器入口。

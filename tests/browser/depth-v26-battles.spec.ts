@@ -5,7 +5,7 @@ import type { Page } from '@playwright/test';
 import type { PlayerView } from '../../src/core/model.ts';
 import { hexToIndex } from '../../src/core/hex.ts';
 import { closeScreen, openScreen } from './ui.ts';
-import { conferenceFixture, gymFixture } from './fixtures/depth-v26.ts';
+import { conferenceFixture, duelFixture, gymFixture } from './fixtures/depth-v26.ts';
 
 const reports = process.env.E2E_SCREENSHOT_DIR ?? 'test-results/screenshots';
 const view = (page: Page): Promise<PlayerView> => page.evaluate(async () => { const path = '/src/browser/main.ts'; return (await import(path)).session.getView(); });
@@ -106,6 +106,36 @@ test('conference lineup picker: six Pokémon, the announced NPC teams, register 
   await expect.poll(async () => (await view(page)).expansion!.civilization.championship.registration?.unitIds ?? null).toEqual([order[1], order[0], ...order.slice(2)]);
   await closeScreen(page);
   const round = (await view(page)).round;
+  await endTurn(page);
+  await expect.poll(async () => (await view(page)).round, { timeout: 120_000 }).toBe(round + 1);
+  expect(errors).toEqual([]);
+});
+
+test('rival duel: the unit bar opens the picker with the stake row; a friendly duel is fought with the chosen Pokémon (real AI save)', async ({ page }) => {
+  test.setTimeout(480_000);
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(String(error)));
+  const fixture = duelFixture(), unit = fixture.state.units[fixture.id]! as { position: { q: number; r: number } };
+  await importSave(page, fixture.save);
+  await clickTile(page, hexToIndex(unit.position, fixture.state.map)!);
+  await expect(page.locator('#duel-unit')).toBeEnabled();
+  await page.keyboard.press('d');
+  const picker = page.locator('#lineup-picker');
+  await expect(picker).toBeVisible();
+  const rivals = (await view(page)).expansion!.rivals!;
+  await expect(picker.locator('.lp-row')).toHaveCount(rivals.activeUnitIds.length);
+  await expect(picker.locator('#lineup-stake-note')).toContainText('真剑');
+  await picker.locator('[data-stake="spar"]').click();
+  await expect(picker.locator('[data-stake="spar"]')).toHaveAttribute('aria-checked', 'true');
+  await expect(picker.locator('#lineup-stake-note')).toContainText('切磋');
+  await expect(picker.locator('#lineup-estimate')).toHaveText(/^\d+%$/);
+  await page.screenshot({ path: `${reports}/depth-v26-duel.png` });
+  const chosen = await picker.locator('.lp-row').evaluateAll(rows => rows.map(row => Number((row as HTMLElement).dataset.unit)));
+  await picker.locator('#lineup-confirm').click();
+  await expect.poll(async () => (await view(page)).expansion!.rivals!.duels?.spar ?? 0).toBe((rivals.duels?.spar ?? 0) + 1);
+  const after = await view(page);
+  expect(chosen.every(id => after.units.find(item => item.id === id)?.actionLeft === 0)).toBe(true);
+  const round = after.round;
   await endTurn(page);
   await expect.poll(async () => (await view(page)).round, { timeout: 120_000 }).toBe(round + 1);
   expect(errors).toEqual([]);

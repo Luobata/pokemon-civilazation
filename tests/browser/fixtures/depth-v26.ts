@@ -7,6 +7,7 @@ import { rememberCityRejection } from '../../../src/ai/memory.ts';
 import type { RejectedCitySite } from '../../../src/ai/memory.ts';
 import { createGame } from '../../../src/core/game.ts';
 import { leaderTeamFor } from '../../../src/core/gym-circuit.ts';
+import { viewDuelCandidates, viewRivalLineup } from '../../../src/core/rival-duels.ts';
 import { hexDistance } from '../../../src/core/hex.ts';
 import { observe } from '../../../src/core/vision.ts';
 import { step } from '../../../src/core/step.ts';
@@ -76,5 +77,14 @@ const conferencePick = (view: PlayerView) => {
   return peaceful && view.units.filter(unit => unit.ownerId === view.playerId && unit.kind === 'pokemon').length >= 6 ? league.nextRound : undefined;
 };
 export const conferenceFixture = () => first('conference', CONFERENCE_GAMES, conferencePick, 62);
-/** The first game (of seeds 1–2, conservative and expansion) whose seat 0 is ready for an early season (round 60), so the save stays short. */
-const CONFERENCE_GAMES: Options[] = [{ seed: 1, personality: 'expansion' }];
+/** Games whose seat 0 is ready for an early season (round 60 at most), so the save stays short; the first one that does is used (rule changes
+ *  in v26 move the moment between games, the later entries keep the fixture alive). */
+const CONFERENCE_GAMES: Options[] = [{ seed: 4, personality: 'expansion' }, { seed: 1, personality: 'expansion' },
+  ...[5, 6, 7, 8].flatMap(seed => (['expansion', 'conservative'] as const).map(personality => ({ seed, personality })))];
+/** Seat 0's rival visit is on, every rival Pokémon is in sight and a duel is possible now (id = an own Pokémon next to a rival Pokémon). */
+export const duelFixture = () => first('duel', GAMES, view => {
+  const rivals = view.expansion?.rivals, lineup = viewRivalLineup(view);
+  if (!rivals || !lineup.length || lineup.length !== rivals.activeUnitIds.length || rivals.duelRound === view.round) return undefined;
+  const reach = viewDuelCandidates(view);
+  return reach.candidates.length >= lineup.length ? reach.adjacent[0] : undefined;
+}, 40);
