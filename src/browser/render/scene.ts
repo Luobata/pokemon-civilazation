@@ -48,6 +48,8 @@ export type MapRenderInput = {
   /** Tile opened in the inspector (click on terrain, a foreign unit or city, a resource...). */
   inspectedTile?: number | null;
   districtPlacement?: { sites: readonly DistrictSite[]; selectedTileIndex: number | null };
+  /** v26 §7.1 go-to route of the selected unit (planned on the viewer's known terrain): tile indices from the unit, ①②③ stops. */
+  goTo?: SceneGoTo | null;
   debugOverlay?: DebugOverlay;
   layers?: MapLayers;
 };
@@ -70,6 +72,7 @@ export type SceneUnit = { key: string; unit: UnitMarkIdentity; index: number; wo
   rank?: number; promotable?: boolean;
   /** Only while the unit is damaged (current < max); units in the scene are the visible ones. */
   hp?: { current: number; max: number } };
+export type SceneGoTo = { path: readonly number[]; stops: readonly { index: number; turn: number }[]; preview: boolean };
 export type SceneYield = { index: number; yields: Yield; workable: boolean; inFocus: boolean };
 export type SceneWeather = { key: string; color: string; mark: string; tiles: number[]; center: number | null };
 
@@ -101,6 +104,7 @@ export type MapScene = {
   moveEdges: SceneEdge[]; attackEdges: SceneEdge[]; attackArea: number[];
   targets: { index: number; pending: boolean; mode: 'attack' | 'capture' }[];
   placement: { index: number; legal: boolean; selected: boolean }[];
+  goTo: SceneGoTo | null;
   fog: number[];
   selectedUnit: number | null;
   inspected: number | null;
@@ -287,7 +291,7 @@ export function buildScene(input: MapRenderInput): MapScene {
       const from = view.cities.find(city => city.id === route.fromCityId), to = view.cities.find(city => city.id === route.toCityId);
       return from && to ? [{ from: indexOf(from.position)!, to: indexOf(to.position)! }] : [];
     }), weather, night: era?.night ?? false, units,
-    reachable, moveEdges, attackEdges, attackArea, targets, placement,
+    reachable, moveEdges, attackEdges, attackArea, targets, placement, goTo: input.goTo ?? null,
     fog: tiles.filter(tile => tile.biome && !tile.visible).map(tile => tile.index),
     selectedUnit: selectedUnit ? indexOf(selectedUnit.position) : null,
     inspected: input.inspectedTile ?? null,

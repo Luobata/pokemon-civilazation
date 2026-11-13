@@ -35,6 +35,7 @@
           <div class="map-toolbar"><strong>青绿原野</strong><span id="map-size-label" class="map-meta">小地图 · 24 × 16</span><div class="map-actions"><button id="fit">F 地图居中</button><label title="在地块上显示食物、生产、金币、科研（Y）"><input id="show-yields" type="checkbox" checked />地块产出</label><label><input id="animate" type="checkbox" checked />移动动画</label><button id="skip" disabled>跳过动画</button></div></div>
           <figure class="map-frame">
               <div id="map-tooltip" role="tooltip" hidden></div>
+              <div id="site-pins" class="site-pins" aria-label="推荐城址" hidden></div>
               <canvas id="map" tabindex="0" aria-label="六角格地图。点击或用方向键选择，Enter 确认，Escape 取消，加减缩放，F 居中"></canvas>
               <figcaption><span>数字 1–4 = 文明　爪 = 野生　斜线 = 记忆地形</span><span>点城市管理 · 点单位行动 · 同格再次点击切换</span></figcaption>
             </figure>
@@ -136,7 +137,7 @@
             <button id="save-game">保存</button><button id="load-game">读档</button><button id="export-save">导出存档 JSON</button>
             <label>导入存档 <input id="import-save" type="file" accept="application/json,.json"></label>
           </section>
-          <details id="keyboard-help"><summary>键盘操作</summary><p>Tab 切换控件；地图方向键移动光标；Enter 选择/移动；Esc 取消；+ / − 缩放；F 居中；Y 地块产出；C 城市；R / T 研究；选中单位后：M 移动、A 攻击、Q 捕捉、E 进化、B 建城、I 改良、空格 跳过（按钮悬停可看不可用原因）；? 打开本帮助；Esc 关闭页面；, / . 上一个 / 下一个待命单位；结束回合按钮会先带你去待办事项，Shift+点击或 Ctrl/⌘+Enter 直接结束回合；通知图标右键忽略。完整规则与攻略见 <a href="/guide.html" target="_blank">训练家手册 ↗</a></p></details>
+          <details id="keyboard-help"><summary>键盘操作</summary><p>Tab 切换控件；地图方向键移动光标；Enter 选择/移动；Esc 取消；+ / − 缩放；F 居中；Y 地块产出；C 城市；R / T 研究；选中单位后：M 移动、W 前往（多回合路标，也可右键远处的格子；Backspace 取消路标）、A 攻击、Q 捕捉、E 进化、B 建城、I 改良、空格 跳过（按钮悬停可看不可用原因）；? 打开本帮助；Esc 关闭页面；, / . 上一个 / 下一个待命单位；结束回合按钮会先带你去待办事项，Shift+点击或 Ctrl/⌘+Enter 直接结束回合；通知图标右键忽略。完整规则与攻略见 <a href="/guide.html" target="_blank">训练家手册 ↗</a></p></details>
           <details id="dev-drawer"><summary>开发、命令回放与调试</summary><div class="dev-content"><a href="/guide.html" target="_blank">训练家手册 ↗</a><a href="/multiplayer.html">联机大厅 ↗</a><a href="/editor.html">内容编辑器 ↗</a><label>诊断覆盖层<select id="debug-overlay"><option value="none">关闭</option><option value="tiles">坐标与地块 ID</option><option value="vision">实时视野与记忆</option><option value="wild">野生单位与暴走</option><option value="ai">AI 行动与移动候选</option></select></label><a id="open-audit" href="/audit.html" target="_blank">系统说明与审计后台 ↗</a><label id="god-label"><input id="god" type="checkbox" />上帝视角（开发）</label><button id="export">导出命令 JSON</button><label>重放序号 <input id="sequence" type="number" min="0" value="0" /></label><button id="replay">重放</button><button id="resume">从此处继续</button><pre id="debug" aria-label="调试状态"></pre><pre id="frame-metrics" aria-label="帧绘制耗时"></pre></div></details>
         </div>
       </section>

@@ -1,0 +1,27 @@
+/* v26 §7 go-to orders and suggested city sites (src/browser/site-pins.ts, unit-action-bar.ts). */
+
+/* Pins live in the map frame under every HUD panel (z-index below the objective card, action bar, rail and combat card). */
+.site-pins { position: absolute; inset: 0; z-index: 2; overflow: hidden; pointer-events: none; }
+.site-pins[hidden] { display: none; }
+.site-pin { position: absolute; top: 0; left: 0; width: 0; height: 0; }
+.site-pin[hidden] { display: none; }
+.site-pin-button { position: absolute; left: -13px; top: -44px; display: grid; place-items: center; width: 26px; height: 26px; min-height: 0; padding: 0;
+  border: 0; background: none; box-shadow: none; pointer-events: auto; cursor: pointer; filter: drop-shadow(1px 2px 0 rgb(4 12 15 / 75%)); }
+.site-pin-button img { position: absolute; inset: 0; image-rendering: pixelated; }
+.site-pin-button b { position: relative; top: -3px; color: #17262A; font-size: 12px; font-weight: 800; line-height: 1; }
+.site-pin-button:hover, .site-pin-button:focus-visible { outline: 2px solid #FFF3C4; outline-offset: 1px; border-radius: 4px; }
+.site-card { position: absolute; left: 0; bottom: 48px; display: none; gap: 5px; width: max-content; max-width: 250px; padding: 7px 9px;
+  transform: translateX(-50%); border: 1px solid var(--border-strong); border-left: 3px solid #F2A93B; border-radius: var(--radius-md);
+  background: #10201F; box-shadow: var(--shadow-md); color: var(--ink-secondary); font-size: 12px; line-height: 1.45; pointer-events: none; }
+.site-pin:hover .site-card, .site-pin:focus-within .site-card { display: grid; }
+.site-pin.below .site-card { top: 6px; bottom: auto; }
+.site-pin.edge-left .site-card { transform: translateX(-16px); }
+.site-pin.edge-right .site-card { transform: translateX(calc(16px - 100%)); }
+.site-card strong { display: flex; align-items: center; gap: 4px; color: var(--ink); }
+.site-card strong small { margin-left: auto; color: var(--gold); font-weight: 600; }
+.site-chips { display: flex; flex-wrap: wrap; gap: 4px 8px; }
+
+/* The arrived settler's 建城 button asks for attention (a glow; it pulses only without reduced motion). */
+.unit-action.attention:not(:disabled) { box-shadow: 0 0 0 2px #FFE08A, 0 0 10px #F2C14E; animation: goto-attention 1.2s ease-in-out infinite alternate; }
+@keyframes goto-attention { from { box-shadow: 0 0 0 2px #FFE08A, 0 0 4px #F2C14E; } to { box-shadow: 0 0 0 2px #FFE08A, 0 0 14px #F2C14E; } }
+@media (prefers-reduced-motion: reduce) { .unit-action.attention:not(:disabled) { animation: none; } }

@@ -591,6 +591,54 @@ function drawInteraction(d: Draw) {
   }
 }
 
+/**
+ * v26 §7.1 go-to route: a dashed line from the unit to its waypoint with a numbered disc where each turn ends and a flag on
+ * the target. Steps across the v22 seam take the short way (the copy of the next tile nearest the previous one). Static: no
+ * animation, so reduced motion needs nothing more.
+ */
+function drawGoTo(d: Draw) {
+  const { context, centers, radius, scene } = d, route = scene.goTo;
+  if (!route || route.path.length < 2) return;
+  const points: Point[] = [centers[route.path[0]]];
+  for (let k = 1; k < route.path.length; k++) {
+    const previous = points[k - 1], raw = centers[route.path[k]];
+    let dx = raw.x - centers[route.path[k - 1]].x;
+    if (d.span && Math.abs(dx) > d.span / 2) dx -= Math.sign(dx) * d.span;
+    points.push({ x: previous.x + dx, y: raw.y });
+  }
+  if (!points.some(p => d.onscreen(p))) return;
+  const color = route.preview ? '#FFF3C4' : '#7FE3FF';
+  context.save();
+  context.lineCap = 'round'; context.lineJoin = 'round';
+  context.setLineDash([Math.max(4, radius * .22), Math.max(4, radius * .2)]);
+  for (const pass of [{ stroke: '#0A1214D9', width: Math.max(4, radius * .16) }, { stroke: color, width: Math.max(2, radius * .08) }]) {
+    context.beginPath(); context.moveTo(points[0].x, points[0].y);
+    for (const p of points.slice(1)) context.lineTo(p.x, p.y);
+    context.strokeStyle = pass.stroke; context.lineWidth = pass.width; context.stroke();
+  }
+  context.setLineDash([]);
+  const at = new Map(route.path.map((index, k) => [index, points[k]]));
+  const size = Math.max(9, radius * .3);
+  for (const stop of route.stops) {
+    const p = at.get(stop.index);
+    if (!p || !d.onscreen(p)) continue;
+    context.beginPath(); context.arc(p.x, p.y, size, 0, Math.PI * 2);
+    context.fillStyle = '#10191B'; context.fill();
+    context.lineWidth = 2; context.strokeStyle = color; context.stroke();
+    centeredText(d, String(stop.turn), p, '#FFFDF7', size * 1.25);
+  }
+  const end = points.at(-1)!;
+  if (d.onscreen(end)) {
+    // A small pennant on the waypoint itself.
+    const pole = radius * .55;
+    context.fillStyle = '#10191B'; context.fillRect(Math.round(end.x + size * .9), Math.round(end.y - pole), 3, Math.round(pole));
+    context.beginPath(); context.moveTo(end.x + size * .9 + 3, end.y - pole); context.lineTo(end.x + size * .9 + 3 + radius * .32, end.y - pole + radius * .12);
+    context.lineTo(end.x + size * .9 + 3, end.y - pole + radius * .24); context.closePath();
+    context.fillStyle = color; context.fill(); context.strokeStyle = '#10191B'; context.lineWidth = 1.5; context.stroke();
+  }
+  context.restore();
+}
+
 /** Remembered-but-not-visible tiles get a hatched veil. Cached. */
 function drawFog(d: Draw) {
   const { context, centers, radius, scene } = d;
@@ -1045,6 +1093,7 @@ export function createCanvas2DRenderer(canvas: HTMLCanvasElement, options: Rende
         const fogLayer = layer(fog, `${view}|${scene.fog.join(',')}`, drawFog);
         fog = fogLayer.cache; fogStat = fogLayer.stat;
       }
+      for (const item of all) drawGoTo(item);
       for (const item of all) drawSelection(item, frame);
       if (scene.debug.overlay !== 'none') for (const item of all) drawDebug(item);
       for (const item of all) drawEffects(item, frame, indexOf, camera);

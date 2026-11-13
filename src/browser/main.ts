@@ -81,6 +81,13 @@ import { TYPE_COLORS } from '../content/type-colors.ts';
 import type { TypeId } from '../content/species.ts';
 import { attackSound } from './audio/sfx.ts';
 import type { Camera, Point } from './camera.ts';
+import { GoToOrders, isSettler, planGoTo, planStops, stopText } from './waypoints.ts';
+import type { GoToPlan, GoToStop } from './waypoints.ts';
+import { suggestCitySites } from './city-sites.ts';
+import type { CitySite } from './city-sites.ts';
+import { renderSitePins } from './site-pins.ts';
+import type { SceneGoTo } from './render/scene.ts';
+import type { UnitBarGoTo } from './unit-action-bar.ts';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#map')!;
 const info = document.querySelector<HTMLElement>('#map-info')!;
@@ -442,6 +449,123 @@ function recordActivity(payload: VisibleEvent['payload'], animated = false) {
   activityLog.unshift({ text, round: session.getView().round, routine: payload.type === 'TurnChanged' || payload.type === 'Moved' });
   activityLog.splice(40);
 }
+// ---------- v26 §7.1 go-to orders (client waypoints, waypoints.ts) and §7.3 suggested city sites (city-sites.ts) ----------
+// Orders are client state only: never commands, log entries or save data. They live in memory for the current game and are
+// dropped on new game, load, replay and resume (a reload starts a new game, and a loaded save is an earlier position, so a
+// stored order would point a different unit's past at a stale target; we chose not to keep them in session storage).
+const goToOrders = new GoToOrders();
+/** Choosing a waypoint for the selected unit (action bar 前往 / W); `goToHover` is the tile under the mouse. */
+let goToMode = false;
+let goToHover: number | null = null;
+/** A settler that reached its waypoint this turn: the bar highlights 建城 (never founded automatically, as in Civilization). */
+let arrivedUnitId: number | null = null;
+let goToToastSerial = 1_000_000;
+const planCache = new Map<string, GoToPlan | null>();
+function cachedPlan(view: PlayerView, unitId: number, index: number): GoToPlan | null {
+  const key = `${view.commandSeq}:${unitId}:${index}`;
+  if (!planCache.has(key)) {
+    if (planCache.size > 64) planCache.clear();
+    planCache.set(key, planGoTo(view, unitId, indexToHex(index, view.map)));
+  }
+  return planCache.get(key)!;
+}
+function resetGoTo() { goToOrders.clear(); goToMode = false; goToHover = null; arrivedUnitId = null; planCache.clear(); siteCache = null; }
+/** Units the to-do flow skips this round: the ones the end-turn button already showed, and those on a go-to order. */
+function skippedUnits(view: PlayerView): ReadonlySet<number> { return new Set([...reviewedUnits.of(view.round), ...goToOrders.ids()]); }
+const idleWithoutOrders = (view: PlayerView) => idleUnitIds(view).filter(id => !goToOrders.has(id));
+/** The route drawn for the selected unit: a preview while choosing a waypoint, else its standing order. */
+function goToRoute(view: PlayerView): SceneGoTo | null {
+  if (selected === null || busy()) return null;
+  const order = goToOrders.get(selected);
+  const target = goToMode ? goToHover ?? keyboardIndex : order ? hexToIndex(order.target, view.map) : null;
+  const plan = target === null ? null : cachedPlan(view, selected, target);
+  return plan ? { path: plan.path.map(hex => hexToIndex(hex, view.map)!), stops: planStops(plan, view.map), preview: goToMode } : null;
+}
+function barGoTo(view: PlayerView): UnitBarGoTo | null {
+  if (selected === null) return null;
+  const order = goToOrders.get(selected), plan = order ? cachedPlan(view, selected, hexToIndex(order.target, view.map)!) : null;
+  return { mode: goToMode, turns: order ? plan?.total ?? 1 : null, arrived: arrivedUnitId === selected };
+}
+let siteCache: { key: string; sites: CitySite[] } | null = null;
+function selectedSites(view: PlayerView): CitySite[] {
+  const unit = selected === null ? undefined : view.units.find(item => item.id === selected && item.ownerId === view.playerId);
+  if (!unit || !isSettler(unit) || busy() || goToMode || view.outcome) return [];
+  const key = `${view.commandSeq}:${unit.id}`;
+  if (siteCache?.key !== key) siteCache = { key, sites: suggestCitySites(view, unit.id) };
+  return siteCache.sites;
+}
+const sitePins = document.querySelector<HTMLElement>('#site-pins')!;
+function updateSitePins(view: PlayerView) {
+  const width = canvas.clientWidth, height = canvas.clientHeight;
+  renderSitePins(sitePins, selectedSites(view).map(site => ({ site, point: tileToScreen(site.position, camera, view.map, width) })), { width, height },
+    index => { if (selected !== null) setGoTo(selected, index, true); });
+}
+/** Sets (or, on the unit's own tile, clears) a go-to order and makes this round's first step at once. */
+function setGoTo(unitId: number, index: number, site = false) {
+  const view = session.getView();
+  if (busy() || view.outcome || hasPendingPeace(view)) return;
+  const unit = view.units.find(item => item.id === unitId && item.ownerId === view.playerId);
+  if (!unit) return;
+  goToMode = false; goToHover = null;
+  if (hexToIndex(unit.position, view.map) === index) {
+    const cleared = goToOrders.cancel(unitId);
+    notice = site && isSettler(unit) ? '开拓队就在这个推荐城址上：点「建城」（B）在此建立城市。' : cleared ? '路标已清除。' : '';
+    controls(); requestFrame(); return;
+  }
+  const plan = goToOrders.set(view, unitId, indexToHex(index, view.map));
+  if (!plan) {
+    tapFeedback(index, 'error'); audio.play('error');
+    notice = '到不了这个格子：已知地形上没有路线（未探索的格子按草原估算）。'; controls(); requestFrame(); return;
+  }
+  tapFeedback(index);
+  if (arrivedUnitId === unitId) arrivedUnitId = null;
+  notice = `已设路标${site ? '（推荐城址）' : ''}：约 ${plan.total} 轮到达，每回合开始时自动前进。`;
+  runGoTo(new Set(), [unitId]);
+  controls(); requestFrame();
+}
+/**
+ * Carries out the go-to orders for this round with ordinary Move commands (animated as usual), then reports orders that
+ * stopped. Runs at the start of the viewer's turn (after EndTurn returns) and when an order is set.
+ */
+function runGoTo(attacked: ReadonlySet<number>, only?: readonly number[]) {
+  const view = session.getView();
+  if (view.outcome || view.activePlayerId !== view.playerId || !goToOrders.size) return;
+  const { moves, stops } = goToOrders.plan(view, attacked, only);
+  const moved: number[] = [];
+  for (const move of moves) {
+    if (session.issue({ type: 'Move', unitId: move.unitId, to: move.to }).ok) moved.push(move.unitId);
+    else { const found = goToOrders.get(move.unitId)?.found ?? false; goToOrders.cancel(move.unitId); stops.push({ unitId: move.unitId, reason: 'blocked', found }); }
+  }
+  stops.push(...goToOrders.afterMoves(session.getView(), moved));
+  reportGoToStops(stops);
+}
+/** A settler that arrived with no moves left: at the start of the next turn it is selected with 建城 highlighted. */
+function remindArrived() {
+  const view = session.getView(), unit = view.units.find(item => item.id === arrivedUnitId && item.ownerId === view.playerId);
+  if (!unit) { arrivedUnitId = null; return; }
+  if (!unit.actionLeft || goToOrders.has(unit.id)) return;
+  selectUnit(unit.id, false); deferredFocus = unit.position;
+  notice = `${unitDefinition(unit, contentForView(view)).name}在路标处待命：点「建城」（B）在此建立城市。`;
+}
+function reportGoToStops(stops: readonly GoToStop[]) {
+  if (!stops.length) return;
+  const view = session.getView(), CONTENT = contentForView(view);
+  const texts = stops.map(stop => {
+    const unit = view.units.find(item => item.id === stop.unitId);
+    const text = stopText(stop, unit ? unitDefinition(unit, CONTENT).name : knownUnitLabels.get(stop.unitId)?.replace(/^(野生 |文明 \d+ 的 )/, '') ?? '单位');
+    rail.push({ id: ++goToToastSerial, tone: stop.reason === 'arrived' ? 'info' : 'war', icon: stop.reason === 'arrived' ? '⚑' : '!', title: stop.reason === 'arrived' ? '到达路标' : '路标中断',
+      detail: text, target: unit ? { kind: 'unit', unitId: stop.unitId } : null, persistent: false, key: `goto:${stop.unitId}` });
+    return text;
+  });
+  const arrived = stops.find(stop => stop.reason === 'arrived' && stop.found && view.units.some(unit => unit.id === stop.unitId));
+  if (arrived) {
+    arrivedUnitId = arrived.unitId;
+    selectUnit(arrived.unitId, false);
+    deferredFocus = view.units.find(unit => unit.id === arrived.unitId)!.position;
+  }
+  notice = texts.join(' ');
+}
+
 function controls() {
   panelsBusy = busy();
   const view = session.getView();
@@ -477,11 +601,12 @@ function controls() {
   const placementSite = districtPlacement && districtPlacement.tileIndex !== null
     ? previewDistrict(view, districtPlacement.cityId, districtPlacement.kind, districtPlacement.tileIndex) : null;
   selection.textContent = unit && inspectedTile !== null ? `${unitDefinition(unit, CONTENT).name} → ${tileSummary(describeTile(view, inspectedTile))} · 右侧可直接攻击或捕捉`
-    : unit ? `${unitDefinition(unit, CONTENT).name} · 行动点 ${unit.actionLeft} · ${unit.actionLeft ? '点击高亮格直接移动，或右键移动' : '本回合已行动'}`
+    : unit ? `${unitDefinition(unit, CONTENT).name} · 行动点 ${unit.actionLeft} · ${goToOrders.has(unit.id) ? `路标约 ${barGoTo(view)?.turns ?? 1} 轮到达` : unit.actionLeft ? '点击高亮格直接移动，右键远处的格子设路标' : '本回合已行动'}`
     : selectedCity !== null ? `已选城市 ${selectedCity} · 在城市面板建造、训练或采购`
     : inspectedTile !== null ? `查看：${tileSummary(describeTile(view, inspectedTile))}`
     : '点选城市管理生产，点选单位执行行动，点任意地块查看详情；拖动地图平移，滚轮缩放。';
   actionNotice.textContent = notice || (pendingPeace ? '请先回应停战提议。' : districtPlacement ? '设施区选址：点击格子预览，再确认入队。Esc 取消。' : actionMode === 'attack' ? (targets.length ? `攻击模式：${targets.length} 个可攻击目标（红色虚线）。点目标看战斗预览，再点一次即攻击。Esc 取消。` : '攻击模式：射程内没有可攻击的目标（和平中的文明不能攻击）。Esc 取消。')
+    : goToMode ? '前往模式：点击任意格子设路标（虚线是路线，圆圈数字是第几回合到达）。Esc 取消。'
     : actionMode === 'move' ? '移动模式：点击高亮格移动，包括己方城市。Esc 取消。'
     : actionMode === 'capture' ? (targets.length ? '捕捉模式：点相邻的野生宝可梦看捕捉率，再点一次即捕捉。Esc 取消。' : `捕捉模式：${selected === null ? '没有可捕捉目标。' : captureNoTargetReason(view, selected, selectedBall)} Esc 取消。`) : ended ? '对局已结束，可开始新局。' : '');
   actionNotice.classList.toggle('is-error', notice.includes('拒绝') || notice.includes('失败'));
@@ -520,7 +645,9 @@ function controls() {
       order: issue,
       skip: () => { if (selected !== null) reviewedUnits.add(session.getView().round, selected); cycleIdle('unit'); },
       explain: text => { notice = text; controls(); },
-    });
+      goTo: () => { const choosing = !goToMode; resetAction(); goToMode = choosing; notice = ''; controls(); requestFrame(); },
+      cancelGoTo: () => { if (selected !== null && goToOrders.cancel(selected)) { notice = '路标已取消。'; if (arrivedUnitId === selected) arrivedUnitId = null; } controls(); requestFrame(); },
+    }, barGoTo(view));
   if (placementSite) {
     document.querySelector<HTMLElement>('#unit-panel')!.innerHTML = districtPreviewMarkup(view, placementSite, busy() || ended || pendingPeace);
     document.querySelector<HTMLButtonElement>('#confirm-district')?.addEventListener('click', confirmDistrictPlacement);
@@ -546,7 +673,8 @@ function controls() {
       : element.id === 'new-game' || newGameSetting || storage ? busy() || transition : busy() || ended || transition;
   }
   document.querySelector('#context-drawer')!.classList.toggle('has-selection', selected !== null || selectedCity !== null || neutralCity !== null || inspectedTile !== null || districtPlacement !== null);
-  const reminders = turnReminders(view, CONTENT, reviewedUnits.of(view.round));
+  // Units on a go-to order are not waiting for orders (nor is the settler reminder about them).
+  const reminders = turnReminders(view, CONTENT, skippedUnits(view)).filter(item => !(item.target.startsWith('unit:') && goToOrders.has(Number(item.target.slice(5)))));
   renderTurnButton(view, reminders, ended, pendingPeace);
   if (!busy()) {
     knownOwnCityIds.clear(); for (const city of view.economy.cities) knownOwnCityIds.add(city.id);
@@ -573,20 +701,20 @@ function cycleIdle(kind: 'city' | 'unit', step: 1 | -1 = 1) {
     selectCity(cycleId(idleCityIds(view), selectedCity, step));
     const economy = document.querySelector<HTMLElement>('#economy');
     if (economy) revealPanel(economy);
-  } else selectUnit(cycleId(idleUnitIds(view), selected, step));
+  } else selectUnit(cycleId(idleWithoutOrders(view), selected, step));
 }
 // ---------- end-turn state machine (turn-button.ts) ----------
 const turnHint = document.querySelector<HTMLElement>('#turn-hint')!;
 const unitCycle = [...document.querySelectorAll<HTMLButtonElement>('[data-cycle-unit]')];
 let turnState: TurnStep | null = null;
 function renderTurnButton(view: PlayerView, reminders: ReturnType<typeof turnReminders>, ended: boolean, pendingPeace: boolean) {
-  turnState = ended ? null : turnStep(view, reminders, { unitId: selected, cityId: selectedCity }, reviewedUnits.of(view.round));
+  turnState = ended ? null : turnStep(view, reminders, { unitId: selected, cityId: selectedCity }, skippedUnits(view));
   endTurn.disabled = busy() || ended || pendingPeace;
   endTurn.textContent = turnState?.label ?? `第 ${view.round} 轮 · 对局已结束`;
   endTurn.dataset.state = turnState?.kind ?? 'ended';
   endTurn.title = turnState && turnState.kind !== 'ready' ? '还有待办：点击前往。Shift+点击或 Ctrl/⌘+Enter 直接结束回合。' : '结束本回合（Ctrl/⌘+Enter）';
   turnHint.hidden = !turnState || turnState.kind === 'ready' || endTurn.disabled;
-  const idle = idleUnitIds(view).length;
+  const idle = idleWithoutOrders(view).length;
   for (const button of unitCycle) button.disabled = busy() || ended || pendingPeace || idle === 0;
 }
 /** End-turn button: a plain click goes to the first pending item; with nothing pending (or Shift held) it ends the turn. */
@@ -635,7 +763,15 @@ function issue(action: Command['action'], successNotice?: string) {
   }
   else {
     notice = successNotice ?? '';
-    if (action.type === 'EndTurn') audio.play('endTurn');
+    // Any other order the player gives a unit replaces its go-to order.
+    if ('unitId' in action && action.type !== 'PromoteUnit' && goToOrders.cancel(action.unitId) && arrivedUnitId === action.unitId) arrivedUnitId = null;
+    if (action.type === 'EndTurn') {
+      audio.play('endTurn');
+      // The next turn starts with the go-to moves; units hit during the other players' turns stop instead.
+      const attacked = new Set(session.presentationQueue.flatMap(event => event.payload.type === 'BattleResolved' && event.payload.target.kind === 'unit' ? [event.payload.target.id] : []));
+      runGoTo(attacked);
+      remindArrived();
+    }
     if (action.type === 'Attack' || action.type === 'Capture' || action.type === 'Move' || action.type === 'EndTurn') resetAction();
     if (action.type === 'SetProductionQueue' && action.orders.some(order => order.item.kind === 'district')) districtPlacement = null;
     if (action.type === 'FoundCity') {
@@ -653,7 +789,7 @@ function advanceToNextUnit(action: Command['action']) {
   const current = view.units.find(unit => unit.id === selected);
   if (current?.actionLeft) return;
   const origin = current?.position;
-  const next = view.units.filter(unit => unit.ownerId === view.playerId && unit.actionLeft && unit.id !== selected)
+  const next = view.units.filter(unit => unit.ownerId === view.playerId && unit.actionLeft && unit.id !== selected && !goToOrders.has(unit.id))
     .sort((a, b) => (origin ? hexDistance(origin, a.position, view.map) - hexDistance(origin, b.position, view.map) : 0) || a.id - b.id)[0];
   if (!next) return;
   // The camera moves on once the action's animation has played, so the player sees their own battle.
@@ -674,7 +810,7 @@ function updateCombatCard(view: PlayerView) {
 /** Esc on the map: drop the chosen target, then leave the action mode, then clear the selection. */
 function escapeAction() {
   if (pendingTarget) cancelTarget();
-  else if (actionMode !== null || districtPlacement) { resetAction(); notice = ''; controls(); requestFrame(); }
+  else if (actionMode !== null || districtPlacement || goToMode) { resetAction(); notice = ''; controls(); requestFrame(); }
   else clearSelection();
 }
 function cancelTarget() {
@@ -807,9 +943,11 @@ function frame(now: number) {
     actionMode, actionTargets: targets, pendingTargetIndex: pendingTarget?.index, inspectedTile,
     debugOverlay: import.meta.env.DEV ? document.querySelector<HTMLSelectElement>('#debug-overlay')!.value as DebugOverlay : 'none',
     districtPlacement: districtPlacement ? { sites: districtSites(view, districtPlacement.cityId, districtPlacement.kind), selectedTileIndex: districtPlacement.tileIndex } : undefined,
+    goTo: goToRoute(view),
     layers: { yields: showYields.checked },
   });
   updateCombatCard(view);
+  updateSitePins(view);
   frameDurations.push(performance.now() - drawStarted);
   if (frameDurations.length > 240) frameDurations.shift();
   if (import.meta.env.DEV) {
@@ -830,7 +968,7 @@ let panelsBusy = false;
 const ambient = new AmbientTransitions();
 /** New game, load, replay: no fades from the previous game, no war layers carried over, no reveal camera to restore. */
 function resetPresentationState() {
-  ambient.reset(); warIntensity.reset(); revealHome = null; pendingReveal = null; endingPresented = false;
+  ambient.reset(); warIntensity.reset(); revealHome = null; pendingReveal = null; endingPresented = false; resetGoTo();
 }
 function skip() { finishPresentations(); controls(); requestFrame(); }
 function fit() { camera = fitCamera(session.getView().map, canvas.clientWidth, canvas.clientHeight); requestFrame(); }
@@ -843,7 +981,7 @@ function startDistrictPlacement(cityId: number, kind: DistrictId) {
 function cancelDistrictPlacement() {
   districtPlacement = null; notice = ''; controls(); requestFrame();
 }
-function resetAction() { actionMode = null; pendingTarget = null; districtPlacement = null; }
+function resetAction() { actionMode = null; pendingTarget = null; districtPlacement = null; goToMode = false; goToHover = null; }
 function clearSelection() {
   selected = null; selectedCity = null; neutralCity = null; inspectedTile = null; keyboardIndex = null;
   resetAction(); notice = ''; controls(); requestFrame();
@@ -931,6 +1069,7 @@ function activateIndex(index: number | null, confirmSelection = false) {
     }
     return;
   }
+  if (goToMode && selected !== null) { setGoTo(selected, index); return; }
   const construction = constructionNotice(view, index);
   if (construction && actionMode) { tapFeedback(index, 'error'); notice = construction; controls(); requestFrame(); return; }
   if (actionMode === 'move' && selected !== null) {
@@ -1002,10 +1141,11 @@ function updateTooltip(event: PointerEvent) {
   const point = localPoint(event), view = session.getView();
   const index = hexToIndex(worldToHex(toWorld(point, camera)), view.map);
   if (index === null) { hideTooltip(); return; }
-  if (`${index}:${selected}` !== tooltipKey) {
+  if (`${index}:${selected}:${goToMode}` !== tooltipKey) {
     const preview = previewSummary(targetPreviews(view, selected, index));
-    tooltip.textContent = tileSummary(describeTile(view, index)) + (preview ? ` · ${preview}` : '');
-    tooltipKey = `${index}:${selected}`;
+    const route = goToMode && selected !== null ? cachedPlan(view, selected, index) : null;
+    tooltip.textContent = tileSummary(describeTile(view, index)) + (preview ? ` · ${preview}` : '') + (goToMode && selected !== null ? route ? ` · 前往：约 ${route.total} 轮` : ' · 无法前往' : '');
+    tooltipKey = `${index}:${selected}:${goToMode}`;
   }
   tooltip.hidden = false;
   const x = Math.min(point.x + 16, canvas.clientWidth - tooltip.offsetWidth - 8), y = point.y + 18 + tooltip.offsetHeight > canvas.clientHeight ? point.y - tooltip.offsetHeight - 10 : point.y + 18;
@@ -1014,6 +1154,10 @@ function updateTooltip(event: PointerEvent) {
 canvas.addEventListener('pointerleave', hideTooltip);
 canvas.addEventListener('pointermove', event => {
   updateTooltip(event);
+  if (!drag && goToMode) {
+    const index = hexToIndex(worldToHex(toWorld(localPoint(event), camera)), session.getView().map);
+    if (index !== goToHover) { goToHover = index; requestFrame(); }
+  }
   if (!drag && districtPlacement) {
     const index = hexToIndex(worldToHex(toWorld(localPoint(event), camera)), session.getView().map);
     if (index !== null && index !== districtPlacement.tileIndex) { districtPlacement.tileIndex = index; controls(); requestFrame(); }
@@ -1043,7 +1187,10 @@ canvas.addEventListener('contextmenu', event => {
   const view = session.getView(), hex = worldToHex(toWorld(localPoint(event), camera));
   const index = hexToIndex(hex, view.map);
   // The pointer may be over a copy across the v22 seam: commands always carry the canonical tile.
-  if (index !== null && reachablePaths(view, selected)[index]) issue({ type: 'Move', unitId: selected, to: indexToHex(index, view.map) });
+  if (index === null) return;
+  if (reachablePaths(view, selected)[index]) issue({ type: 'Move', unitId: selected, to: indexToHex(index, view.map) });
+  // v26 §7.1: right-click beyond this round's reach sets a go-to waypoint (Civilization-style).
+  else if (view.units.some(unit => unit.id === selected && unit.ownerId === view.playerId)) setGoTo(selected, index);
 });
 canvas.addEventListener('keydown', event => {
   if (busy()) return;
@@ -1064,6 +1211,7 @@ canvas.addEventListener('keydown', event => {
     event.preventDefault();
     keyboardIndex = hexToIndex(directions[event.key], view.map) ?? fallback;
     if (districtPlacement) districtPlacement.tileIndex = keyboardIndex;
+    goToHover = null;
     controls(); requestFrame();
   } else if (event.key === 'Enter' && !event.ctrlKey && !event.metaKey) { event.preventDefault(); activateIndex(fallback, true); }
   else if (event.key === 'Escape') { event.preventDefault(); escapeAction(); }
@@ -1091,7 +1239,7 @@ document.querySelector('#replay')!.addEventListener('click', () => {
 });
 document.querySelector('#resume')!.addEventListener('click', () => {
   if (transitionBlocked()) return;
-  driver.resumeFromReplay(); selected = null; selectedCity = null; neutralCity = null; inspectedTile = null; keyboardIndex = null; knownUnitLabels.clear(); knownUnits.clear(); knownCityOwners.clear(); deferredFocus = null; resetAction(); controls(); requestFrame();
+  driver.resumeFromReplay(); resetGoTo(); selected = null; selectedCity = null; neutralCity = null; inspectedTile = null; keyboardIndex = null; knownUnitLabels.clear(); knownUnits.clear(); knownCityOwners.clear(); deferredFocus = null; resetAction(); controls(); requestFrame();
 });
 const saveKey = 'pokemon-civilization-save';
 function load(text: string) {
@@ -1135,7 +1283,7 @@ document.addEventListener('keydown', event => {
   if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); onEndTurn(true); return; }
   if (event.ctrlKey || event.metaKey || event.altKey) return;
   if (event.key === ',' || event.key === '.') {
-    if (!idleUnitIds(session.getView()).length) return;
+    if (!idleWithoutOrders(session.getView()).length) return;
     event.preventDefault(); if (!busy()) cycleIdle('unit', event.key === ',' ? -1 : 1);
   }
   else if (event.key.toLowerCase() === 'c') {
