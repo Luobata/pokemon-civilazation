@@ -34,6 +34,13 @@ export const GYM_RULES_V24 = {
   eraBadges: [1, 4, 8],
   eliteFour: { team: 6, cooldownRounds: 10, healPercentBetween: 50, gold: 100, titlesPerGame: 1 },
 } as const;
+/**
+ * v26 (gate-v26 fix 3): the first two leaders' team power (the v24 table is 170 / 200; `gymPowerPercent` 90 still applies). With
+ * equal-size relay gyms the AI took its first badge at round 18 against v25's 22. First-badge median per civilization (never = ∞),
+ * all 216 gate setups played to round 40: 170 / 200 → 18, 210 / 240 → 22, 230 / 260 → 23, 250 / 280 → 33 (a cliff: the AI challenges
+ * only at ≥ 75%, so past ~240 a single stage-1 counter no longer suffices).
+ */
+export const GYM_RULES_V26 = { earlyTeamPower: [210, 240] } as const;
 /** Four battles and the champion; each team is stage-3 Pokémon of the listed types. The spec's 620/660/700/760/880 gave a 92% win rate to
  *  six random stage-3 Pokémon at full HP; ×1.1 gives 62% (target ~60%, docs/design/world-v24.md §3.2, §10). */
 export const ELITE_FOUR: readonly { name: string; title: string; typeIds: readonly TypeId[]; members: number; power: number }[] = [

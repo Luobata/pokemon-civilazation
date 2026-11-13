@@ -184,9 +184,17 @@ describe('v26 raids, the near-victory warning, the opening gift, evolution goals
     const at = neighbors(boss.position!, next.map).find(hex => { const index = hexToIndex(hex, next.map); return index !== null && next.map.tiles[index] !== 'ocean'
       && !Object.values(next.units).some(unit => isMapUnit(unit) && hexDistance(unit.position, hex, next.map) === 0); })!;
     const hitter = place(next, content, { kind: 'pokemon', speciesId: 'venusaur' }, at);
+    // A civilization 1 Pokémon watches from two tiles away (it sees the battle but does not fight).
+    const watchAt = freeNear(next, boss.position!, content);
+    place(next, content, { kind: 'pokemon', speciesId: 'pidgey' }, watchAt, 1);
     next.units[raid.unitId].hp = 1;
     const won = ok(order(next, { type: 'Attack', unitId: hitter, target: { kind: 'unit', id: raid.unitId } }, content));
     expect(won.state.expansion!.raids!.active).toBeNull();
+    // gate-v26 fix 1: the raid boss counts as battled only for the civilization that fought it; the watcher has only seen it.
+    const record = (playerId: number) => won.state.expansion!.world.players[playerId]!.pokedex[raid.speciesId];
+    expect(record(0)).toMatchObject({ observed: true, battled: true });
+    expect(record(1)?.observed).toBe(true);
+    expect(record(1)?.battled).toBe(false);
     expect(won.events.map(event => event.payload.type)).toContain('RaidDefeated');
     expect(Object.values(won.state.units).some(unit => unit.ownerId === 0 && unit.kind === 'pokemon' && unit.speciesId === raid.speciesId)).toBe(true);
   });

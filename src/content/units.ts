@@ -15,6 +15,7 @@ import { TREE_BUILDING_TECH, TREE_RECRUITS, TREE_TECHS } from './tech-tree.ts';
 import type { BiomeId } from './rules.ts';
 import { WORLD24_TUNING } from './world24-tuning.ts';
 import { RIVAL_RULES_V25, RIVAL_RULES_V26 } from './rivals.ts';
+import { GYM_RULES_V26 } from './gym-circuit.ts';
 import type { World24Tuning } from './world24-tuning.ts';
 import type { EraProgression } from './eras.ts';
 import type { LandmarkId } from './terrain.ts';
@@ -227,8 +228,9 @@ export function regionalContentFor(setup: ContentSetup): Content {
 }
 /** v26 (docs/design/depth-v26.md): a regional content with the depth flags, its own knobs and its own copy of the world24 tuning. */
 const depthOverlay = (base: Content): Content => ({ ...base, version: 'depth-v26', ...DEPTH_FLAGS,
-  // v26 core: the rival's strength offsets (劲敌气势) are v26's own.
-  world24: { ...JSON.parse(JSON.stringify(base.world24)) as World24Tuning, rivalStrengthOffsets: [...RIVAL_RULES_V26.strengthOffsets] },
+  // v26 core: the rival's strength offsets (劲敌气势) are v26's own; so are the first two gym leaders (gate-v26: the first badge came 4 rounds early).
+  world24: { ...JSON.parse(JSON.stringify(base.world24)) as World24Tuning, rivalStrengthOffsets: [...RIVAL_RULES_V26.strengthOffsets],
+    gymTeamPower: (base.world24?.gymTeamPower ?? []).map((power, badges) => GYM_RULES_V26.earlyTeamPower[badges] ?? power) },
   depth26: JSON.parse(JSON.stringify(DEPTH26_TUNING)) as Depth26Tuning });
 /** v26 species (species batch §4.3, `roster-v26`, src/content/roster-v26-data.ts): the v25 species with the batch's evolutions (caterpie →
  * metapod, meowth → persian) plus the new species; as in v25, every tagged wild habitat is also a spawn biome. */

@@ -68,7 +68,8 @@ export function v24TileEntities(view: PlayerView, index: number): (TileEntity & 
   if (rivals && pending?.tileIndex === index) {
     const capital = view.economy.player.headquartersCityId === pending.cityId;
     entities.push({ kind: 'rival', tone: 'enemy', title: `⚠ 劲敌${rivals.name}将在第 ${pending.round} 轮出现`, subtitle: `目标：${capital ? '首都' : `城市 ${pending.cityId}`}（只有你看得到这条预告）`,
-      lines: [`劲敌第 ${rivals.encounter + 1} 次登场，带着克制你御三家的宝可梦。它们只打你的宝可梦和城市（城市不会低于 1 HP），不打开拓队、工匠和商队，${rivalStayRounds(contentForView(view), rivals.encounter)} 轮后离开。`],
+      // v26: the first visit brings a Pokémon neutral to the starter (rivalNeutrals), the later ones its counters.
+      lines: [`劲敌第 ${rivals.encounter + 1} 次登场，带着${rivals.encounter === 0 && contentForView(view).rivalDuels ? '一只与你御三家属性互不克制' : '克制你御三家'}的宝可梦。它们只打你的宝可梦和城市（城市不会低于 1 HP），不打开拓队、工匠和商队，${rivalStayRounds(contentForView(view), rivals.encounter)} 轮后离开。`],
       hint: '在目标城市附近留几只宝可梦；全部击倒有奖励。' });
   }
   return entities;

@@ -25,7 +25,14 @@ export const RIVAL_RULES_V25 = { strengthOffsets: [-10, -12, -13], staysRounds: 
  * prototype is steep between 气势 −5 and 0. Interim values after two gates (docs/design/balance/gate-v26-core.md): the beaten-per-visit rate
  * measures when the AI chooses to duel, so difficulty is read from the best-lineup estimate at arrival instead (the stays stay as in v25).
  */
-export const RIVAL_RULES_V26 = { strengthOffsets: [-5, -4, 0] } as const;
+export const RIVAL_RULES_V26 = {
+  /**
+   * The first visit sends a species neutral to the starter (`rivalNeutrals`), so its offset is calibrated on its own: the mean best-lineup
+   * estimate of starter-only civilizations at arrival (gate setup, seeds 31–32) is 91% at −5, 66% at 0, 18% at +3, 3% at +6; +1 aims at
+   * the 30–60% band (docs/design/balance/gate-v26.md). Visits 2–3 keep the interim −4 / 0 and their counters.
+   */
+  strengthOffsets: [1, -4, 0],
+} as const;
 /** Primary and secondary counters to each starter (§4.1), whole evolution lines so every visit finds its stage. */
 export const RIVAL_COUNTERS: Record<StarterId, { primary: readonly SpeciesId[]; secondary: readonly SpeciesId[] }> = {
   bulbasaur: { primary: ['charmander', 'charmeleon', 'charizard', 'ponyta', 'rapidash'], secondary: ['pidgey', 'pidgeotto', 'pidgeot'] },

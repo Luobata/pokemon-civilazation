@@ -3,7 +3,7 @@
 import { describe, expect, test } from 'vitest';
 import { contentFor } from '../../src/content/units.ts';
 import { DEPTH26_TUNING } from '../../src/content/depth-v26.ts';
-import { GYM_RULES_V24 } from '../../src/content/gym-circuit.ts';
+import { GYM_RULES_V24, GYM_RULES_V26 } from '../../src/content/gym-circuit.ts';
 import type { SpeciesId } from '../../src/content/species.ts';
 import { createGame } from '../../src/core/game.ts';
 import { leaderTeam, leaderTeamFor, viewGymBlocker } from '../../src/core/gym-circuit.ts';
@@ -104,7 +104,10 @@ const order = (state: GameState, action: Command['action']) => step(state, { act
 describe('v26 gyms, guardians, Elite Four and conference (§2.2)', () => {
   test('equal-size gyms at gymPowerPercent of the table; the battle draws its seed from state.rng; preview = authority', () => {
     const state = createGame(setup(26)), gym = state.expansion!.gymCircuit!.gyms[0];
-    expect(leaderTeamFor(0, v26)).toMatchObject({ members: 1, power: Math.floor(GYM_RULES_V24.teams[0].power * DEPTH26_TUNING.gymPowerPercent / 100) });
+    // v26: the first two leaders have their own table power (GYM_RULES_V26), the rest the v24 table; all at gymPowerPercent.
+    expect(leaderTeamFor(0, v26)).toMatchObject({ members: 1, power: Math.floor(GYM_RULES_V26.earlyTeamPower[0] * DEPTH26_TUNING.gymPowerPercent / 100) });
+    expect(leaderTeamFor(1, v26)).toMatchObject({ members: 1, power: Math.floor(GYM_RULES_V26.earlyTeamPower[1] * DEPTH26_TUNING.gymPowerPercent / 100) });
+    expect(leaderTeamFor(2, v26)).toMatchObject({ members: 2, power: Math.floor(GYM_RULES_V24.teams[2].power * DEPTH26_TUNING.gymPowerPercent / 100) });
     expect(leaderTeam(gym, 0, state.setup.seed, v26)).toHaveLength(1);
     const ids = teamAt(state, gym.id, ['charmander', 'pidgey']);
     const view = observe(state, 0, v26);

@@ -25,7 +25,7 @@ export const LATE_GAME_SECTIONS: readonly GuideSection[] = [
     <p><strong>文化防守</strong>：所有 AI（包括好战型）在第 60 轮或第 3 座城之后至少建 1 座大赛馆；任一对手的人气达到其胜利目标的 ${L.defencePercent}%（或出现华丽大赛的接近胜利预警）时，再多建一座并每次冷却结束就举办。华丽大赛胜利仍要求人气 ≥ 每个对手的 1.5 倍，所以对手的人气越高，这条路越难走。</p>` },
   { id: 'late-events', group: '文明发展', title: '后期事件：极巨团体战、传说竞赛、接近胜利预警', badge: 'v26 新增', html: `
     <ul>
-      <li><strong>极巨巢穴</strong>：第 ${L.raidFirstRound} 轮起每 ${L.raidInterval} 轮，离所有首都至少 ${L.raidCapitalDistance} 格的地方（优先巢穴、霸主附近）出现一只本地区的三阶或稀有宝可梦（提前 ${L.raidAnnounce} 轮预告地点和物种）：HP ${L.raidBaseHp} + ${L.raidHpPerCiv} × 存活文明数，不移动、不能捕捉，每轮末攻击所有相邻单位，停留 ${L.raidRounds} 轮。用普通攻击打它，账本公开；打倒时伤害第一的文明得到这只宝可梦（离巢最近的己方城市旁）和世代分 +1，伤害 ≥ ${L.raidMinSharePercent}% 的文明每 10% 份额得 ${L.raidShareGold} 金（最多 ${L.raidMaxGold}）。没探索过那里的文明只收到“远方出现了极巨巢穴”。</li>
+      <li><strong>极巨巢穴</strong>：第 ${L.raidFirstRound} 轮起每 ${L.raidInterval} 轮，离所有首都至少 ${L.raidCapitalDistance} 格的地方（优先巢穴、霸主附近）出现一只本地区的三阶或稀有宝可梦（提前 ${L.raidAnnounce} 轮预告地点和物种）：HP ${L.raidBaseHp} + ${L.raidHpPerCiv} × 存活文明数，不移动、不能捕捉，每轮末攻击所有相邻单位，停留 ${L.raidRounds} 轮。用普通攻击打它，账本公开；打倒时伤害第一的文明得到这只宝可梦（离巢最近的己方城市旁）和世代分 +1，伤害 ≥ ${L.raidMinSharePercent}% 的文明每 10% 份额得 ${L.raidShareGold} 金（最多 ${L.raidMaxGold}）。没探索过那里的文明只收到“远方出现了极巨巢穴”。图鉴：只有亲自出手（或被首领打到）的文明把首领记为“对战过”；在旁边看着的文明只记“看见”。</li>
       <li><strong>传说神殿竞赛</strong>：传说页顶部的竞赛条显示<strong>已相遇</strong>文明（见过对方领土或城市）在建的传说，只给档位：开工（&lt; 50%）、过半、即将完成（≥ 85%），不给城市和轮数。对方开工和进入“即将完成”时都会通知你。AI 不会去追一座别人已过半、自己要 10 轮以上的传说，并会放弃明显赢不了的。</li>
       <li><strong>接近胜利预警</strong>：任一文明在任一胜利路线（征服、图鉴、起源、冠军赛、华丽大赛、信仰）达到 ${L.watchPercent}% 时，所有文明都收到一条公开通知（每条路线一次），世界页首位出现预警卡。这是信息，不是补偿。</li>
     </ul>` },

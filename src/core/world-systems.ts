@@ -663,12 +663,15 @@ export function updateWorldRecords(before: GameState, next: GameState, command: 
           || visibleAfter.has(hexToIndex(position, next.map)!));
         if (!visible) continue;
         const attacker = before.units[event.attackerId] ?? next.units[event.attackerId];
+        const defender = event.target.kind === 'unit' ? before.units[event.target.id] ?? next.units[event.target.id] : undefined;
+        // v26 (depth-v26 §5.4 fix): a Max Raid battle is "battled" only for the civilizations whose unit fought in it; the others only
+        // watched (seen). No raids exist before v26.
+        const boss = (before.expansion?.raids?.active ?? next.expansion?.raids?.active)?.unitId;
+        const raid = boss !== undefined && (event.attackerId === boss || defender?.id === boss);
+        const mode = raid && attacker?.ownerId !== playerId && defender?.ownerId !== playerId ? 'observed' : 'battled';
         // v24 C: a rival trainer's Pokémon only counts as seen (world-v24 §4.1).
-        if (attacker?.kind === 'pokemon' && !isRivalUnit(before, attacker.id)) markRecord(next, playerId, attacker.speciesId, 'battled', events);
-        if (event.target.kind === 'unit') {
-          const defender = before.units[event.target.id] ?? next.units[event.target.id];
-          if (defender?.kind === 'pokemon' && !isRivalUnit(before, defender.id)) markRecord(next, playerId, defender.speciesId, 'battled', events);
-        }
+        if (attacker?.kind === 'pokemon' && !isRivalUnit(before, attacker.id)) markRecord(next, playerId, attacker.speciesId, mode, events);
+        if (defender?.kind === 'pokemon' && !isRivalUnit(before, defender.id)) markRecord(next, playerId, defender.speciesId, mode, events);
       } else if (event.type === 'Captured' && event.success && event.playerId === playerId) {
         const captured = before.units[event.targetUnitId] ?? next.units[event.targetUnitId];
         if (captured?.kind === 'pokemon') markRecord(next, playerId, captured.speciesId, 'captured', events);

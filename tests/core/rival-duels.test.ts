@@ -12,6 +12,8 @@ import { step } from '../../src/core/step.ts';
 import { createMapUnit } from '../../src/core/unit.ts';
 import { observe, refreshKnowledge } from '../../src/core/vision.ts';
 import { conferenceRivals, settleConferenceRivals, viewRivalDuelBlocker } from '../../src/core/rival-duels.ts';
+import { rivalCounters, rivalNeutrals, rivalTeam } from '../../src/core/rivals.ts';
+import { dualEffectiveness } from '../../src/core/combat-math.ts';
 import { planNext } from '../../src/ai/plan.ts';
 import { RULE_QUERIES } from '../../src/ai/query.ts';
 import { rememberCityRejection } from '../../src/ai/memory.ts';
@@ -139,3 +141,24 @@ test('real AI v26 games: duels happen and no duel command is refused', () => {
   expect(rejected.filter(reason => reason.startsWith('ChallengeRival'))).toEqual([]);
   expect(duels).toBeGreaterThan(0);
 }, 180_000);
+
+// gate-v26 fix 2: the first visit is beatable for a starter-only civilization — a species neutral to the starter both ways (the relay
+// battle's best-type rule); visits 2+ and every visit before v26 keep the counters.
+describe('v26 first rival visit', () => {
+  test('visit 1 is neutral to the starter in v26; visits 2+ and v25 counter it', () => {
+    // ×1 on the plain type chart both ways (the relay's research bonus turns a ×2 × ×0.5 dual matchup into ×1.1, for both sides alike).
+    const types = (id: SpeciesId) => [v26.species[id].typeId, ...(v26.species[id].secondaryTypeId ? [v26.species[id].secondaryTypeId!] : [])];
+    const best = (attack: SpeciesId, defense: SpeciesId) => Math.max(...types(attack).map(type => dualEffectiveness(type, types(defense))));
+    for (const seed of [31, 32, 33, 34]) {
+      const state = createGame(setup(26, seed)), starter = state.players[0].starterId;
+      const [first] = rivalTeam(state, 0, 0, v26);
+      expect(rivalNeutrals(v26, starter)).toContain(first);
+      expect([best(first, starter), best(starter, first)]).toEqual([100, 100]);
+      // Later visits still lead with a counter (the primary list).
+      expect(rivalCounters(v26, starter, 'primary')).toContain(rivalTeam(state, 0, 1, v26)[0]);
+      const v25 = contentFor(setup(25, seed)), old = createGame(setup(25, seed));
+      expect(rivalCounters(v25, old.players[0].starterId, 'primary')).toContain(rivalTeam(old, 0, 0, v25)[0]);
+    }
+    expect(v26.world24!.rivalStrengthOffsets[0]).toBe(1);
+  });
+});

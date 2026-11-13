@@ -4,7 +4,7 @@
 import { RIVAL_COUNTERS, RIVAL_COUNTER_TYPES_V25, RIVAL_LINES, RIVAL_NAMES, RIVAL_RULES_V24, RIVAL_TEAMS } from '../content/rivals.ts';
 import { regionalSpeciesIds } from '../content/roster.ts';
 import type { StarterId } from '../content/units.ts';
-import type { SpeciesId } from '../content/species.ts';
+import type { SpeciesId, TypeId } from '../content/species.ts';
 import type { Content } from '../content/units.ts';
 import { rivalStayRounds, world24Tuning } from '../content/world24-tuning.ts';
 import { stableSeed } from './civilization-systems.ts';
@@ -111,11 +111,25 @@ export function rivalCounters(content: Content, starterId: StarterId, list: 'pri
   const primary = land.filter(id => content.species[id].typeId === type);
   return primary.length ? primary : land.filter(id => content.species[id].secondaryTypeId === type);
 }
-/** The visit's team: counters to the target's starter, by stage (§4.1), picked with stableSeed. */
+/**
+ * v26 (gate-v26 fix 2): the first visit's species — regional land species neutral to the starter both ways: the best type of either side
+ * (the relay battle's rule) hits the other at exactly ×1. At the first visit 80% of civilizations own only their starter, which a counter
+ * beats outright; a neutral rival leaves the duel to stats and the 劲敌气势 offset. Empty when no regional species qualifies (counters then).
+ */
+export function rivalNeutrals(content: Content, starterId: StarterId): readonly SpeciesId[] {
+  const starter = content.species[starterId], types = (species: typeof starter) => [species.typeId, ...(species.secondaryTypeId ? [species.secondaryTypeId] : [])];
+  const neutral = (attack: readonly TypeId[], defense: readonly TypeId[]) => Math.max(...attack.map(type => dualEffectiveness(type, defense))) === 100;
+  return [...regionalSpeciesIds(content)].sort().filter(id => {
+    const species = content.species[id];
+    return species && species.role !== 'naval' && species.terrain.includes('grassland') && neutral(types(species), types(starter)) && neutral(types(starter), types(species));
+  });
+}
+/** The visit's team: counters to the target's starter, by stage (§4.1), picked with stableSeed; v26: the first visit is neutral (above). */
 export function rivalTeam(state: GameState, playerId: number, encounter: number, content: Content): SpeciesId[] {
   const starterId = state.players[playerId].starterId;
+  const neutrals = content.rivalDuels && encounter === 0 ? rivalNeutrals(content, starterId) : [];
   return RIVAL_TEAMS[encounter].map((slot, index) => {
-    const list = rivalCounters(content, starterId, slot.list);
+    const list = neutrals.length ? neutrals : rivalCounters(content, starterId, slot.list);
     const pool = [0, -1, -2, 1].map(offset => list.filter(id => content.species[id]?.stage === slot.stage + offset)).find(found => found.length) ?? [...list];
     return pool[stableSeed(state.setup.seed, playerId, encounter, index, 'rival-team') % pool.length];
   });
