@@ -23,6 +23,13 @@ import type { LandmarkEvent, LandmarkState, LandmarkView } from './landmarks.ts'
 import type { GymCircuitAction, GymCircuitEvent, GymCircuitState, GymCircuitView } from './gym-circuit.ts';
 import type { RivalEvent, RivalState, RivalView } from './rivals.ts';
 import type { ResearchTaskEvent, ResearchTaskState, ResearchTaskView } from './research-tasks.ts';
+import type { GoldSinkAction, GoldSinkEvent, GoldSinkState, GoldSinkView } from './gold-sinks.ts';
+import type { ContestSeasonAction, ContestSeasonEvent, ContestSeasonState, ContestSeasonView } from './contest-seasons.ts';
+import type { RaidEvent, RaidState, RaidView } from './raids.ts';
+import type { RivalDuelAction, RivalDuelEvent } from './rival-duels.ts';
+import type { LegendRaceEvent } from './legend-race.ts';
+import type { OpeningGiftEvent } from './opening-gift.ts';
+import type { VictoryWatchEvent } from './victory-watch.ts';
 
 /** Opt-in rules pack. Absence preserves the legacy m5-v1 game and replay. */
 export type ExpansionState = {
@@ -65,9 +72,16 @@ export type ExpansionState = {
   gymCircuit?: GymCircuitState;
   rivals?: RivalState;
   researchTasks?: ResearchTaskState;
+  /** gameplayVersion >= 26 only (docs/design/depth-v26.md): D gold sinks, contest seasons and raids. */
+  goldSinks?: GoldSinkState;
+  contestSeasons?: ContestSeasonState;
+  raids?: RaidState;
 };
 export type ExpansionView = { version: 1; world: WorldView; civilization: CivilizationView; leaders: LeaderSystemsView; improvements?: ImprovementView; discoveries?: TechId[]; policies?: PolicyView; essences?: EssenceView; eraAbilities?: EraAbilityView; bonds?: Record<number, { bond: number; pressure: BondBreakdown }>; rareBerries?: RareBerryView; contests?: ContestView; faith?: FaithView; districts?: DistrictView; eraHonors?: EraHonorView; promotions?: PromotionView; legends?: LegendView; cityNetwork?: CityNetworkView; opening?: OpeningView;
-  landmarks?: LandmarkView; gymCircuit?: GymCircuitView; rivals?: RivalView; researchTasks?: ResearchTaskView };
-export type ExpansionAction = WorldAction | CivilizationAction | LeaderAction | ImprovementAction | PolicyAction | EssenceAction | EraAbilityAction | BondAction | RareBerryAction | ContestAction | FaithAction | PromotionAction | CityNetworkAction | DedicationAction | PillageAction | GymCircuitAction;
+  landmarks?: LandmarkView; gymCircuit?: GymCircuitView; rivals?: RivalView; researchTasks?: ResearchTaskView;
+  goldSinks?: GoldSinkView; contestSeasons?: ContestSeasonView; raids?: RaidView };
+export type ExpansionAction = WorldAction | CivilizationAction | LeaderAction | ImprovementAction | PolicyAction | EssenceAction | EraAbilityAction | BondAction | RareBerryAction | ContestAction | FaithAction | PromotionAction | CityNetworkAction | DedicationAction | PillageAction | GymCircuitAction
+  | GoldSinkAction | ContestSeasonAction | RivalDuelAction;
 export type ExpansionEvent = WorldEvent | CivilizationEvent | LeaderEvent | ImprovementEvent | DiscoveryEvent | PolicyEvent | EssenceEvent | EraAbilityEvent | BondEvent | RareBerryEvent | ContestEvent | FaithEvent | EraHonorEvent | PromotionEvent | LegendEvent | CityNetworkEvent | OpeningEvent | DedicationEvent | PillageEvent
-  | LandmarkEvent | GymCircuitEvent | RivalEvent | ResearchTaskEvent;
+  | LandmarkEvent | GymCircuitEvent | RivalEvent | ResearchTaskEvent
+  | GoldSinkEvent | ContestSeasonEvent | RaidEvent | RivalDuelEvent | LegendRaceEvent | OpeningGiftEvent | VictoryWatchEvent;

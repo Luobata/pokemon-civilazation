@@ -15,6 +15,7 @@ import { canEnterTile, harborTiles, movementBudget, pathCost, reachablePaths, us
 import { inZoc, usesTactics, zocTiles } from './tactics.ts';
 import { observe, refreshKnowledge, visibleTiles } from './vision.ts';
 import { isEmbarked } from './terrain.ts';
+import { tileShareAllowed } from './stacking.ts';
 import type { Command, EventPayload, GameState, StepResult } from './model.ts';
 
 const EMBARKED_BLOCKED = new Set(['ImproveTile', 'RepairImprovement', 'PillageImprovement', 'HarvestResource', 'ClearNest']);
@@ -38,7 +39,7 @@ export function step(state: GameState, command: Command, content: Content = cont
     for (const position of planned.slice(1)) {
       const index = hexToIndex(position, state.map)!;
       if (!canEnterTile(unit, state.map, index, content, access, harbors.has(index))
-        || Object.values(state.units).filter(isMapUnit).some(other => other.id !== unit.id && hexToIndex(other.position, state.map) === index)
+        || Object.values(state.units).filter(isMapUnit).some(other => other.id !== unit.id && hexToIndex(other.position, state.map) === index && !tileShareAllowed(unit, other, content))
         || Object.values(state.cities).some(city => city.ownerId !== unit.ownerId && hexToIndex(city.position, state.map) === index)) break;
       path.push(position);
     }

@@ -651,3 +651,27 @@
 - **单元测试**：`tests/core/team-battle.test.ts`（先手、属性选择、换人只一次、历练、平局判定、HP 写回、种子来自 `state.rng`、预览 = 结算接口）、`rival-duels.test.ts`、`stacking.test.ts`、`gold-sinks.test.ts`、`contest-seasons.test.ts`、`legend-race.test.ts`（迷雾：未相遇不可见、档位不泄露轮数）、`raids.test.ts`。
 - **浏览器**（真实 AI 对局存档，Shift+点击结束回合）：对阵卡改顺序与估计胜率、回放器播放与跳过、大会对阵表、劲敌对决、进化面板与动画、世界页定位、路标自动移动与中断、推荐城址图钉；截图 `test-results/screenshots/depth-v26-*.png`。
 - 门禁：`npm run build && npm run lint && npm run lint:tools && npx vitest run`，再 `npx playwright test`。
+
+## 14. 实施记录
+
+### 14.1 脚手架（第 1 批第 1 步）
+
+- 版本：`gameplayVersion: 26` → schema 21、`rulesVersion: 'depth-v26'`；`isGameplayVersion` 上限 26；`LATEST_GAMEPLAY_VERSION` 仍为 24（第 1 批全部合入、最终门槛之后再切）。工具范围：`district-smoke` / `simulate` / `leader-balance` 接受 26。
+- 内容：`src/content/depth-v26.ts` 定义 9 个内容标记（`DepthFlags`：`teamBattles`、`rivalDuels`、`evolutionGoals`、`goldSinks`、`contestSeasons`、`legendRace`、`raids`、`stacking`、`openingGift`；第 1 节的 `lateGame.*` 写成平铺标记）和调平旋钮 `content.depth26`（`Depth26Tuning`，`tools/patch.ts` 可改）。`DEPTH_CONTENT = { ...REGIONAL_CONTENT, version: 'depth-v26', ...DEPTH_FLAGS }`，自带一份 `world24` 与 `depth26`；一局的内容是 `depthContentFor(setup)` = 这局 v25 地区图鉴内容加同样的覆盖层（按 v25 内容对象记忆化，权威与视图共用一个对象）。v≤25 的内容没有任何 v26 标记。
+- 每条并行线一个桩模块、每个挂点只接一次（不改规则：v≤25 与 v26 现在的行为都同 v25）：
+
+  | 线 | 规则桩（`src/core/`） | AI 桩（`src/ai/`） | 已接的挂点 |
+  | --- | --- | --- | --- |
+  | 金币出口 5.1 | `gold-sinks.ts`：`RushProduction` / `RushRecovery` / `SpecialTraining` / `TeachMove` 声明并拒绝；`resolveGoldSinkRound`；`observeGoldSinks`；`taughtMoveType`（对战层读学习器属性） | `gold-sink-plan.ts` `planGoldSinkAction` | 命令字段、`expansion.ts` 校验 / 执行 / 轮末、视图 `expansion.goldSinks`、`plan.ts`（华丽大赛之后） |
+  | 华丽大赛季 5.2 | `contest-seasons.ts`：`EnterContest` 声明并拒绝；`resolveContestSeasonRound`；`observeContestSeasons` | `contest-season-plan.ts` `planContestSeasonAction` | 同上；视图 `expansion.contestSeasons` |
+  | 传说竞赛 5.3 | `legend-race.ts`：`observeLegendRace`、`recordLegendRace` | `legend-race-plan.ts` `legendRaceVeto` | `recordExpansion`；`legend-plan.ts` 选传说时 |
+  | 团体战 5.4 | `raids.ts`：`initializeRaids`、`resolveRaidRound`、`recordRaids`、`observeRaids` | `raid-plan.ts` `raidAttackBonus`、`raidMoveTargets` | 初始化、轮末、`recordExpansion`、视图 `expansion.raids`、`plan.ts` 攻击打分与移动目标 |
+  | 接近胜利预警 5.5 | `victory-watch.ts` `resolveVictoryWatchRound` | — | 轮末 |
+  | 同格 7.2 | `stacking.ts` `tileShareAllowed(mover, occupant, content)`（现在恒为 false） | — | `reachablePaths` 的阻挡集合、`step.ts` 的 `Move` 逐格检查 |
+  | 开局礼物 8 | `opening-gift.ts` `recordOpeningGift` | — | `recordExpansion` |
+  | 进化目标 4.2 | `evolution-goals.ts` `evolutionGoalMilestones` | — | `era-honors.ts` 的里程碑汇总 |
+  | 物种补完批 4.3 | `src/content/roster-v26-data.ts`：`ROSTER_V26_SPECIES` / `ROSTER_V26_TAGS` / `ROSTER_V26_EVOLUTIONS`（空） | — | `units.ts` `depthContentFor`（补完批在这里把 v25 抽取换成“v25 物种 + 本批”的抽取） |
+  | 劲敌对决 3 | `rival-duels.ts`：`ChallengeRival { unitIds, stake }` 声明并拒绝 | `rival-duel-plan.ts` `planRivalDuel` | 命令字段、`expansion.ts`、`plan.ts`（道馆之前） |
+
+- 对战层（第 2 节）与劲敌对决（第 3 节）由第一条线直接实现，不留桩：`src/core/team-battle.ts`、`src/ai/battle-plan.ts`、`src/browser/lineup-picker.ts`（选阵界面单独成文件，便于与另一分支的克制格 / 回放器合并）。
+- 验证：`district-smoke` 23 / 24 / 25 与改动前基线逐字节 49/49；v26 两次 49/49 一致，且除版本字段外与 v25 相同。
