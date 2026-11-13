@@ -35,7 +35,14 @@ export type SeatMetrics = {
   firstWar: number | null;
   firstCityLost: number | null;
   peakRoles: Record<CombatRole, number>;
+  /** v25 (roster-v25 §4.3): starter, peak own Pokémon per species, species registered and regional species documented at the end. */
+  starter?: string;
+  peakSpecies?: Record<string, number>;
+  registered?: number;
+  documented?: number;
 };
+/** v25: the game's regional Pokédex and how much of it was used (any seat trained, captured or evolved into it = registered). */
+export type RosterMetrics = { dex: string[]; pokedexTarget: number; emptySlots: number; fallbackSlots: number; unused: number; appealTotal: number; appealSpecies: number };
 export type GameMetrics = {
   id: string;
   seed: number;
@@ -59,6 +66,9 @@ export type GameMetrics = {
   decidedRound: number | null;
   gini: number;
   seats: SeatMetrics[];
+  /** v24+: each seat's rival visit outcomes ('defeated' / 'departed'). */
+  rivals?: string[][];
+  roster?: RosterMetrics;
 };
 
 /** Only samples where the civ is still alive count (an eliminated civ's score, cities and techs are frozen). */
@@ -82,6 +92,7 @@ export function gini(values: readonly number[]): number {
 }
 /** One `metrics.jsonl` row, derived only from the record (case, `simulateLeaderCase` result, round samples). */
 export function gameMetrics(record: BalanceGameRecord): GameMetrics {
+  const roster = record.roster25;
   const { result, samples } = record, seats = Object.keys(record.case.leaderBySeat).map(Number).sort((a, b) => a - b);
   const civEvents = result.cityEvents.filter(event => event.defenderId >= 0 && event.attackerId >= 0);
   const minimum = (values: number[]) => values.length ? Math.min(...values) : null;
@@ -124,9 +135,18 @@ export function gameMetrics(record: BalanceGameRecord): GameMetrics {
         firstWar: minimum(result.warEpisodes.filter(episode => episode.a === seat || episode.b === seat).map(episode => episode.startRound)),
         firstCityLost: minimum(civEvents.filter(event => event.captured && event.defenderId === seat).map(event => event.round)),
         peakRoles: { ...(activity?.peakCombatUnitsByRole ?? Object.fromEntries(COMBAT_ROLES.map(role => [role, 0])) as Record<CombatRole, number>) },
+        ...(roster ? { starter: roster.starters[index], peakSpecies: { ...roster.peakSpecies[index] }, registered: roster.registered[index].length, documented: roster.documented[index] } : {}),
       };
     }),
+    ...(record.world24 ? { rivals: record.world24.rivalOutcomes.map(row => [...row]) } : {}),
+    ...(roster ? { roster: rosterMetrics(roster) } : {}),
   };
+}
+function rosterMetrics(roster: NonNullable<BalanceGameRecord['roster25']>): RosterMetrics {
+  const registered = new Set(roster.registered.flat()), levels = roster.recruits.map(item => Number(item.split(':')[2]));
+  return { dex: [...roster.dex], pokedexTarget: roster.pokedexTarget, emptySlots: levels.filter(level => level === 6).length,
+    fallbackSlots: levels.filter(level => level > 1 && level < 6).length, unused: roster.dex.filter(id => !registered.has(id)).length,
+    appealTotal: roster.appealTotal.reduce((sum, value) => sum + value, 0), appealSpecies: roster.appealSpecies.reduce((sum, value) => sum + value, 0) };
 }
 export type CurveRow = Omit<CurveSeat, 'seat'> & { id: string; seed: number; group: string; round: number; seat: number; leaderId: LeaderId; personality: AiPersonality };
 /** `curves.jsonl` rows: one per game × snapshot round (every 10) × seat. */
@@ -242,6 +262,31 @@ const civNever = (pick: (seat: SeatMetrics) => number | null) => (games: GameMet
   ({ successes: civs(games).filter(seat => pick(seat) === null).length, n: civs(games).length });
 const gameMedian = (pick: (game: GameMetrics) => number | null) => (games: GameMetrics[]) => median(completed(games).map(game => orNever(pick(game))));
 const eraArrival = (index: number) => (seat: SeatMetrics) => seat.eras[index] ?? null;
+const rosterGames = (games: GameMetrics[]) => completed(games).filter(game => game.roster);
+/** v25: each species' share of all peak own-Pokémon counts (seats' peaks summed), largest first. */
+export function speciesPeakShares(games: GameMetrics[]): [string, number][] {
+  const totals = new Map<string, number>();
+  for (const seat of rosterGames(games).flatMap(game => game.seats)) for (const [id, count] of Object.entries(seat.peakSpecies ?? {})) totals.set(id, (totals.get(id) ?? 0) + count);
+  const sum = [...totals.values()].reduce((total, value) => total + value, 0);
+  return sum ? [...totals].map(([id, value]) => [id, value / sum] as [string, number]).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)) : [];
+}
+const rivalVisit = (visit: number) => (games: GameMetrics[]) => {
+  const rows = completed(games).flatMap(game => (game.rivals ?? []).map(row => row[visit]).filter((outcome): outcome is string => outcome !== undefined));
+  return { successes: rows.filter(outcome => outcome === 'defeated').length, n: rows.length };
+};
+/** v25: standard deviation, across regional Pokédexes (seed × rotation), of each starter's win rate; mean over the three starters. */
+export function starterWinSpread(games: GameMetrics[]): number | null {
+  const groups = new Map<string, SeatMetrics[]>();
+  for (const game of rosterGames(games)) groups.set(game.roster!.dex.join(), [...(groups.get(game.roster!.dex.join()) ?? []), ...game.seats]);
+  const spreads = ['bulbasaur', 'charmander', 'squirtle'].flatMap(starter => {
+    const rates = [...groups.values()].map(seats => seats.filter(seat => seat.starter === starter)).filter(seats => seats.length >= 2)
+      .map(seats => seats.reduce((sum, seat) => sum + seat.credit, 0) / seats.length);
+    if (rates.length < 2) return [];
+    const mean = rates.reduce((sum, rate) => sum + rate, 0) / rates.length;
+    return [Math.sqrt(rates.reduce((sum, rate) => sum + (rate - mean) ** 2, 0) / (rates.length - 1))];
+  });
+  return spreads.length ? spreads.reduce((sum, value) => sum + value, 0) / spreads.length : null;
+}
 
 export const MEASURES: Measure[] = [
   { id: 'firstTechMedian', label: '第一项科技（每个文明，中位）', unit: 'round', value: civMedian(seat => seat.firstTech), note: '全部文明；从未研究出科技记为 ∞' },
@@ -279,6 +324,24 @@ export const MEASURES: Measure[] = [
   { id: 'peakCitiesExpansion', label: '扩张型文明峰值城数（平均）', unit: 'number', value: games => meanOf(civs(games).filter(seat => seat.personality === 'expansion').map(seat => seat.peakCities)) },
   { id: 'maxRoleShare', label: '兵种峰值最高单项占比', unit: 'share', value: games => { const shares = roleShares(games); return shares ? Math.max(...Object.values(shares)) : null; } },
   { id: 'navalShare', label: '水面单位峰值占比', unit: 'share', value: games => roleShares(games)?.naval ?? null },
+  { id: 'rivalBeaten1', label: '劲敌被击退（第 1 次登场）', unit: 'share', share: rivalVisit(0) },
+  { id: 'rivalBeaten2', label: '劲敌被击退（第 2 次登场）', unit: 'share', share: rivalVisit(1) },
+  { id: 'rivalBeaten3', label: '劲敌被击退（第 3 次登场）', unit: 'share', share: rivalVisit(2) },
+  // v25 regional Pokédex (roster-v25 §4.3); null for older data.
+  { id: 'topSpeciesShare', label: '单一物种峰值最高占比', unit: 'share', value: games => speciesPeakShares(games)[0]?.[1] ?? null, note: 'v14 多样性线；只算 v25' },
+  { id: 'dexSize', label: '地区图鉴大小（平均）', unit: 'number', value: games => meanOf(rosterGames(games).map(game => game.roster!.dex.length)) },
+  { id: 'dexUnusedShare', label: '图鉴里从未被训练 / 捕捉 / 进化得到的物种比例（平均）', unit: 'share',
+    value: games => meanOf(rosterGames(games).map(game => game.roster!.unused / game.roster!.dex.length)) },
+  { id: 'recruitEmptySlots', label: '每局空招募槽（平均）', unit: 'number', value: games => meanOf(rosterGames(games).map(game => game.roster!.emptySlots)) },
+  { id: 'recruitFallbackSlots', label: '每局补位招募槽（平均）', unit: 'number', value: games => meanOf(rosterGames(games).map(game => game.roster!.fallbackSlots)) },
+  { id: 'appealFromSpecies', label: '华丽大赛魅力里物种项的份额', unit: 'share', value: games => {
+    const rows = rosterGames(games), total = rows.reduce((sum, game) => sum + game.roster!.appealTotal, 0);
+    return total ? rows.reduce((sum, game) => sum + game.roster!.appealSpecies, 0) / total : null;
+  } },
+  { id: 'documentedAtEnd', label: '终局图鉴记录（本地区，每文明中位）', unit: 'number', value: games => median(rosterGames(games).flatMap(game => game.seats.map(seat => seat.documented ?? 0))) },
+  { id: 'registeredAtEnd', label: '终局登记物种（每文明中位）', unit: 'number', value: games => median(rosterGames(games).flatMap(game => game.seats.map(seat => seat.registered ?? 0))) },
+  { id: 'pokedexTarget', label: '图鉴胜利目标（平均）', unit: 'number', value: games => meanOf(rosterGames(games).map(game => game.roster!.pokedexTarget)) },
+  { id: 'starterWinSpread', label: '御三家胜率在不同图鉴之间的标准差（三种平均）', unit: 'share', value: starterWinSpread, note: '> 8 个百分点要查' },
 ];
 const MEASURE_BY_ID = new Map(MEASURES.map(measure => [measure.id, measure]));
 export function measure(id: string): Measure {
@@ -305,6 +368,33 @@ export function delta(candidate: GameMetrics[], reference: GameMetrics[], id: st
   const a = item.value!(candidate), b = item.value!(reference);
   const value = a === null || b === null ? null : a - b;
   return { value: value === null || Number.isNaN(value) ? null : value, interval: bootstrapInterval(candidate, item.value!, reference) };
+}
+
+// ---------------------------------------------------------------- v25 species and regional Pokédex tables (roster-v25 §4.3)
+
+export type SpeciesRow = { id: string; peakShare: number; inDexSeats: number; fieldedRate: number | null; creditSeats: number; winCredit: number | null };
+/** Per species: peak share, fielded rate (seats whose dex has it and whose peak army had it), win credit of seats that peaked with ≥ 2. */
+export function speciesTable(games: GameMetrics[]): SpeciesRow[] {
+  const rows = rosterGames(games), shares = new Map(speciesPeakShares(games));
+  const ids = [...new Set(rows.flatMap(game => game.roster!.dex))].sort();
+  return ids.map(id => {
+    const inDex = rows.filter(game => game.roster!.dex.includes(id)).flatMap(game => game.seats);
+    const heavy = inDex.filter(seat => (seat.peakSpecies?.[id] ?? 0) >= 2);
+    return { id, peakShare: shares.get(id) ?? 0, inDexSeats: inDex.length, fieldedRate: inDex.length ? inDex.filter(seat => (seat.peakSpecies?.[id] ?? 0) > 0).length / inDex.length : null,
+      creditSeats: heavy.length, winCredit: heavy.length ? heavy.reduce((sum, seat) => sum + seat.credit, 0) / heavy.length : null };
+  });
+}
+export type LineDeltaRow = { id: string; inSeats: number; outSeats: number; inRate: number | null; outRate: number | null; delta: number | null; interval: [number, number] | null };
+/** Per evolution line: seat win share when the line is in the regional Pokédex minus when it is not (Newcombe interval). */
+export function lineWinDeltas(games: GameMetrics[], lines: readonly { id: string; speciesIds: readonly string[] }[]): LineDeltaRow[] {
+  const seats = rosterGames(games).flatMap(game => game.seats.map(seat => ({ seat, dex: new Set(game.roster!.dex) })));
+  return lines.map(line => {
+    const inside = seats.filter(item => line.speciesIds.some(id => item.dex.has(id))), outside = seats.filter(item => !line.speciesIds.some(id => item.dex.has(id)));
+    const sum = (rows: typeof seats) => rows.reduce((total, item) => total + item.seat.credit, 0);
+    const inRate = inside.length ? sum(inside) / inside.length : null, outRate = outside.length ? sum(outside) / outside.length : null;
+    return { id: line.id, inSeats: inside.length, outSeats: outside.length, inRate, outRate, delta: inRate === null || outRate === null ? null : inRate - outRate,
+      interval: inside.length && outside.length ? newcombeInterval(sum(inside), inside.length, sum(outside), outside.length) : null };
+  });
 }
 
 // ---------------------------------------------------------------- outcomes, leaders, personalities
@@ -387,6 +477,8 @@ export const GATE_LINES: LineDef[] = [
   { id: 'never-second-city', measure: 'neverSecondCity', min: null, max: 0.05 },
   { id: 'max-role-share', measure: 'maxRoleShare', min: null, max: 0.35 },
   { id: 'naval-share', measure: 'navalShare', min: 0.04, max: null },
+  // v25 (roster-v25 §4.3): no species may hold more than a fifth of the peak armies (n/a for data without species records).
+  { id: 'top-species-share', measure: 'topSpeciesShare', min: null, max: 0.20 },
 ];
 function lineText(line: { min: number | null; max: number | null }, unit: Measure['unit']): string {
   const format = (value: number) => unit === 'share' ? `${Math.round(value * 100)}%` : String(value);

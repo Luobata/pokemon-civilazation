@@ -14,6 +14,7 @@
 | `statistics.ts` | 底层统计函数：`wilson95(50, 100)`、`mean([{seed: 1, value: 80}])`、`ratio([{seed: 1, successes: 1, trials: 1}])`、`threshold(0.5, 0.4, 0.6, true)`、`winCredit([0, 1], 0)`。供 summary 和报告复用。 |
 | `compare-games.ts` | `node tools/compare-games.ts /path/to/baseline /path/to/candidate`；要求两边 `games/*.json` 文件集合相同，逐字节比较，不归一化版本或 JSON。差异时非零退出。 |
 | `telemetry.ts` | 模拟器内部使用 `createTelemetry(state)`、`collectTelemetry(data, before, after, command, events)` 记录活动和战斗；`roundSnapshot(state, round)`、`uniqueScoreLeader(snapshot)` 记录第 30 轮领先者。无独立 CLI。 |
+| `regional-dex.ts` | v25 地区图鉴校验（`docs/design/roster-v25.md` §4.2）：`node tools/regional-dex.ts --eras simple --seeds 1-1000 [--size 48] [--leaders rotation\|none\|oak,misty] [--show 31] [--gaps] [--json out.json]`；用游戏里的 `drawRegionalDex` / `deriveRosterTables`，输出兵种 × 阶段矩阵与内容缺口、约束满足率、两两重合、入选率与招募槽。 |
 | `balance-run.ts` 等 | 平衡门槛：并行跑批、报告、参数扫描，见下方[平衡门槛](#平衡门槛balance-run--balance-report--balance-sweep)。 |
 | `rejections.ts` | 模拟器内部调用 `classifyRejection(state, command, reason, content?)`，区分迷雾下合法尝试被拒与缺陷。无独立 CLI。 |
 
@@ -104,7 +105,7 @@ node tools/leader-balance.ts --seeds 4 --seed-start 21 --expansion true --eras s
 
 | 文件 | 用途 |
 | --- | --- |
-| `balance-run.ts` | 子进程并行跑一批对局。`--preset gate`（默认）/ `full-spot`（完整时代，种子 31–34）/ `mixed`（混合性格）/ `sweep`（种子 31–32，54 局）；任意参数覆盖预设：`--gameplay N --size 40x26 --rounds 100\|200\|300 --eras simple\|full --seeds 31-38 --players 2\|3\|4 --mix same\|mixed --workers N --patch p.json --out 新目录`。`--workers` 默认核数一半、最多 32。拒绝已存在的 `--out`。 |
+| `balance-run.ts` | 子进程并行跑一批对局。`--preset gate`（默认）/ `full-spot`（完整时代，种子 31–34）/ `mixed`（混合性格）/ `sweep`（种子 31–32，54 局）；任意参数覆盖预设：`--gameplay N --size 40x26 --rounds 100\|200\|300 --eras simple\|full --seeds 31-38 --players 2\|3\|4 --mix same\|mixed --dex-mode map\|rotation --workers N --patch p.json --out 新目录`。`--dex-mode rotation`（v25 起）让每个种子 × 领袖轮换各用一套地区图鉴（`dexSeed = stableSeed(seed, rotation, 'gate-dex')`，216 局 72 套），v25 门槛用它；v25 的逐局记录另有 `roster25`（图鉴、招募槽、各物种峰值、登记 / 记录物种、华丽大赛魅力分项），报告据此加「物种」「地区图鉴」两节和 `topSpeciesShare ≤ 20%` 验收线。`--workers` 默认核数一半、最多 32。拒绝已存在的 `--out`。 |
 | `balance-metrics.ts` | 纯函数：逐局指标（节奏、滚雪球、结局、峰值城数、兵种峰值）、曲线、区间（份额 Wilson；中位数 / 均值 / 差值按种子整组 bootstrap，固定随机种子）、§5 验收线和 11 月目标。 |
 | `balance-report.ts` | `node tools/balance-report.ts 目录 [--baseline 目录] [--anchor 目录] [--out 报告.md]`：11 月目标、§5 验收线（通过 / 未通过 + 区间是否跨线）、结局、节奏、滚雪球、曲线、领袖、性格、按种子的测量稳定性；有基线 / 锚点时多出差值列（同种子时配对）。 |
 | `balance-sweep.ts` | `node tools/balance-sweep.ts --param balance.city.defense=40,50,60,70 [--param ai.aggressiveWarStrength=1250,1500] --out 新目录`：每个取值组合（加一格 stock）跑同一批对局（默认 `sweep` 预设），输出 `response.md` / `response.json` 响应表；每格目录可单独出报告。逐局与 stock 完全一致的格子标为"无影响"。 |

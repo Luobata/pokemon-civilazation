@@ -39,6 +39,16 @@ export function initializeContests(state: GameState): void {
 function liveHalls(state: GameState, playerId: number): number[] {
   return state.expansion!.contests![playerId].halls.filter(cityId => state.cities[cityId]?.ownerId === playerId);
 }
+/** Read-only (balance tools): this round's appeal and the part of it that comes from registered and rare species (pro rata under the cap). */
+export function appealBreakdown(state: GameState, playerId: number, content: Content): { total: number; species: number } {
+  const total = appealPerRound(state, playerId, content), halls = liveHalls(state, playerId).length;
+  if (!halls) return { total, species: 0 };
+  const player = state.players[playerId];
+  const species = player.registeredSpeciesIds.length * CONTEST_RULES.perSpecies + player.registeredSpeciesIds.filter(id => content.species[id]?.rare).length * CONTEST_RULES.perRare;
+  const gyms = Object.entries(state.expansion?.essences?.gyms ?? {}).filter(([cityId]) => state.cities[Number(cityId)]?.ownerId === playerId).length;
+  const raw = species + distinctRareBerries(state, playerId) * CONTEST_RULES.perBerryKind + gyms * CONTEST_RULES.perGym;
+  return { total, species: raw ? Math.min(raw, halls * CONTEST_RULES.hallCap) * species / raw : 0 };
+}
 export function appealPerRound(state: GameState, playerId: number, content: Content): number {
   const halls = liveHalls(state, playerId).length;
   if (!halls) return 0;
