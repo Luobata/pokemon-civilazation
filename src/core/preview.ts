@@ -2,6 +2,8 @@ import { wallBonus } from './opening.ts';
 import { viewResearchCaptureBonus } from './research-tasks.ts';
 import { cityCounterTerrain, cityStrikeTerrain, isEmbarked, unitStrikeTerrain } from './terrain.ts';
 import { viewIsRivalUnit, viewRivalSpirit } from './rivals.ts';
+import { protectedCivilian } from './stacking.ts';
+import { viewIsRaidUnit } from './raids.ts';
 
 /** Same test as the authority (owner's headquarters is this city): a captured former capital still names its fallen founder in `headquartersOf`. */
 const isOwnCapital = (city: { ownerId: number | null; headquartersOf?: number | null } | undefined) => city?.headquartersOf != null && city.headquartersOf === city.ownerId;
@@ -42,6 +44,8 @@ export function previewAttack(view: PlayerView, unitId: number, target: CombatTa
   const distance = hexDistance(unit.position, defender.position, view.map), range = content.species[unit.speciesId].range;
   const from = view.map.tiles[hexToIndex(unit.position, view.map)!], to = view.map.tiles[hexToIndex(defender.position, view.map)!];
   if (!from || !to || distance < 1 || distance > range || ('kind' in defender && defender.kind === 'logistics' && distance !== 1)) return { ok: false, reason: 'out-of-range' };
+  // v26 C2: a logistics unit sharing its tile with an own Pokémon cannot be targeted (same test as the authority).
+  if ('kind' in defender && protectedCivilian(view.units, defender, view.map, content)) return { ok: false, reason: 'escorted' };
   const techs = view.economy.player.research.unlockedIds;
   const baseMultiplier = leaderEffects(view.economy.player.leaderId).activeAttackMultiplier;
   const attackMultiplier = view.economy.player.leaderId === 'lance' && (view.expansion?.leaders.activeUntilRound ?? 0) >= view.round ? Math.floor(baseMultiplier * 1150 / 1000) : baseMultiplier;
@@ -111,6 +115,8 @@ export function previewCapture(view: PlayerView, unitId: number, targetUnitId: n
     || player.ballInventory[ballId] < 1 || isEmbarked(unit, view.map, content)) return { ok: false, reason: 'capture-unavailable' };
   // v24 C: a rival trainer's Pokémon cannot be caught (same test as the authority).
   if (viewIsRivalUnit(view, target.id)) return { ok: false, reason: 'capture-rival' };
+  // v26 D: a raid boss cannot be caught.
+  if (viewIsRaidUnit(view, target.id)) return { ok: false, reason: 'capture-raid' };
   const definition = content.species[target.speciesId];
   return { ok: true, probability: Math.min(100, captureProbability(definition.maxHp, target.hp, ballId === 'greatBall' ? 1500 : 1000,
     player.research.unlockedIds.includes('fieldObservation'), definition.rare) + viewPolicyEffects(view).captureBonus + leaderEffects(player.leaderId).captureBonus

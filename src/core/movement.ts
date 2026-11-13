@@ -11,7 +11,7 @@ import type { MapUnit, PlayerView, GameState } from './model.ts';
 import { featureMoveExtra, isDeep, isLandmarkTile, isPeak } from './terrain.ts';
 import type { FeatureMap } from './terrain.ts';
 import { EMBARK_TECHS } from '../content/terrain.ts';
-import { tileShareAllowed } from './stacking.ts';
+import { dropUnstoppable, tileShareAllowed } from './stacking.ts';
 
 /** v24 A2 water access of a civilization: 0 none, 1 shallow water and lakes (近海航行), 2 deep water too (远洋航行). */
 export type WaterAccess = 0 | 1 | 2;
@@ -176,5 +176,6 @@ export function reachablePaths(view: PlayerView, unitId: number,
     }
   }
   delete paths[origin];
-  return paths;
+  // v26 C2: own units are passed, but a unit stops only where its layer is free (unchanged before v26).
+  return dropUnstoppable(paths, unit, view.units, view.map, content);
 }

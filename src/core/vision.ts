@@ -6,6 +6,8 @@ import { observeRivals } from './rivals.ts';
 import { observeGoldSinks } from './gold-sinks.ts';
 import { observeContestSeasons } from './contest-seasons.ts';
 import { observeRaids } from './raids.ts';
+import { observeLegendRace, withLegendRace } from './legend-race.ts';
+import { observeVictoryWatch } from './victory-watch.ts';
 import { observeResearchTasks } from './research-tasks.ts';
 import { observeCityNetwork } from './city-network.ts';
 import { observeLegends } from './legends.ts';
@@ -130,7 +132,9 @@ export function observe(state: GameState, playerId: number, content: Content = c
       ...(state.expansion.bonds ? { bonds: observeBonds(state, playerId) } : {}),
       ...(state.expansion.districts ? { districts: observeDistricts(state, playerId, visible) } : {}),
       ...(state.expansion.eraHonors ? { eraHonors: observeEraHonors(state, playerId) } : {}),
-      ...(state.expansion.legends ? { legends: observeLegends(state, playerId, visible) } : {}),
+      // v26 D: the legend race rides on the legend view (absent before v26).
+      ...(state.expansion.legends ? { legends: withLegendRace(observeLegends(state, playerId, visible), observeLegendRace(state, playerId, content)) } : {}),
+      ...(state.expansion.victoryWatch ? { victoryWatch: observeVictoryWatch(state) } : {}),
       ...(state.expansion.cityNetwork ? { cityNetwork: observeCityNetwork(state, playerId) } : {}),
       ...(state.expansion.opening ? { opening: observeOpening(state, playerId, visible) } : {}),
       ...(state.expansion.landmarks ? { landmarks: observeLandmarks(state, playerId) } : {}),
@@ -139,8 +143,8 @@ export function observe(state: GameState, playerId: number, content: Content = c
       ...(state.expansion.researchTasks ? { researchTasks: observeResearchTasks(state, playerId) } : {}),
       // v26 D: present only when the late-game lanes create their ledgers.
       ...(state.expansion.goldSinks ? { goldSinks: observeGoldSinks(state, playerId) } : {}),
-      ...(state.expansion.contestSeasons ? { contestSeasons: observeContestSeasons(state, playerId) } : {}),
-      ...(state.expansion.raids ? { raids: observeRaids(state, playerId) } : {}),
+      ...(state.expansion.contestSeasons ? { contestSeasons: observeContestSeasons(state, playerId, content) } : {}),
+      ...(state.expansion.raids ? { raids: observeRaids(state, playerId, content) } : {}),
       ...(state.expansion.promotions ? { promotions: observePromotions(state, playerId, visible, hex => hexToIndex(hex, state.map)) } : {}),
       ...(state.expansion.faith ? { faith: observeFaith(state, playerId) } : {}),
       ...(state.expansion.contests ? { contests: observeContests(state, playerId, content) } : {}),

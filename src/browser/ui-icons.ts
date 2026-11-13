@@ -226,6 +226,30 @@ const GLYPHS = {
   /** A civilization banner on a pole (`F` is recoloured per civilization by `flagImage`). */
   flag: glyph(['P.........', 'PFFFFFFF..', 'PFWFFFFFF.', 'PFFFFFFFF.', 'PFFFFFFF..', 'PFFFFFF...', 'P.........', 'P.........', 'P.........', 'PP........'],
     { P: '#9A6A3E', F: '#E6B85C', W: CREAM }),
+  // Gameplay v26 late game (docs/design/depth-v26.md §4.2, §5, §10): original glyphs.
+  /** Rare Candy: a wrapped sweet. */
+  candy: glyph(['P........P', 'PP.CCCC.PP', 'PPCCWCCCPP', 'PPCWCCCcPP', 'PPCCCCccPP', 'PP.Cccc.PP', 'P........P'],
+    { P: '#F0A0C8', C: '#B070D8', c: '#7E48A8', W: CREAM }),
+  /** A Max Raid den: a red-violet glow over a dark den. */
+  raid: glyph(['....RR....', '...RWWR...', '..RWRRWR..', '.RRRRRRRR.', 'RRMRRRRMRR', '.MMMMMMMM.', 'MMbbbbbbMM', 'bbbbbbbbbb'],
+    { R: '#E0405A', M: '#9A3AC8', W: CREAM, b: '#5A3A2A' }),
+  /** A TM disc with its label hole. */
+  tm: glyph(['...SSSS...', '.SSWWSSSS.', '.SWSSSSSSs', 'SSSSkkSSSs', 'SSSkTTkSss', 'SSSSkkSSss', '.SSSSSSss.', '.SSSSSsss.', '...ssss...'],
+    { S: '#9AA7C8', s: '#6A7590', T: '#E3C34F' }),
+  /** Rush production: an hourglass. */
+  rush: glyph(['YYYYYYYY', '.WSSSSW.', '..WSSW..', '...WW...', '...WW...', '..W..W..', '.WSSSSW.', 'YYYYYYYY'],
+    { Y: '#C08A52', W: '#CFEFF7', S: '#F2C14E' }),
+  /** Special training: a dumbbell. */
+  training: glyph(['BB......BB', 'BBB....BBB', 'BBBSSSSBBB', 'BBB....BBB', 'BB......BB'], { B: '#5A6A80', S: '#BFC3D6' }),
+  /** Near-victory warning: an alarm bell. */
+  alarm: glyph(['....YY....', '...YYYY...', '..YWYYYY..', '..YWYYYY..', '.YYYYYYYY.', '.YYYYYYYY.', 'YYYYYYYYYy', '..........', '....RR....'],
+    { Y: '#F2C14E', y: '#C8932E', R: '#E0405A' }),
+  /** Contest categories: cool (flame), beauty (bubble), cute (heart), smart (spectacles), tough (fist). */
+  contestCool: glyph(['...R....', '..RR..R.', '..RRR.RR', '.RROORRR', '.ROOYORR', 'RROYYORR', '.ROYYOR.', '..RRRR..'], { R: '#D9495B', O: '#F08A4B', Y: '#F2C14E' }),
+  contestBeauty: glyph(['..BBBB..', '.BWBBBB.', 'BWBBBBBB', 'BBBBBBBb', 'BBBBBBbb', '.BBBBbb.', '..bbbb..'], { B: '#5B9BD0', b: '#3F6FA0', W: '#CFEFF7' }),
+  contestCute: glyph(['.PP..PP.', 'PWPPPPPP', 'PPPPPPPP', '.PPPPPP.', '..PPPP..', '...PP...'], { P: '#F0A0C8', W: CREAM }),
+  contestSmart: glyph(['GGGG..GGGG', 'GWWG..GWWG', 'GWWGGGGWWG', 'GWWG..GWWG', 'GGGG..GGGG'], { G: '#4FB998', W: '#CFEFF7' }),
+  contestTough: glyph(['.YYYYYY.', 'YYYYYYYY', 'Y.Y.Y.YY', 'YYYYYYYY', 'YYYYYYYY', '.YYYYYY.', '..YYYY..'], { Y: '#C9A04A' }),
 } satisfies Record<string, Grid>;
 export type GlyphName = keyof typeof GLYPHS;
 

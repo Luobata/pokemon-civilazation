@@ -335,7 +335,7 @@ export function promotionTraitTable(): string {
   return table(['特性', '效果'], PROMOTION_TRAIT_IDS.map(id => [PROMOTION_TRAITS[id].name, PROMOTION_TRAITS[id].summary]));
 }
 export function eraMilestoneTable(): string {
-  return table(['里程碑', '世代分'], ERA_MILESTONE_IDS.map(id => [ERA_MILESTONES[id].name, `+${ERA_MILESTONES[id].points}`]), [1]);
+  return table(['里程碑', '世代分'], ERA_MILESTONE_IDS.map(id => [ERA_MILESTONES[id].name, ERA_MILESTONES[id].points < 0 ? `−${-ERA_MILESTONES[id].points}` : `+${ERA_MILESTONES[id].points}`]), [1]);
 }
 export function eraAgeTable(): string {
   const line = (age: 'golden' | 'normal' | 'dark') => age === 'golden' ? `≥ ${ERA_HONOR_RULES_V22.goldenRatePermille / 1000}（v≤21：≥ ${ERA_HONOR_RULES.goldenRatePermille / 1000}）`
