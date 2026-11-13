@@ -22,7 +22,7 @@ export type SoundId =
   | 'click' | 'select' | 'move' | 'attack' | 'hit' | 'knockdown' | 'capture' | 'captureFail' | 'evolve'
   | 'cityFounded' | 'production' | 'research' | 'turn' | 'war' | 'peace' | 'promotion' | 'wonder' | 'error' | 'notify'
   | 'cityCaptured' | 'cityLost' | 'eraChange' | 'victory' | 'defeat' | 'weather' | 'formChange' | 'tradeRoute'
-  | 'legendLost' | 'alarm' | 'endTurn' | `attack:${AttackFamily}` | 'superEffective';
+  | 'legendLost' | 'alarm' | 'endTurn' | `attack:${AttackFamily}` | 'superEffective' | 'evolveFanfare';
 
 export interface SoundEffect {
   duck?: number;
@@ -359,6 +359,21 @@ export const SOUND_EFFECTS: Record<SoundId, SoundEffect> = {
     play: (o, t) => {
       [79, 83, 86, 91].forEach((m, i) => blip(o, t + 0.12 + i * 0.045, m, 0.04, 0.085));
       bell(o, t + 0.3, 95, 0.05, 0.25);
+    },
+  },
+
+  /**
+   * depth-v26 §4.2: the evolution reveal — an original brass pick-up (G C E G) landing on a held C-major chord with a
+   * shimmer of rising bells; about 1.6 s, the music ducks under it.
+   */
+  evolveFanfare: {
+    duck: 2,
+    play: (o, t) => {
+      [67, 72, 76, 79].forEach((m, i) => brass(o, t + i * 0.085, m, 0.08, 0.05));
+      for (const [m, gain] of [[72, 0.045], [76, 0.04], [79, 0.04], [84, 0.05]] as const) brass(o, t + 0.36, m, 0.78, gain, 6);
+      tone(o, t + 0.36, hz(48), 0.6, { wave: 'triangle', gain: 0.08, attack: 0.01, decay: 0.3, sustain: 0.6, release: 0.3 });
+      [91, 96, 98, 100, 103, 108].forEach((m, i) => bell(o, t + 0.4 + i * 0.07, m, 0.035, 0.3));
+      thump(o, t + 0.36, 140, 60, 0.14, 0.25);
     },
   },
 

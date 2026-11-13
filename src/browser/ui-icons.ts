@@ -226,7 +226,32 @@ const GLYPHS = {
   /** A civilization banner on a pole (`F` is recoloured per civilization by `flagImage`). */
   flag: glyph(['P.........', 'PFFFFFFF..', 'PFWFFFFFF.', 'PFFFFFFFF.', 'PFFFFFFF..', 'PFFFFFF...', 'P.........', 'P.........', 'P.........', 'PP........'],
     { P: '#9A6A3E', F: '#E6B85C', W: CREAM }),
+  // Battles and evolution (depth-v26 §2.5, §4.1): Rare Candy, day / night, matchup arrows, a league trainer.
+  candy: glyph(['B........B', 'BB.CCCC.BB', 'BBCCWCCCBB', 'BBCCCCCcBB', 'BB.cccc.BB', 'B........B'],
+    { B: '#4A7FD8', C: '#9CD6F2', c: '#5BA7D1', W: CREAM }),
+  sun: glyph(['....Y....', '.Y.....Y.', '...YYY...', '..YYWYY..', 'Y.YWYYY.Y', '..YYYYY..', '...YYY...', '.Y.....Y.', '....Y....'],
+    { Y: '#F7C843', W: CREAM }),
+  moon: glyph(['...MMM..', '.MMM....', '.MM.....', 'MMM...S.', 'MMM.....', 'MMMM..M.', '.MMMMMM.', '..MMMM..'],
+    { M: '#E8E0A8', S: '#F7D25C' }),
+  matchupUp: glyph(['....G....', '...GGG...', '..GGWGG..', '.GGWGGGG.', 'GGGGGGGGG', '...GGG...', '...GGG...', '...ggg...'],
+    { G: '#6BD08A', g: '#3F8A5A', W: CREAM }),
+  matchupDown: glyph(['...OOO...', '...OOO...', '...OOO...', 'OOOOOOOOO', '.OOOOOOO.', '..OOOOO..', '...OOO...', '....o....'],
+    { O: '#F2A93B', o: '#B8701C' }),
+  matchupNone: glyph(['XX....XX', 'XXX..XXX', '.XXXXXX.', '..XXXX..', '..XXXX..', '.XXXXXX.', 'XXX..XXX', 'XX....XX'],
+    { X: '#9AA6A0' }),
+  matchupEven: glyph(['SSSSSS', 'SSSSSS'], { S: '#C9D2D6' }),
+  // Terrain conditions (Eevee's forest / snow branches and the like).
+  grassTuft: glyph(['..G....G.', '.GgG..GgG', 'GGgGGGGgG', 'ggggggggg'], { G: '#7BC85A', g: '#3F8A33' }),
+  tree: glyph(['....G....', '...GGG...', '..GGgGG..', '.GGGGGgG.', '..GGGGG..', '.GGGgGGG.', 'GGGGGGGgG', '....b....', '....b....'],
+    { G: '#58B04A', g: '#2D6B23', b: '#7A4F2A' }),
+  peak: glyph(['....W....', '...WWS...', '..SSSSS..', '.SSsSSSS.', 'SSSSsSSSS'], { W: CREAM, S: '#9AA6A0', s: '#6F7B75' }),
+  dune: glyph(['......C..', '.....CCC.', '......C..', '..DD..C..', '.DDDD.DD.', 'DDDDDDDDD'], { D: '#E8C97A', C: '#58B04A' }),
+  snowflake: glyph(['....S....', '.S..S..S.', '..S.S.S..', '...SSS...', 'SSSSWSSSS', '...SSS...', '..S.S.S..', '.S..S..S.', '....S....'],
+    { S: '#BFE3F7', W: CREAM }),
+  volcanoCone: glyph(['...O.O...', '....O....', '...RRR...', '..SSRSS..', '.SSSSSSS.', 'SSSSSSSSS'], { O: '#F2A93B', R: '#E0483A', S: '#5C4A44' }),
 } satisfies Record<string, Grid>;
+/** The terrain-condition icon of a biome (evolution conditions, arena captions). */
+export const BIOME_ICONS = { grassland: 'grassTuft', forest: 'tree', mountain: 'peak', ocean: 'coast', desert: 'dune', snow: 'snowflake', volcano: 'volcanoCone' } as const;
 export type GlyphName = keyof typeof GLYPHS;
 
 // ---------- Registry ----------

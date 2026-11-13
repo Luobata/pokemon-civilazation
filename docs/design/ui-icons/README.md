@@ -60,3 +60,17 @@
 | ![](world-next.png) ![](world-located.png) | ![](world-bracket.png) | ![](victory-routes.png) ![](victory-hover.png) | ![](victory-banners.png) |
 
 改前：![](world-before.png) ![](victory-before.png)。截图由 `tests/browser/world-ui.spec.ts` 生成（`WORLD_UI_PHASE=before` 写入 `before-*`），一局真实 v24 对局（AI 操作所有席位，不打补丁）。
+
+## 宝可梦对战与进化（深度 v26 只做表现：§2.5、§4.1、§4.2、§6.2）
+
+不改规则、AI、视图或权威状态：回放只读事件里现成的 `BattleTrace`（逐击伤害、倍率、剩余 HP），双方阵容按公开规则（馆主 / 四天王 / 守卫队伍）重建，自己的挑战在下命令时记一份队伍快照；每一击的 HP 都和记录核对，对不上就不提供回放。`tools/district-smoke.ts 24` 前后 49/49 逐字节一致。
+
+| 内容 | 位置 | 截图 |
+| --- | --- | --- |
+| 对战回放器：原创像素对战台（7 种群系 + 联盟会场 + 圣所祭坛）、精灵球出场、冲撞 / 属性色弹道、白闪 + 属性色粒子（对象池、`fillRect`）、HP 条滚动、「效果拔群 / 效果不太好」、倒下下沉变灰、四天王连战换场、胜负横幅；播放 / 暂停、逐步、×1 / ×2 / ×4、跳到结果；逐击记录列表（可访问文本）。减少动态时只画静态画面 + 记录列表。入口：道馆 / 守卫 / 四天王结果通知的「观看对战」，联盟大会卡每场的 ▶。 | `battle-viewer.ts`、`battle-arena.ts`、`battle-replay.ts` | ![](battle-replay-gym.png) ![](battle-replay-league.png) |
+| 属性克制格：你的每只 × 对手每只，左上箭头是你打它、右下是它打你（同自动对战的规则：攻击方主属性 × 防守方双属性，含属性研究 ×2.2）。道馆挑战卡；守卫与四天王从世界页先打开同样的预览卡（四天王可切换五场对手）。 | `matchup-grid.ts`、`challenge-card.ts`、`gym-panel.ts` | ![](battle-matchup.png) |
+| 联盟大会对阵表：两场预赛 → 两场半决赛 → 决赛 → 冠军，每格是文明旗 / 原创训练家图标 + 首发精灵图 + 赛后 HP，冠军路线金色、你的路线绿色。独立模块，世界页可直接复用。 | `league-bracket.ts`（接入 `league-card.ts`） | ![](battle-bracket.png) |
+| 进化条件面板：整条进化线（未登记的画剪影），每个下一形态一张卡（伊布 5 个分支、进化石路线也在），条件是图标：经验条、神奇糖果、金币、特训法、世代锁、昼 / 夜、地形、进化石库存，满足 ✓ / 未满足 ✗；最终形态另列“城市直接训练要徽章”。条件全部调用权威的规则函数。 | `evolution-panel.ts` | ![](evolution-panel.png) |
+| 进化演出：变暗光芒背景，旧 / 新形态的白色剪影交替、越来越快（`EVOLUTION_SWAPS`），白色新形态后彩色显现 + 星形闪光 + 「进化！」+ 原创号角（`evolveFanfare`）。其他玩家可见单位的进化在事件队列之后播放，屏幕外不占时间（V7）；减少动态时直接换形态加一圈短暂光晕。 | `render/animation.ts` `evolutionTrack`、`render/canvas2d.ts` | ![](evolution-moment.png) |
+
+新增原创图标：`candy`、`sun`、`moon`、`matchupUp` / `matchupDown` / `matchupNone` / `matchupEven`、`trainer`、地形 `grassTuft` / `tree` / `peak` / `dune` / `snowflake` / `volcanoCone`。测试：`tests/core/battle-replay.test.ts`（回放与权威结果逐击一致）、`tests/browser/battle-evo.spec.ts`（真实 AI 存档、真实输入、音效 spy）。

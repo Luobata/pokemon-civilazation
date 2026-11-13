@@ -1,0 +1,65 @@
+/* depth-v26 §2.5: battle replay viewer (src/browser/battle-viewer.ts). Placed off the action bar, rail, objective and combat cards. */
+.battle-viewer { position: fixed; z-index: 28; display: grid; gap: 6px; box-sizing: border-box; max-height: calc(100vh - 16px); padding: 8px 10px 10px;
+  border: 3px solid #6A5B3C; border-radius: 6px; background: #14211F; box-shadow: 6px 6px 0 rgb(4 12 15 / 70%); color: var(--ink); font-size: 12px; }
+.bv-head { display: flex; align-items: center; gap: 8px; }
+.bv-head > div { display: grid; flex: 1; min-width: 0; }
+.bv-head h3 { margin: 0; overflow: hidden; color: #FFF8E5; font-size: 15px; white-space: nowrap; text-overflow: ellipsis; }
+.bv-head small { color: var(--ink-muted); }
+.bv-close { min-width: 30px; padding: 2px 8px; font-size: 18px; line-height: 1; }
+.bv-stage { line-height: 0; border: 2px solid #10191B; border-radius: 3px; background: #10191B; }
+.bv-stage canvas { image-rendering: pixelated; }
+.bv-caption { min-height: 2.9em; margin: 0; padding: 6px 10px; border: 3px solid #4F6F8A; border-radius: 6px; background: #F6EFD8; color: #17262A;
+  font-size: 13px; font-weight: 700; line-height: 1.4; box-shadow: inset 0 0 0 2px #FFFDF7; }
+.bv-controls { display: flex; gap: 6px; }
+.bv-controls button { min-width: 38px; padding: 3px 10px; font-variant-numeric: tabular-nums; }
+.bv-controls #bv-skip { margin-left: auto; }
+.bv-steps { display: grid; gap: 2px; max-height: 132px; margin: 0; padding: 0; overflow-y: auto; list-style: none; scrollbar-width: thin; }
+.battle-viewer.still .bv-steps { max-height: 260px; }
+.bv-steps button { display: flex; align-items: center; gap: 5px; width: 100%; padding: 2px 6px; border: 1px solid transparent; border-radius: 4px; background: transparent;
+  color: var(--ink-secondary); font-size: 12px; text-align: left; }
+.bv-steps button:hover, .bv-steps button:focus-visible { border-color: var(--border-strong); }
+.bv-step.away button { background: #2A2026; }
+.bv-step.home button { background: #1C2C2A; }
+.bv-step.current button, .bv-step-head.current button { border-color: var(--gold); color: #FFF8E5; }
+.bv-step.faint b { color: #E8B5AE; }
+.bv-step-head button { color: var(--gold); font-weight: 700; }
+.bv-step-head small { color: var(--ink-muted); font-weight: 400; }
+.bv-round { min-width: 2.4em; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+.bv-type { width: 10px; height: 4px; border: 1px solid #10191B; background: var(--type); }
+.bv-steps .px-art { image-rendering: pixelated; }
+.bv-mirror { transform: scaleX(-1); }
+.bv-steps b { min-width: 3em; color: #FFF3C4; font-variant-numeric: tabular-nums; }
+/* Replay entry buttons (toasts, league card, challenge cards). */
+.replay-button { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; font-size: 12px; }
+/* Type-matchup grid (src/browser/matchup-grid.ts) in the gym and challenge cards. */
+.matchup { margin: 6px 0 0; padding: 5px 6px; border: 1px solid #3E5450; border-radius: 3px; background: #16262A; }
+.matchup-grid { border-collapse: separate; border-spacing: 2px; margin: 0 auto; }
+.matchup-grid th { padding: 0; font-weight: 400; }
+.matchup-grid th .px-art { display: block; margin: 0 auto; image-rendering: pixelated; }
+.matchup-grid thead th:first-child { vertical-align: middle; }
+.mu-types { display: flex; justify-content: center; gap: 1px; }
+.matchup-grid tbody th { display: flex; align-items: center; gap: 2px; }
+.matchup-grid tbody th .mu-types { flex-direction: column; }
+.mu-cell { position: relative; width: 40px; height: 36px; padding: 0; border: 1px solid #3E5450; border-radius: 3px; background: #1C2E31; }
+.mu-cell.good { background: #1F4234; border-color: #4E8A62; }
+.mu-cell.bad { background: #47262A; border-color: #8A4E4E; }
+.mu-out { position: absolute; top: 2px; left: 3px; line-height: 0; }
+.mu-in { position: absolute; right: 2px; bottom: 2px; line-height: 0; opacity: .9; }
+.matchup-legend { display: flex; margin-bottom: 0; flex-wrap: wrap; justify-content: center; gap: 4px 10px; margin-top: 3px; color: var(--ink-muted); font-size: 11px; }
+.matchup-legend > span { display: inline-flex; align-items: center; gap: 3px; }
+.matchup-legend .mu-key .mu-out, .matchup-legend .mu-key .mu-in { position: static; }
+.cp-team-sprites { display: flex; flex-wrap: wrap; gap: 2px; margin: 2px 0; }
+.cp-team-sprites .px-art { image-rendering: pixelated; }
+/* Guardian / Elite Four challenge card (src/browser/challenge-card.ts): a fixed dialog above the screens. */
+.combat-card.challenge-card { position: fixed; top: 50%; left: 50%; z-index: 26; width: min(500px, calc(100vw - 24px)); max-height: calc(100vh - 32px); transform: translate(-50%, -50%); }
+.combat-card.challenge-card[hidden] { display: none; }
+.cc-stages { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 6px; }
+.cc-stages button { display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px; font-size: 12px; }
+.cc-stages button[aria-pressed="true"] { border-color: var(--gold); color: #FFE7A8; }
+.cc-outcome { display: flex; align-items: center; gap: 6px; margin: 6px 0 0; padding: 5px 8px; border-radius: 3px; font-weight: 700; }
+.cc-outcome.won { background: #2A4A3C; color: #CFF2DA; }
+.cc-outcome.lost { background: #47262A; color: #F2C9C2; }
+.challenge-card footer, .gym-card footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
+/* Gens 6–9 sprites get `padding: 12%` globally (of the container's width): small sprites in wide rows keep a fixed inset instead. */
+.bv-steps .px-art, .matchup-grid .px-art, .cp-team-sprites .px-art { padding: 1px; }
+.bv-steps button { min-height: 0; }

@@ -6,17 +6,25 @@ import { RIVAL_RULES_V24 } from '../content/rivals.ts';
 import { rivalStayRounds } from '../content/world24-tuning.ts';
 import { TYPE_NAMES } from '../content/type-names.ts';
 import { contentForView, unitDefinition } from '../content/units.ts';
-import { gymAt, leaderTeamFor, unitPower, viewEliteFourBlocker, viewGymBlocker, viewGymTeam } from '../core/gym-circuit.ts';
+import { gymAt, leaderTeam, leaderTeamFor, unitPower, viewEliteFourBlocker, viewGymBlocker, viewGymTeam } from '../core/gym-circuit.ts';
 import type { GymSite } from '../core/gym-circuit.ts';
+import type { Content } from '../content/units.ts';
+import type { SpeciesId, TypeId } from '../content/species.ts';
+import { matchupGridMarkup } from './matchup-grid.ts';
 import { rivalLines, viewRivalSighting } from '../core/rivals.ts';
 import { hexToIndex } from '../core/hex.ts';
 import type { Command, MapUnit, PlayerView } from '../core/model.ts';
 import { placeCard } from './combat-preview.ts';
 import { pokemonSpritePath } from './sprites.ts';
-import { typeBadge, uiIcon } from './ui-icons.ts';
+import { artImage, typeBadge, uiIcon } from './ui-icons.ts';
 import type { TileEntity } from './tile-info.ts';
 
-const esc = (value: unknown) => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+/** Primary and secondary type of a species (the battle's order: the primary type attacks). */
+export const speciesTypes = (content: Content, id: SpeciesId): TypeId[] => {
+  const species = content.species[id];
+  return [species.typeId, ...(species.secondaryTypeId ? [species.secondaryTypeId] : [])];
+};
+const esc =(value: unknown) => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 const civ = (view: PlayerView, id: number) => id === view.playerId ? '你' : `文明 ${id + 1}`;
 export const gymTitle = (gym: GymSite) => `${GYM_LEADERS[gym.leader].name}的${ESSENCES[gym.essence].name}道馆`;
 const badgesOf = (view: PlayerView) => view.expansion?.gymCircuit?.badges[view.playerId] ?? [];
@@ -152,10 +160,16 @@ export function gymCardMarkup(view: PlayerView, unitId: number): string | null {
   const members = team.map(id => view.units.find(item => item.id === id)!).filter((item): item is Extract<MapUnit, { kind: 'pokemon' }> => item.kind === 'pokemon');
   const power = members.reduce((sum, item) => sum + unitPower(item, content), 0), ratio = Math.round(power * 100 / row.power);
   const side = members.map(item => `<div class="cp-who"><span class="cp-sprite"><img src="${pokemonSpritePath(item.speciesId)}" alt="" width="40" height="40"></span><p><strong>${esc(unitDefinition(item, content).name)}</strong><small>HP ${item.hp}/${content.species[item.speciesId].maxHp} · 战力 ${unitPower(item, content)}</small></p></div>`).join('');
+  // depth-v26 §2.5: the leader's team is public (the same rules build it for the preview and the battle); the grid shows each matchup.
+  const leader = leaderTeam(gym, badgesOf(view).length, view.seed, content);
+  const leaderSprites = leader.map(item => artImage(pokemonSpritePath(item.speciesId), { size: 32, label: `${content.species[item.speciesId].name}（${item.typeIds.map(type => TYPE_NAMES[type]).join(' / ')}）` })).join('');
+  const grid = matchupGridMarkup(members.map(item => ({ speciesId: item.speciesId, typeIds: speciesTypes(content, item.speciesId) })), leader,
+    `属性克制：你的队伍对${GYM_LEADERS[gym.leader].name}的宝可梦`, 'gym-matchup');
   return `<header><p class="eyebrow">道馆挑战 · ${esc(gymTitle(gym))}</p><button type="button" class="cp-close" id="gym-card-close" aria-label="取消（Esc）" title="取消（Esc）">×</button></header>
     <div class="cp-columns"><div class="cp-side cp-attack" data-side="team">${side || '<p>没有可出战的宝可梦</p>'}<p class="cp-total">队伍战力<b id="gym-card-team">${power}</b></p></div>
     <div class="cp-centre"><b class="cp-gap ${ratio >= 125 ? 'pos' : ratio < 100 ? 'neg' : ''}" id="gym-card-ratio">${ratio}%</b><small>战力比<br>自动对战</small></div>
-    <div class="cp-side cp-defense" data-side="leader"><div class="cp-who"><p><strong>${esc(GYM_LEADERS[gym.leader].name)}</strong><small>${TYPE_NAMES[gym.typeId]}属性 · ${row.members} 只${STAGE_NAMES[row.stage]}</small></p></div><p class="cp-total">馆主战力<b id="gym-card-leader">${row.power}</b></p></div></div>
+    <div class="cp-side cp-defense" data-side="leader"><div class="cp-who"><p><strong>${esc(GYM_LEADERS[gym.leader].name)}</strong><small>${TYPE_NAMES[gym.typeId]}属性 · ${row.members} 只${STAGE_NAMES[row.stage]}</small></p></div><p class="cp-team-sprites" id="gym-card-leader-team">${leaderSprites}</p><p class="cp-total">馆主战力<b id="gym-card-leader">${row.power}</b></p></div></div>
+    ${grid}
     <div class="cp-result"><p>参战宝可梦花掉本回合行动，以当前 HP 出战，战后至少保留 1 HP。胜利：${ESSENCES[gym.essence].name}徽章（第 ${badgesOf(view).length + 1} 枚）、金币 ${GYM_RULES_V24.reward.goldPerBadge * (badgesOf(view).length + 1)}、${ESSENCES[gym.essence].name}精华 +${GYM_RULES_V24.reward.essence}、经验 +${GYM_RULES_V24.reward.xp}。</p>${reason ? `<p class="cp-reason">${esc(reason)}</p>` : ''}</div>
     <footer><small>Esc 取消</small><button type="button" class="primary" id="gym-card-challenge" ${reason ? 'disabled' : ''}>挑战</button></footer>`;
 }

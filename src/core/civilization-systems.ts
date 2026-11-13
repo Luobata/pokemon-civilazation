@@ -263,7 +263,8 @@ function npcCombatant(speciesId: SpeciesId, index: number, season: number, slot:
     attack: species.attack * scale, defense: species.defense * scale, power: species.power,
   };
 }
-function guardianCombatant(site: SanctuarySite, content: CivilizationContent): BattleCombatant {
+/** The sanctuary guardian as it fights (also read by the battle replay viewer). */
+export function guardianCombatant(site: Pick<SanctuarySite, 'id' | 'guardianSpeciesId' | 'challengePower'>, content: CivilizationContent): BattleCombatant {
   const species = content.world.species[site.guardianSpeciesId];
   const scale = Math.max(1, Math.round(site.challengePower / (species.maxHp + species.attack + species.defense)));
   return {
