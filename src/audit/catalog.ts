@@ -81,6 +81,17 @@ export const AUDIT_SYSTEMS: readonly AuditSystem[] = [
     actionTypes: ['Attack', 'Capture'],
   }),
   system({
+    id: 's-team-battles', name: '宝可梦对战：单打接力（v26）', status: 'implemented',
+    summary: 'gameplay v26：道馆、四天王、圣所守卫与联盟大会改为单打接力——按出场顺序一只对一只，兵种决定先手，每次出手用对当前对手倍率最高的属性，每方每场一次公开的自动换人，经验折成历练（每 50 经验攻防 +1，最多 +5）。道馆同数（馆主 80% 强度），守卫攻防为物种原值、HP 150%–200%，四天王按随机六只三阶约 60% 重新校准，大会 NPC 按地区图鉴两种属性组队、赛前 5 轮公布。',
+    rules: ['结算只在一条命令里完成：每场对战从 state.rng 抽一个 31 位种子（randomBelow(state.rng, 2^31)）写进回放记录 BattleTraceV26；v≤25 不抽，仍用 stableSeed 的 v24 混战。',
+      '预览与 AI 只用视图与固定估算种子（stableSeed(\'team-estimate\' | \'ai-lineup\', n)），永远不等于权威结果；对手队伍由公开设置算出（馆主、四天王用地图种子，大会 NPC 用地图种子 + 届数 + 名次），权威与预览共用同一个构造函数。',
+      '全部整数：伤害同地图公式 damage(攻 + 历练, 防 + 历练, 威力, 倍率, 地形, 85–100)；60 回合上限按 Σ⌊HP × 1000 ÷ 最大 HP⌋ 判；遍历按顺序数组与 id。',
+      'AI：chooseLineup 枚举人选与顺序（道馆最多 120 种），每种跑 4 个估算种子，取胜场最多、再取损失 HP 最少、再按 id；道馆 ≥ 75%、四天王 ≥ 50%、守卫 ≥ 50% 且每圣所每 3 轮一次。'],
+    checks: ['v23 / v24 / v25 固定 48 局逐字节不变；v26 两次运行一致、0 异常。', 'tests/core/team-battle.test.ts（先手、属性选择、换人只一次、历练、平局判定、HP 写回、种子来自 state.rng、预览 = 结算、AI 0 次被拒）；node tools/team-battle-calibrate.ts。'],
+    sources: ['src/core/team-battle.ts', 'src/core/team-battle-views.ts', 'src/core/gym-circuit.ts', 'src/core/civilization-systems.ts', 'src/ai/battle-plan.ts', 'src/browser/lineup-picker.ts', 'src/content/depth-v26.ts', 'docs/design/depth-v26.md'],
+    actionTypes: ['ChallengeGym', 'ChallengeEliteFour', 'ChallengeGuardian', 'RegisterChampionshipTeam'],
+  }),
+  system({
     id: 's-regional-dex', name: '地区图鉴（v25）', status: 'implemented',
     summary: 'gameplay v25：每局按图鉴种子（缺省 = 地图种子）、时代模式和在场领袖，用 stableSeed 抽出整条进化线组成的地区图鉴（精简约 48 种、完整约 60 种），满足兵种 × 阶段、属性、世代、群系刷新、巢穴、稀有、水面线和核心招募槽约束；野外、巢穴、霸主、招募、劲敌、道馆、地标常驻和调查卡都只用图鉴物种；招募按槽解析；图鉴目标按图鉴占物种池的份额缩放。另含 v25 规则修正：放不下的单位排产即拒、新单位避开会出手的野生宝可梦、信仰胜利计入中立城、劲敌后两次登场更好打。',
     rules: ['地区图鉴不存进状态：contentFor(setup) 每次由开局设置重新算出并记忆化；权威与视图共用同一个派生内容对象（PlayerView.regionalDex 只是公开的物种名单，不含位置）。',

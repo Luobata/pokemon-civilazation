@@ -44,8 +44,8 @@ export type Depth26Tuning = {
   conferenceRivalPower: number;
 };
 export const DEPTH26_TUNING: Depth26Tuning = {
-  gymPowerPercent: 80, guardianHpPercent: [150, 200], eliteFourPowerPercent: 100,
-  npcBasePower: 500, npcSeasonPower: 40, npcSlotPower: 20,
+  gymPowerPercent: 80, guardianHpPercent: [150, 200], eliteFourPowerPercent: 64,
+  npcBasePower: 1150, npcSeasonPower: 40, npcSlotPower: 20,
   veteranXp: 50, veteranCap: 5,
   sparRewardPercent: 50, prizePercent: 20, prizePerVisit: 30,
   conferenceRivalPower: 60,

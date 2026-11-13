@@ -675,3 +675,20 @@
 
 - 对战层（第 2 节）与劲敌对决（第 3 节）由第一条线直接实现，不留桩：`src/core/team-battle.ts`、`src/ai/battle-plan.ts`、`src/browser/lineup-picker.ts`（选阵界面单独成文件，便于与另一分支的克制格 / 回放器合并）。
 - 验证：`district-smoke` 23 / 24 / 25 与改动前基线逐字节 49/49；v26 两次 49/49 一致，且除版本字段外与 v25 相同。
+
+### 14.2 对战层（P1，第 2 节）
+
+- 规则：`src/core/team-battle.ts` `resolveTeamBattle`（单打接力、先手档、最佳属性、每方一次自动换人、历练、60 回合按 HP 比例判）；回放记录 `BattleTraceV26`。v26 的道馆、四天王、圣所守卫、联盟大会都改用它，每场从 `state.rng` 抽一个种子；v≤25 仍走 v24 混战与 `stableSeed`（逐字节不变）。
+- 视图侧：`src/core/team-battle-views.ts`（道馆 / 四天王 / 守卫 / 大会 / 劲敌的选阵规格、对手队伍、16 个固定估算种子的估计胜率）；权威与预览共用 `leaderTeam`、`eliteFourTeam`、`guardianFighter`、`championshipNpcEntrants`。
+- AI：`src/ai/battle-plan.ts` `chooseLineup`（道馆最多 6 选 3 的全排列 = 120 种，每种 4 个估算种子；六只队伍取最强六只、首发两位全排列、其余按平均克制排序）；道馆 ≥ 75%、四天王 ≥ 50%、守卫 ≥ 50% 且每圣所每 3 轮一次；大会赛前 5 轮报名、赛前 1 轮按公布的名单重排。`planGymAction` / `gymMoveTargets` 在 v26 转到这里。
+- 界面：`src/browser/lineup-picker.ts`（独立模块，`src/lineup.css`）：点选加入 / 移出、↑ ↓、拖动、选中行按 [ ] 调序；克制格（你打它 / 它打你 / 先手）；估计胜率与 16 段条；「建议顺序」= AI 的 `chooseLineup`。入口：单位栏「道馆」G、世界页的四天王 / 守卫 / 大会按钮。只读视图，命令走正常路径。
+- 校准（`node tools/team-battle-calibrate.ts`，种子 31–38 的地区图鉴，满 HP 随机队伍）：
+
+  | 项 | 取值 | 结果 |
+  | --- | --- | --- |
+  | 四天王 `eliteFourPowerPercent` | 64（v24 表的 64%） | 六只随机三阶：57.8%（63% → 65.7%，65% → 49.0%）；目标约 60% |
+  | 守卫 HP | 150%（620）→ 200%（860） | 三只随机二 / 三阶满 HP：86% / 73% / 73% / 86% |
+  | 大会 `npcBasePower` | 1150（每届 +40、每名次 +20） | 六只随机三阶对单支 NPC：第 1 届 73.7%、第 4 届 42.8%、第 8 届 16.6% |
+  | 道馆 `gymPowerPercent` | 80（spec 0.2 节原型） | 门槛里再看首枚徽章 |
+
+- 偏差：四天王“约 60%”是相对 v24 表缩到 64%（单打接力里六只三阶的随机队伍对原表 0%）；大会 NPC 用 `Depth26Tuning.npcBasePower`（v26 自己的值），不再读 `CIVILIZATION_CONTENT.championship.npcBasePower`。大会报名在 v26 可以重复提交（替换队伍与顺序），代替单独的 `SetChampionshipOrder` 命令。存档读取改为按开局设置派生内容（v25 / v26 的地区图鉴内容不在 `STOCK_CONTENTS` 里，之前读真实 v25 / v26 存档会因内容不对而重放失败）。

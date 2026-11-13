@@ -3,6 +3,7 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import type { PlayerView } from '../../src/core/model.ts';
+import { traceStrikes } from '../../src/core/team-battle.ts';
 import { openScreen, closeScreen, startNewGame } from './ui.ts';
 import { builderFixture, leagueFixture, stoneFixture } from './fixtures/playtest-ab.ts';
 
@@ -154,7 +155,7 @@ test('B1: countdowns 5 rounds and 1 round before the league, then a toast, a 动
   await expect(resultCard.locator('.league-damage li')).toHaveCount(6);
   // Per-Pokémon damage equals the battle traces of the event.
   const mine = season.entrants.find(entrant => entrant.playerId === 0)!;
-  const dealt = mine.roster.map(combatant => season.matches.flatMap(match => match.battle.rounds.flatMap(round => round.strikes))
+  const dealt = mine.roster.map(combatant => season.matches.flatMap(match => traceStrikes(match.battle))
     .filter(strike => strike.attackerId === combatant.id).reduce((sum, strike) => sum + strike.damage, 0));
   for (const [index, amount] of dealt.entries()) await expect(resultCard.locator('.league-damage li').nth(index).locator('[aria-label^="造成伤害"]')).toHaveAttribute('aria-label', `造成伤害 ${amount}`);
   // Every icon in the card has an accessible name or is decorative next to text that names it.

@@ -20,6 +20,7 @@ import { LEGEND_WONDERS } from '../content/legend-wonders.ts';
 import { researchTaskToast } from './research-card.ts';
 import { ESSENCES } from '../content/essences.ts';
 import { GYM_LEADERS } from '../content/gym-circuit.ts';
+import { traceTurns } from '../core/team-battle.ts';
 import { rivalSays } from './gym-panel.ts';
 import { leagueCountdown, leagueSummary } from './league-card.ts';
 
@@ -167,7 +168,7 @@ export function toastFor(payload: VisibleEvent['payload'], view: PlayerView, mem
       const gym = view.expansion?.gymCircuit?.gyms.find(item => item.id === payload.gymId);
       const name = gym ? `${ESSENCES[gym.essence].name}徽章` : '徽章';
       return payload.victory
-        ? toast('growth', '◆', `你赢得了${name}（第 ${payload.badges} 枚）`, `${gym ? `${GYM_LEADERS[gym.leader].name}：` : ''}队伍战力 ${payload.teamPower} 对馆主 ${payload.leaderPower}，${payload.battle.rounds.length} 回合获胜。`, null, undefined, decision())
+        ? toast('growth', '◆', `你赢得了${name}（第 ${payload.badges} 枚）`, `${gym ? `${GYM_LEADERS[gym.leader].name}：` : ''}队伍战力 ${payload.teamPower} 对馆主 ${payload.leaderPower}，${traceTurns(payload.battle)} 回合获胜。`, null, undefined, decision())
         : toast('war', '◇', `道馆挑战失败${gym ? `：${GYM_LEADERS[gym.leader].name}` : ''}`, `队伍战力 ${payload.teamPower} 对馆主 ${payload.leaderPower}。宝可梦恢复后 3 轮可再挑战。`, null);
     }
     case 'EliteFourChallenged':

@@ -8,6 +8,7 @@ import { contentForView } from '../content/units.ts';
 import { artImage, escapeAttr, statChip, uiIcon } from './ui-icons.ts';
 import { pokemonSpritePath } from './sprites.ts';
 import '../league.css';
+import { traceStrikes, traceTurns } from '../core/team-battle.ts';
 
 /** Rounds before a season at which the countdown notice appears. */
 export const LEAGUE_COUNTDOWN = [5, 1] as const;
@@ -24,10 +25,10 @@ export function placementOf(season: ChampionshipSeason, entrantId: string): Plac
   return !lost ? 'semifinal' : lost.label === 'final' ? 'final' : lost.label.startsWith('semifinal') ? 'semifinal' : 'preliminary';
 }
 /** Display name of an entrant from the viewer's side. */
-export function entrantName(view: PlayerView, entrant: Pick<ChampionshipEntrant, 'playerId' | 'entrantId'>): string {
+export function entrantName(view: PlayerView, entrant: Pick<ChampionshipEntrant, 'playerId' | 'entrantId' | 'name'>): string {
   if (entrant.playerId === view.playerId) return '你的队伍';
   if (entrant.playerId !== null) return `文明 ${entrant.playerId + 1}`;
-  return `联盟训练家 ${entrant.entrantId.split('-').at(-1)}`;
+  return entrant.name ? `训练家 ${entrant.name}` : `联盟训练家 ${entrant.entrantId.split('-').at(-1)}`;
 }
 const ownEntrant = (view: PlayerView, season: ChampionshipSeason) => season.entrants.find(entrant => entrant.playerId === view.playerId) ?? null;
 
@@ -35,7 +36,7 @@ const ownEntrant = (view: PlayerView, season: ChampionshipSeason) => season.entr
 export function seasonDamage(season: ChampionshipSeason, entrant: ChampionshipEntrant) {
   return entrant.roster.map(combatant => {
     let dealt = 0, taken = 0;
-    for (const match of season.matches) for (const round of match.battle.rounds) for (const strike of round.strikes) {
+    for (const match of season.matches) for (const strike of traceStrikes(match.battle)) {
       if (strike.attackerId === combatant.id) dealt += strike.damage;
       if (strike.defenderId === combatant.id) taken += strike.damage;
     }
@@ -85,8 +86,8 @@ function teamRow(view: PlayerView, season: ChampionshipSeason, entrant: Champion
 }
 function matchBox(view: PlayerView, season: ChampionshipSeason, match: ChampionshipMatch): string {
   const [a, b] = match.entrantIds.map(id => season.entrants.find(entrant => entrant.entrantId === id)!);
-  return `<li class="league-match${match.label === 'final' ? ' final' : ''}" data-match="${match.label}" aria-label="${MATCH_NAMES[match.label]}：${escapeAttr(entrantName(view, a))} 对 ${escapeAttr(entrantName(view, b))}，${escapeAttr(entrantName(view, match.winnerEntrantId === a.entrantId ? a : b))}胜，${match.battle.rounds.length} 回合">
-    <small class="league-match-head">${MATCH_NAMES[match.label]} ${statChip('turns', match.battle.rounds.length, '回合数')}</small>
+  return `<li class="league-match${match.label === 'final' ? ' final' : ''}" data-match="${match.label}" aria-label="${MATCH_NAMES[match.label]}：${escapeAttr(entrantName(view, a))} 对 ${escapeAttr(entrantName(view, b))}，${escapeAttr(entrantName(view, match.winnerEntrantId === a.entrantId ? a : b))}胜，${traceTurns(match.battle)} 回合">
+    <small class="league-match-head">${MATCH_NAMES[match.label]} ${statChip('turns', traceTurns(match.battle), '回合数')}</small>
     <ol class="league-pair">${teamRow(view, season, a, match, 0)}${teamRow(view, season, b, match, 1)}</ol></li>`;
 }
 function damageTable(view: PlayerView, season: ChampionshipSeason, entrant: ChampionshipEntrant): string {

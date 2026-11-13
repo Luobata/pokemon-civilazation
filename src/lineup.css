@@ -1,0 +1,38 @@
+/* Gameplay v26 lineup picker (src/browser/lineup-picker.ts). */
+.lineup-picker { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 60; width: min(920px, 96vw); max-height: 92vh; overflow: auto; }
+.lineup-picker .lp-rules { font-size: 12px; opacity: 0.85; margin: 4px 0 8px; }
+.lineup-picker .lp-columns { display: grid; grid-template-columns: 1fr 1.2fr 1fr; gap: 10px; }
+.lineup-picker h3 { font-size: 13px; margin: 0 0 4px; }
+.lineup-picker ul, .lineup-picker ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.lineup-picker .lp-candidate, .lineup-picker .lp-row, .lineup-picker .lp-foes li { display: flex; align-items: center; gap: 6px; width: 100%; text-align: left; padding: 3px 6px; border-radius: 6px; background: rgba(255, 255, 255, 0.06); }
+.lineup-picker .lp-row { cursor: grab; outline-offset: 1px; }
+.lineup-picker .lp-row:focus { outline: 2px solid #f6c945; }
+.lineup-picker .lp-slot { font-weight: 700; min-width: 1.4em; text-align: center; }
+.lineup-picker .lp-name { display: grid; flex: 1; }
+.lineup-picker .lp-name small { display: flex; align-items: center; gap: 3px; flex-wrap: wrap; }
+.lineup-picker .lp-moves { display: flex; gap: 2px; }
+.lineup-picker .lp-moves button { min-width: 24px; padding: 0 4px; }
+.lineup-picker .lp-stars { color: #f6c945; letter-spacing: -1px; }
+.lineup-picker .lp-site { color: #8fd18f; }
+.lineup-picker .lp-empty { opacity: 0.7; font-size: 12px; padding: 4px; }
+.lineup-picker .lp-tabs { display: flex; flex-wrap: wrap; gap: 3px; margin: 0 0 4px; }
+.lineup-picker .lp-tabs button[aria-selected='true'] { background: #f6c945; color: #222; }
+.lineup-picker .lp-grid { border-collapse: collapse; margin: 8px auto; }
+.lineup-picker .lp-grid caption { font-size: 11px; opacity: 0.8; }
+.lineup-picker .lp-grid td, .lineup-picker .lp-grid th { border: 1px solid rgba(255, 255, 255, 0.15); padding: 2px; }
+.lineup-picker .lp-cell { position: relative; width: 54px; height: 34px; font-size: 11px; }
+.lineup-picker .lp-mine { position: absolute; left: 3px; top: 2px; }
+.lineup-picker .lp-theirs { position: absolute; right: 3px; bottom: 2px; }
+.lineup-picker .lp-first { position: absolute; right: 2px; top: 0; font-size: 9px; color: #f6c945; }
+.lineup-picker .up { color: #6fdc6f; font-weight: 700; }
+.lineup-picker .down { color: #f0a050; }
+.lineup-picker .none { color: #999; text-decoration: line-through; }
+.lineup-picker .lp-theirs.up { color: #f06060; }
+.lineup-picker .lp-theirs.down { color: #6fdc6f; }
+.lineup-picker .lp-estimate { display: flex; align-items: center; gap: 8px; justify-content: center; margin: 6px 0; }
+.lineup-picker .lp-estimate b { font-size: 28px; }
+.lineup-picker .lp-bar { display: inline-flex; gap: 2px; }
+.lineup-picker .lp-bar i { width: 8px; height: 14px; background: rgba(255, 255, 255, 0.15); }
+.lineup-picker .lp-bar i.on { background: #6fdc6f; }
+.lineup-picker footer { display: flex; justify-content: flex-end; gap: 8px; }
+@media (max-width: 720px) { .lineup-picker .lp-columns { grid-template-columns: 1fr; } }

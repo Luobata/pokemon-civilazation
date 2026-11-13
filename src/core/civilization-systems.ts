@@ -13,6 +13,13 @@ import { edgeDistance, hexDistance, hexToIndex, indexToHex, neighbors, offsetToH
 import type { Hex, MapShape } from './hex.ts';
 import type { CityState, EventPayload, GameState, UnitState } from './model.ts';
 import { finishGame } from './victory.ts';
+import type { Content } from '../content/units.ts';
+import { depth26Tuning } from '../content/depth-v26.ts';
+import { CONFERENCE_TRAINERS } from '../content/conference.ts';
+import { regionalSpeciesIds } from '../content/roster.ts';
+import { taughtMoveType } from './gold-sinks.ts';
+import { battleSeed, fighterFromCombatant, fighterFromUnit, healBetween, resolveTeamBattle } from './team-battle.ts';
+import type { BattleTraceV26, RelayFighter } from './team-battle.ts';
 
 export type CivilizationPlayerState = {
   offeringPoints: number;
@@ -62,6 +69,8 @@ export type BattleTrace = { seed: number; rounds: BattleRound[]; winnerSide: 'ch
 export type ChampionshipEntrant = {
   entrantId: string;
   playerId: number | null;
+  /** v26: an NPC trainer's original name (absent before v26 and for civilizations). */
+  name?: string;
   unitIds: number[];
   power: number;
   roster: BattleCombatant[];
@@ -71,7 +80,7 @@ export type ChampionshipMatch = {
   entrantIds: [string, string];
   winnerEntrantId: string;
   scores: [number, number];
-  battle: BattleTrace;
+  battle: BattleTrace | BattleTraceV26;
 };
 export type ChampionshipSeason = {
   season: number;
@@ -137,7 +146,9 @@ export type CivilizationEvent =
   | { type: 'PhantomActivated'; playerId: number; phantomId: string; name: string; cityId?: number; techId?: string; unitIds?: number[]; amount: number }
   | { type: 'PhantomResearchCompleted'; playerId: number; phantomId: string; techId: string }
   | { type: 'SanctuaryEstablished'; playerId: number; siteId: string; goldAfter: number }
-  | { type: 'GuardianChallenged'; playerId: number; siteId: string; challengePower: number; teamPower: number; victory: boolean; battle: BattleTrace }
+  | { type: 'GuardianChallenged'; playerId: number; siteId: string; challengePower: number; teamPower: number; victory: boolean; battle: BattleTrace | BattleTraceV26 }
+  /** v26 (depth-v26 §2.2): the season's NPC teams, five rounds ahead (public). */
+  | { type: 'ChampionshipLineupAnnounced'; public: true; season: number; round: number; entrants: { entrantId: string; name: string; speciesIds: SpeciesId[] }[] }
   | { type: 'ChampionshipTeamRegistered'; playerId: number; unitIds: number[]; power: number; season: number }
   | { type: 'ChampionshipResolved'; public: true; playerId: number | null; season: ChampionshipSeason }
   | { type: 'AllianceChanged'; public: boolean; playerIds: [number, number]; status: 'proposed' | 'active' | 'dissolved' | 'betrayed'; proposerId?: number }
@@ -173,6 +184,8 @@ export type CivilizationSanctuaryView = {
   position: Hex;
   ownerId: number | null;
   guardianDefeated: boolean;
+  /** v26: the viewer's own last challenge round here (the AI waits 3 rounds between tries). */
+  lastChallengeRound?: number;
 };
 function sanctuaryView(site: SanctuarySite): CivilizationSanctuaryView {
   return {
@@ -209,6 +222,8 @@ export type CivilizationView = {
     titlesByPlayer: Record<number, number>;
     victory: CivilizationState['championship']['victory'];
     registrationCount: number;
+    /** v26 (depth-v26 §2.2): the NPC teams of the next season, from five rounds ahead (public); absent before v26. */
+    lineup?: ChampionshipNpc[];
   };
   relations: CivilizationRelationView[];
   planning: CivilizationPlanningState;
@@ -262,6 +277,51 @@ function npcCombatant(speciesId: SpeciesId, index: number, season: number, slot:
     hp: species.maxHp * scale, maxHp: species.maxHp * scale,
     attack: species.attack * scale, defense: species.defense * scale, power: species.power,
   };
+}
+/** v26: a conference NPC team (an original trainer name, Pokémon of two themed types from the regional Pokédex). */
+export type ChampionshipNpc = { entrantId: string; name: string; roster: BattleCombatant[] };
+/**
+ * v26 (depth-v26 §2.2): the six NPC teams of a season, in slot order (a season uses the first 6 − civilizations entered). Each team has
+ * two types (stableSeed) and picks regional Pokémon of those types, highest stage first; its total power is
+ * `npcBasePower + season × npcSeasonPower + slot × npcSlotPower`, split evenly and scaled per Pokémon (integers). Public setup only.
+ */
+export function championshipNpcEntrants(seed: number, season: number, content: Content): ChampionshipNpc[] {
+  const tuning = depth26Tuning(content), size = CIVILIZATION_CONTENT.championship.teamSize;
+  const ids = [...regionalSpeciesIds(content)].filter(id => content.species[id]).sort() as SpeciesId[];
+  const types = [...new Set(ids.flatMap(id => [content.species[id].typeId, content.species[id].secondaryTypeId].filter((type): type is TypeId => Boolean(type))))].sort();
+  return Array.from({ length: CIVILIZATION_CONTENT.championship.entrantCount }, (_, index) => {
+    const slot = index + 1, tag = (part: string) => stableSeed(seed, season, slot, part);
+    const first = types[tag('npc-type-1') % types.length], rest = types.filter(type => type !== first);
+    const second = rest.length ? rest[tag('npc-type-2') % rest.length] : first;
+    const has = (id: SpeciesId, type: TypeId) => content.species[id].typeId === type || content.species[id].secondaryTypeId === type;
+    const order = (a: SpeciesId, b: SpeciesId) => content.species[b].stage - content.species[a].stage || stableSeed(seed, season, slot, a) - stableSeed(seed, season, slot, b) || (a < b ? -1 : 1);
+    const pool = [...ids.filter(id => has(id, first)).sort(order), ...ids.filter(id => has(id, second) && !has(id, first)).sort(order),
+      ...ids.filter(id => !has(id, first) && !has(id, second)).sort(order)];
+    const power = tuning.npcBasePower + season * tuning.npcSeasonPower + slot * tuning.npcSlotPower, share = Math.floor(power / size);
+    const roster = pool.slice(0, size).map((speciesId, member) => {
+      const species = content.species[speciesId], base = species.maxHp + species.attack + species.defense;
+      const scale = (stat: number) => Math.max(1, Math.floor(stat * share / base));
+      return { id: `npc-${season}-${slot}-${member}`, unitId: null, side: 'away' as const, speciesId, typeIds: [species.typeId, ...(species.secondaryTypeId ? [species.secondaryTypeId] : [])],
+        hp: scale(species.maxHp), maxHp: scale(species.maxHp), attack: scale(species.attack), defense: scale(species.defense), power: species.power };
+    });
+    return { entrantId: `npc-${season}-${slot}`, name: CONFERENCE_TRAINERS[tag('npc-name') % CONFERENCE_TRAINERS.length], roster };
+  });
+}
+/** v26 (depth-v26 §2.2): a guardian keeps its species' attack and defence; its HP is 150% (challenge power 620) to 200% (860), linear. */
+export function guardianFighter(site: Pick<SanctuarySite, 'id' | 'guardianSpeciesId' | 'challengePower'>, content: Content): RelayFighter {
+  const species = content.species[site.guardianSpeciesId], [low, high] = depth26Tuning(content).guardianHpPercent;
+  const powers = CIVILIZATION_CONTENT.sanctuaries.definitions.map(definition => definition.challengePower), min = Math.min(...powers), max = Math.max(...powers);
+  const percent = low + Math.floor((high - low) * Math.max(0, Math.min(max - min, site.challengePower - min)) / Math.max(1, max - min));
+  const hp = Math.max(1, Math.floor(species.maxHp * percent / 100));
+  return fighterFromCombatant({ id: `${site.id}-guardian`, unitId: null, side: 'away', speciesId: site.guardianSpeciesId,
+    typeIds: [species.typeId, ...(species.secondaryTypeId ? [species.secondaryTypeId] : [])], hp, maxHp: hp, attack: species.attack, defense: species.defense, power: species.power }, content);
+}
+/** v26: a civilization's Pokémon as relay fighters in lineup order. */
+function relayFighters(state: CivilizationHost, unitIds: readonly number[], prefix: string, content: Content): RelayFighter[] {
+  return unitIds.map((unitId, index) => {
+    const unit = state.units[unitId] as UnitState & { kind: 'pokemon' };
+    return fighterFromUnit(unit, `${prefix}-${index}`, content, { taughtTypeId: taughtMoveType(state, unitId) });
+  });
 }
 function guardianCombatant(site: SanctuarySite, content: CivilizationContent): BattleCombatant {
   const species = content.world.species[site.guardianSpeciesId];
@@ -573,7 +633,8 @@ export function validateCivilizationAction(state: CivilizationHost, actorId: num
     if (!ids.every(id => isPokemon(state.units[id]) && state.units[id]!.ownerId === actorId)) return 'unit-unavailable';
     if (!atPeaceWithAll(state, actorId)) return 'peace-required';
     const current = civilizationState.championship.registrations[actorId];
-    return !current || current.registeredRound < civilizationState.championship.nextRound ? null : 'already-registered';
+    // v26 (depth-v26 §2.2): registering again before the season replaces the team and its order.
+    return !current || current.registeredRound < civilizationState.championship.nextRound || content.world.teamBattles ? null : 'already-registered';
   }
   return validateRelationAction(state, actorId, action, content);
 }
@@ -700,9 +761,14 @@ export function applyCivilizationAction(state: CivilizationHost, actorId: number
     const power = teamPower(state, action.unitIds, content);
     const roster = battleRosterFromState(state, action.unitIds, 'challenger', `challenge-${actorId}-${site.id}`, content)
       .map(combatant => ({ ...combatant, side: 'challenger' as const }));
-    const guardian = guardianCombatant(site, content);
     const terrain = state.map.tiles[hexToIndex(site.position, state.map)!];
-    const battle = simulateBattle(roster, [{ ...guardian, side: 'away' as const }], stableSeed(state.setup.seed, state.round, actorId, site.id, 'guardian'), terrain);
+    let battle: BattleTrace | BattleTraceV26;
+    if (content.world.teamBattles) {
+      // v26 (depth-v26 §2.2): the guardian is a boss with its species' attack and defence; one RNG seed per battle.
+      const home = relayFighters(state, action.unitIds, `challenge-${actorId}-${site.id}`, content.world);
+      battle = resolveTeamBattle(home, [guardianFighter(site, content.world)], battleSeed(state.rng), terrain);
+      home.forEach((fighter, index) => { roster[index].hp = fighter.hp; });
+    } else battle = simulateBattle(roster, [{ ...guardianCombatant(site, content), side: 'away' as const }], stableSeed(state.setup.seed, state.round, actorId, site.id, 'guardian'), terrain);
     for (const unitId of action.unitIds) state.units[unitId]!.actionLeft = 0;
     for (const [index, combatant] of roster.entries()) {
       const unit = state.units[action.unitIds[index]!]!;
@@ -789,6 +855,17 @@ function resolveChampionship(state: CivilizationHost, content: CivilizationConte
   }
   const speciesIds = Object.keys(content.world.species).sort() as SpeciesId[];
   const npcTargetPower = content.championship.npcBasePower + championship.nextSeason * content.championship.npcSeasonPower;
+  // v26 (depth-v26 §2.2): the announced NPC teams, relay matches with one RNG seed each, half the lost HP back between matches.
+  if (content.world.teamBattles) {
+    const relays = new Map<string, RelayFighter[]>();
+    for (const entrant of entrants) relays.set(entrant.entrantId, relayFighters(state, entrant.unitIds, entrant.entrantId, content.world));
+    for (const npc of championshipNpcEntrants(state.setup.seed, championship.nextSeason, content.world).slice(0, content.championship.entrantCount - entrants.length)) {
+      entrants.push({ entrantId: npc.entrantId, playerId: null, name: npc.name, unitIds: [], power: npc.roster.reduce((total, member) => total + member.maxHp + member.attack + member.defense, 0), roster: npc.roster });
+      relays.set(npc.entrantId, npc.roster.map(member => fighterFromCombatant(member, content.world)));
+    }
+    const fought = new Set<string>();
+    return finishChampionship(state, content, events, entrants, (label, first, second) => relayChampionshipMatch(label, first, second, relays, fought, state));
+  }
   for (let npcIndex = 1; entrants.length < content.championship.entrantCount; npcIndex++) {
     const slot = entrants.length + 1;
     const roster = Array.from({ length: content.championship.teamSize }, (_, memberIndex) => npcCombatant(
@@ -800,16 +877,36 @@ function resolveChampionship(state: CivilizationHost, content: CivilizationConte
     entrants.push({ entrantId: `npc-${championship.nextSeason}-${slot}`, playerId: null, unitIds: [], power, roster });
   }
   entrants.length = content.championship.entrantCount;
+  finishChampionship(state, content, events, entrants, (label, first, second) => championshipMatch(label, first, second, state));
+}
+/** v26 relay match: each side heals half its lost HP if it has fought already this season; the roster records the HP afterwards. */
+function relayChampionshipMatch(label: ChampionshipMatch['label'], first: ChampionshipEntrant, second: ChampionshipEntrant, relays: Map<string, RelayFighter[]>,
+  fought: Set<string>, state: CivilizationHost): ChampionshipMatch {
+  const home = relays.get(first.entrantId)!, away = relays.get(second.entrantId)!;
+  for (const [entrant, team] of [[first, home], [second, away]] as const) if (fought.has(entrant.entrantId)) healBetween(team);
+  const battle = resolveTeamBattle(home, away, battleSeed(state.rng), 'grassland');
+  for (const [entrant, team] of [[first, home], [second, away]] as const) {
+    team.forEach((fighter, index) => { entrant.roster[index].hp = fighter.hp; });
+    fought.add(entrant.entrantId);
+  }
+  const winner = battle.winnerSide === 'home' ? first : second;
+  const total = (entrant: ChampionshipEntrant) => entrant.roster.reduce((sum, combatant) => sum + combatant.hp, 0);
+  return { label, entrantIds: [first.entrantId, second.entrantId], winnerEntrantId: winner.entrantId, scores: [total(first), total(second)], battle };
+}
+function finishChampionship(state: CivilizationHost, content: CivilizationContent, events: EventPayload[], entrants: ChampionshipEntrant[],
+  championshipMatch: (label: ChampionshipMatch['label'], first: ChampionshipEntrant, second: ChampionshipEntrant) => ChampionshipMatch): void {
+  const civilizationState = civilization(state)!;
+  const championship = civilizationState.championship;
   const seeds = [...entrants].sort((a, b) => b.power - a.power || a.entrantId.localeCompare(b.entrantId));
-  const preliminary1 = championshipMatch('preliminary-1', seeds[2]!, seeds[5]!, state);
-  const preliminary2 = championshipMatch('preliminary-2', seeds[3]!, seeds[4]!, state);
+  const preliminary1 = championshipMatch('preliminary-1', seeds[2]!, seeds[5]!);
+  const preliminary2 = championshipMatch('preliminary-2', seeds[3]!, seeds[4]!);
   const winner1 = seeds.find(entrant => entrant.entrantId === preliminary1.winnerEntrantId)!;
   const winner2 = seeds.find(entrant => entrant.entrantId === preliminary2.winnerEntrantId)!;
-  const semifinal1 = championshipMatch('semifinal-1', seeds[0]!, winner2, state);
-  const semifinal2 = championshipMatch('semifinal-2', seeds[1]!, winner1, state);
+  const semifinal1 = championshipMatch('semifinal-1', seeds[0]!, winner2);
+  const semifinal2 = championshipMatch('semifinal-2', seeds[1]!, winner1);
   const finalist1 = seeds.find(entrant => entrant.entrantId === semifinal1.winnerEntrantId)!;
   const finalist2 = seeds.find(entrant => entrant.entrantId === semifinal2.winnerEntrantId)!;
-  const final = championshipMatch('final', finalist1, finalist2, state);
+  const final = championshipMatch('final', finalist1, finalist2);
   const champion = entrants.find(entrant => entrant.entrantId === final.winnerEntrantId)!;
   const season: ChampionshipSeason = {
     season: championship.nextSeason, round: state.round, entrants: JSON.parse(JSON.stringify(entrants)) as ChampionshipEntrant[],
@@ -879,6 +976,12 @@ export function resolveCivilizationRound(state: CivilizationHost, content: Civil
     }
   }
   if (state.round >= civilizationState.championship.nextRound) resolveChampionship(state, content, events);
+  // v26: the next season's NPC teams are public from five rounds ahead (the view carries them; this is the notice).
+  else if (content.world.teamBattles && civilizationState.championship.nextRound - state.round === 6) {
+    const championship = civilizationState.championship;
+    events.push({ type: 'ChampionshipLineupAnnounced', public: true, season: championship.nextSeason, round: championship.nextRound,
+      entrants: championshipNpcEntrants(state.setup.seed, championship.nextSeason, content.world).map(npc => ({ entrantId: npc.entrantId, name: npc.name, speciesIds: npc.roster.map(member => member.speciesId) })) });
+  }
   events.push(...checkCivilizationVictory(state, content));
   return events;
 }
@@ -906,7 +1009,8 @@ export function observeCivilization(state: CivilizationHost, playerId: number, v
     playerId,
     round: state.round,
     victory: clone(civilizationState.victory),
-    sanctuaries: clone(visibleSanctuaries.map(sanctuaryView)),
+    sanctuaries: clone(visibleSanctuaries.map(site => ({ ...sanctuaryView(site),
+      ...(content.world.teamBattles && site.challengeRoundByPlayer[playerId] !== undefined ? { lastChallengeRound: site.challengeRoundByPlayer[playerId] } : {}) }))),
     tabletOwners: clone(Object.fromEntries(visibleSanctuaries
       .filter(site => tabletClaimed(civilizationState, site.tabletId))
       .map(site => [site.tabletId, civilizationState.tabletOwners[site.tabletId]]))),
@@ -920,6 +1024,8 @@ export function observeCivilization(state: CivilizationHost, playerId: number, v
       titlesByPlayer: clone(civilizationState.championship.titlesByPlayer),
       victory: clone(civilizationState.championship.victory),
       registrationCount: Object.keys(civilizationState.championship.registrations).length,
+      ...(content.world.teamBattles && civilizationState.championship.nextRound - state.round <= 5 ? { lineup: clone(championshipNpcEntrants(state.setup.seed,
+        civilizationState.championship.nextSeason, content.world).slice(0, Math.max(1, content.championship.entrantCount - Object.keys(civilizationState.championship.registrations).length))) } : {}),
     },
     relations: Object.entries(civilizationState.relations)
       .filter(([key]) => key.split(':').map(Number).includes(playerId))
@@ -953,6 +1059,8 @@ export function observeCivilization(state: CivilizationHost, playerId: number, v
 
 export function planCivilizationAction(view: CivilizationView, content: CivilizationContent = CIVILIZATION_CONTENT,
   policy?: CivilizationPlanningPolicy, map: MapShape = { width: 0 }): CivilizationAction | null {
+  // v26: guardian challenges and the conference registration are planned with lineups (src/ai/battle-plan.ts).
+  const relay = Boolean(content.world.teamBattles);
   const own = view.planning;
   const freeSanctuary = view.sanctuaries.find(site => site.ownerId === null);
   if (freeSanctuary) {
@@ -1017,7 +1125,7 @@ export function planCivilizationAction(view: CivilizationView, content: Civiliza
     && relation.tradeProposal?.proposerId === relation.targetPlayerId);
   if (tradeResponse) return { type: 'RespondTrade', targetPlayerId: tradeResponse.targetPlayerId, accept: true };
 
-  const site = view.sanctuaries.find(candidate => candidate.ownerId === own.playerId && !candidate.guardianDefeated);
+  const site = relay ? undefined : view.sanctuaries.find(candidate => candidate.ownerId === own.playerId && !candidate.guardianDefeated);
   if (site) {
     const eligible = own.units.filter(unit => unit.actionLeft === 1 && unit.position !== null
         && hexDistance(unit.position, site.position, map) <= 2).sort((a, b) => b.power - a.power || a.id - b.id);
@@ -1032,7 +1140,7 @@ export function planCivilizationAction(view: CivilizationView, content: Civiliza
   }
 
   const pokemon = own.units.filter(unit => unit.power > 0);
-  if (own.atPeaceWithAll && view.championship.nextRound - view.round <= 5
+  if (!relay && own.atPeaceWithAll && view.championship.nextRound - view.round <= 5
     && pokemon.length >= content.championship.teamSize && !view.championship.registration) {
     return { type: 'RegisterChampionshipTeam', unitIds: pokemon.slice(0, content.championship.teamSize).map(unit => unit.id) };
   }

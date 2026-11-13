@@ -27,7 +27,7 @@ const stayText = (view: PlayerView) => {
   return stays.every(stay => stay === stays[0]) ? `${stays[0]} 轮` : `分别停留 ${stays.join(' / ')} 轮`;
 };
 export function nextLeaderText(view: PlayerView): string {
-  const row = leaderTeamFor(badgesOf(view).length);
+  const row = leaderTeamFor(badgesOf(view).length, contentForView(view));
   return `${row.members} 只${STAGE_NAMES[row.stage]} · 战力 ${row.power}`;
 }
 const blockerText: Record<string, string> = {
@@ -100,7 +100,10 @@ export function v24PanelCards(view: PlayerView, button: (label: string, action: 
       + `<p class="world-stats">其他文明：${others || '无'}</p>`
       + `<p>集齐 ${GYM_RULES_V24.gymCount} 枚后挑战四天王（${ELITE_FOUR.map(member => member.name).join('、')}）：派 ${GYM_RULES_V24.eliteFour.team} 只宝可梦连战 5 场，赢了得 1 个冠军赛头衔（每局一次）、金币 ${GYM_RULES_V24.eliteFour.gold}。</p>`
       + (circuit.eliteFour[view.playerId]?.won ? '<p>你已战胜四天王，冠军赛头衔 +1。</p>'
-        : button('挑战四天王', { type: 'ChallengeEliteFour', unitIds: own.map(unit => unit.id) }, elite === null) + (elite ? `<small class="gym-blocker">${esc(gymBlockerText(elite))}</small>` : '')));
+        // v26: the lineup picker sets who goes and the order for all five battles.
+        : content.teamBattles && elite !== 'elite-locked' && elite !== 'elite-won' && elite !== 'elite-cooldown'
+          ? `<button type="button" data-lineup="elite:" id="elite-four-lineup">挑战四天王 · 选择阵容</button>`
+          : button('挑战四天王', { type: 'ChallengeEliteFour', unitIds: own.map(unit => unit.id) }, elite === null) + (elite ? `<small class="gym-blocker">${esc(gymBlockerText(elite))}</small>` : '')));
   }
   if (rivals) {
     const status = rivals.pending ? `⚠ 第 ${rivals.pending.round} 轮登场，目标：${view.economy.player.headquartersCityId === rivals.pending.cityId ? '首都' : `城市 ${rivals.pending.cityId}`}`
@@ -119,8 +122,10 @@ export function gymBarState(view: PlayerView, unit: MapUnit): { gym: GymSite; te
   if (unit.kind !== 'pokemon') return null;
   const gym = gymAt(view.expansion?.gymCircuit, hexToIndex(unit.position, view.map)!);
   if (!gym) return null;
-  const team = viewGymTeam(view, gym.id, contentForView(view)), blocked = viewGymBlocker(view, gym.id, team);
-  return { gym, team, reason: blocked ? gymBlockerText(blocked) : null };
+  const content = contentForView(view), team = viewGymTeam(view, gym.id, content), blocked = viewGymBlocker(view, gym.id, team);
+  // v26: equal-size teams (the lineup picker then chooses who and the order).
+  const size = leaderTeamFor(badgesOf(view).length, content).members;
+  return { gym, team, reason: blocked === 'invalid-team' && content.teamBattles ? `要正好带 ${size} 只宝可梦（与馆主同数），都有行动、在道馆 2 格内。` : blocked ? gymBlockerText(blocked) : null };
 }
 type Opened = { unitId: number; confirm: (action: Command['action']) => void } | null;
 let opened: Opened = null, host: HTMLElement | null = null, markup = '';
