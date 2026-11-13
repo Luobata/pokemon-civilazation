@@ -7,7 +7,7 @@ import { hexToIndex } from '../../core/hex.ts';
 import type { Hex } from '../../core/hex.ts';
 import { HEX_RADIUS, copyShifts, mapSpan, toScreen } from '../camera.ts';
 import type { Camera, Point } from '../camera.ts';
-import { buildingSprite, drawPokemonSprite, drawSpritePath } from '../sprites.ts';
+import { buildingSprite, drawPokemonSilhouette, drawPokemonSprite, drawSpritePath } from '../sprites.ts';
 import { ROLE_POKEMON } from '../../content/roles.ts';
 const ROLE_MARK = { settler: '拓', builder: '工', trader: '商' } as const;
 import { drawTerrain } from '../terrain.ts';
@@ -15,8 +15,8 @@ import { drawTerrainFeatures } from './terrain-features.ts';
 import { drawIcon, drawPixelNumber, drawYieldRow } from '../map-icons.ts';
 import type { IconName } from '../map-icons.ts';
 import type { MapScene, SceneCity, SceneWeather, UnitMarkIdentity } from './scene.ts';
-import { EMPTY_FRAME, SWEEP_MS, SWEEP_RING_MS } from './animation.ts';
-import type { AnimationFrame, MapEffect, NumberTone } from './animation.ts';
+import { EMPTY_FRAME, EVOLUTION_REVEAL_AT, SWEEP_MS, SWEEP_RING_MS } from './animation.ts';
+import type { AnimationFrame, MapEffect, NumberTone, UnitPose } from './animation.ts';
 
 export const FACTIONS = ['#3BA68A', '#D3655C', '#9B83D0', '#D59A45'];
 export const DISTRICT_COLORS: Record<keyof typeof DISTRICTS, string> = {
@@ -487,6 +487,7 @@ function drawUnits(d: Draw, frame: AnimationFrame, camera: Camera) {
   }
   for (const pose of frame.poses) {
     const p = toScreen(pose.position, camera), point = { x: p.x + d.shift, y: p.y };
+    if (pose.evolution) { evolvingUnit(d, pose, point); continue; }
     if (pose.alpha !== undefined || pose.grey) {
       // A knocked-down unit's afterimage: one small greyscale sprite, fading (the filter covers a single unit mark).
       if (!d.onscreen(point)) continue;
@@ -503,6 +504,78 @@ function drawUnits(d: Draw, frame: AnimationFrame, camera: Camera) {
   }
 }
 
+/**
+ * depth-v26 §4.2: an evolving unit — a dark backdrop with slowly turning light rays, the unit mark (old or new form, a
+ * little larger) and over its sprite the form's white silhouette (a cached `source-in` mask, no filter, no shadowBlur).
+ */
+function evolvingUnit(d: Draw, pose: UnitPose, point: Point) {
+  if (!d.onscreen(point)) return;
+  const { context, radius } = d, evolution = pose.evolution!, scale = pose.scale ?? 1, revealed = evolution.elapsed >= EVOLUTION_REVEAL_AT;
+  const fade = revealed ? Math.max(0, 1 - (evolution.elapsed - EVOLUTION_REVEAL_AT) / 600) : Math.min(1, evolution.elapsed / 250);
+  context.save();
+  context.globalAlpha = .6 * fade;
+  context.beginPath(); context.arc(point.x, point.y - radius * .05, radius * 1.15, 0, Math.PI * 2); context.fillStyle = '#0A1430'; context.fill();
+  const spin = evolution.elapsed / 1400 * Math.PI;
+  context.globalAlpha = .3 * fade; context.fillStyle = revealed ? '#FFE08A' : '#CFEFF7';
+  for (let ray = 0; ray < 8; ray++) {
+    const angle = spin + ray * Math.PI / 4;
+    context.beginPath(); context.moveTo(point.x, point.y);
+    context.lineTo(point.x + Math.cos(angle - .12) * radius * 1.15, point.y + Math.sin(angle - .12) * radius * 1.15);
+    context.lineTo(point.x + Math.cos(angle + .12) * radius * 1.15, point.y + Math.sin(angle + .12) * radius * 1.15);
+    context.closePath(); context.fill();
+  }
+  context.restore();
+  unitMark(d, pose.unit, point, undefined, false, scale);
+  if (evolution.white > 0 && pose.unit.kind === 'pokemon') {
+    const size = Math.max(26, Math.min(54, radius * 1.75)) * scale;
+    context.save(); context.globalAlpha = Math.min(1, evolution.white);
+    drawPokemonSilhouette(context, pose.unit.speciesId, Math.round(point.x - size * .54), Math.round(point.y - size * .62), Math.round(size * 1.08));
+    context.restore();
+  }
+}
+/** depth-v26 §4.2: sparkles around the evolving unit, the reveal burst and ring, the 进化！ caption; the still glow without motion. */
+function drawEvolution(d: Draw, p: Point, effect: Extract<MapEffect, { kind: 'evolution' }>) {
+  const { context, radius } = d;
+  context.save();
+  if (!effect.motion) {
+    // Reduced motion: no flashing, no movement — a soft glow that fades.
+    context.globalAlpha = (1 - effect.progress) * .8;
+    context.beginPath(); context.arc(p.x, p.y, radius * .8, 0, Math.PI * 2);
+    context.fillStyle = '#F2C14E33'; context.fill(); context.strokeStyle = '#F2C14E'; context.lineWidth = 3; context.stroke();
+    context.restore();
+    return;
+  }
+  const center = { x: p.x, y: p.y - radius * .1 };
+  if (effect.elapsed < EVOLUTION_REVEAL_AT) {
+    // Twinkles drifting in toward the unit while the forms alternate.
+    for (const [index, particle] of PARTICLES.entries()) {
+      if (d.budget.particles <= 0) break;
+      d.budget.particles--;
+      const phase = (effect.elapsed / 900 * particle.speed + index / PARTICLES.length) % 1, reach = radius * (1.25 - phase * .9);
+      const size = Math.max(2, Math.round(radius * .09 * (index % 2 ? 1 : 1.5)));
+      context.globalAlpha = Math.sin(phase * Math.PI);
+      context.fillStyle = index % 3 ? '#CFEFF7' : '#FFFDF7';
+      context.fillRect(Math.round(center.x + particle.dx * reach - size / 2), Math.round(center.y + particle.dy * reach - size / 2), size, size);
+    }
+  } else {
+    const t = Math.min(1, (effect.elapsed - EVOLUTION_REVEAL_AT) / 700);
+    // The reveal: a ring and a burst of star sparkles in gold and white.
+    context.globalAlpha = 1 - t;
+    context.beginPath(); context.arc(center.x, center.y, radius * (.5 + 1.1 * easeOut(t)), 0, Math.PI * 2);
+    context.strokeStyle = '#FFE08A'; context.lineWidth = Math.max(2, 5 * (1 - t)); context.stroke();
+    for (const [index, particle] of PARTICLES.entries()) {
+      if (d.budget.particles <= 0) break;
+      d.budget.particles--;
+      const reach = radius * (.35 + (1.2 + particle.speed * .5) * easeOut(t)), arm = Math.max(1, Math.round(radius * .12 * (1 - t * .7)));
+      const x = Math.round(center.x + particle.dx * reach), y = Math.round(center.y + particle.dy * reach);
+      context.fillStyle = particle.white ? '#FFFDF7' : index % 2 ? '#F2C14E' : '#9CD6F2';
+      context.fillRect(x - arm, y, arm * 2 + 1, 1 + (arm > 2 ? 1 : 0)); context.fillRect(x, y - arm, 1 + (arm > 2 ? 1 : 0), arm * 2 + 1);
+    }
+    context.globalAlpha = t > .75 ? Math.max(0, 1 - (t - .75) / .25) : 1;
+    outlinedText(d, '进化！', { x: center.x, y: center.y - radius * (1.05 + .25 * easeOut(t)) }, '#FFE08A', Math.min(22, radius * .62));
+  }
+  context.restore();
+}
 /** Civilization-style banner: faction mark, population (own cities), name, capital star, HP when damaged. */
 function cityBanner(d: Draw, city: SceneCity, p: Point, size: number) {
   const { context, radius } = d;
@@ -973,6 +1046,7 @@ function drawEffects(d: Draw, frame: AnimationFrame, indexOf: (hex: Hex) => numb
     } else if (effect.kind === 'impact') drawImpact(d, p, effect);
     else if (effect.kind === 'pulse') drawPulse(d, p, effect);
     else if (effect.kind === 'form') drawForm(d, p, effect);
+    else if (effect.kind === 'evolution') drawEvolution(d, p, effect);
     else if (effect.kind === 'pillar') drawPillar(d, p, effect);
     else if (effect.kind === 'banner') drawFallingBanner(d, p, effect);
     else if (effect.kind === 'number') {

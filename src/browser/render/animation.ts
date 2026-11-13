@@ -6,6 +6,7 @@ import type { Hex, MapShape } from '../../core/hex.ts';
 import { hexToWorld } from '../camera.ts';
 import type { Point } from '../camera.ts';
 import type { SceneWeather, UnitMarkIdentity } from './scene.ts';
+import type { SpeciesId } from '../../content/species.ts';
 
 /** A hit landing on a tile: white flash, and with `burst` a ring and particles in the attack type's colour. */
 export type MapEffect = { kind: 'impact'; position: Hex; color: string; burst: boolean; progress: number }
@@ -19,6 +20,8 @@ export type MapEffect = { kind: 'impact'; position: Hex; color: string; burst: b
   | { kind: 'banner'; position: Hex; ownerId: number | null; progress: number }
   | { kind: 'capture'; position: Hex; success: boolean; progress: number }
   | { kind: 'evolve'; position: Hex; progress: number }
+  /** depth-v26 §4.2: the evolution moment around a posed unit (`elapsed` ms; `motion` false = the still glow). */
+  | { kind: 'evolution'; position: Hex; progress: number; elapsed: number; motion: boolean; from: SpeciesId; to: SpeciesId }
   /** Click feedback: a ring expanding from the tapped tile; `error` for a rejected click. */
   | { kind: 'tap'; position: Hex; progress: number; tone: 'ok' | 'error' }
   /** V8 big event: rings expanding from the tile in `color`, an optional rising icon and a floating label. */
@@ -39,7 +42,9 @@ export type NumberTone = 'damage' | 'counter' | 'super' | 'weak' | 'tag';
  */
 export type UnitPose = { unit: UnitMarkIdentity; position: Point; alpha?: number; grey?: boolean;
   /** Drawn larger (V9 Dynamax), 1 = normal size. */
-  scale?: number };
+  scale?: number;
+  /** depth-v26 §4.2: an evolving unit — the form shown (`unit.speciesId`) under a white silhouette of strength `white`. */
+  evolution?: { form: 'from' | 'to'; white: number; elapsed: number } };
 /** A weather field's opacity while it fades in or out (V11); `field` carries a field that has already left the scene. */
 export type WeatherFade = { key: string; alpha: number; field?: SceneWeather };
 /**
@@ -299,6 +304,51 @@ export const TAP_MS = 260;
 export function tapTrack(position: Hex, tone: 'ok' | 'error' = 'ok'): Track {
   return { key: 'tap', duration: TAP_MS, blocking: false,
     sample(elapsed, _context, frame) { frame.effects.push({ kind: 'tap', position, tone, progress: Math.min(1, elapsed / TAP_MS) }); } };
+}
+
+// ---------- depth-v26 §4.2: the evolution moment (presentation only) ----------
+/** Flash in, silhouettes of the old and new form alternating ever faster, a white new form, then the colour reveal. */
+export const EVOLUTION_MS = 2500, EVOLUTION_FLASH_MS = 350, EVOLUTION_REVEAL_AT = 1800, EVOLUTION_STILL_MS = 500;
+/** Swap intervals of the alternating silhouettes (each 22% shorter), filling the flash-to-reveal window. */
+export const EVOLUTION_SWAPS: readonly number[] = (() => {
+  const window = EVOLUTION_REVEAL_AT - 150 - EVOLUTION_FLASH_MS, swaps: number[] = [];
+  let interval = 260, total = 0;
+  while (total + interval <= window && swaps.length < 14) { swaps.push(interval); total += interval; interval = Math.max(26, Math.round(interval * .78)); }
+  return swaps;
+})();
+/** What the evolving unit looks like `elapsed` ms in: which form, how white (0 colour … 1 silhouette), how large. */
+export function evolutionPhase(elapsed: number): { form: 'from' | 'to'; white: number; scale: number; revealed: boolean } {
+  if (elapsed < EVOLUTION_FLASH_MS) { const t = elapsed / EVOLUTION_FLASH_MS; return { form: 'from', white: t, scale: 1 + .25 * t, revealed: false }; }
+  if (elapsed < EVOLUTION_REVEAL_AT) {
+    let local = elapsed - EVOLUTION_FLASH_MS, swap = 0;
+    while (swap < EVOLUTION_SWAPS.length && local >= EVOLUTION_SWAPS[swap]!) { local -= EVOLUTION_SWAPS[swap]!; swap++; }
+    // After the last swap the new form holds, white, until the reveal.
+    const form = swap >= EVOLUTION_SWAPS.length ? 'to' : swap % 2 === 0 ? 'from' : 'to';
+    return { form, white: 1, scale: form === 'to' ? 1.3 : 1.22, revealed: false };
+  }
+  const t = Math.min(1, (elapsed - EVOLUTION_REVEAL_AT) / 300);
+  return { form: 'to', white: 1 - t, scale: 1.3 - .3 * Math.min(1, (elapsed - EVOLUTION_REVEAL_AT) / 500), revealed: true };
+}
+export type EvolutionSpec = { key: string; unit: UnitMarkIdentity; from: SpeciesId; to: SpeciesId; position: Hex; motion: boolean;
+  /** Runs when the new form is revealed (the fanfare). */
+  onReveal?: () => void; onFinish?: () => void };
+/**
+ * The unit is posed (the scene unit hidden) and drawn by the renderer from `evolution`; the `evolution` effect adds the
+ * backdrop rays, the reveal sparkles and the caption. Without motion: the new form at once with a short glow.
+ */
+export function evolutionTrack(spec: EvolutionSpec): Track {
+  const duration = spec.motion ? EVOLUTION_MS : EVOLUTION_STILL_MS;
+  return { key: spec.key, duration, onFinish: spec.onFinish, paced: spec.motion,
+    ...(spec.onReveal ? { cues: [{ at: spec.motion ? EVOLUTION_REVEAL_AT : 0, run: spec.onReveal }] } : {}),
+    sample(elapsed, context, frame) {
+      const position = context.unitPosition(spec.unit.id) ?? spec.position, progress = Math.min(1, elapsed / duration);
+      if (spec.motion) {
+        const phase = evolutionPhase(elapsed);
+        frame.poses.push({ unit: { ...spec.unit, kind: 'pokemon', speciesId: phase.form === 'from' ? spec.from : spec.to } as UnitMarkIdentity, position: hexToWorld(position),
+          scale: phase.scale, evolution: { form: phase.form, white: phase.white, elapsed } });
+      }
+      frame.effects.push({ kind: 'evolution', position, progress, elapsed, motion: spec.motion, from: spec.from, to: spec.to });
+    } };
 }
 
 export function evolveTrack(key: string, unitId: number, onFinish?: () => void): Track {

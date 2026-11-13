@@ -89,8 +89,17 @@ import type { CitySite } from './city-sites.ts';
 import { renderSitePins } from './site-pins.ts';
 import type { SceneGoTo } from './render/scene.ts';
 import type { UnitBarGoTo } from './unit-action-bar.ts';
+// depth-v26 §2.5 / §4.2 (presentation only): battle replays, guardian / Elite Four preview cards, the evolution moment.
+import { clearReplays, recordChallengeResult, rememberChallenge, storedReplay } from './battle-replay.ts';
+import type { BattleReplay } from './battle-replay.ts';
+import { closeBattleViewer, openBattleViewer } from './battle-viewer.ts';
+import { challengeCardResult, closeChallengeCard, isPreviewedChallenge, openChallengeCard } from './challenge-card.ts';
+import { evolutionTrack } from './render/animation.ts';
+import { stoneEvolutionsFor } from '../content/roster.ts';
+import { evolutionOptions } from '../core/roster.ts';
+import type { Content } from '../content/units.ts';
 
-const canvas = document.querySelector<HTMLCanvasElement>('#map')!;
+const canvas =document.querySelector<HTMLCanvasElement>('#map')!;
 const info = document.querySelector<HTMLElement>('#map-info')!;
 const debug = document.querySelector<HTMLElement>('#debug')!;
 const frameMetricsElement = document.querySelector<HTMLElement>('#frame-metrics')!;
@@ -185,7 +194,7 @@ function eventTiles(payload: VisibleEvent['payload'], view: PlayerView): Hex[] {
     case 'Moved': return payload.path;
     case 'BattleResolved': return payload.positions;
     case 'Captured': return [at(payload.targetUnitId), at(payload.unitId)].filter((hex): hex is Hex => hex !== undefined);
-    case 'Evolved': return [at(payload.unitId)].filter((hex): hex is Hex => hex !== undefined);
+    case 'Evolved': case 'WorldStoneEvolution': return [at(payload.unitId)].filter((hex): hex is Hex => hex !== undefined);
     default: return bigEventTiles(payload, view);
   }
 }
@@ -202,7 +211,7 @@ function ownAction(payload: VisibleEvent['payload'], view: PlayerView): boolean 
   switch (payload.type) {
     case 'Moved': return payload.unit.ownerId === view.playerId;
     case 'BattleResolved': return unitOwner(view, payload.attackerId) === view.playerId;
-    case 'Captured': case 'Evolved': return payload.playerId === view.playerId;
+    case 'Captured': case 'Evolved': case 'WorldStoneEvolution': return payload.playerId === view.playerId;
     default: return false;
   }
 }
@@ -215,7 +224,7 @@ const presentationLog: PresentedEvent[] = [];
 let lastRenderStats: RenderStats | null = null;
 /** The last map frame's effects and poses, summarised (developer adapter, tests). */
 let lastAnimation: { effects: { kind: string; color?: string; text?: string; tone?: string; ownerId?: number | null; label?: string; form?: string; progress: number }[];
-  poses: { id: number; alpha?: number; grey?: boolean; scale?: number }[]; night?: number; weather?: { key: string; alpha: number }[] } = { effects: [], poses: [] };
+  poses: { id: number; alpha?: number; grey?: boolean; scale?: number; evolution?: string; white?: number; speciesId?: string }[]; night?: number; weather?: { key: string; alpha: number }[] } = { effects: [], poses: [] };
 /** Territory of a captured city that the viewer knows belongs to its new owner, by distance (0–3) from the city. */
 function captureTiles(view: PlayerView, tile: number, ownerId: number | null): { hex: Hex; ring: number }[] {
   const city = indexToHex(tile, view.map);
@@ -253,12 +262,43 @@ function presentationTrack(payload: VisibleEvent['payload']): Track | null {
   if (payload.type === 'Moved') track = moveTrack(payload.unit, payload.path, finish, view.map);
   else if (payload.type === 'BattleResolved') track = battleTrack(battleSpec(payload, view, key, finish));
   else if (payload.type === 'Captured') track = captureTrack(key, payload.targetUnitId, payload.success, finish);
-  else if (payload.type === 'Evolved') track = evolveTrack(key, payload.unitId, finish);
+  else if (payload.type === 'Evolved' || payload.type === 'WorldStoneEvolution') track = evolutionMoment(payload, view, key, finish);
   else if (payload.type === 'LegendWonderCompleted') track = wonderTrack(payload, view, key, finish);
   else track = bigEventTrack(payload, view, key, { motion: !reducedMotion(), onFinish: finish });
   // Non-blocking tracks (V8 pulses) never stand for an event the skip button must still report.
   if (track && track.blocking !== false) presenting.set(track.key, payload);
   return track;
+}
+// ---------- depth-v26 §4.2: the evolution moment (presentation only) ----------
+/** Species changes the client saw between refreshes (unit id → old and new form), so an evolution knows its old form. */
+const speciesChanges = new Map<number, { from: SpeciesId; to: SpeciesId }>();
+/** Other players' evolutions seen on visible units (their events are private): played after the event queue, on screen only (V7). */
+const foreignEvolutions: { unitId: number; from: SpeciesId; to: SpeciesId }[] = [];
+let lastVisibleUnitIds = new Set<number>();
+const isEvolutionEdge = (content: Content, from: SpeciesId, to: SpeciesId) => evolutionOptions(content, from).some(option => option.speciesId === to)
+  || stoneEvolutionsFor(content).some(path => path.fromSpeciesId === from && path.intoSpeciesId === to) || content.species[from]?.evolution?.speciesId === to;
+/** Called for every visible unit before its identity is remembered: notes evolutions (own and others'). */
+function noteSpeciesChange(view: PlayerView, unit: PlayerView['units'][number], content: Content) {
+  const known = knownUnits.get(unit.id);
+  if (!known || known.kind !== 'pokemon' || unit.kind !== 'pokemon' || known.speciesId === unit.speciesId || known.ownerId !== unit.ownerId) return;
+  if (!isEvolutionEdge(content, known.speciesId, unit.speciesId)) return;
+  speciesChanges.set(unit.id, { from: known.speciesId, to: unit.speciesId });
+  if (speciesChanges.size > 64) speciesChanges.delete(speciesChanges.keys().next().value!);
+  if (unit.ownerId !== view.playerId && lastVisibleUnitIds.has(unit.id) && foreignEvolutions.length < 6) foreignEvolutions.push({ unitId: unit.id, from: known.speciesId, to: unit.speciesId });
+}
+/** The species a form evolves from (when the client did not see the old form). */
+function preEvolution(content: Content, to: SpeciesId): SpeciesId | null {
+  return (Object.keys(content.species) as SpeciesId[]).find(id => isEvolutionEdge(content, id, to)) ?? null;
+}
+const evolvedFrom = (payload: Extract<VisibleEvent['payload'], { type: 'Evolved' | 'WorldStoneEvolution' }>) => payload.type === 'WorldStoneEvolution' ? payload.fromSpeciesId
+  : speciesChanges.get(payload.unitId)?.from ?? preEvolution(contentForView(session.getView()), payload.speciesId);
+/** The original-style evolution on the unit: flash, alternating silhouettes, reveal with sparkles and (own units) the fanfare. */
+function evolutionMoment(payload: Extract<VisibleEvent['payload'], { type: 'Evolved' | 'WorldStoneEvolution' }>, view: PlayerView, key: string, finish: () => void): Track {
+  const to = payload.type === 'Evolved' ? payload.speciesId : payload.intoSpeciesId, from = evolvedFrom(payload);
+  const unit = view.units.find(item => item.id === payload.unitId);
+  if (!unit || !from) return evolveTrack(key, payload.unitId, finish);
+  return evolutionTrack({ key, unit, from, to, position: unit.position, motion: !reducedMotion(), onFinish: finish,
+    ...(payload.playerId === view.playerId ? { onReveal: () => audio.play('evolveFanfare') } : {}) });
 }
 /** V10: the player's view before a wonder reveal moved the camera; restored when the story card closes. */
 let revealHome: Camera | null = null;
@@ -295,7 +335,8 @@ function summary(payload: VisibleEvent['payload']) {
   switch (payload.type) {
     case 'BattleResolved': return `攻击结算：造成 ${payload.damage} 伤害${payload.counterDamage ? `，反击 ${payload.counterDamage}` : ''}${payload.knockedDownUnitIds.length ? '，有单位击坠/休养' : ''}。`;
     case 'Captured': return payload.success ? `捕捉成功（${payload.probability}%）。` : `捕捉失败（${payload.probability}%），目标激怒。`;
-    case 'Evolved': return `进化完成：${speciesDisplay(payload.speciesId).name}。`;
+    case 'Evolved': case 'WorldStoneEvolution': { const to = payload.type === 'Evolved' ? payload.speciesId : payload.intoSpeciesId, from = evolvedFrom(payload);
+      return `进化完成：${speciesDisplay(to).name}。${from ? `恭喜！${speciesDisplay(from).name}进化成了${speciesDisplay(to).name}！` : ''}`; }
     default: return '';
   }
 }
@@ -365,6 +406,7 @@ const rail = createNotificationRail(document.querySelector<HTMLElement>('#toast-
     if (target.screen === 'world') { const card = document.querySelector<HTMLDetailsElement>('details[data-system="s27-championship"]'); if (card) { card.open = true; card.scrollIntoView({ block: 'nearest' }); } }
   }
   else if (target.kind === 'city') { closeScreen(); selectCity(target.cityId); }
+  else if (target.kind === 'battle') watchReplay(target.key);
   else { closeScreen(); selectUnit(target.unitId); }
 });
 /** Cities the viewer owned at the last refresh, so a city taken during the AI turns still reads as "yours". */
@@ -444,6 +486,12 @@ function recordActivity(payload: VisibleEvent['payload'], animated = false) {
   }
   // V10: an animated reveal opens the story card when its pillar ends (or on skip).
   if (payload.type === 'LegendWonderCompleted' && payload.playerId === session.getView().playerId && !animated) legendArrivals.push(payload.legendId);
+  // depth-v26 §2.5: keep the replay of an own challenge; a guardian / Elite Four card that is still open offers it.
+  const replayKey = recordChallengeResult(session.getView(), payload);
+  if (payload.type === 'GuardianChallenged' || payload.type === 'EliteFourChallenged') {
+    if (payload.playerId === session.getView().playerId) challengeCardResult(session.getView(), { key: replayKey, victory: payload.victory,
+      text: payload.type === 'GuardianChallenged' ? payload.victory ? '击败了守卫！' : '挑战失败' : payload.victory ? '战胜了四天王与冠军！' : `止步第 ${payload.reached + 1} 场` });
+  }
   rail.push(toastFor(payload, session.getView(), { ownCityIds: knownOwnCityIds, unitName: id => knownUnitLabels.get(id)?.replace(/^(野生 |文明 \d+ 的 )/, '') }));
   const text = activityText(payload);
   if (!text || activityLog[0]?.text === text) return;
@@ -577,9 +625,11 @@ function controls() {
   }
   if (selectedCity !== null && !view.economy.cities.some(city => city.id === selectedCity)) selectedCity = null;
   for (const unit of view.units) {
+    noteSpeciesChange(view, unit, CONTENT);
     knownUnitLabels.set(unit.id, `${unit.ownerId === null ? '野生 ' : `文明 ${unit.ownerId + 1} 的 `}${unitDefinition(unit, CONTENT).name}`);
     knownUnits.set(unit.id, unit);
   }
+  lastVisibleUnitIds = new Set(view.units.map(unit => unit.id));
   const { player } = view.economy;
   const yields = view.economy.cities.reduce((sum, city) => ({
     gold: sum.gold + city.yields.gold,
@@ -622,7 +672,9 @@ function controls() {
   renderPolicyPanel(view, issue, busy() || ended || pendingPeace);
   renderLeaderPanel(view);
   renderVictoryPanel(view);
-  renderExpansionPanel(view, selected, selectedCity, issue, busy() || ended || pendingPeace);
+  // depth-v26 §2.5: a guardian / Elite Four challenge from the world panel first opens its preview card (matchups, then 挑战).
+  renderExpansionPanel(view, selected, selectedCity, action => isPreviewedChallenge(action) ? openChallengeCard(session.getView(), action, issue, watchReplay) : issue(action),
+    busy() || ended || pendingPeace);
   document.querySelector<HTMLElement>('#selection-empty')!.hidden = selected !== null || selectedCity !== null || neutralCity !== null || inspectedTile !== null;
   renderTilePanel(view, inspectedTile, { onSelectUnit: id => selectUnit(id, false), selectedUnitId: selected, disabled: busy() || ended || pendingPeace,
     onAction: action => { resetAction(); issue(action); } });
@@ -659,7 +711,7 @@ function controls() {
   renderNeutralPanel(view, neutralCity, issue, busy() || ended || pendingPeace);
   renderDiplomacyPanel(view, busy() || ended, issue);
   renderOutcome(view, newGame);
-  renderLeagueResult(view);
+  renderLeagueResult(view, openReplay);
   renderBallStock(view, openBallShop);
   const shown = activityLog.filter(entry => !activityImportantOnly || !entry.routine);
   document.querySelector('#activity-list')!.innerHTML = shown.length ? shown.map((entry, index) =>
@@ -750,7 +802,9 @@ function issue(action: Command['action'], successNotice?: string) {
   const view = session.getView();
   if (busy() || view.outcome) return;
   if (action.type !== 'RespondPeace' && hasPendingPeace(view)) { notice = '请先接受或拒绝停战提议。'; controls(); return; }
+  rememberChallenge(view, action);
   const result = session.issue(action);
+  if (!result.ok && isPreviewedChallenge(action)) challengeCardResult(view, null);
   if (!result.ok) {
     const reason = result.reason === 'diplomacy-unavailable' ? '当前关系或冷却时机不允许该外交操作'
       : result.reason === 'game-ended' ? '对局已结束'
@@ -899,7 +953,7 @@ function finishPresentations() {
   const payloads = [...presenting.values(), ...pending.map(event => event.payload)];
   const text = payloads.map(summary).filter(Boolean).at(-1);
   if (text) notice = text;
-  timeline.clear(); presenting.clear();
+  timeline.clear(); presenting.clear(); foreignEvolutions.length = 0;
   if (pendingReveal) { if (!pendingReveal.horn) audio.play('wonder'); legendArrivals.push(pendingReveal.legendId); pendingReveal = null; }
   presentationIndex = 0;
   session.skipAnimations();
@@ -921,6 +975,14 @@ function frame(now: number) {
       ...(battle ? { effectiveness: battleLook(battle, session.getView(), knownUnits, knownCityOwners).effectiveness, ...(recorded !== undefined ? { recorded } : {}) } : {}) });
     if (presentationLog.length > 80) presentationLog.shift();
   }
+  // depth-v26 §4.2: other players' evolutions on visible units, after the queue; off screen they cost no time (V7).
+  if (!timeline.busy && presentationIndex >= queue.length && foreignEvolutions.length) {
+    const next = foreignEvolutions.shift()!, current = session.getView(), unit = current.units.find(item => item.id === next.unitId);
+    const shown = Boolean(unit && unit.kind === 'pokemon' && unit.speciesId === next.to && onScreen([unit.position], current));
+    if (shown) timeline.add(evolutionTrack({ key: `ForeignEvolution:${trackSerial++}`, unit: unit!, from: next.from, to: next.to, position: unit!.position, motion: !reducedMotion() }), now);
+    presentationLog.push({ type: 'ForeignEvolution', animated: shown });
+    if (presentationLog.length > 80) presentationLog.shift();
+  }
   const view = session.getView();
   // V11: night and weather changes cross-fade (not with animation off or reduced motion: they switch at once).
   const fades = ambient.update(view);
@@ -933,7 +995,8 @@ function frame(now: number) {
     effects: animation.effects.map(effect => ({ kind: effect.kind, progress: effect.progress,
       ...('color' in effect ? { color: effect.color } : {}), ...('text' in effect ? { text: effect.text, tone: effect.tone } : {}), ...('ownerId' in effect ? { ownerId: effect.ownerId } : {}),
       ...('label' in effect && effect.label ? { label: effect.label } : {}), ...('form' in effect ? { form: effect.form } : {}) })),
-    poses: animation.poses.map(pose => ({ id: pose.unit.id, ...(pose.alpha !== undefined ? { alpha: pose.alpha } : {}), ...(pose.grey ? { grey: true } : {}), ...(pose.scale ? { scale: pose.scale } : {}) })),
+    poses: animation.poses.map(pose => ({ id: pose.unit.id, ...(pose.alpha !== undefined ? { alpha: pose.alpha } : {}), ...(pose.grey ? { grey: true } : {}), ...(pose.scale ? { scale: pose.scale } : {}),
+      ...(pose.evolution ? { evolution: pose.evolution.form, white: pose.evolution.white, ...(pose.unit.kind === 'pokemon' ? { speciesId: pose.unit.speciesId } : {}) } : {}) })),
     ...(animation.night !== undefined ? { night: animation.night } : {}), ...(animation.weather ? { weather: animation.weather.map(fade => ({ key: fade.key, alpha: fade.alpha })) } : {}) };
   const paths = selected === null ? {} : reachablePaths(view, selected);
   const targets = selected === null ? [] : actionTargets(view, selected, actionMode, selectedBall).map(target => hexToIndex(target.position, view.map)!);
@@ -970,6 +1033,16 @@ const ambient = new AmbientTransitions();
 /** New game, load, replay: no fades from the previous game, no war layers carried over, no reveal camera to restore. */
 function resetPresentationState() {
   ambient.reset(); warIntensity.reset(); revealHome = null; pendingReveal = null; endingPresented = false; resetGoTo();
+  clearReplays(); closeBattleViewer(); closeChallengeCard(); speciesChanges.clear(); foreignEvolutions.length = 0;
+}
+/** depth-v26 §2.5: the replay viewer (still under reduced motion), with the game's sound effects. */
+function openReplay(replay: BattleReplay) {
+  openBattleViewer(replay, { reducedMotion: reducedMotion(), play: id => audio.play(id), onClose: () => canvas.focus({ preventScroll: true }) });
+}
+function watchReplay(key: string) {
+  const replay = storedReplay(key);
+  if (replay) openReplay(replay);
+  else { notice = '这场对战的回放已不可用（读档或刷新后只保留联盟大会的回放）。'; controls(); }
 }
 function skip() { finishPresentations(); controls(); requestFrame(); }
 function fit() { camera = fitCamera(session.getView().map, canvas.clientWidth, canvas.clientHeight); requestFrame(); }

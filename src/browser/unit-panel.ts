@@ -11,7 +11,8 @@ import type { MapUnit } from '../core/model.ts';
 import type { Content } from '../content/units.ts';
 import { movementBudget, usesMovementPoints } from '../core/movement.ts';
 import type { SpeciesId } from '../content/species.ts';
-import { EVOLUTION_BLOCKER_TEXT, evolutionBlocker } from '../core/roster.ts';
+import { EVOLUTION_BLOCKER_TEXT } from '../core/roster.ts';
+import { evolutionPanelMarkup } from './evolution-panel.ts';
 import { promotionMarkup } from './promotion-panel.ts';
 import { promotionMovement } from '../core/promotions.ts';
 import { ERA_ABILITIES, ERA_ABILITY_RULES } from '../content/era-abilities.ts';
@@ -130,12 +131,9 @@ export function renderUnitPanel(view: PlayerView, selected: number | null, mode:
   }
   const definition = unitDefinition(unit, CONTENT), species = CONTENT.species[unit.speciesId];
   const player = view.economy.player;
-  const { evolution, stoneEvolution, canEvolve, blocker: evolutionNote, branches, branchContext, branchReady, candyPrice } = evolutionState(view, unit, CONTENT);
-  const otherBranches = branches.filter(option => option.speciesId !== evolution?.speciesId);
-  const branchMarkup = otherBranches.length ? `<div class="evolution-branches" id="evolution-branches"><p class="section-label">其他进化方向</p>${otherBranches.map(option => {
-    const blocker = evolutionBlocker(CONTENT, option, branchContext);
-    return `<button type="button" data-evolve="${option.speciesId}" title="${blocker ? EVOLUTION_BLOCKER_TEXT[blocker] : `EXP ${option.xp} + ${option.gold} 金币`}" ${busy || !unit.actionLeft || !branchReady(option) ? 'disabled' : ''}>进化→${CONTENT.species[option.speciesId].name}${blocker ? `（${EVOLUTION_BLOCKER_TEXT[blocker]}）` : ''}</button>`;
-  }).join('')}</div>` : '';
+  const { evolution, stoneEvolution, canEvolve, blocker: evolutionNote, candyPrice } = evolutionState(view, unit, CONTENT);
+  // depth-v26 §4.1: the evolution-conditions panel (every next form with its conditions as icons; other branches keep #evolution-branches).
+  const evolutionMarkup = evolutionPanelMarkup(view, unit, CONTENT, evolution?.speciesId ?? null, busy);
   const canCapture = captureBlocker(view) === null;
   const targetUnit = target?.kind === 'unit' ? view.units.find(unit => unit.id === target.id) : null;
   const targetLabel = targetUnit
@@ -193,6 +191,7 @@ export function renderUnitPanel(view: PlayerView, selected: number | null, mode:
   root.innerHTML = `<div class="unit-card"><div class="unit-head"><div class="unit-portrait"><img src="${pokemonSpritePath(unit.speciesId)}" alt="${definition.name}" width="64" height="64"></div><div><strong>${definition.name}</strong><span class="unit-types">${typeBadge(species.typeId, 18)}${species.secondaryTypeId ? typeBadge(species.secondaryTypeId, 18) : ''}${view.gameplayVersion ? uiIcon(`class:${species.role}`, { size: 18, label: CLASS_NAMES[species.role] }) : ''}</span><small>宝可梦 · 文明 ${view.playerId + 1}${unit.enraged ? ' · 激怒' : ''}</small></div><span class="unit-ap ${unit.actionLeft ? '' : 'spent'}">${actionPointLabel(view, unit, CONTENT)}</span></div>
     <div class="unit-vitals"><span>${uiIcon('heart', { size: 14 })}HP <strong>${unit.hp}/${species.maxHp}</strong><span class="vital-bar" aria-hidden="true"><span style="width:${Math.max(0, Math.min(100, unit.hp * 100 / species.maxHp))}%"></span></span></span><span>${uiIcon('star', { size: 14 })}EXP <strong>${unit.xp}${evolution ? `/${evolution.xp}` : ''}</strong>${evolution ? `<span class="vital-bar xp" aria-hidden="true"><span style="width:${Math.max(0, Math.min(100, unit.xp * 100 / evolution.xp))}%"></span></span>` : ''}</span></div>
     <div class="unit-details">${statTile('attack', CONTENT.combat === 'strength' ? '攻击战斗力' : '攻击', species.attack)}${statTile('defense', CONTENT.combat === 'strength' ? '防御战斗力' : '防御', species.defense)}${statTile('range', '射程', species.range)}${statTile('move', '移动', species.move + doctrineEffects(player, view.eraProgression, unit, CONTENT).movementBonus + promotionMovement(view, unit.id))}${statTile('class:scout', '视野', species.vision)}${CONTENT.combat === 'strength' ? '' : statTile('effect', '威力', species.power)}</div>
+    ${evolutionMarkup}
     ${classNoteMarkup(view, unit, CONTENT)}
     ${researchCardMarkup(view, researchSpecies, CONTENT, researchOpen)}
     ${view.gameplayVersion ? `<p class="unit-note" id="assault-role">兵种：${ROLE_CITY_ASSAULT[species.role].label} · ${ROLE_CITY_ASSAULT[species.role].note}${doctrineEffects(player, view.eraProgression, unit, CONTENT).cityDamageBonus ? `；领袖战术再 +${doctrineEffects(player, view.eraProgression, unit, CONTENT).cityDamageBonus / 10}%` : ''}</p>` : ''}
@@ -202,7 +201,6 @@ export function renderUnitPanel(view: PlayerView, selected: number | null, mode:
     ${promotionMarkup(view, unit.id, busy)}
     ${eraMarkup}
     ${improvementMarkup}${pillageMarkup}
-    ${branchMarkup}
     ${!inBar && evolutionNote ? `<p class="unit-note" id="evolution-blocker">进化→${CONTENT.species[evolution!.speciesId].name}：${EVOLUTION_BLOCKER_TEXT[evolutionNote]}。</p>` : ''}
     ${!inBar && !canCapture ? '<p class="unit-note">捕捉需要研究「驯化」，并在城市采购精灵球。</p>' : ''}
     ${mode && mode !== 'move' ? `<div class="action-config">${mode === 'capture' ? `<label>球种<select id="capture-ball"><option value="pokeBall" ${ballId === 'pokeBall' ? 'selected' : ''}>精灵球（${view.economy.player.ballInventory.pokeBall}）</option><option value="greatBall" ${ballId === 'greatBall' ? 'selected' : ''}>超级球（${view.economy.player.ballInventory.greatBall}）</option></select></label>` : ''}<button id="cancel-action">取消目标</button></div>${preview}<div class="action-confirm"><button id="confirm-action" class="primary" ${!target || (mode === 'attack' ? attackPreview?.ok !== true : capturePreview?.ok !== true) ? 'disabled' : ''}>确认${mode === 'attack' ? '攻击' : '捕捉'}</button></div>` : ''}
@@ -212,6 +210,10 @@ export function renderUnitPanel(view: PlayerView, selected: number | null, mode:
   root.querySelector('#capture-unit')?.addEventListener('click', () => callbacks.mode(mode === 'capture' ? null : 'capture'));
   root.querySelector('#evolve-unit')?.addEventListener('click', () => callbacks.evolve(CONTENT.roster && evolution ? evolution.speciesId : undefined));
   for (const button of root.querySelectorAll<HTMLButtonElement>('[data-evolve]')) button.addEventListener('click', () => callbacks.evolve(button.dataset.evolve as SpeciesId));
+  for (const button of root.querySelectorAll<HTMLButtonElement>('[data-evolve-stone]')) button.addEventListener('click', () => {
+    const [intoSpeciesId, stoneId] = button.dataset.evolveStone!.split(':');
+    callbacks.issue?.({ type: 'UseEvolutionStone', unitId: unit.id, intoSpeciesId: intoSpeciesId as SpeciesId, stoneId: stoneId as never });
+  });
   root.querySelector('#pillage-unit')?.addEventListener('click', () => callbacks.issue?.({ type: 'PillageImprovement', unitId: unit.id }));
   for (const button of root.querySelectorAll<HTMLButtonElement>('[data-promote]')) button.addEventListener('click', () => callbacks.issue?.({ type: 'PromoteUnit', unitId: unit.id, trait: button.dataset.promote as never }));
   for (const button of root.querySelectorAll<HTMLButtonElement>('[data-era-action]')) button.addEventListener('click', () => callbacks.issue?.(JSON.parse(button.dataset.eraAction!)));

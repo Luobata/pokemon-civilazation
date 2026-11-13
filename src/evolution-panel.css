@@ -1,0 +1,36 @@
+/* depth-v26 §4.1: evolution-conditions panel in the unit panel (src/browser/evolution-panel.ts). */
+.evo-panel { display: grid; gap: 6px; margin-top: 8px; padding: 7px 8px; border: 1px solid var(--border); border-left: 3px solid #9CD6F2; border-radius: var(--radius-md, 6px); background: #13242A; }
+.evo-panel .section-label { display: flex; align-items: center; gap: 4px; margin: 0; }
+.evo-line { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; }
+.evo-form { display: inline-grid; place-items: center; padding: 1px; border: 1px solid transparent; border-radius: 4px; }
+.evo-form.current { border-color: var(--gold, #F2C14E); background: #2E3A22; }
+.evo-form .px-art { image-rendering: pixelated; }
+.evo-form.unseen .px-art { filter: brightness(0) opacity(.5); }
+.evo-arrow { color: var(--ink-muted); font-weight: 800; }
+.evo-branches { display: inline-flex; flex-wrap: wrap; gap: 2px 6px; }
+.evo-branches.fork { padding-left: 4px; border-left: 2px solid #3E5450; }
+.evo-branch { display: inline-flex; align-items: center; gap: 1px; }
+.evo-final { padding: 1px 6px; border: 1px solid var(--border); border-radius: 999px; color: var(--ink-muted); font-size: 11px; }
+.evo-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 5px; }
+.evo-cards .evolution-branches { display: contents; }
+.evo-card { display: grid; gap: 4px; align-content: start; padding: 5px 6px; border: 1px solid #3E5450; border-radius: 5px; background: #182C31; }
+.evo-card.ready { border-color: #4E8A62; background: #1B3A30; }
+.evo-card.main { box-shadow: inset 3px 0 0 var(--gold, #F2C14E); }
+.evo-card header { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.evo-card header strong { display: block; overflow: hidden; color: #FFF8E5; font-size: 13px; white-space: nowrap; text-overflow: ellipsis; }
+.evo-card header .px-art { image-rendering: pixelated; }
+.evo-types { display: flex; gap: 2px; }
+.evo-checks { display: flex; flex-wrap: wrap; gap: 3px; margin: 0; padding: 0; list-style: none; }
+.evo-check { position: relative; display: inline-flex; align-items: center; gap: 2px; padding: 1px 4px 1px 3px; border: 1px solid #3E5450; border-radius: 4px; background: #10201F; font-size: 11px; }
+.evo-check b { color: #FFF8E5; font-variant-numeric: tabular-nums; }
+.evo-check.met { border-color: #4E8A62; }
+.evo-check.unmet { border-color: #8A4E4E; background: #2A1C1E; }
+.evo-check.unmet b { color: #F2C9C2; }
+.evo-mark { font-size: 10px; font-weight: 800; }
+.evo-check.met .evo-mark, .evo-training.met .evo-mark { color: #6BD08A; }
+.evo-check.unmet .evo-mark, .evo-training.unmet .evo-mark { color: #E07A6D; }
+.evo-bar { display: inline-block; width: 22px; height: 4px; border: 1px solid #10191B; background: #3A2A28; }
+.evo-bar i { display: block; height: 100%; background: #9CD6F2; }
+.evo-training { display: inline-flex; align-items: center; gap: 3px; margin: 0; color: var(--ink-muted); font-size: 11px; }
+.evo-card button { padding: 3px 6px; font-size: 12px; }
+.evo-panel .px-art { padding: 1px; }
