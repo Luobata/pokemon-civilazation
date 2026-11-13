@@ -467,6 +467,8 @@ function unitHpBar(d: Draw, point: Point, hp: { current: number; max: number }) 
 function drawUnits(d: Draw, frame: AnimationFrame, camera: Camera) {
   const { context, centers, radius, scene } = d;
   const posed = new Set(frame.poses.map(pose => pose.unit.id));
+  // v26 C2: a logistics unit sharing a tile with a Pokémon is drawn as a small mark in the tile's lower right.
+  const pokemonTiles = new Set(scene.units.filter(item => item.unit.kind === 'pokemon').map(item => item.index));
   for (const item of scene.units) if (!posed.has(item.unit.id)) {
     if (item.hostile && d.onscreen(centers[item.index])) {
       const p = centers[item.index], size = Math.max(26, Math.min(54, radius * 1.75));
@@ -474,8 +476,9 @@ function drawUnits(d: Draw, frame: AnimationFrame, camera: Camera) {
       context.strokeStyle = '#10191B'; context.lineWidth = 5; context.stroke();
       context.strokeStyle = '#E5554A'; context.lineWidth = 2.5; context.stroke();
     }
-    unitMark(d, item.unit, centers[item.index], item.actionLeft, item.enraged);
-    const p = centers[item.index];
+    const shared = item.unit.kind !== 'pokemon' && pokemonTiles.has(item.index), base = centers[item.index];
+    const p = shared ? { x: base.x + radius * .48, y: base.y + radius * .42 } : base;
+    unitMark(d, item.unit, p, item.actionLeft, item.enraged, shared ? .55 : 1);
     if (item.status && d.onscreen(p)) {
       const q = { x: p.x - radius * .55, y: p.y - radius * .55 }, size = Math.max(8, radius * .28);
       context.beginPath(); context.arc(q.x, q.y, size, 0, Math.PI * 2); context.fillStyle = '#B15AD6'; context.fill();

@@ -24,9 +24,12 @@ import { pokemonSpritePath } from './sprites.ts';
 import { artImage, escapeAttr, flagImage, statChip, uiIcon } from './ui-icons.ts';
 import type { UiIconName } from './ui-icons.ts';
 import { captureBlocker, evolutionState } from './unit-action-bar.ts';
+import { depthWorldCards } from './late-game-ui.ts';
 
 type Pokemon = Extract<MapUnit, { kind: 'pokemon' }>;
-export type WorldCardId = 'gym' | 'rival' | 'conference' | 'contest' | 'nest' | 'sanctuary' | 'legend' | 'capture' | 'evolution';
+export type WorldCardId = 'gym' | 'rival' | 'conference' | 'contest' | 'nest' | 'sanctuary' | 'legend' | 'capture' | 'evolution'
+  /** v26 late game (late-game-ui.ts). */
+  | 'season' | 'raid' | 'legendRace' | 'alarm' | 'goldSink';
 export type CardArt = { icon: UiIconName } | { sprite: string };
 /**
  * One next-action card. `tileIndex`: what the locate button centres on (always a tile the viewer sees or has explored);
@@ -186,7 +189,9 @@ export function worldCards(view: PlayerView, content: Content = contentForView(v
       tip: `${unitDefinition(unit, content).name}（#${unit.id}）进化成${into}：EXP ${unit.xp}/${state.evolution!.xp}，需 ${state.evolution!.gold} 金。选中它后在单位操作栏进化。`,
       urgency: state.canEvolve ? 1 : 3, distance: 0, unitId: unit.id });
   }
-  const order: WorldCardId[] = ['rival', 'conference', 'gym', 'evolution', 'capture', 'contest', 'nest', 'sanctuary', 'legend'];
+  // v26 late game: contest season, Max Raid, legend race, near-victory warning, spare gold (none before v26).
+  cards.push(...depthWorldCards(view, content));
+  const order: WorldCardId[] = ['alarm', 'rival', 'raid', 'conference', 'gym', 'season', 'evolution', 'capture', 'contest', 'goldSink', 'legendRace', 'nest', 'sanctuary', 'legend'];
   return cards.sort((a, b) => a.urgency - b.urgency || (a.distance ?? 99) - (b.distance ?? 99) || order.indexOf(a.id) - order.indexOf(b.id));
 }
 

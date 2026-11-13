@@ -1144,8 +1144,14 @@ function activateIndex(index: number | null, confirmSelection = false) {
     controls(); requestFrame(); return;
   }
   neutralCity = null;
-  const own = view.units.find(unit => unit.ownerId === view.playerId && hexToIndex(unit.position, view.map) === index);
+  // v26 C2: a tile may hold an own Pokémon and an own logistics unit; clicking it again selects the other one.
+  const owns = view.units.filter(unit => unit.ownerId === view.playerId && hexToIndex(unit.position, view.map) === index);
+  const own = owns.find(unit => unit.id !== selected) ?? owns[0];
   const ownCity = city?.ownerId === view.playerId ? city : null;
+  // v26 C2: the selected unit may move onto a tile it shares with an own unit of the other layer.
+  if (!construction && selected !== null && owns.length && !owns.some(unit => unit.id === selected) && reachablePaths(view, selected)[index]) {
+    inspectedTile = null; issue({ type: 'Move', unitId: selected, to: hex }); controls(); requestFrame(); return;
+  }
   if (!construction && ownCity && (!own || selectedCity !== ownCity.id)) { selectCity(ownCity.id, false); return; }
   if (!construction && own) { selectUnit(own.id, false); return; }
   if (!construction && selected !== null && reachablePaths(view, selected)[index]) { inspectedTile = null; issue({ type: 'Move', unitId: selected, to: hex }); }

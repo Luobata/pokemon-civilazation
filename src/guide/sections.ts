@@ -4,6 +4,7 @@ import type { LeaderId } from '../content/leaders.ts';
 import * as T from './tables.ts';
 import { OVERVIEW_SECTIONS, SYSTEM_SECTIONS } from './systems.ts';
 import { civ6Section } from './civ6.ts';
+import { LATE_GAME_SECTIONS } from './late-game.ts';
 
 export type GuideSection = { id: string; group: string; title: string; badge?: string; html: string };
 
@@ -371,6 +372,8 @@ const CHAPTERS: readonly GuideSection[] = [
     ${T.rivalCounterTable()}
     ${tip('看到预告就把一两只宝可梦留在目标城市旁，最好带克制劲敌主属性的（妙蛙种子开局防火系，小火龙开局防水系，杰尼龟开局防草系）。劲敌只待 6 轮，守住就行；能打倒最好，第 3 次的奖励最丰厚。')}` },
 
+  // v26 late game (src/guide/late-game.ts).
+  ...LATE_GAME_SECTIONS,
   ...SYSTEM_SECTIONS,
 ];
 

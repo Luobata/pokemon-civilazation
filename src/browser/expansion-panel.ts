@@ -26,10 +26,12 @@ import type { UiIconName } from './ui-icons.ts';
 import { MAP_ICON_NAMES } from './map-icons.ts';
 import { pokemonSpritePath } from './sprites.ts';
 import { v24PanelCards } from './gym-panel.ts';
+import { depthPanelCards } from './late-game-ui.ts';
 import { dexCaptureCounts, isStarterRecord } from './dex-owned.ts';
 import { regionalDexMarkup } from './regional-dex-panel.ts';
 import { bracketMarkup, worldCards, worldCardsMarkup } from './world-cards.ts';
 import '../world-ui.css';
+import '../late-game.css';
 import { installDataTips } from './ui-tip.ts';
 
 const escape = (value: unknown) => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
@@ -149,6 +151,8 @@ export function renderExpansionPanel(view: PlayerView, selectedUnitId: number | 
     }).join('') + `<p>已知石板：${Object.entries(civ.tabletOwners).map(([tablet, owner]) => `${escape(tablet)} → 文明 ${owner + 1}`).join('、') || '无'}</p>`);
   // v24 B / C: badge box, circuit gyms, the Elite Four, the own rival.
   html += v24PanelCards(view, button, card);
+  // v26 D: TMs, special training, contest-season entries (none before v26).
+  html += depthPanelCards(view, button, card);
   const peaceful = !view.diplomacy.some(pair => pair.status === 'war' && [pair.a, pair.b].includes(player.id));
   html += card('s27-championship', '六只队伍与联盟大会', `<p>下一届：第 ${civ.championship.nextRound} 轮。六只宝可梦报名，六队锦标赛、前两名轮空，获得 ${titlesNeeded} 届冠军即胜利${exp.gymCircuit ? '（战胜四天王也计 1 个头衔，四天王最多算 1 个）' : ''}。大会战损会写回参赛单位，HP 至少保留 1，并消耗行动。</p><p>当前冠军数 ${civ.championship.titlesByPlayer[player.id] ?? 0}/${titlesNeeded} · ${civ.championship.registration ? '已报名' : '未报名'}</p>`
     + button('报名当前六只宝可梦', { type: 'RegisterChampionshipTeam', unitIds: own.slice(0, 6).map(unit => unit.id) }, peaceful && own.length >= 6 && !civ.championship.registration)
