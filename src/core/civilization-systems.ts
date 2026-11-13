@@ -273,14 +273,8 @@ function guardianCombatant(site: SanctuarySite, content: CivilizationContent): B
     attack: species.attack * scale, defense: species.defense * scale, power: species.power,
   };
 }
-export function stableSeed(...parts: (string | number)[]): number {
-  let value = 0x811c9dc5;
-  for (const part of parts) for (const byte of String(part)) {
-    value ^= byte.codePointAt(0)!;
-    value = Math.imul(value, 0x01000193) >>> 0;
-  }
-  return value >>> 0;
-}
+export { stableSeed } from '../content/stable-seed.ts';
+import { stableSeed } from '../content/stable-seed.ts';
 function strikeEffectiveness(attacker: BattleCombatant, defender: BattleCombatant): number {
   return dualEffectiveness(attacker.typeIds[0], defender.typeIds, true);
 }
