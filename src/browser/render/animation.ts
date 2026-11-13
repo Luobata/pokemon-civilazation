@@ -330,6 +330,14 @@ export function pulseTrack(key: string, position: Hex | ((context: TrackContext)
       if (at) frame.effects.push({ kind: 'pulse', position: at, color, progress: Math.min(1, elapsed / PULSE_MS), ...(label ? { label } : {}), ...(icon ? { icon } : {}) });
     } };
 }
+/** depth-v26 §6.1 locate: the camera has centred on a tile; a gold chevron pulse repeats on it for 1.5 s. */
+export const LOCATE_MS = 1500;
+export function locateTrack(position: Hex): Track {
+  return { key: 'locate', duration: LOCATE_MS, blocking: false,
+    sample(elapsed, _context, frame) {
+      frame.effects.push({ kind: 'pulse', position, color: '#F2C14E', label: '定位', icon: 'chevron', progress: Math.min(1, (elapsed % (LOCATE_MS / 2)) / (LOCATE_MS / 2)) });
+    } };
+}
 /** V8 trade route: a dash runs from one city to the other once (the destination's copy nearest the origin), with a pulse at each end. */
 export function routeTrack(key: string, from: Hex, to: Hex, map: MapShape = { width: 0 }): Track {
   const a = hexToWorld(from), b = hexToWorld(nearestCopy(from, to, map));

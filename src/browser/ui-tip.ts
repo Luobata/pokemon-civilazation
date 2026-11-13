@@ -49,3 +49,25 @@ export function bindTip(element: HTMLElement, html: () => string): void {
   element.addEventListener('mouseleave', hideTip);
   element.addEventListener('blur', hideTip);
 }
+
+let delegated = false;
+const escapeText = (text: string) => text.replace(/[&<>"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[char]!);
+/**
+ * Delegated hover cards: any element with `data-tip` (plain text, newlines kept) shows it on hover and keyboard focus;
+ * an optional `data-tip-title` is shown as the card's bold first line above it. Installed once, the first time a panel
+ * renders such elements (no-op outside a browser).
+ */
+export function installDataTips(): void {
+  if (delegated || typeof document === 'undefined') return;
+  delegated = true;
+  const tipOf = (target: EventTarget | null) => target instanceof Element ? target.closest<HTMLElement>('[data-tip]') : null;
+  const html = (element: HTMLElement) => {
+    const body = element.dataset.tip!.split('\n').map(escapeText).join('<br>'), title = element.dataset.tipTitle;
+    return title ? `<b>${escapeText(title)}</b><small>${body}</small>` : body;
+  };
+  const show = (element: HTMLElement) => { if (element !== anchor || card?.hidden) showTip(element, html(element)); };
+  document.addEventListener('mouseover', event => { const element = tipOf(event.target); if (element) show(element); });
+  document.addEventListener('mouseout', event => { const element = tipOf(event.target); if (element && tipOf(event.relatedTarget) !== element) hideTip(); });
+  document.addEventListener('focusin', event => { const element = tipOf(event.target); if (element) show(element); });
+  document.addEventListener('focusout', event => { if (tipOf(event.target)) hideTip(); });
+}

@@ -56,5 +56,8 @@ export const gymFixture = () => first('gym', [1, 2, 3, 4, 5], view => view.units
   const team = viewGymTeam(view, gym.id, contentFor(setupFor(1)));
   return team.length > 0 && viewGymBlocker(view, gym.id, team) === null;
 })?.id);
+/** Seat 0's turn after the first league conference was held (id = the round): gyms, nests and a bracket to show. */
+export const lateWorldFixture = () => first('late-world', [1, 2, 3], view =>
+  view.round >= 42 && view.expansion?.civilization.championship.history.length ? view.round : undefined);
 /** Seat 0 sees its rival's warning (id = the warned tile). */
 export const rivalWarningFixture = () => first('rival-warning', [1, 2], view => view.expansion?.rivals?.pending?.tileIndex);

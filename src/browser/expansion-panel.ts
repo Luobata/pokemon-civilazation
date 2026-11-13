@@ -28,12 +28,16 @@ import { pokemonSpritePath } from './sprites.ts';
 import { v24PanelCards } from './gym-panel.ts';
 import { dexCaptureCounts, isStarterRecord } from './dex-owned.ts';
 import { regionalDexMarkup } from './regional-dex-panel.ts';
+import { bracketMarkup, worldCards, worldCardsMarkup } from './world-cards.ts';
+import '../world-ui.css';
+import { installDataTips } from './ui-tip.ts';
 
 const escape = (value: unknown) => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 export function renderExpansionPanel(view: PlayerView, selectedUnitId: number | null, selectedCityId: number | null,
   issue: (action: Command['action']) => void, disabled: boolean): void {
   const CONTENT = contentForView(view);
   const root = document.querySelector<HTMLElement>('#expansion-panel')!;
+  installDataTips();
   if (!view.expansion) { root.innerHTML = '<p>此存档使用经典规则。新建对局可启用扩展系统。</p>'; return; }
   const opened = new Set([...root.querySelectorAll<HTMLDetailsElement>('details[open]')].map(element => element.dataset.system));
   const exp = view.expansion, player = view.economy.player;
@@ -46,7 +50,13 @@ export function renderExpansionPanel(view: PlayerView, selectedUnitId: number | 
     return `<button type="button" data-expansion-action="${id}"${disabled || !available ? ' disabled' : ''}${reason ? ` title="${escape(reason)}"` : ''}>${escape(label)}</button>`;
   };
   const card = (id: string, title: string, body: string) => `<details data-system="${id}"><summary>${title}</summary>${body}<p><a href="/audit.html?system=${id}" target="_blank" rel="noopener">规则与独立调试 ↗</a></p></details>`;
-  let html = '<h2>文明与探索</h2><p>地图标记：巢 · 暴走巢穴，霸 · 霸主，果 · 树果，石 · 矿脉，圣 / 碑 · 圣所与已取得石板。</p>';
+  // depth-v26 §6: the page opens on the next-action cards and the conference bracket; the system sections follow as 规则与详情.
+  const championship = exp.civilization.championship;
+  // Playtest 2026-11 B4: the titles needed come from the victory targets (v21+: by round limit), as the victory page shows.
+  const titlesNeeded = (view.gameplayVersion ?? 0) >= 21 ? victoryTargets(view).championshipTitles : CIVILIZATION_CONTENT.championship.titlesNeededForVictory;
+  let html = worldCardsMarkup(worldCards(view, CONTENT), button)
+    + bracketMarkup(view, championship.history.at(-1), { own: championship.titlesByPlayer[player.id] ?? 0, need: titlesNeeded })
+    + '<h2 class="rules-head">规则与详情</h2><p>地图标记：巢 · 暴走巢穴，霸 · 霸主，果 · 树果，石 · 矿脉，圣 / 碑 · 圣所与已取得石板。</p>';
   const leader = player.leaderId && LEADER_KITS[player.leaderId];
   if (leader) html += card('leaders-active', '领袖能力与专属内容', `<p>${escape(leader.description)}${exp.leaders.readyAtRound > view.round ? ` 下次可用：第 ${exp.leaders.readyAtRound} 轮。` : ''}</p>`
     + button(leader.active, { type: 'UseLeaderAbility' }, player.gold >= 20 && exp.leaders.readyAtRound <= view.round)
@@ -139,10 +149,8 @@ export function renderExpansionPanel(view: PlayerView, selectedUnitId: number | 
     }).join('') + `<p>已知石板：${Object.entries(civ.tabletOwners).map(([tablet, owner]) => `${escape(tablet)} → 文明 ${owner + 1}`).join('、') || '无'}</p>`);
   // v24 B / C: badge box, circuit gyms, the Elite Four, the own rival.
   html += v24PanelCards(view, button, card);
-  // Playtest 2026-11 B4: the titles needed come from the victory targets (v21+: by round limit), as the victory page shows.
-  const titlesNeeded = (view.gameplayVersion ?? 0) >= 21 ? victoryTargets(view).championshipTitles : CIVILIZATION_CONTENT.championship.titlesNeededForVictory;
   const peaceful = !view.diplomacy.some(pair => pair.status === 'war' && [pair.a, pair.b].includes(player.id));
-  html += card('s27-championship', '六只队伍与联盟大会', `<p>下一届：第 ${civ.championship.nextRound} 轮。六只宝可梦报名，六队锦标赛、前两名轮空，获得 ${titlesNeeded} 届冠军即胜利。大会战损会写回参赛单位，HP 至少保留 1，并消耗行动。</p><p>当前冠军数 ${civ.championship.titlesByPlayer[player.id] ?? 0}/${titlesNeeded} · ${civ.championship.registration ? '已报名' : '未报名'}</p>`
+  html += card('s27-championship', '六只队伍与联盟大会', `<p>下一届：第 ${civ.championship.nextRound} 轮。六只宝可梦报名，六队锦标赛、前两名轮空，获得 ${titlesNeeded} 届冠军即胜利${exp.gymCircuit ? '（战胜四天王也计 1 个头衔，四天王最多算 1 个）' : ''}。大会战损会写回参赛单位，HP 至少保留 1，并消耗行动。</p><p>当前冠军数 ${civ.championship.titlesByPlayer[player.id] ?? 0}/${titlesNeeded} · ${civ.championship.registration ? '已报名' : '未报名'}</p>`
     + button('报名当前六只宝可梦', { type: 'RegisterChampionshipTeam', unitIds: own.slice(0, 6).map(unit => unit.id) }, peaceful && own.length >= 6 && !civ.championship.registration)
     + `<p>阵容：${own.slice(0, 6).map(unit => `#${unit.id} ${unit.kind === 'pokemon' ? CONTENT.species[unit.speciesId].name : ''}`).join('、')}</p><p>最近冠军：${civ.championship.history.map(season => `第${season.season}届 ${season.championPlayerId === null ? 'NPC' : `文明${season.championPlayerId + 1}`}`).join('；') || '尚未举办'}</p>`);
   html += card('s28-deep-diplomacy', '联盟、贸易与信任', '<p>和平时期可提议结盟与贸易。贸易每五轮给双方 4 金币并增进信任；背叛需 20 金币，信任降至 -50 并进入冷却。</p>'
