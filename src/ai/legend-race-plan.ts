@@ -23,7 +23,8 @@ export function legendRaceSwitch(view: PlayerView): Command['action'] | null {
   if (!legends || !race?.length) return null;
   for (const item of legends.building) {
     if (item.progress * 2 >= item.cost || !race.some(entry => entry.legendId === item.legendId && entry.stage === 'final')) continue;
-    if (ownEstimate(view, item.legendId, item.progress) <= 2) continue;
+    // Same line as the veto (a final-stage rival and more than 3 rounds), so a dropped legend is never queued again at once.
+    if (ownEstimate(view, item.legendId, item.progress) <= 3) continue;
     const city = view.economy.cities.find(own => own.id === item.cityId);
     if (!city) continue;
     return { type: 'SetProductionQueue', cityId: city.id, orders: city.queue.filter(order => !(order.item.kind === 'legend' && order.item.defId === item.legendId))

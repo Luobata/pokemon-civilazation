@@ -62,6 +62,8 @@ export function planContestSeasonAction(view: PlayerView, content: Content): Com
       .sort((a, b) => b.population - a.population || a.id - b.id)[0];
     if (city) return { type: 'BuildContestHall', cityId: city.id };
   }
-  if (threat && contests.own.halls.length && view.round >= contests.own.showReadyAtRound && player.gold >= CONTEST_RULES.showGold) return { type: 'HoldContest' };
+  // Halls in cities lost this round are still listed until the round ends; the authority only counts live ones.
+  const live = contests.own.halls.filter(id => view.economy.cities.some(city => city.id === id));
+  if (threat && live.length && view.round >= contests.own.showReadyAtRound && player.gold >= CONTEST_RULES.showGold) return { type: 'HoldContest' };
   return null;
 }

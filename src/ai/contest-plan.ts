@@ -21,6 +21,9 @@ export function planContestAction(view: PlayerView): Command['action'] | null {
     if (city) return { type: 'BuildContestHall', cityId: city.id };
   }
   const reserve = leaning >= 2 ? 10 : 50;
-  if (contests.own.halls.length && view.round >= contests.own.showReadyAtRound && player.gold >= CONTEST_RULES.showGold + reserve) return { type: 'HoldContest' };
+  // v26: halls in a city lost this round stay listed until the round ends but do not count (the v26 gate saw two refused shows);
+  // older games keep the listed halls, so their AI is unchanged.
+  const halls = view.expansion?.contestSeasons ? contests.own.halls.filter(id => view.economy.cities.some(city => city.id === id)) : contests.own.halls;
+  if (halls.length && view.round >= contests.own.showReadyAtRound && player.gold >= CONTEST_RULES.showGold + reserve) return { type: 'HoldContest' };
   return null;
 }
