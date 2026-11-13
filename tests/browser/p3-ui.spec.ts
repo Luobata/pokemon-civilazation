@@ -149,10 +149,11 @@ test('capture targets follow the selected ball inventory', async ({ page }) => {
   await page.locator('#capture-unit').click();
   await expect(page.locator('#capture-ball')).toHaveValue('pokeBall');
   await screenshot(page, 'p3-ui-capture-ball-filter-after');
-  await expect(page.locator('#action-notice')).toContainText('没有可捕捉目标；检查相邻目标、当前球种的库存与科技');
+  // Playtest 2026-11 U5: the notice names the reason (no Poké Balls left for the chosen ball).
+  await expect(page.locator('#action-notice')).toContainText('没有精灵球了');
   await clickHex(page, target.position);
   await expect(page.locator('#capture-preview')).toContainText('选择野生宝可梦查看成功率');
-  await expect(page.locator('#action-notice')).toContainText('该目标不适用；请选择高亮目标');
+  await expect(page.locator('#action-notice')).toContainText('无法捕捉：没有精灵球了');
   await expect(page.locator('#confirm-action')).toBeDisabled();
   await page.locator('#capture-ball').selectOption('greatBall');
   await expect(page.locator('#action-notice')).toContainText('捕捉模式：点相邻的野生宝可梦看捕捉率，再点一次即捕捉');
