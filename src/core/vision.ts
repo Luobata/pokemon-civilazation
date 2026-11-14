@@ -134,7 +134,7 @@ export function observe(state: GameState, playerId: number, content: Content = c
       ...(state.expansion.eraHonors ? { eraHonors: observeEraHonors(state, playerId) } : {}),
       // v26 D: the legend race rides on the legend view (absent before v26).
       ...(state.expansion.legends ? { legends: withLegendRace(observeLegends(state, playerId, visible), observeLegendRace(state, playerId, content)) } : {}),
-      ...(state.expansion.victoryWatch ? { victoryWatch: observeVictoryWatch(state) } : {}),
+      ...(state.expansion.victoryWatch ? { victoryWatch: observeVictoryWatch(state, content) } : {}),
       ...(state.expansion.cityNetwork ? { cityNetwork: observeCityNetwork(state, playerId) } : {}),
       ...(state.expansion.opening ? { opening: observeOpening(state, playerId, visible) } : {}),
       ...(state.expansion.landmarks ? { landmarks: observeLandmarks(state, playerId) } : {}),

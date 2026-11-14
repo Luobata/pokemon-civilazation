@@ -84,6 +84,8 @@ export type Depth26Tuning = {
   sparRewardPercent: number; prizePercent: number; prizePerVisit: number;
   /** §3.1 the rival at the conference (4th visit): power over the season's NPC power. */
   conferenceRivalPower: number;
+  /** §14.9 victory targets: the contest minimum in percent of the v21 table (`victoryTargets`), extra Pokédex species on the regional target. */
+  contestTargetPercent: number; pokedexTargetBonus: number;
   /** §5, §7.2, §8 the late-game, tile-sharing and opening-gift knobs (lane 2). */
   late: LateGameTuning;
 };
@@ -96,6 +98,7 @@ export const DEPTH26_TUNING: Depth26Tuning = {
   veteranXp: 50, veteranCap: 5,
   sparRewardPercent: 50, prizePercent: 20, prizePerVisit: 30,
   conferenceRivalPower: 60,
+  contestTargetPercent: 150, pokedexTargetBonus: 2,
   late: LATE_GAME_TUNING,
 };
 /** The tuning a content carries (the stock values when it has none). */

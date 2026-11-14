@@ -20,8 +20,8 @@ import type { BalanceData } from './balance-report.ts';
 import { parsePatch } from './patch.ts';
 
 export type SweepParam = { path: string; values: (number | boolean)[] };
-const SWEEP_USAGE = 'Usage: node tools/balance-sweep.ts --param <patch.path>=v1,v2[,…] [--param …] [balance-run flags: --preset --gameplay --size --rounds --eras --seeds --players --mix --workers] --out <new-directory>';
-const SWEEP_FLAGS = ['--param', '--preset', '--gameplay', '--size', '--rounds', '--eras', '--seeds', '--players', '--mix', '--workers', '--out'];
+const SWEEP_USAGE = 'Usage: node tools/balance-sweep.ts --param <patch.path>=v1,v2[,…] [--param …] [balance-run flags: --preset --gameplay --size --rounds --eras --seeds --players --mix --dex-mode --workers] --out <new-directory>';
+const SWEEP_FLAGS = ['--param', '--preset', '--gameplay', '--size', '--rounds', '--eras', '--seeds', '--players', '--mix', '--dex-mode', '--workers', '--out'];
 const MAX_CELLS = 24;
 
 export function parseParam(text: string): SweepParam {

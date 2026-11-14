@@ -6,7 +6,7 @@ import { victoryTargets } from '../content/opening.ts';
 import { CIVILIZATION_CONTENT } from '../content/civilization-systems.ts';
 import { FAITH_RULES } from '../content/faith-legends.ts';
 import type { Content } from '../content/units.ts';
-import { CONTEST_RULES } from './contests.ts';
+import { CONTEST_RULES, contestMinimum } from './contests.ts';
 import { faithCities } from './faith-legends.ts';
 import type { EventPayload, GameState } from './model.ts';
 
@@ -20,14 +20,14 @@ export type VictoryWatchView = VictoryWatchAlarm[];
 export type VictoryWatchEvent = { type: 'VictoryWatchAlarm'; public: true; playerId: number; route: VictoryRoute; percent: number };
 
 /** Per-route progress of one civilization in percent (floored; 100 = the route's target). */
-export function victoryProgress(state: GameState, playerId: number): Record<VictoryRoute, number> {
+export function victoryProgress(state: GameState, playerId: number, content?: Content): Record<VictoryRoute, number> {
   const exp = state.expansion!, alive = state.turnOrder.filter(id => !state.players[id].eliminated), rivals = alive.filter(id => id !== playerId);
   const percent = (value: number, target: number) => target > 0 ? Math.floor(Math.min(value, target) * 100 / target) : 0;
   const pokedex = Object.values(exp.world.players[playerId]?.pokedex ?? {}).filter(record => record.observed && (record.battled || record.captured)).length;
   const tablets = Object.values(exp.civilization.tabletOwners).filter(owner => owner === playerId).length;
   const titles = exp.civilization.championship.titlesByPlayer[playerId] ?? 0;
   const contests = exp.contests, appeal = contests?.[playerId]?.appeal ?? 0;
-  const contestTarget = Math.max(victoryTargets(state.setup).contestMinimum, ...rivals.map(id => Math.ceil(CONTEST_RULES.winRatio * Math.max(1, contests?.[id]?.appeal ?? 0))));
+  const contestTarget = Math.max(contestMinimum(state.setup, content), ...rivals.map(id => Math.ceil(CONTEST_RULES.winRatio * Math.max(1, contests?.[id]?.appeal ?? 0))));
   const faith = exp.faith, counted = faithCities(state);
   const followers = faith?.faiths[playerId] ? counted.filter(city => faith.cityFaith[city.id] === playerId).length : 0;
   return {
@@ -48,7 +48,7 @@ export function resolveVictoryWatchRound(state: GameState, content: Content): Ev
   if (!watch || state.outcome) return [];
   const threshold = lateTuning(content).watchPercent, events: EventPayload[] = [];
   for (const playerId of state.turnOrder.filter(id => !state.players[id].eliminated).sort((a, b) => a - b)) {
-    const progress = victoryProgress(state, playerId), warned = watch[playerId] ??= {};
+    const progress = victoryProgress(state, playerId, content), warned = watch[playerId] ??= {};
     for (const route of VICTORY_ROUTES) {
       if (warned[route] !== undefined || progress[route] < threshold || progress[route] >= 100) continue;
       warned[route] = state.round;
@@ -58,13 +58,13 @@ export function resolveVictoryWatchRound(state: GameState, content: Content): Ev
   return events;
 }
 /** Public: who has been warned about on which route (the percent is the current one, so the alarm stays meaningful). */
-export function observeVictoryWatch(state: GameState): VictoryWatchView | undefined {
+export function observeVictoryWatch(state: GameState, content?: Content): VictoryWatchView | undefined {
   const watch = state.expansion?.victoryWatch;
   if (!watch) return undefined;
   return Object.entries(watch).flatMap(([id, routes]) => {
     const playerId = Number(id);
     if (state.players[playerId]?.eliminated) return [];
-    const progress = victoryProgress(state, playerId);
+    const progress = victoryProgress(state, playerId, content);
     return VICTORY_ROUTES.filter(route => routes[route] !== undefined).map(route => ({ playerId, route, percent: progress[route], round: routes[route]! }));
   }).sort((a, b) => b.percent - a.percent || a.playerId - b.playerId || VICTORY_ROUTES.indexOf(a.route) - VICTORY_ROUTES.indexOf(b.route));
 }

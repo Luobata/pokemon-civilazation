@@ -17,6 +17,7 @@ import { createMapUnit } from '../../src/core/unit.ts';
 import { observe, refreshKnowledge } from '../../src/core/vision.ts';
 import { goldSinkQuote, viewGoldSinkQuote, taughtMoveType } from '../../src/core/gold-sinks.ts';
 import { contestScore, seasonCategory, seasonRounds } from '../../src/core/contest-seasons.ts';
+import { contestMinimum } from '../../src/core/contests.ts';
 import { hasMet, observeLegendRace, raceStage } from '../../src/core/legend-race.ts';
 import { raidRounds } from '../../src/core/raids.ts';
 import { victoryProgress } from '../../src/core/victory-watch.ts';
@@ -200,9 +201,12 @@ describe('v26 raids, the near-victory warning, the opening gift, evolution goals
   });
   test('victory progress is in percent and the alarm fires once at 75%', () => {
     const { state, content } = game();
-    expect(victoryProgress(state, 0).contest).toBe(0);
-    state.expansion!.contests![0].appeal = 400;
-    expect(victoryProgress(state, 0).contest).toBe(80);
+    expect(victoryProgress(state, 0, content).contest).toBe(0);
+    // v26 scales the contest minimum (`depth26.contestTargetPercent`); 80% of it.
+    const minimum = contestMinimum(state.setup, content);
+    expect(minimum).toBe(Math.round(500 * content.depth26!.contestTargetPercent / 100));
+    state.expansion!.contests![0].appeal = minimum * 4 / 5;
+    expect(victoryProgress(state, 0, content).contest).toBe(80);
     let next = state;
     for (const actor of [0, 1]) next = ok(order(next, { type: 'EndTurn' }, content, actor)).state;
     expect(next.expansion!.victoryWatch![0].contest).toBe(state.round);

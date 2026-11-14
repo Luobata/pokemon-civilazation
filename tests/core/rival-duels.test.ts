@@ -159,6 +159,6 @@ describe('v26 first rival visit', () => {
       const v25 = contentFor(setup(25, seed)), old = createGame(setup(25, seed));
       expect(rivalCounters(v25, old.players[0].starterId, 'primary')).toContain(rivalTeam(old, 0, 0, v25)[0]);
     }
-    expect(v26.world24!.rivalStrengthOffsets[0]).toBe(1);
+    expect(v26.world24!.rivalStrengthOffsets[0]).toBe(8);
   });
 });

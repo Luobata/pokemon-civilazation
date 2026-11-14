@@ -52,6 +52,7 @@ export function patchSchema(base: Content): Schema {
     gymPowerPercent: [10, 300], guardianHpPercent: indexed(base.depth26.guardianHpPercent, [50, 1000]), eliteFourPowerPercent: [10, 300],
     npcBasePower: [10, 10_000], npcSeasonPower: [0, 1000], npcSlotPower: [0, 1000], veteranXp: [1, 1000], veteranCap: [0, 20],
     sparRewardPercent: [0, 100], prizePercent: [0, 100], prizePerVisit: [0, 1000], conferenceRivalPower: [0, 1000],
+    contestTargetPercent: [50, 300], pokedexTargetBonus: [0, 40],
     // Lane 2 (late game, tile sharing, opening gift).
     late: { rushBuildingGold: [0, 100], rushUnitGold: [0, 100], rushWarPercent: [0, 1000], recoveryGold: [0, 1000], recoveryMaxGold: [0, 1000],
       trainingGold: [0, 1000], trainingXp: [0, 1000], trainingCooldown: [1, 300], tmGold: [0, 1000], tmFinalGold: [0, 1000],

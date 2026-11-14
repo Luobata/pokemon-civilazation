@@ -1,5 +1,6 @@
 // Handbook chapter for the gameplay v26 late game (docs/design/depth-v26.md §4.2, §5, §7.2, §8). Numbers come from the content knobs.
-import { LATE_GAME_TUNING as L } from '../content/depth-v26.ts';
+import { DEPTH26_TUNING as D, LATE_GAME_TUNING as L } from '../content/depth-v26.ts';
+import { victoryTargets } from '../content/opening.ts';
 import { CONTEST_CATEGORIES, CONTEST_CATEGORY_INFO } from '../core/contest-seasons.ts';
 import { TYPE_NAMES } from '../content/type-names.ts';
 import type { GuideSection } from './sections.ts';
@@ -22,7 +23,8 @@ export const LATE_GAME_SECTIONS: readonly GuideSection[] = [
     <p>从第 ${L.seasonFirstRound} 轮起每 ${L.seasonInterval} 轮一届，赛前 ${L.seasonAnnounce} 轮公布本届<strong>类别</strong>（每局一个固定的轮换）并开放报名。派一只站在有大赛馆的己方城市里或旁边的宝可梦参赛（每届每文明 1 只，花掉它的行动），本届轮末评审。</p>
     ${categories}
     <p>得分 = ${L.seasonTypePoints} × 匹配属性数（主、副和学习器属性，最多 2）+ ${L.seasonStagePoints} × 阶段 + 历练（每 50 经验 +1，最多 +5）+ ${L.seasonHallPoints} × 大赛馆数（最多 ${L.seasonHallCap}）+ 0–9 的决胜分。名次人气：第 1 名 +${L.seasonRewards[0]} 并得一条缎带，第 2 名 +${L.seasonRewards[1]}，第 3 名 +${L.seasonRewards[2]}，其余参赛者 +${L.seasonEntryAppeal}。参赛者、名次和缎带都公开。</p>
-    <p><strong>文化防守</strong>：所有 AI（包括好战型）在第 60 轮或第 3 座城之后至少建 1 座大赛馆；任一对手的人气达到其胜利目标的 ${L.defencePercent}%（或出现华丽大赛的接近胜利预警）时，再多建一座并每次冷却结束就举办。华丽大赛胜利仍要求人气 ≥ 每个对手的 1.5 倍，所以对手的人气越高，这条路越难走。</p>` },
+    <p><strong>文化防守</strong>：所有 AI（包括好战型）在第 60 轮或第 3 座城之后至少建 1 座大赛馆；任一对手的人气达到其胜利目标的 ${L.defencePercent}%（或出现华丽大赛的接近胜利预警）时，再多建一座并每次冷却结束就举办。华丽大赛胜利仍要求人气 ≥ 每个对手的 1.5 倍，所以对手的人气越高，这条路越难走。</p>
+    <p><strong>v26 胜利目标</strong>：华丽大赛胜利的人气目标是 v25 的 ${D.contestTargetPercent}%（${[100, 200, 300].map(roundLimit => `${roundLimit} 轮对局 ${Math.round(victoryTargets({ gameplayVersion: 26, roundLimit }).contestMinimum * D.contestTargetPercent / 100)}`).join('、')}），仍要求是每个对手的 1.5 倍；图鉴胜利目标在地区图鉴目标上再加 ${D.pokedexTargetBonus} 种。</p>` },
   { id: 'late-events', group: '文明发展', title: '后期事件：极巨团体战、传说竞赛、接近胜利预警', badge: 'v26 新增', html: `
     <ul>
       <li><strong>极巨巢穴</strong>：第 ${L.raidFirstRound} 轮起每 ${L.raidInterval} 轮，离所有首都至少 ${L.raidCapitalDistance} 格的地方（优先巢穴、霸主附近）出现一只本地区的三阶或稀有宝可梦（提前 ${L.raidAnnounce} 轮预告地点和物种）：HP ${L.raidBaseHp} + ${L.raidHpPerCiv} × 存活文明数，不移动、不能捕捉，每轮末攻击所有相邻单位，停留 ${L.raidRounds} 轮。用普通攻击打它，账本公开；打倒时伤害第一的文明得到这只宝可梦（离巢最近的己方城市旁）和世代分 +1，伤害 ≥ ${L.raidMinSharePercent}% 的文明每 10% 份额得 ${L.raidShareGold} 金（最多 ${L.raidMaxGold}）。没探索过那里的文明只收到“远方出现了极巨巢穴”。图鉴：只有亲自出手（或被首领打到）的文明把首领记为“对战过”；在旁边看着的文明只记“看见”。</li>

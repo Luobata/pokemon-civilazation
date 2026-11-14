@@ -30,8 +30,11 @@ export const RIVAL_RULES_V26 = {
    * The first visit sends a species neutral to the starter (`rivalNeutrals`), so its offset is calibrated on its own: the mean best-lineup
    * estimate of starter-only civilizations at arrival (gate setup, seeds 31–32) is 91% at −5, 66% at 0, 18% at +3, 3% at +6; +1 gives
    * 46% on all 216 gate setups (target 30–60%, docs/design/balance/gate-v26.md). Visits 2–3 keep the interim −4 / 0 and their counters.
+   * In real games (map fights and duels) +1 was beaten on 70.7% of first visits (v25: 31.8%). Probe over the 216 gate setups to round 24
+   * (docs/design/balance/gate-v26-final.md): +1 / +2 / +3 / +6 / +7 / +8 / +9 / +12 → 70.7 / 64.9 / 61.5 / 44.9 / 40.9 / 36.2 / 32.3 / 23.4%
+   * beaten; +8 sits in the 30–45% band.
    */
-  strengthOffsets: [1, -4, 0],
+  strengthOffsets: [8, -4, 0],
 } as const;
 /** Primary and secondary counters to each starter (§4.1), whole evolution lines so every visit finds its stage. */
 export const RIVAL_COUNTERS: Record<StarterId, { primary: readonly SpeciesId[]; secondary: readonly SpeciesId[] }> = {

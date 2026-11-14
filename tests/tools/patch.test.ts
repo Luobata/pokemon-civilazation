@@ -11,6 +11,7 @@ import { observe } from '../../src/core/vision.ts';
 import { scorePlayer, finishGame, eliminateCivilization } from '../../src/core/victory.ts';
 import { roundSnapshot } from '../../tools/telemetry.ts';
 import { championshipNpcEntrants } from '../../src/core/civilization-systems.ts';
+import { contestMinimum, observeContests } from '../../src/core/contests.ts';
 import { combatFixture, pokemon } from '../core/combat-fixture.ts';
 import { explorationMatches, matchSetup } from '../../tools/matches.ts';
 import { simulateMatch } from '../../tools/simulate.ts';
@@ -184,4 +185,19 @@ test('v26 tuning knobs: the conference NPC power (base, per season, per slot) an
   expect(power(tuned, 2)).toBeLessThanOrEqual(900 + 2 * 30);
   expect(power(tuned, 2)).toBeGreaterThan(900 + 2 * 30 - 30);
   expect(() => parsePatch({ depth26: { npcBasePower: 5 } }, v26)).toThrow('patch.depth26.npcBasePower');
+});
+
+test('v26 victory-target knobs: the contest minimum percent and the Pokédex bonus move v26 targets only', () => {
+  const setup = (gameplayVersion: 25 | 26) => ({ seed: 31, width: 40, height: 26, roundLimit: 200 as const, expansionVersion: 1 as const, eraProgression: 'simple-v1' as const,
+    gameplayVersion, players: [0, 1, 2, 3].map(id => ({ id, controller: 'ai' as const, leaderId: undefined })) });
+  const v26 = contentFor(setup(26)), v25 = contentFor(setup(25));
+  expect(() => parsePatch({ depth26: { contestTargetPercent: 130 } }, v25)).toThrow('patch.depth26: unknown field');
+  expect(contestMinimum(setup(25), v25)).toBe(2000);
+  const stockMinimum = contestMinimum(setup(26), v26), tuned = parsePatch({ depth26: { contestTargetPercent: 150, pokedexTargetBonus: 4 } }, v26).content;
+  expect(contestMinimum(setup(26), tuned)).toBe(Math.round(2000 * 1.5));
+  expect(stockMinimum).toBe(Math.round(2000 * v26.depth26!.contestTargetPercent / 100));
+  const stock = createGame(setup(26)), patched = createGame(setup(26), tuned);
+  expect(patched.expansion!.world.victory.targetDocumentedSpecies - stock.expansion!.world.victory.targetDocumentedSpecies).toBe(4 - v26.depth26!.pokedexTargetBonus);
+  expect(observeContests(patched, 0, tuned)!.target).toBe(3000);
+  expect(() => parsePatch({ depth26: { contestTargetPercent: 20 } }, v26)).toThrow('patch.depth26.contestTargetPercent');
 });

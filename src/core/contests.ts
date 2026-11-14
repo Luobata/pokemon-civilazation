@@ -31,6 +31,11 @@ export type ContestEvent =
   | { type: 'ContestHeld'; playerId: number; appeal: number; public: true };
 export type ContestView = { own: ContestPlayer & { perRound: number }; rivals: { playerId: number; appeal: number }[]; target: number };
 
+/** The contest minimum of a game: the v21 table (`victoryTargets`), in v26 scaled by `depth26.contestTargetPercent`. */
+export function contestMinimum(setup: Parameters<typeof victoryTargets>[0], content: Pick<Content, 'depth26'> | undefined): number {
+  const base = victoryTargets(setup).contestMinimum;
+  return content?.depth26 ? Math.round(base * content.depth26.contestTargetPercent / 100) : base;
+}
 export const usesContests = (state: Pick<GameState, 'setup' | 'expansion'>) => state.expansion !== undefined && gameplayAtLeast(state.setup, 8);
 export function isContestAction(action: { type: unknown }): action is ContestAction { return action.type === 'BuildContestHall' || action.type === 'HoldContest'; }
 export function initializeContests(state: GameState): void {
@@ -108,7 +113,7 @@ export function resolveContestRound(state: GameState, content: Content): EventPa
     contests[playerId].appeal += appealPerRound(state, playerId, content);
   }
   const alive = state.turnOrder.filter(id => !state.players[id].eliminated);
-  const minimum = victoryTargets(state.setup).contestMinimum;
+  const minimum = contestMinimum(state.setup, content);
   const winners = alive.filter(id => contests[id].appeal >= minimum
     && alive.every(other => other === id || contests[id].appeal >= CONTEST_RULES.winRatio * Math.max(1, contests[other].appeal)));
   if (winners.length === 1) events.push(...finishGame(state, 'contest', winners, content));
@@ -119,5 +124,5 @@ export function observeContests(state: GameState, playerId: number, content: Con
   if (!contests) return undefined;
   const rivals = state.turnOrder.filter(id => id !== playerId && !state.players[id].eliminated).map(id => ({ playerId: id, appeal: contests[id].appeal }));
   return { own: { ...contests[playerId], halls: [...contests[playerId].halls], building: { ...contests[playerId].building }, perRound: appealPerRound(state, playerId, content) }, rivals,
-    target: Math.max(victoryTargets(state.setup).contestMinimum, ...rivals.map(rival => CONTEST_RULES.winRatio * Math.max(1, rival.appeal))) };
+    target: Math.max(contestMinimum(state.setup, content), ...rivals.map(rival => CONTEST_RULES.winRatio * Math.max(1, rival.appeal))) };
 }

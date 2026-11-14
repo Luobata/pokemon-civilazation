@@ -3,11 +3,10 @@
 //   while a rival's appeal is at 60% of its contest target (or a near-victory warning is out on its contest route) the hall cap is one
 //   higher and a show is held whenever the cooldown ends.
 // - Seasons: once the category is announced, the best-scoring Pokémon within reach walks to a hall (`contestMoveTargets`) and enters.
-import { CONTEST_RULES } from '../core/contests.ts';
+import { CONTEST_RULES, contestMinimum } from '../core/contests.ts';
 import { contestScore, viewContestEntryBlocker } from '../core/contest-seasons.ts';
 import { viewTaughtMoveType } from '../core/gold-sinks.ts';
 import { lateTuning } from '../content/depth-v26.ts';
-import { victoryTargets } from '../content/opening.ts';
 import type { Content } from '../content/units.ts';
 import { hexDistance } from '../core/hex.ts';
 import type { Hex } from '../core/hex.ts';
@@ -19,7 +18,7 @@ type Pokemon = Extract<MapUnit, { kind: 'pokemon' }>;
 export function contestThreat(view: PlayerView, content: Content): boolean {
   const contests = view.expansion?.contests;
   if (!contests) return false;
-  const percent = lateTuning(content).defencePercent, minimum = victoryTargets(view).contestMinimum;
+  const percent = lateTuning(content).defencePercent, minimum = contestMinimum(view, content);
   const appeal = new Map([[view.playerId, contests.own.appeal], ...contests.rivals.map(rival => [rival.playerId, rival.appeal] as [number, number])]);
   const close = contests.rivals.some(rival => {
     const target = Math.max(minimum, ...[...appeal].filter(([id]) => id !== rival.playerId).map(([, value]) => Math.ceil(CONTEST_RULES.winRatio * Math.max(1, value))));
