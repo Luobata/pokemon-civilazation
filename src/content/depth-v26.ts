@@ -89,9 +89,10 @@ export type Depth26Tuning = {
 };
 export const DEPTH26_TUNING: Depth26Tuning = {
   gymPowerPercent: 90, guardianHpPercent: [150, 200], eliteFourPowerPercent: 64,
-  // gate-v26 sweep (sweep preset, 54 games per cell): championship 53.7% at 1080 / +5, 29.6% at 1110 / +20, 0% at 1150 / +40; the season
-  // knob is the steeper one (1110 / +40: 0%, 1150 / +20: ~9%). 1120 / +20 puts the mid-season NPC near the v25 championship share (22.7%).
-  npcBasePower: 1120, npcSeasonPower: 20, npcSlotPower: 20,
+  // gate-v26 sweep (sweep preset = seeds 31–32, 54 games per cell): championship 53.7% at 1080 / +5, 29.6% at 1110 / +20, 14.8% at
+  // 1150 / +20, 1.9% at 1110 / +40, 0% at 1150 / +40 (the season knob is the steeper one). A full gate at 1120 / +20 gave ~32% — seed 31
+  // (3 of 27) had pulled the two-seed sweep down — so the base moves to 1150 for the v25 share (22.7%) on all eight seeds.
+  npcBasePower: 1150, npcSeasonPower: 20, npcSlotPower: 20,
   veteranXp: 50, veteranCap: 5,
   sparRewardPercent: 50, prizePercent: 20, prizePerVisit: 30,
   conferenceRivalPower: 60,
