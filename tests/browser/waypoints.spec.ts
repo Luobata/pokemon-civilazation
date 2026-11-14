@@ -34,7 +34,8 @@ async function endTurn(page: Page) {
   await expect(page.locator('#end-turn')).toBeEnabled();
 }
 async function start(page: Page) {
-  await page.goto('/?seed=12345&size=24x16');
+  // Pinned to v24: on the v26 map of this seed a wild Pokémon appears beside the route and (correctly) cancels the waypoint.
+  await page.goto('/?seed=12345&size=24x16&gameplay=24');
   await page.locator('#animate').uncheck();
   await expect(page.locator('#end-turn')).toBeEnabled();
 }

@@ -136,10 +136,11 @@ test('work locking, queue reorder/cancel, purchases and version refusal use UI',
   await closeScreen(page);
   for (let i = 0; i < 20 && !(await state(page)).players[0].research.unlockedIds.includes('domestication'); i++) await page.locator('#end-turn').click({ modifiers: ['Shift'] });
   expect((await state(page)).players[0].research.unlockedIds).toContain('domestication');
-  const goldBefore = (await state(page)).players[0].gold;
+  // v26 (depth-v26 §8): domestication itself gives 3 Poké Balls; the purchase adds one more.
+  const goldBefore = (await state(page)).players[0].gold, ballsBefore = (await state(page)).players[0].ballInventory.pokeBall;
   await page.locator('[data-city-section="supplies"]').click();
   await page.locator('#buy-ball').click(); expect((await state(page)).players[0].gold).toBe(goldBefore - 20);
-  expect((await state(page)).players[0].ballInventory.pokeBall).toBe(1);
+  expect((await state(page)).players[0].ballInventory.pokeBall).toBe(ballsBefore + 1);
   const before = await state(page);
   const badSave = await page.evaluate(async () => { const path = '/src/browser/main.ts'; const save = JSON.parse((await import(path)).developerAdapter.save()); save.rulesVersion = 'm1-v1'; return JSON.stringify(save); });
   await page.locator('#import-save').setInputFiles({ name: 'old.json', mimeType: 'application/json', buffer: Buffer.from(badSave) });

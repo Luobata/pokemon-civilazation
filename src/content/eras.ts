@@ -122,7 +122,7 @@ export function eraState(player: EraPlayer, mode?: EraProgression): EraState | n
  * 26: depth: Pokémon team battles (singles relay), rival duels, evolution goals, late-game hooks, tile sharing, the opening gift.
  */
 export type GameplayVersion = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26;
-export const LATEST_GAMEPLAY_VERSION: GameplayVersion = 24;
+export const LATEST_GAMEPLAY_VERSION: GameplayVersion = 26;
 export function isGameplayVersion(value: unknown): value is GameplayVersion {
   return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 26;
 }
