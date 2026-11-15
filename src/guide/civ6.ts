@@ -20,6 +20,7 @@ export function civ6Section(sections: readonly GuideSection[]): GuideSection {
   }));
   return { id: CIV6_SECTION_ID, group: '入门', title: '给《文明》玩家', badge: `${CIV_GLOSSARY_IDS.length} 个术语`, html: `
     <p>本作的系统大多能在《文明 6》里找到对应，只是换成了宝可梦的名字。下表按“本作叫什么 → 《文明 6》里叫什么 → 有什么不同”列出；游戏里这些系统的标题旁边也有灰色的「文明 6：…」小标签，鼠标停上去会显示同样的说明。</p>
+    <p id="civ6-era-wording"><strong>世代与时代：</strong>本作的进度阶段叫<strong>世代</strong>（第 N 世代），按宝可梦正作世代命名：初代 → 金银 → 宝石……，相当于《文明 6》的“时代”，但按你自己完成的科技数推进。<strong>时代</strong>只用于《文明 6》同名的黄金时代 / 黑暗时代（以及普通、英雄时代），它的得分叫<strong>时代分</strong>；时代献礼也沿用《文明 6》的叫法。“原作世代”指宝可梦初登场的作品。</p>
     ${table(['类别', '本作', '《文明 6》', '差别', '详见'], rows, [], 'civ6-glossary')}
-    <p class="note">没有列出的系统在《文明 6》里没有接近的对应，不要直接套用：冠军赛、圣所与起源胜利、图鉴胜利、属性精华与道馆、时代能力（天气、Mega 等）、开局目标。</p>` };
+    <p class="note">没有列出的系统在《文明 6》里没有接近的对应，不要直接套用：冠军赛、圣所与起源胜利、图鉴胜利、属性精华与道馆、世代能力（天气、Mega 等）、开局目标。</p>` };
 }

@@ -156,7 +156,7 @@ test('U8: a strategic event (league result) is drawn apart from routine pings an
   await page.screenshot({ path: `${reports}/playtest-u8-strategic.png` });
 });
 
-test('U9: the victory page explains each target on hover; the era wording is 时代', async ({ page }) => {
+test('U9 / O1: the victory page explains each target on hover; progress is 世代, ages are 时代', async ({ page }) => {
   await page.goto('/?seed=7&gameplay=24');
   await openScreen(page, 'menu');
   await page.locator('#round-limit').selectOption('200');
@@ -171,7 +171,9 @@ test('U9: the victory page explains each target on hover; the era wording is 时
   await target.focus();
   await expect(page.locator('#ui-tip-card')).toContainText('每多 100 轮 +1');
   await openScreen(page, 'era');
-  await expect(page.locator('#era-panel')).not.toContainText('完整世代');
+  await expect(page.locator('#era-panel')).toContainText('世代进程');
+  await expect(page.locator('#era-panel')).toContainText('普通时代');
+  for (const old of ['时代进程', '精简时代', '普通世代', '世代分']) await expect(page.locator('#era-panel')).not.toContainText(old);
   await closeScreen(page);
 });
 

@@ -27,20 +27,20 @@ export type EraPlayer = { research: { unlockedIds: readonly string[]; tree?: tru
 
 const SIMPLE_ERAS: readonly EraDefinition[] = [
   { id: 'generation-1', name: '初代（红／绿／蓝／黄）', threshold: 0 },
-  { id: 'generation-2', name: '金银时代', threshold: 3 },
-  { id: 'generation-3', name: '宝石时代', threshold: 7 },
+  { id: 'generation-2', name: '金银世代', threshold: 3 },
+  { id: 'generation-3', name: '宝石世代', threshold: 7 },
 ];
 
 const FULL_ERAS: readonly EraDefinition[] = [
   { id: 'generation-1', name: '初代（红／绿／蓝／黄）', threshold: 0 },
-  { id: 'generation-2', name: '金银时代', threshold: 1 },
-  { id: 'generation-3', name: '宝石时代', threshold: 2 },
-  { id: 'generation-4', name: '钻石珍珠时代', threshold: 3 },
-  { id: 'generation-5', name: '黑白时代', threshold: 5 },
-  { id: 'generation-6', name: 'ＸＹ时代', threshold: 7 },
-  { id: 'generation-7', name: '日月时代', threshold: 9 },
-  { id: 'generation-8', name: '剑盾时代', threshold: 11 },
-  { id: 'generation-9', name: '朱紫时代', threshold: 12 },
+  { id: 'generation-2', name: '金银世代', threshold: 1 },
+  { id: 'generation-3', name: '宝石世代', threshold: 2 },
+  { id: 'generation-4', name: '钻石珍珠世代', threshold: 3 },
+  { id: 'generation-5', name: '黑白世代', threshold: 5 },
+  { id: 'generation-6', name: 'ＸＹ世代', threshold: 7 },
+  { id: 'generation-7', name: '日月世代', threshold: 9 },
+  { id: 'generation-8', name: '剑盾世代', threshold: 11 },
+  { id: 'generation-9', name: '朱紫世代', threshold: 12 },
 ];
 
 export const ERA_DEFINITIONS: Record<EraProgression, readonly EraDefinition[]> = {

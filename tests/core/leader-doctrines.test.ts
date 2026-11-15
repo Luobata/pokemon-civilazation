@@ -82,7 +82,7 @@ test('leaders have bounded phase windows and match actual roles or either specie
 
 test('era panel uses own player progress and actual expansion examples', () => {
   const compact = renderEraPanel(view('joy', 4, 'simple-v1'));
-  expect(compact).toContain('金银时代');
+  expect(compact).toContain('金银世代');
   expect(compact).not.toContain('Doctrine');
   expect(compact).toContain('还需 3 项科技');
   expect(compact).toContain('野外恢复 +4');

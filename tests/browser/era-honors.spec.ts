@@ -12,7 +12,7 @@ test('v12: the era screen shows the current age, this era’s score against both
   await openScreen(page, 'era');
   const section = page.locator('.era-honor');
   await expect(section).toHaveClass(new RegExp(`age-${record.age}`));
-  await expect(section).toContainText('本世代得分');
+  await expect(section).toContainText('本世代时代分');
   await expect(section).toContainText('黄金线 0.8');
   await expect(section).toContainText('黑暗线 0.45');
   await section.locator('summary', { hasText: '以往世代' }).click();

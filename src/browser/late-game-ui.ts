@@ -21,10 +21,11 @@ import { pokemonSpritePath } from './sprites.ts';
 import { artImage, escapeAttr, statChip, typeBadge, uiIcon } from './ui-icons.ts';
 import type { UiIconName } from './ui-icons.ts';
 import type { WorldCard } from './world-cards.ts';
+import { civOrYou } from './civ-names.ts';
 
 type Pokemon = Extract<MapUnit, { kind: 'pokemon' }>;
 const esc = escapeAttr;
-const civ = (view: PlayerView, id: number) => id === view.playerId ? '你' : `文明 ${id + 1}`;
+const civ = (view: PlayerView, id: number) => civOrYou(view, id);
 export const CATEGORY_ICONS: Record<ContestCategory, UiIconName> = { cool: 'contestCool', beauty: 'contestBeauty', cute: 'contestCute', smart: 'contestSmart', tough: 'contestTough' };
 export const ROUTE_NAMES: Record<VictoryRoute, string> = { conquest: '征服', pokedex: '图鉴', origin: '起源', championship: '冠军赛', contest: '华丽大赛', faith: '信仰' };
 const STAGE_NAMES = { started: '开工', half: '过半', final: '即将完成' } as const;
@@ -69,7 +70,7 @@ export function depthWorldCards(view: PlayerView, content: Content = contentForV
     const total = Object.values(boss.damage).reduce((sum, value) => sum + value, 0);
     cards.push({ id: 'raid', title: `极巨巢穴：${name}`, art: { sprite: pokemonSpritePath(boss.speciesId) },
       status: `${unit ? `HP ${unit.hp}/${boss.maxHp}` : `HP ${boss.maxHp}`} · 第 ${boss.endsAtRound} 轮后离开`,
-      tip: `本地区的${name}出现在${boss.tileIndex === null ? '远方（你还没探索过那里）' : '地图上'}，不移动，每轮末攻击所有相邻单位，不能捕捉。\n用普通攻击打它：伤害第一的文明得到这只宝可梦（出现在离巢最近的己方城市旁）和世代分 +1；伤害 ≥ 10% 的文明各得金币（每 10% 份额 ${lateTuning(content).raidShareGold} 金，最多 ${lateTuning(content).raidMaxGold}）。\n伤害：${Object.entries(boss.damage).map(([id, value]) => `${civ(view, Number(id))} ${value}（${total ? Math.round(value * 100 / total) : 0}%）`).join('、') || '还没有人出手'}。`,
+      tip: `本地区的${name}出现在${boss.tileIndex === null ? '远方（你还没探索过那里）' : '地图上'}，不移动，每轮末攻击所有相邻单位，不能捕捉。\n用普通攻击打它：伤害第一的文明得到这只宝可梦（出现在离巢最近的己方城市旁）和时代分 +1；伤害 ≥ 10% 的文明各得金币（每 10% 份额 ${lateTuning(content).raidShareGold} 金，最多 ${lateTuning(content).raidMaxGold}）。\n伤害：${Object.entries(boss.damage).map(([id, value]) => `${civ(view, Number(id))} ${value}（${total ? Math.round(value * 100 / total) : 0}%）`).join('、') || '还没有人出手'}。`,
       urgency: 0, distance: boss.tileIndex === null ? null : hexDistanceToOwn(view, boss.tileIndex), ...(boss.tileIndex === null ? {} : { tileIndex: boss.tileIndex }) });
   } else if (raids?.pending) {
     const den = raids.pending, name = content.species[den.speciesId]?.name ?? '';

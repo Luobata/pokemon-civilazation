@@ -62,5 +62,5 @@ export const DEDICATION_RULES = {
   /** Cards chosen when an era begins, by its age. */
   picks: { normal: 1, dark: 1, golden: 1, heroic: 3 },
   /** v22 golden age: the base keeps its satisfaction; the fixed gold / league-point bonus is replaced by the chosen cards. */
-  goldenDescription: '满意度每轮 +3；所选献礼的黄金效果生效（英雄世代 3 张都生效）。',
+  goldenDescription: '满意度每轮 +3；所选献礼的黄金效果生效（英雄时代 3 张都生效）。',
 } as const;

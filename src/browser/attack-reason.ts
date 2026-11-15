@@ -4,8 +4,8 @@ import { contentForView } from '../content/units.ts';
 import { hexDistance, hexToIndex } from '../core/hex.ts';
 import type { CombatTarget, PlayerView } from '../core/model.ts';
 import { previewAttack } from '../core/preview.ts';
+import { civName } from './civ-names.ts';
 
-const owner = (ownerId: number) => `文明 ${ownerId + 1}`;
 
 /** Why the selected unit cannot attack the unit or city on `tileIndex` (null when the attack is possible). */
 export function attackTargetReason(view: PlayerView, unitId: number, tileIndex: number): string | null {
@@ -24,7 +24,7 @@ export function attackTargetReason(view: PlayerView, unitId: number, tileIndex: 
   const distance = hexDistance(unit.position, defender.position, view.map), range = content.species[unit.speciesId].range;
   switch (preview.reason) {
     case 'embarked': return '在水上不能攻击，先上岸。';
-    case 'at-peace': return `与${owner(defender.ownerId!)}处于和平：先在外交页宣战，才能攻击它的单位和城市。`;
+    case 'at-peace': return `与${civName(view, defender.ownerId!)}处于和平：先在外交页宣战，才能攻击它的单位和城市。`;
     case 'out-of-range': return 'kind' in defender && defender.kind === 'logistics' && distance > 1 && distance <= range
       ? `开拓队、工匠和商队只能近身攻击：先移动到它旁边（现在相距 ${distance} 格）。`
       : `超出射程：相距 ${distance} 格，${content.species[unit.speciesId].name}的射程是 ${range} 格。先靠近一些。`;

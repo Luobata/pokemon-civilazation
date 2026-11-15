@@ -79,7 +79,7 @@ function stakeMarkup(view: PlayerView, stake: RivalDuelStake, estimate: number |
     + `<button type="button" role="radio" data-stake="spar" aria-checked="${stake === 'spar'}">${uiIcon('handshake', { size: 14 })}切磋</button>`
     + `<button type="button" role="radio" data-stake="serious" aria-checked="${stake === 'serious'}">${uiIcon('swords', { size: 14 })}真剑</button></p>`
     + `<p class="lp-stake-note" id="lineup-stake-note">${stake === 'spar' ? `切磋：赢了得一半奖励（${spar}），劲敌不走；输了只写回 HP。`
-      : `真剑：赢了得全额奖励（${full}；劲敌满 HP 时金币 ×1.5${rivals?.streak ? '，连胜 ×1.25' : ''}）和「劲敌之证」世代分 +1，劲敌离场；输了劲敌拿走奖金 ${prize} 金，本次剩余轮里气势 +3。`}</p>`
+      : `真剑：赢了得全额奖励（${full}；劲敌满 HP 时金币 ×1.5${rivals?.streak ? '，连胜 ×1.25' : ''}）和「劲敌之证」时代分 +1，劲敌离场；输了劲敌拿走奖金 ${prize} 金，本次剩余轮里气势 +3。`}</p>`
     // Playtest 2026-11b BA5 / U-d: a serious duel at a low estimate is warned about (the default stake is the friendly one).
     + (stake === 'serious' && estimate !== null && estimate < LOW_ESTIMATE ? `<p class="cp-reason lp-stake-warning" id="lineup-stake-warning" role="alert">${uiIcon('alarm', { size: 14, label: '警告' })}估计胜率只有 ${estimate}%：真剑输了劲敌拿走 ${prize} 金、气势 +3。先切磋试试，或换人再来。</p>` : '');
 }

@@ -1117,3 +1117,8 @@ img[src*="/sprites/gen6/"], img[src*="/sprites/gen7/"], img[src*="/sprites/gen8/
 .gym-list { margin: 2px 0; padding-left: 14px; }
 .gym-blocker { display: block; color: var(--ink-muted); }
 .gym-card .cp-side .cp-who + .cp-who { margin-top: 2px; }
+
+/* Playtest 2026-11b F3: the seat-colour flag before a civilization name. */
+.civ-flag { vertical-align: -3px; margin-right: 4px; }
+.diplomacy-name { display: inline-flex; align-items: center; }
+.diplomacy-seat { margin-left: 6px; color: var(--muted, #6b7770); }

@@ -1,6 +1,7 @@
 import type { Command, PlayerView } from '../core/model.ts';
 import { LEADERS } from '../content/leaders.ts';
 import { leaderArtPath } from './leader-panel.ts';
+import { civFlag, civName } from './civ-names.ts';
 
 type DiplomacyCommand = Extract<Command['action'], { type: 'DeclareWar' | 'MakePeace' | 'RespondPeace' }>;
 let confirmWar: number | null = null;
@@ -19,12 +20,12 @@ export function renderDiplomacyPanel(view: PlayerView, busy: boolean,
     const cooldown = pair ? Math.max(0, pair.cooldownUntilRound - view.round) : 0;
     const proposal = pair?.proposal ? pair.proposal.proposerId === view.playerId ? '等待对方回应' : '待你回应' : '';
     const leader = civilization.leaderId === undefined ? null : LEADERS[civilization.leaderId];
-    return `<li><div class="diplomacy-civilization">${leader ? `<img class="diplomacy-leader-art" src="${leaderArtPath(leader.id)}" width="44" height="44" alt="${leader.name}像素头像">` : ''}<div class="diplomacy-identity"><strong>文明 ${civilization.id + 1}${leader ? ` · ${leader.name}` : ''}</strong><span class="diplomacy-status">${status}</span>${leader ? `<span class="diplomacy-leader-ability">技能 · ${leader.ability}</span><small class="diplomacy-leader-description">${leader.description}</small>` : ''}<small>${cooldown ? `冷却剩余 ${cooldown} 轮` : '无冷却'}${proposal ? ` · ${proposal}` : ''}</small></div></div><span class="diplomacy-actions"><button data-war="${civilization.id}" ${busy || pair?.status !== 'peace' ? 'disabled' : ''}>宣战</button><button data-peace="${civilization.id}" ${busy || pair?.status !== 'war' || pair.proposal ? 'disabled' : ''}>停战</button></span></li>`;
+    return `<li><div class="diplomacy-civilization">${leader ? `<img class="diplomacy-leader-art" src="${leaderArtPath(leader.id)}" width="44" height="44" alt="${leader.name}像素头像">` : ''}<div class="diplomacy-identity"><strong class="diplomacy-name">${civFlag(view, civilization.id)}${civName(view, civilization.id)}</strong><small class="diplomacy-seat">文明 ${civilization.id + 1}</small><span class="diplomacy-status">${status}</span>${leader ? `<span class="diplomacy-leader-ability">技能 · ${leader.ability}</span><small class="diplomacy-leader-description">${leader.description}</small>` : ''}<small>${cooldown ? `冷却剩余 ${cooldown} 轮` : '无冷却'}${proposal ? ` · ${proposal}` : ''}</small></div></div><span class="diplomacy-actions"><button data-war="${civilization.id}" ${busy || pair?.status !== 'peace' ? 'disabled' : ''}>宣战</button><button data-peace="${civilization.id}" ${busy || pair?.status !== 'war' || pair.proposal ? 'disabled' : ''}>停战</button></span></li>`;
   }).join('')}</ul>`;
   for (const button of root.querySelectorAll<HTMLButtonElement>('[data-war]')) button.addEventListener('click', () => {
     confirmWar = Number(button.dataset.war);
     const dialog = document.querySelector<HTMLDialogElement>('#war-confirm')!;
-    dialog.querySelector('#war-target')!.textContent = `文明 ${confirmWar + 1}`;
+    dialog.querySelector('#war-target')!.textContent = civName(view, confirmWar);
     dialog.showModal();
   });
   for (const button of root.querySelectorAll<HTMLButtonElement>('[data-peace]')) button.addEventListener('click', () => issue({ type: 'MakePeace', targetPlayerId: Number(button.dataset.peace) }));
@@ -37,7 +38,7 @@ export function renderDiplomacyPanel(view: PlayerView, busy: boolean,
   response.oncancel = event => event.preventDefault();
   if (pending && view.activePlayerId === view.playerId) {
     const proposer = pending.proposal!.proposerId;
-    response.querySelector('#peace-proposer')!.textContent = `文明 ${proposer + 1}`;
+    response.querySelector('#peace-proposer')!.textContent = civName(view, proposer);
     response.querySelector<HTMLButtonElement>('#accept-peace')!.onclick = () => { response.close(); responseOpen = false; issue({ type: 'RespondPeace', targetPlayerId: proposer, accept: true }); };
     response.querySelector<HTMLButtonElement>('#reject-peace')!.onclick = () => { response.close(); responseOpen = false; issue({ type: 'RespondPeace', targetPlayerId: proposer, accept: false }); };
     if (!responseOpen && !response.open) { response.showModal(); responseOpen = true; }

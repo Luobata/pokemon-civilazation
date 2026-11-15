@@ -14,6 +14,7 @@ import { CIV_COLORS, locateButton, selectUnitButton, worldCards } from './world-
 import type { WorldCardId } from './world-cards.ts';
 import '../world-ui.css';
 import { installDataTips } from './ui-tip.ts';
+import { civName } from './civ-names.ts';
 
 type Path = { id: string; name: string; value: number; target: number; detail: string; hint: string; nav?: string; blocked?: boolean;
   /** Playtest 2026-11 U9: where the target number comes from (the target's one hover card on the victory page). */
@@ -97,7 +98,7 @@ function routeNodes(view: PlayerView, path: Path): { nodes: Node[]; groups?: num
   switch (path.id) {
     case 'conquest':
       return { nodes: others.map(civ => {
-        const label = `文明 ${civ.id + 1}${civ.eliminated ? ' · 已出局' : ' · 仍在'}`;
+        const label = `${civName(view, civ.id)}${civ.eliminated ? ' · 已出局' : ' · 仍在'}`;
         return node(flagImage(civColor(civ.id), { size: 22, label }), label, civ.eliminated ? 'done' : 'todo');
       }) };
     case 'pokedex': {
@@ -111,7 +112,7 @@ function routeNodes(view: PlayerView, path: Path): { nodes: Node[]; groups?: num
       const owners = exp?.civilization.tabletOwners ?? {};
       return { nodes: CIVILIZATION_CONTENT.sanctuaries.definitions.map(definition => {
         const owner = owners[definition.tabletId];
-        const label = `石板「${definition.tabletName}」${owner === undefined ? ' · 未知' : owner === view.playerId ? ' · 你已取得' : ` · 文明 ${owner + 1} 已取得`}`;
+        const label = `石板「${definition.tabletName}」${owner === undefined ? ' · 未知' : owner === view.playerId ? ' · 你已取得' : ` · ${civName(view, owner)}已取得`}`;
         return node(named('tablet', label), label, owner === view.playerId ? 'done' : owner === undefined ? 'todo' : 'next');
       }) };
     }
@@ -137,7 +138,7 @@ function routeNodes(view: PlayerView, path: Path): { nodes: Node[]; groups?: num
         return node(named('wonder', `信仰城市 ${count}/${path.target}`, 18), '城市', path.value >= count ? 'done' : 'todo');
       });
       const rivals = view.civilizations.filter(civ => civ.id !== view.playerId && !civ.eliminated).map(civ => {
-        const label = `文明 ${civ.id + 1}${missing.has(civ.id) ? ' · 还没有信仰城市' : ' · 已有信仰城市'}`;
+        const label = `${civName(view, civ.id)}${missing.has(civ.id) ? ' · 还没有信仰城市' : ' · 已有信仰城市'}`;
         return node(flagImage(civColor(civ.id), { size: 18, label }), label, missing.has(civ.id) ? 'todo' : 'done');
       });
       return { nodes: [...founded, ...cities, ...rivals], groups: [founded.length, cities.length, rivals.length] };

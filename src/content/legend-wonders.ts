@@ -101,15 +101,15 @@ export const LEGEND_CLUE_TEXT = (clue: LegendClue): string => {
     case 'faith': return '以它创立信仰';
     case 'techDistrict': return '研究「特训法」并建成研究所区';
     case 'documented': return `图鉴记录 ${clue.count} 种`;
-    case 'goldenAge': return '处于黄金世代';
-    case 'darkAge': return `第 ${clue.minGeneration} 世代以后处于黑暗世代`;
+    case 'goldenAge': return '处于黄金时代';
+    case 'darkAge': return `第 ${clue.minGeneration} 世代以后处于黑暗时代`;
     case 'contestAppeal': return `华丽大赛累计魅力 ${clue.count}`;
     case 'districtKinds': return `建成 ${clue.count} 种设施区`;
     case 'discoveries': return `达成 ${clue.count} 个图鉴发现`;
     case 'rareBerries': return `拥有 ${clue.count} 种稀有树果`;
     case 'traits': return `一只宝可梦拥有 ${clue.count} 个特性`;
     case 'traitPair': return '一只宝可梦同时拥有两种指定特性';
-    case 'generation': return `进入第 ${clue.generation} 时代`;
+    case 'generation': return `进入第 ${clue.generation} 世代`;
     case 'explored': return `探索地图 ${clue.percent}%`;
     case 'nightKnockdown': return '夜晚，用指定属性的宝可梦主动击倒一个单位';
     case 'dayKnockdown': return '白天，用指定属性的宝可梦主动击倒一个单位';

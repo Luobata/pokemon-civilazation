@@ -65,7 +65,7 @@ export function classTrainingBlocker(version: Versioned, player: { research: { u
   if (hm && !player.research.unlockedIds.includes(hm.techId)) return { kind: 'hm', text: `需要秘传「${hm.hm}」（研究${techOf(content, hm.techId).name}）` };
   if (species.stage === 3) {
     if (!treeGateOpen(player, 'finalStage')) return { kind: 'tech', text: `最终形态要先研究「${techOf(content, TREE_GATES.finalStage).name}」` };
-    if (playerGeneration(player, mode) < CLASS_RULES.finalStageGeneration) return { kind: 'generation', text: '最终形态要进入金银时代才能训练' };
+    if (playerGeneration(player, mode) < CLASS_RULES.finalStageGeneration) return { kind: 'generation', text: '最终形态要进入金银世代才能训练' };
     const essence = TYPE_ESSENCE[species.typeId];
     if (!badges.has(essence)) return { kind: 'badge', text: `需要「${ESSENCES[essence].name}」徽章（建一座${ESSENCES[essence].name}属性道馆）` };
   }

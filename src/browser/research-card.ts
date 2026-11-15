@@ -35,7 +35,7 @@ export function researchNextHint(card: ResearchCard | undefined): string {
   if (done >= R.completeAt) return '调查完成。';
   const goal = done < R.notesAt ? { at: R.notesAt, text: `调查笔记（科研 +${R.notesResearch}）` }
     : done < R.captureAt ? { at: R.captureAt, text: `捕捉率 +${R.captureBonus}` }
-      : { at: R.completeAt, text: `调查完成（金币 +${R.completeGold}、世代分 +${R.completeEraScore}）` };
+      : { at: R.completeAt, text: `调查完成（金币 +${R.completeGold}、时代分 +${R.completeEraScore}）` };
   const missing = goal.at - done;
   // One task short and that task is the second knockout: say so.
   if (missing === 1 && !hasTask(card, 'knockouts') && (card?.knockouts ?? 0) === R.knockoutsNeeded - 1) return `再击倒 1 只得${goal.text}。`;
@@ -51,7 +51,7 @@ export function researchCardMarkup(view: PlayerView, speciesId: SpeciesId, conte
   const rows = RESEARCH_TASK_IDS.map(task => `<li class="${hasTask(card, task) ? 'done' : ''}" data-task="${task}">${uiIcon(TASK_ICONS[task], { size: 16 })}${uiIcon(hasTask(card, task) ? 'check' : 'lock', { size: 12, label: hasTask(card, task) ? '已完成' : '未完成', className: 'task-state' })}<span>${escape(taskLabel(task, card, speciesId, content))}</span></li>`).join('');
   return `<details class="research-card" id="research-card" data-species="${speciesId}"${open ? ' open' : ''}><summary>${artImage(pokemonSpritePath(speciesId), { size: 28 })}<span>图鉴调查 · ${escape(content.species[speciesId].name)}</span><span class="research-pips" aria-label="完成 ${done}/5">${pips(card)}</span><b>${done}/5</b></summary>
     <ol class="research-tasks">${rows}</ol><p class="research-next">${researchNextHint(card)}${done >= R.captureAt ? ` 已获得：捕捉率 +${R.captureBonus}。` : ''}</p>
-    <p class="research-note">奖励：2 项科研 +${R.notesResearch}，4 项对这个物种的捕捉率 +${R.captureBonus}，5 项金币 +${R.completeGold}、世代分 +${R.completeEraScore}（每世代最多 ${R.eraScoreCapPerEra} 次）。调查卡不计入图鉴胜利；进度只有你自己知道。</p></details>`;
+    <p class="research-note">奖励：2 项科研 +${R.notesResearch}，4 项对这个物种的捕捉率 +${R.captureBonus}，5 项金币 +${R.completeGold}、时代分 +${R.completeEraScore}（每世代最多 ${R.eraScoreCapPerEra} 次）。调查卡不计入图鉴胜利；进度只有你自己知道。</p></details>`;
 }
 
 /** The book in the Pokédex card: counts plus a collapsible list of every species with progress. */
@@ -72,6 +72,6 @@ export function researchTaskToast(event: ResearchTaskEvent, view: PlayerView, co
   const name = content.species[event.speciesId].name, reward = event.reward;
   const task = event.task === 'special' ? researchSpecialLabel(content.species[event.speciesId].typeId) : RESEARCH_TASK_NAMES[event.task];
   const parts = reward ? [reward.research ? `调查笔记：科研 +${reward.research}` : '', reward.captureBonus ? `对${name}的捕捉率 +${reward.captureBonus}` : '',
-    reward.gold ? `调查完成：金币 +${reward.gold}` : '', reward.eraScore ? `世代分 +${reward.eraScore}` : ''].filter(Boolean) : [];
+    reward.gold ? `调查完成：金币 +${reward.gold}` : '', reward.eraScore ? `时代分 +${reward.eraScore}` : ''].filter(Boolean) : [];
   return { title: `图鉴调查：${name} · ${task}（${event.tasksDone}/5）`, detail: parts.length ? `${parts.join('，')}。` : researchNextHint(view.expansion?.researchTasks?.[event.speciesId]) };
 }

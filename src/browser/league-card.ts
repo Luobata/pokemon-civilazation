@@ -13,6 +13,7 @@ import { leagueMatchReplay } from './battle-replay.ts';
 import type { BattleReplay } from './battle-replay.ts';
 import '../league.css';
 import { traceStrikes } from '../core/team-battle.ts';
+import { civName } from './civ-names.ts';
 
 /** Rounds before a season at which the countdown notice appears. */
 export const LEAGUE_COUNTDOWN = [5, 1] as const;
@@ -28,7 +29,7 @@ export function placementOf(season: ChampionshipSeason, entrantId: string): Plac
 /** Display name of an entrant from the viewer's side. */
 export function entrantName(view: PlayerView, entrant: Pick<ChampionshipEntrant, 'playerId' | 'entrantId' | 'name'>): string {
   if (entrant.playerId === view.playerId) return '你的队伍';
-  if (entrant.playerId !== null) return `文明 ${entrant.playerId + 1}`;
+  if (entrant.playerId !== null) return civName(view, entrant.playerId);
   if (entrant.entrantId.startsWith('rival-')) return `劲敌${entrant.name ?? ''}`;
   return entrant.name ? `训练家 ${entrant.name}` : `联盟训练家 ${entrant.entrantId.split('-').at(-1)}`;
 }

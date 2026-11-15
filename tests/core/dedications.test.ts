@@ -98,7 +98,7 @@ test('ChooseDedication: only while pending, with the exact count and no duplicat
   expect(reminders[0]).toEqual({ label: '选择 3 张时代献礼', target: '#era-panel' });
   expect(turnStep(pendingView, reminders, { unitId: null, cityId: null }, new Set())).toEqual({ kind: 'dedication', label: '选择时代献礼 ›', panel: '#era-panel' });
   const toast = toastFor({ type: 'EraAgeBegan', playerId: 0, eraIndex: 1, age: 'golden', previousScore: 9, previousRounds: 10, heroic: true, dedicationPicks: 3 }, pendingView)!;
-  expect(toast).toMatchObject({ title: '进入英雄世代', action: '选择献礼', persistent: true, target: { kind: 'screen', screen: 'era' } });
+  expect(toast).toMatchObject({ title: '进入英雄时代', action: '选择献礼', persistent: true, target: { kind: 'screen', screen: 'era' } });
   expect(toastResolved(toast, pendingView)).toBe(false);
   const result = choose(state, ['professorNotes', 'ballMaster', 'grandStage']);
   if (!result.ok) throw new Error(result.reason);

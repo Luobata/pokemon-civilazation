@@ -2,9 +2,11 @@
 // Civ VI system, and a one-line note on how it differs. Display-only data (no rule reads it):
 // the handbook table (src/guide) and the in-game hints (src/browser/civ-hint.ts) both read it.
 // Only systems with a genuinely close analogue are listed; 冠军赛、圣所与起源胜利、属性精华、
-// 时代能力 and the Pokédex victory have none and are left out on purpose.
+// 世代能力 and the Pokédex victory have none and are left out on purpose.
+// Wording (playtest 2026-11b O1): 世代 is the progress stage (named after the main-series generations, as fans say),
+// 时代 is only the golden / dark age and its 时代分 (as in Civ VI's Chinese UI). Stored ids keep their names.
 
-export type CivGlossaryGroup = '市政与政体' | '时代' | '城市与单位' | '世界' | '宗教与伟人' | '战斗' | '胜利';
+export type CivGlossaryGroup = '市政与政体' | '世代与时代' | '城市与单位' | '世界' | '宗教与伟人' | '战斗' | '胜利';
 
 export type CivGlossaryEntry = {
   /** The name this game uses (as written in the UI and the handbook). */
@@ -30,15 +32,15 @@ export const CIV_GLOSSARY = {
   government: { term: '联盟体制', aliases: ['体制'], civ: '政体', group: '市政与政体', section: 'governments',
     note: '6 种分两层，提供额外方针槽和一项常驻加成；没有传承加成。' },
 
-  era: { term: '时代', aliases: ['第 N 时代'], civ: '时代', group: '时代', section: 'techs',
-    note: '按你自己完成的科技数推进，各文明分别计算；文明 6 的时代是全世界一起推进。“世代”只指黄金/黑暗世代。' },
-  eraAge: { term: '黄金世代', aliases: ['黑暗世代', '英雄世代', '世代荣誉'], civ: '黄金时代 / 黑暗时代', group: '时代', section: 'techs',
-    note: '按上一世代平均每轮的世代分判定，不看总分。' },
-  eraScore: { term: '世代分', aliases: ['世代得分'], civ: '时代得分', group: '时代', section: 'techs',
+  era: { term: '世代', aliases: ['第 N 世代', '金银世代', '宝石世代'], civ: '时代', group: '世代与时代', section: 'techs',
+    note: '以宝可梦正作世代命名（初代 → 金银 → 宝石……），按你自己完成的科技数推进，各文明分别计算；文明 6 的时代是全世界一起推进。“时代”只指黄金 / 黑暗时代。' },
+  eraAge: { term: '黄金时代', aliases: ['黑暗时代', '普通时代', '英雄时代', '时代荣誉'], civ: '黄金时代 / 黑暗时代', group: '世代与时代', section: 'techs',
+    note: '每进入一个新世代判定一次，按上一世代平均每轮的时代分，不看总分。' },
+  eraScore: { term: '时代分', civ: '时代得分', group: '世代与时代', section: 'techs',
     note: '建城、进化、捕捉、确立规章等里程碑得分。' },
-  dedication: { term: '时代献礼', civ: '时代献礼（Dedications）', group: '时代', section: 'techs',
-    note: '“承诺”在普通/黑暗世代额外得世代分；“黄金效果”只在黄金/英雄世代生效。' },
-  discovery: { term: '图鉴发现', civ: '尤里卡', group: '时代', section: 'techs',
+  dedication: { term: '时代献礼', civ: '时代献礼（Dedications）', group: '世代与时代', section: 'techs',
+    note: '“承诺”在普通/黑暗时代额外得时代分；“黄金效果”只在黄金/英雄时代生效。' },
+  discovery: { term: '图鉴发现', civ: '尤里卡', group: '世代与时代', section: 'techs',
     note: '达成条件立得该科技 40% 进度；只有科技有，规章没有。' },
 
   district: { term: '设施区', civ: '区域', group: '城市与单位', section: 'districts',
@@ -99,7 +101,7 @@ export const CIV_GLOSSARY = {
 
 export type CivGlossaryId = keyof typeof CIV_GLOSSARY;
 export const CIV_GLOSSARY_IDS = Object.keys(CIV_GLOSSARY) as CivGlossaryId[];
-export const CIV_GLOSSARY_GROUPS: readonly CivGlossaryGroup[] = ['市政与政体', '时代', '城市与单位', '世界', '宗教与伟人', '战斗', '胜利'];
+export const CIV_GLOSSARY_GROUPS: readonly CivGlossaryGroup[] = ['市政与政体', '世代与时代', '城市与单位', '世界', '宗教与伟人', '战斗', '胜利'];
 
 /** "文明 6：市政" — the short form used next to headings. */
 export const civTermLabel = (id: CivGlossaryId): string => `文明 6：${CIV_GLOSSARY[id].civ}`;

@@ -152,7 +152,7 @@ export function techTreeTable(): string {
       `<strong>${discoveryText(id, true).name}</strong>：${discoveryText(id, true).hint}`]), [1, 3]);
 }
 export function treeEraTable(): string {
-  return table(['进程', '时代', '进入条件（v22 科技树）'], (['simple-v1', 'full-v1'] as const).flatMap(mode => ERA_DEFINITIONS[mode].map((era, index) => [
+  return table(['进程', '世代', '进入条件（v22 科技树）'], (['simple-v1', 'full-v1'] as const).flatMap(mode => ERA_DEFINITIONS[mode].map((era, index) => [
     mode === 'simple-v1' ? '精简' : '完整', era.name, `已完成 ${TREE_ERA_THRESHOLDS[mode][index]} 项科技（旧版 ${era.threshold}）`])));
 }
 export function eraTable(): string {
@@ -160,7 +160,7 @@ export function eraTable(): string {
     mode === 'simple-v1' ? '精简' : '完整', era.name, `已完成 ${era.threshold} 项科技`,
     ERA_ABILITY_IDS.filter(id => ERA_ABILITIES[id].generation === Number(era.id.split('-')[1])).map(id => ERA_ABILITIES[id].name).join('、') || '—',
   ]));
-  return table(['进程', '时代', '进入条件', '解锁时代能力'], rows);
+  return table(['进程', '世代', '进入条件', '解锁世代能力'], rows);
 }
 export function buildingTable(): string {
   return table(['建筑', '花费', '产出', '前置科技'], Object.values(BUILDINGS).map(b => [b.name, b.cost === null ? '首都自带' : String(b.cost),
@@ -184,7 +184,7 @@ export function speciesTable(): string {
   const generationRecruit = (id: SpeciesId) => Object.entries(content.roster?.generationRecruits ?? {}).find(([, s]) => s === id)?.[0];
   const leaderOf = (id: SpeciesId) => LEADER_IDS.find(leader => leaderUnitFor(content, leader, LEADER_KITS[leader].unit) === id);
   const dex = (id: SpeciesId) => Number(/(\d+)\.png$/.exec(pokemonSpritePath(id))![1]);
-  const conditionText = (option: EvolutionOption) => [option.minGeneration && option.minGeneration > 1 ? `第 ${option.minGeneration} 时代起` : '',
+  const conditionText = (option: EvolutionOption) => [option.minGeneration && option.minGeneration > 1 ? `第 ${option.minGeneration} 世代起` : '',
     option.time === 'day' ? '白天' : option.time === 'night' ? '夜晚' : '', option.biome ? `站在${biomeList([option.biome])}` : ''].filter(Boolean).join('、');
   ids.sort((a, b) => dex(a) - dex(b));
   return table(['#', '宝可梦', '属性', '阶段', '定位', 'HP', '攻', '防', '移动', '射程', '视野', '训练', '维护', '原作世代', '野外出没', '进化 / 获取'],
@@ -196,7 +196,7 @@ export function speciesTable(): string {
       const evolution = [stone ? `→ ${speciesName(stone.intoSpeciesId)}（只能用${WORLD_DEFINITIONS.stones[stone.stoneId].name}，需 ${stone.requiredXp} 经验，不花金币）` : '',
         ...options.map(option => `→ ${speciesName(option.speciesId)}（${option.xp} 经验 + ${option.gold} 金${option.requiresTraining ? '，需特训法' : ''}${conditionText(option) ? `，${conditionText(option)}` : ''}）`)].filter(Boolean).join('；');
       const sources = [evolution,
-        recruitTech(id) ? `研究${techName(recruitTech(id)!)}后各城可招募` : '', generationRecruit(id) ? `进入第 ${generationRecruit(id)} 时代后各城可招募` : '',
+        recruitTech(id) ? `研究${techName(recruitTech(id)!)}后各城可招募` : '', generationRecruit(id) ? `进入第 ${generationRecruit(id)} 世代后各城可招募` : '',
         leaderOf(id) ? `${LEADERS[leaderOf(id)!].name}的专属宝可梦` : '',
         s.rare ? '稀有（出现率 ×0.25，捕捉率减半）' : ''].filter(Boolean);
       return [String(dex(id)).padStart(3, '0'), `<img class="sprite" loading="lazy" src="${pokemonSpritePath(id)}" alt=""> ${s.name}`,
@@ -207,7 +207,7 @@ export function speciesTable(): string {
 }
 /** v14: one recruit per reached generation. */
 export function generationRecruitTable(): string {
-  return table(['进入时代', '各城可招募'], Object.entries(content.roster?.generationRecruits ?? {}).map(([generation, id]) => [`第 ${generation} 时代`, speciesName(id!)]), [0]);
+  return table(['进入世代', '各城可招募'], Object.entries(content.roster?.generationRecruits ?? {}).map(([generation, id]) => [`第 ${generation} 世代`, speciesName(id!)]), [0]);
 }
 export function roleTable(): string {
   const roles = Object.keys(ROLE_CITY_ASSAULT) as (keyof typeof ROLE_CITY_ASSAULT)[];
@@ -245,7 +245,7 @@ export function leaderCards(tips: Record<LeaderId, string>): string {
         <dt>主动</dt><dd><strong>${escape(kit.active)}</strong>：${escape(kit.description)}</dd>
         <dt>专属宝可梦</dt><dd><img class="sprite" src="${pokemonSpritePath(kit.unit)}" alt=""> ${escape(unit.name)}（${ROLE_NAMES[unit.role]}）：100 金招募，需特训法，最多 3 只；出生经验 20，视野 +1</dd>
         <dt>专属建筑</dt><dd><strong>${escape(kit.building)}</strong>：90 金，每城 1 座，${LEADER_BUILDING_YIELD[id]}</dd>
-        <dt>时代方针</dt><dd>${doctrines}</dd>
+        <dt>世代方针</dt><dd>${doctrines}</dd>
         <dt>方针亲和</dt><dd>${escape(affinity)}（装备时数值效果 +50%）</dd>
         <dt>偏好体制</dt><dd>${escape(GOVERNMENTS[LEADER_GOVERNMENT_AFFINITY[id]].name)}（采用时常驻加成 +50%，v11）</dd>
       </dl>
@@ -268,7 +268,7 @@ export function policyTable(): string {
 export const policySwapGold = POLICY_SWAP_GOLD;
 export const governmentSwapGold = GOVERNMENT_SWAP_GOLD;
 export function legendWonderTable(): string {
-  return table(['#', '传说 · 奇观', '时代', '线索', '造价', '效果'], LEGEND_WONDER_IDS.map(id => {
+  return table(['#', '传说 · 奇观', '世代', '线索', '造价', '效果'], LEGEND_WONDER_IDS.map(id => {
     const legend = LEGEND_WONDERS[id];
     return [String(legend.dex).padStart(3, '0'), `<img class="sprite" loading="lazy" src="${legendSprite(id)}" alt=""> ${legend.name} · ${legend.wonderName}`, String(legend.generation),
       LEGEND_CLUE_TEXT(legend.clue) + (legend.clue.kind === 'trace' ? `（${legend.clue.coastal ? '海边' : biomeList(legend.clue.biomes.slice(0, 1))}）` : ''), String(legendCost(id)), legendEffectText(id)];
@@ -334,16 +334,16 @@ export function promotionTraitTable(): string {
   return table(['特性', '效果'], PROMOTION_TRAIT_IDS.map(id => [PROMOTION_TRAITS[id].name, PROMOTION_TRAITS[id].summary]));
 }
 export function eraMilestoneTable(): string {
-  return table(['里程碑', '世代分'], ERA_MILESTONE_IDS.map(id => [ERA_MILESTONES[id].name, ERA_MILESTONES[id].points < 0 ? `−${-ERA_MILESTONES[id].points}` : `+${ERA_MILESTONES[id].points}`]), [1]);
+  return table(['里程碑', '时代分'], ERA_MILESTONE_IDS.map(id => [ERA_MILESTONES[id].name, ERA_MILESTONES[id].points < 0 ? `−${-ERA_MILESTONES[id].points}` : `+${ERA_MILESTONES[id].points}`]), [1]);
 }
 export function eraAgeTable(): string {
   const line = (age: 'golden' | 'normal' | 'dark') => age === 'golden' ? `≥ ${ERA_HONOR_RULES_V22.goldenRatePermille / 1000}（v≤21：≥ ${ERA_HONOR_RULES.goldenRatePermille / 1000}）`
     : age === 'dark' ? `< ${ERA_HONOR_RULES_V22.darkRatePermille / 1000}（v≤21：< ${ERA_HONOR_RULES.darkRatePermille / 1000}）` : '介于两者之间，或上一世代不足 4 轮';
-  return table(['世代', '条件（上一世代平均每轮得分）', '效果'], (['golden', 'normal', 'dark'] as const).map(age => [ERA_AGES[age].name, line(age), ERA_AGES[age].description]));
+  return table(['时代', '条件（上一世代平均每轮时代分）', '效果'], (['golden', 'normal', 'dark'] as const).map(age => [ERA_AGES[age].name, line(age), ERA_AGES[age].description]));
 }
 /** v22: era dedications, generated from src/content/dedications.ts. */
 export function dedicationTable(): string {
-  return table(['献礼', '玩法', '承诺（普通 / 黑暗世代：额外世代分）', '黄金效果（黄金 / 英雄世代）'], DEDICATION_IDS.map(id => [DEDICATIONS[id].name, DEDICATIONS[id].style, DEDICATIONS[id].promiseText, DEDICATIONS[id].goldenText]));
+  return table(['献礼', '玩法', '承诺（普通 / 黑暗时代：额外时代分）', '黄金效果（黄金 / 英雄时代）'], DEDICATION_IDS.map(id => [DEDICATIONS[id].name, DEDICATIONS[id].style, DEDICATIONS[id].promiseText, DEDICATIONS[id].goldenText]));
 }
 export const dedicationRules = DEDICATION_RULES;
 export function governmentTable(): string {
@@ -390,7 +390,7 @@ export function essenceTable(): string {
 }
 export const essenceRules = ESSENCE_RULES;
 export function eraAbilityTable(): string {
-  return table(['能力', '解锁时代', '效果'], ERA_ABILITY_IDS.map(id => [ERA_ABILITIES[id].name, `第 ${ERA_ABILITIES[id].generation} 时代（${ERA_ABILITIES[id].era}）`, ERA_ABILITIES[id].description]));
+  return table(['能力', '解锁世代', '效果'], ERA_ABILITY_IDS.map(id => [ERA_ABILITIES[id].name, `第 ${ERA_ABILITIES[id].generation} 世代（${ERA_ABILITIES[id].era}）`, ERA_ABILITIES[id].description]));
 }
 export function weatherTable(): string {
   return table(['天气', '消耗精华', '增强', '削弱'], WEATHER_IDS.map(id => {
@@ -456,7 +456,7 @@ export function researchRewardTable(): string {
   return table(['完成项数', '奖励（每张卡一次）'], [
     [String(R.notesAt), `调查笔记：科研 +${R.notesResearch}`],
     [String(R.captureAt), `你对这个物种的捕捉率 +${R.captureBonus}（捕捉预览与实际一致）`],
-    [String(R.completeAt), `调查完成：金币 +${R.completeGold}、世代分 +${R.completeEraScore}（每世代最多 ${R.eraScoreCapPerEra} 次）`],
+    [String(R.completeAt), `调查完成：金币 +${R.completeGold}、时代分 +${R.completeEraScore}（每世代最多 ${R.eraScoreCapPerEra} 次）`],
   ], [0]);
 }
 // ---------- v24 B gym circuit / C rival trainers (docs/design/world-v24.md §3, §4) ----------
@@ -518,7 +518,7 @@ export function rivalTable(): string {
     const reward = RIVAL_RULES_V24.rewards[index] as { gold: number; pokeBalls?: number; research?: number; xp?: number; eraScore: number };
     return [`第 ${index + 1} 次`, `第 ${round} 轮`, RIVAL_TEAMS[index].map(slot => `${slot.list === 'primary' ? '主克制' : '副克制'}${STAGE_NAMES[slot.stage]}`).join(' + '),
       `${RIVAL_RULES_V24.strengthOffsets[index] > 0 ? '+' : ''}${RIVAL_RULES_V24.strengthOffsets[index]}`,
-      [`金币 ${reward.gold}`, reward.pokeBalls ? `精灵球 +${reward.pokeBalls}` : '', reward.research ? `科研 +${reward.research}` : '', reward.xp ? `参战宝可梦经验 +${reward.xp}` : '', `世代分 +${reward.eraScore}`].filter(Boolean).join('、')];
+      [`金币 ${reward.gold}`, reward.pokeBalls ? `精灵球 +${reward.pokeBalls}` : '', reward.research ? `科研 +${reward.research}` : '', reward.xp ? `参战宝可梦经验 +${reward.xp}` : '', `时代分 +${reward.eraScore}`].filter(Boolean).join('、')];
   }));
 }
 export function rivalCounterTable(): string {

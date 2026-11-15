@@ -12,7 +12,6 @@ import { promotionLine } from './promotion-panel.ts';
 import { DISTRICTS } from '../content/districts.ts';
 import { ESSENCES, BIOME_ESSENCE } from '../content/essences.ts';
 import { CREW_SPECIALTIES, IMPROVEMENTS } from '../content/improvements.ts';
-import { LEADERS } from '../content/leaders.ts';
 import { RARE_BERRIES, RARE_BERRY_RULES } from '../content/rare-berries.ts';
 import type { RareBerryId } from '../content/rare-berries.ts';
 import { SPECIES_NAMES } from '../content/species.ts';
@@ -31,6 +30,7 @@ import { BIOME_DISPLAY } from './canvas.ts';
 import { tileYieldReader } from './tile-yields.ts';
 import { rivalUnitNote, v24TileEntities } from './gym-panel.ts';
 import type { Command } from '../core/model.ts';
+import { civName as civLabel } from './civ-names.ts';
 
 /** own = yours; ally/peace/enemy = another civilization by relation; wild = wild Pokémon; neutral = no owner. */
 export type Tone = 'own' | 'peace' | 'enemy' | 'neutral' | 'wild' | 'info';
@@ -49,10 +49,7 @@ export type TileInfo = {
   entities: TileEntity[];
 };
 
-const civName = (view: PlayerView, id: number) => {
-  const leader = view.civilizations.find(civ => civ.id === id)?.leaderId;
-  return `文明 ${id + 1}${leader ? `（${LEADERS[leader].name}）` : ''}`;
-};
+const civName = (view: PlayerView, id: number) => civLabel(view, id);
 export function relationTone(view: PlayerView, ownerId: number | null): Tone {
   if (ownerId === null) return 'neutral';
   if (ownerId === view.playerId) return 'own';
@@ -203,7 +200,7 @@ export function describeTile(view: PlayerView, index: number): TileInfo {
   if (trace && !expansion!.legends!.wonders.some(wonder => wonder.legendId === trace.legendId)) {
     const legends = expansion!.legends!, legend = LEGEND_WONDERS[trace.legendId], hasClue = legends.clues.includes(trace.legendId);
     const observing = view.economy.player.research.unlockedIds.includes('fieldObservation');
-    entities.push({ kind: 'legend', tone: 'info', title: `传说踪迹 · ${legend.name}`, subtitle: `第 ${legend.generation} 时代 · ${legend.wonderName}`,
+    entities.push({ kind: 'legend', tone: 'info', title: `传说踪迹 · ${legend.name}`, subtitle: `第 ${legend.generation} 世代 · ${legend.wonderName}`,
       lines: [hasClue ? '你已经得到这条线索，可以在合适的城市建造奇观。' : '派一只宝可梦站到这里，就能得到这位传说的线索（剧情第一章）。',
         `奇观效果：${legendEffectText(trace.legendId)}`],
       hint: hasClue ? '打开顶栏「传说」查看剧情与可建造的城市。' : observing ? '任何宝可梦走到这一格，回合内即可记录。' : '需要先研究「野外观察」。' });

@@ -27,6 +27,7 @@ import { rivalSays } from './gym-panel.ts';
 import { leagueCountdown, leagueSummary } from './league-card.ts';
 import { latestReplayKey, replayKey, storedReplay } from './battle-replay.ts';
 import { depthToast } from './late-game-ui.ts';
+import { civName } from './civ-names.ts';
 
 /** `battle` (depth-v26 §2.5): opens the replay of an own gym / guardian / Elite Four result (battle-replay.ts key). */
 export type ToastTarget = { kind: 'screen'; screen: 'research' | 'legends' | 'era' | 'diplomacy' | 'world' | 'log' } | { kind: 'city'; cityId: number } | { kind: 'unit'; unitId: number }
@@ -112,10 +113,10 @@ export function toastFor(payload: VisibleEvent['payload'], view: PlayerView, mem
     case 'EraAgeBegan':
       if (payload.playerId !== me) return null;
       // v22: the new era asks for dedication cards; the notification stays until they are chosen.
-      if (payload.dedicationPicks) return toast(payload.age === 'dark' ? 'war' : 'wonder', '◷', `进入${payload.heroic ? '英雄世代' : ERA_AGES[payload.age].name}`,
+      if (payload.dedicationPicks) return toast(payload.age === 'dark' ? 'war' : 'wonder', '◷', `进入${payload.heroic ? '英雄时代' : ERA_AGES[payload.age].name}`,
         `选择 ${payload.dedicationPicks} 张时代献礼。${payload.age === 'golden' ? DEDICATION_RULES.goldenDescription : ERA_AGES[payload.age].description}`, { kind: 'screen', screen: 'era' }, '选择献礼',
         decision({ kind: 'dedication' }, 'choose-dedication'));
-      return toast(payload.age === 'dark' ? 'war' : 'wonder', '◷', `进入${ERA_AGES[payload.age].name}`, ERA_AGES[payload.age].description, { kind: 'screen', screen: 'era' }, '查看时代', decision());
+      return toast(payload.age === 'dark' ? 'war' : 'wonder', '◷', `进入${ERA_AGES[payload.age].name}`, ERA_AGES[payload.age].description, { kind: 'screen', screen: 'era' }, '查看', decision());
     case 'UnitPromoted':
       if (payload.playerId !== me) return null;
       return toast('info', '⌃', `晋升：获得特性「${PROMOTION_TRAITS[payload.trait].name}」`, PROMOTION_TRAITS[payload.trait].summary, { kind: 'unit', unitId: payload.unitId }, '选中');
@@ -124,7 +125,7 @@ export function toastFor(payload: VisibleEvent['payload'], view: PlayerView, mem
       return strategic(toast('wonder', '✧', `传说线索：${LEGEND_WONDERS[payload.legendId].name}`, `剧情第一章已解锁。可以在合适的城市建造「${LEGEND_WONDERS[payload.legendId].wonderName}」。`, { kind: 'screen', screen: 'legends' }, '查看传说', decision()));
     case 'LegendWonderCompleted':
       return payload.playerId === me ? null // the full-screen story card covers it
-        : toast('wonder', '♛', `文明 ${payload.playerId + 1} 建成了「${LEGEND_WONDERS[payload.legendId].wonderName}」`, `${LEGEND_WONDERS[payload.legendId].name} 的奇观已被他人建成。`, { kind: 'screen', screen: 'legends' }, '查看传说');
+        : toast('wonder', '♛', `${civName(view, payload.playerId)}建成了「${LEGEND_WONDERS[payload.legendId].wonderName}」`, `${LEGEND_WONDERS[payload.legendId].name} 的奇观已被他人建成。`, { kind: 'screen', screen: 'legends' }, '查看传说');
     case 'LegendWonderLost':
       if (payload.playerId !== me) return null;
       return strategic(toast('war', '✕', `「${LEGEND_WONDERS[payload.legendId].wonderName}」被别人抢先建成`, `城市 ${payload.cityId} 的工程作废，退还 ${payload.refund} 金。`, { kind: 'city', cityId: payload.cityId }, '选择生产',
@@ -133,9 +134,9 @@ export function toastFor(payload: VisibleEvent['payload'], view: PlayerView, mem
       const relation = payload.relation;
       if (relation.a !== me && relation.b !== me) return null;
       const other = relation.a === me ? relation.b : relation.a;
-      if (relation.proposal && relation.proposal.recipientId === me) return toast('info', '✉', `文明 ${other + 1} 提议停战`, '在外交页面接受或拒绝。', { kind: 'screen', screen: 'diplomacy' }, '外交',
+      if (relation.proposal && relation.proposal.recipientId === me) return toast('info', '✉', `${civName(view, other)}提议停战`, '在外交页面接受或拒绝。', { kind: 'screen', screen: 'diplomacy' }, '外交',
         decision({ kind: 'peace-answered', otherId: other }, `peace:${other}`));
-      if (relation.status === 'war' && relation.changedAtRound >= view.round - 1 && relation.declaredBy !== me) return strategic(toast('war', '⚔', `文明 ${other + 1} 向你宣战！`, '保护城市和开拓队。', { kind: 'screen', screen: 'diplomacy' }, '外交',
+      if (relation.status === 'war' && relation.changedAtRound >= view.round - 1 && relation.declaredBy !== me) return strategic(toast('war', '⚔', `${civName(view, other)}向你宣战！`, '保护城市和开拓队。', { kind: 'screen', screen: 'diplomacy' }, '外交',
         decision(undefined, `war:${other}`)));
       return null;
     }
@@ -144,7 +145,7 @@ export function toastFor(payload: VisibleEvent['payload'], view: PlayerView, mem
       const name = IMPROVEMENTS[payload.kind].name;
       if (payload.playerId === me) return toast('war', '⚔', `掠夺了${name}`, pillageRewardLabel(payload.reward), payload.reward.cityId !== undefined ? { kind: 'city', cityId: payload.reward.cityId } : null);
       const city = [...view.economy.cities].sort((a, b) => hexDistance(a.position, payload.position, view.map) - hexDistance(b.position, payload.position, view.map) || a.id - b.id)[0];
-      return toast('war', '⚔', `你的${name}被文明 ${payload.playerId + 1} 掠夺`, '改良已损坏，不再产出；派工匠站上去修复（不消耗次数）。', city ? { kind: 'city', cityId: city.id } : null, city ? '查看城市' : undefined);
+      return toast('war', '⚔', `你的${name}被${civName(view, payload.playerId)}掠夺`, '改良已损坏，不再产出；派工匠站上去修复（不消耗次数）。', city ? { kind: 'city', cityId: city.id } : null, city ? '查看城市' : undefined);
     }
     case 'EscortBonus':
       if (payload.playerId !== me) return null;
@@ -219,7 +220,7 @@ export function toastFor(payload: VisibleEvent['payload'], view: PlayerView, mem
     case 'RivalDefeated': {
       // v26: a serious duel's win offers the duel's replay (recorded just before, from the RivalDuel event).
       const duel = payload.proof ? latestReplayKey('rival') : null;
-      return toast('growth', '★', `${payload.proof ? '真剑对决胜利，' : ''}击退了劲敌${view.expansion?.rivals?.name ?? ''}！`, `“${rivalSays(payload.encounter, 'beaten')}”${payload.proof ? ' 劲敌之证：世代分 +1。' : ''} 金币 +${payload.gold}${payload.pokeBalls ? `、精灵球 +${payload.pokeBalls}` : ''}${payload.research ? `、科研 +${payload.research}` : ''}${payload.xpUnitIds.length ? `、${payload.xpUnitIds.length} 只参战宝可梦经验 +50` : ''}。`,
+      return toast('growth', '★', `${payload.proof ? '真剑对决胜利，' : ''}击退了劲敌${view.expansion?.rivals?.name ?? ''}！`, `“${rivalSays(payload.encounter, 'beaten')}”${payload.proof ? ' 劲敌之证：时代分 +1。' : ''} 金币 +${payload.gold}${payload.pokeBalls ? `、精灵球 +${payload.pokeBalls}` : ''}${payload.research ? `、科研 +${payload.research}` : ''}${payload.xpUnitIds.length ? `、${payload.xpUnitIds.length} 只参战宝可梦经验 +50` : ''}。`,
         duel ? { kind: 'battle', key: duel } : null, duel ? '观看对战' : undefined, decision());
     }
     // v26 P3: duels and the rival at the conference (own events only).
@@ -233,7 +234,7 @@ export function toastFor(payload: VisibleEvent['payload'], view: PlayerView, mem
         : toast('war', '✖', `${payload.stake === 'serious' ? '真剑' : '切磋'}输给了劲敌${name}`, payload.prize ? `劲敌拿走奖金 ${payload.prize} 金，本次剩余轮里气势 +3。` : '宝可梦带着战损回到地图。', replay, '观看对战');
     }
     case 'RivalConferenceBeaten':
-      return strategic(toast('wonder', '★', `宿命的对决：在联盟大会上击败了劲敌${view.expansion?.rivals?.name ?? ''}！`, `金币 +${payload.gold}，世代分 +${payload.eraScore}。`, null, undefined, decision()));
+      return strategic(toast('wonder', '★', `宿命的对决：在联盟大会上击败了劲敌${view.expansion?.rivals?.name ?? ''}！`, `金币 +${payload.gold}，时代分 +${payload.eraScore}。`, null, undefined, decision()));
     case 'RivalDeparted':
       return toast('info', '…', `劲敌${view.expansion?.rivals?.name ?? ''}离开了`, `“${rivalSays(payload.encounter, 'leave')}”`, null);
     case 'BattleResolved': return battleToast(payload, view, memory);
@@ -244,7 +245,7 @@ export function toastFor(payload: VisibleEvent['payload'], view: PlayerView, mem
         decision(undefined, `league:${payload.season.season}`)));
     }
     case 'CivilizationEliminated':
-      return strategic(toast('war', '☠', `文明 ${payload.eliminatedPlayerId + 1} 出局`, '', null));
+      return strategic(toast('war', '☠', `${civName(view, payload.eliminatedPlayerId)}出局`, '', null));
     default: {
       // v26 late game: contest seasons, raids, the near-victory warning, the legend race, the opening gift (late-game-ui.ts).
       const note = depthToast(payload, view);
@@ -269,7 +270,7 @@ function battleToast(payload: Extract<VisibleEvent['payload'], { type: 'BattleRe
   if (attacker?.ownerId === me) return payload.target.kind === 'city' && payload.capturedCity && view.economy.cities.some(city => city.id === payload.target.id)
     ? strategic(toast('growth', '⚑', `攻占了城市 ${payload.target.id}！`, '它现在是你的城市：为它选择生产。', { kind: 'city', cityId: payload.target.id }, '查看城市', decision({ kind: 'city-queued', cityId: payload.target.id })))
     : null;
-  const by = attacker === undefined ? '敌方单位' : attacker.ownerId === null ? '野生宝可梦' : `文明 ${attacker.ownerId + 1}`;
+  const by = attacker === undefined ? '敌方单位' : attacker.ownerId === null ? '野生宝可梦' : civName(view, attacker.ownerId);
   if (payload.target.kind === 'city') {
     const cityId = payload.target.id, ownsNow = view.economy.cities.some(city => city.id === cityId);
     if (!ownsNow && !memory.ownCityIds?.has(cityId)) return null;

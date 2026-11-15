@@ -183,7 +183,7 @@ test('attack clicks reject peaceful and out-of-range targets', async ({ page }) 
     await page.keyboard.press('f');
     await clickHex(page, candidate!.position);
     // Playtest 2026-11b N9: the refusal names its reason.
-    await expect(page.locator('#action-notice')).toContainText(reason === 'at-peace' ? /无法攻击：(与文明 \d+ 处于和平|这是你自己的|不能攻击自己)/ : /无法攻击：(超出射程|开拓队、工匠和商队只能近身攻击)/);
+    await expect(page.locator('#action-notice')).toContainText(reason === 'at-peace' ? /无法攻击：(与.+处于和平|这是你自己的|不能攻击自己)/ : /无法攻击：(超出射程|开拓队、工匠和商队只能近身攻击)/);
     await expect(page.locator('#battle-preview')).toContainText('选择红色虚线目标查看伤害、反击与击坠');
     await expect(page.locator('#confirm-action')).toBeDisabled();
   }

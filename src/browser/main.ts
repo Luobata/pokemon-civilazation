@@ -398,7 +398,7 @@ function activityText(payload: VisibleEvent['payload']) {
     case 'LegendClueFound': return payload.playerId === session.getView().playerId ? `发现传说线索：${legendTitle(payload.legendId)}（剧情第一章，打开「传说」查看）` : '';
     case 'LegendWonderCompleted': return payload.playerId === session.getView().playerId ? `★ 建成传说奇观：${legendTitle(payload.legendId)}` : `文明 ${payload.playerId + 1} 建成了传说奇观：${legendTitle(payload.legendId)}`;
     case 'LegendWonderLost': return payload.playerId === session.getView().playerId ? `${legendTitle(payload.legendId)} 已被他人建成，城市 ${payload.cityId} 的工程作废，退还 ${payload.refund} 金` : '';
-    case 'EraAgeBegan': return payload.playerId === session.getView().playerId ? `进入${payload.heroic ? '英雄世代' : ERA_AGES[payload.age].name}（上个世代 ${payload.previousScore} 分 / ${payload.previousRounds} 轮）${payload.dedicationPicks ? `，选择 ${payload.dedicationPicks} 张时代献礼` : ''}` : '';
+    case 'EraAgeBegan': return payload.playerId === session.getView().playerId ? `进入${payload.heroic ? '英雄时代' : ERA_AGES[payload.age].name}（上个世代 ${payload.previousScore} 分 / ${payload.previousRounds} 轮）${payload.dedicationPicks ? `，选择 ${payload.dedicationPicks} 张时代献礼` : ''}` : '';
     case 'DedicationChosen': return `时代献礼：${payload.dedicationIds.map(id => DEDICATIONS[id].name).join('、')}`;
     case 'GovernmentChanged': return `采用体制「${GOVERNMENTS[payload.governmentId].name}」${payload.goldCost ? `（${payload.goldCost} 金）` : ''}${payload.droppedPolicies.length ? `，取下方针：${payload.droppedPolicies.map(id => POLICIES[id].name).join('、')}` : ''}`;
     case 'PoliciesChanged': return `方针更新：${payload.policyIds.map(id => POLICIES[id].name).join('、') || '无'}${payload.goldCost ? `（${payload.goldCost} 金）` : ''}`;

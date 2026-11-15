@@ -830,7 +830,7 @@ export function inspectSystem(systemId: string, state: GameState): AuditSystemIn
   }
   if (system.id === 's-legend-wonders') {
     const ledger = state.expansion?.legends;
-    return { metrics: [metric('当前规则', ledger ? '传说奇观 v15' : '本局未启用（需 v15 时代对局）'), metric('踪迹', Object.keys(ledger?.sites ?? {}).length),
+    return { metrics: [metric('当前规则', ledger ? '传说奇观 v15' : '本局未启用（需 v15 世代对局）'), metric('踪迹', Object.keys(ledger?.sites ?? {}).length),
       metric('已建成奇观', Object.keys(ledger?.wonders ?? {}).length), metric('线索总数', Object.values(ledger?.clues ?? {}).reduce((sum, list) => sum + list.length, 0))],
       data: { legends: ledger ?? null } };
   }
@@ -847,27 +847,27 @@ export function inspectSystem(systemId: string, state: GameState): AuditSystemIn
   }
   if (system.id === 's-era-honors') {
     const honors = state.expansion?.eraHonors;
-    return { metrics: [metric('当前规则', honors ? '时代玩法 v12' : '本局未启用（需 v12）'),
-      metric('黄金世代文明', Object.values(honors?.players ?? {}).filter(record => record.age === 'golden').length),
-      metric('黑暗世代文明', Object.values(honors?.players ?? {}).filter(record => record.age === 'dark').length)], data: { eraHonors: honors ?? null } };
+    return { metrics: [metric('当前规则', honors ? '世代玩法 v12' : '本局未启用（需 v12）'),
+      metric('黄金时代文明', Object.values(honors?.players ?? {}).filter(record => record.age === 'golden').length),
+      metric('黑暗时代文明', Object.values(honors?.players ?? {}).filter(record => record.age === 'dark').length)], data: { eraHonors: honors ?? null } };
   }
   if (system.id === 's-dedications') {
     const records = Object.entries(state.expansion?.eraHonors?.players ?? {}).filter(([, record]) => record.dedication);
-    return { metrics: [metric('当前规则', records.length ? '时代献礼 v22' : '本局未启用（需 v22 时代对局）'),
+    return { metrics: [metric('当前规则', records.length ? '时代献礼 v22' : '本局未启用（需 v22 世代对局）'),
       metric('待选献礼的文明', records.filter(([, record]) => record.dedication!.pending).length),
-      metric('英雄世代文明', records.filter(([, record]) => record.dedication!.heroic).length)],
+      metric('英雄时代文明', records.filter(([, record]) => record.dedication!.heroic).length)],
       data: { dedications: records.length ? Object.fromEntries(records.map(([playerId, record]) => [playerId, { age: record.age, ...record.dedication }])) : null } };
   }
   if (system.id === 's-governments') {
     const policies = state.expansion?.policies, enabled = Object.values(policies ?? {}).some(ledger => ledger.government !== undefined);
     const rows = Object.entries(policies ?? {}).map(([playerId, ledger]) => ({ playerId: Number(playerId), government: ledger.government ?? null,
       freeChange: ledger.governmentFreeSwap ?? null, slots: slotCounts(ledger.adopted, ledger.government ?? null), slotted: ledger.slotted }));
-    return { metrics: [metric('当前规则', enabled ? '时代玩法 v11' : '本局未启用（需 v11）'),
+    return { metrics: [metric('当前规则', enabled ? '世代玩法 v11' : '本局未启用（需 v11）'),
       metric('已采用体制的文明', rows.filter(row => row.government).length)], data: { governments: enabled ? rows : null } };
   }
   if (system.id === 's-districts') {
     const districts = state.expansion?.districts, projects = districts ? districtProjects(Object.values(state.cities)) : [];
-    return { metrics: [metric('当前规则', districts ? '时代玩法 v10' : '本局未启用（需显式 v10）'),
+    return { metrics: [metric('当前规则', districts ? '世代玩法 v10' : '本局未启用（需显式 v10）'),
       metric('已完成设施区', Object.keys(districts?.tiles ?? {}).length), metric('排队设施区', projects.length)],
       data: { districts: districts ?? null, projects,
         effectsByCity: Object.fromEntries(Object.values(state.cities).sort((a, b) => a.id - b.id).map(city => [city.id, cityDistrictEffects(state, city.id)])) } };
@@ -875,7 +875,7 @@ export function inspectSystem(systemId: string, state: GameState): AuditSystemIn
   if (system.id === 's31-improvements') {
     const improvements = state.expansion?.improvements;
     const placed = Object.values(improvements?.tiles ?? {});
-    return { metrics: [metric('当前规则', improvements ? '时代玩法 v2' : '本局未启用（需时代玩法 v2）'), metric('已建改良', improvements ? Object.keys(improvements.tiles).length : 0),
+    return { metrics: [metric('当前规则', improvements ? '世代玩法 v2' : '本局未启用（需世代玩法 v2）'), metric('已建改良', improvements ? Object.keys(improvements.tiles).length : 0),
       metric('施工中', improvements ? Object.keys(improvements.projects).length : 0),
       ...((state.setup.gameplayVersion ?? 0) >= 23 ? [metric('已损坏', placed.filter(tile => tile.damaged).length), metric('资源改良', placed.filter(tile => ['berryGrove', 'stoneQuarry', 'plantation'].includes(tile.kind)).length),
         metric('带随行特长', placed.filter(tile => tile.crew).length)] : [])],
@@ -883,45 +883,45 @@ export function inspectSystem(systemId: string, state: GameState): AuditSystemIn
   }
   if (system.id === 's32-discoveries') {
     const discoveries = state.expansion?.discoveries;
-    return { metrics: [metric('当前规则', discoveries ? '时代玩法 v2' : '本局未启用（需时代玩法 v2）'),
+    return { metrics: [metric('当前规则', discoveries ? '世代玩法 v2' : '本局未启用（需世代玩法 v2）'),
       metric('当前文明已发现', discoveries ? (discoveries[state.activePlayerId] ?? []).length : 0)],
       data: { discoveries: discoveries ?? null } };
   }
-  if (system.id === 's33-field-tactics') return { metrics: [metric('当前规则', usesTactics(state.setup) ? '时代玩法 v2' : '本局未启用（需时代玩法 v2）'),
+  if (system.id === 's33-field-tactics') return { metrics: [metric('当前规则', usesTactics(state.setup) ? '世代玩法 v2' : '本局未启用（需世代玩法 v2）'),
     metric('夹击上限', `+${FLANK_MAX / 10}%`)], data: { flankPerUnit: FLANK_PER_UNIT, flankMax: FLANK_MAX, zocRoles: ['melee', 'fast'], ignoresZoc: ['scout', 'air', 'ghost'] } };
   if (system.id === 's34-policies') {
     const ledger = state.expansion?.policies?.[state.activePlayerId];
-    return { metrics: [metric('当前规则', ledger ? '时代玩法 v3' : '本局未启用（需时代玩法 v3）'), metric('已确立规章', ledger?.adopted.length ?? 0), metric('已用方针卡', ledger?.slotted.length ?? 0)],
+    return { metrics: [metric('当前规则', ledger ? '世代玩法 v3' : '本局未启用（需世代玩法 v3）'), metric('已确立规章', ledger?.adopted.length ?? 0), metric('已用方针卡', ledger?.slotted.length ?? 0)],
       data: { policies: state.expansion?.policies ?? null } };
   }
   if (system.id === 's35-essences') {
     const essences = state.expansion?.essences;
-    return { metrics: [metric('当前规则', essences ? '时代玩法 v4' : '本局未启用（需时代玩法 v4）'), metric('道馆数', essences ? Object.keys(essences.gyms).length : 0)],
+    return { metrics: [metric('当前规则', essences ? '世代玩法 v4' : '本局未启用（需世代玩法 v4）'), metric('道馆数', essences ? Object.keys(essences.gyms).length : 0)],
       data: { essences: essences ?? null } };
   }
   if (system.id === 's36-era-abilities') {
     const era = state.expansion?.eraAbilities;
-    return { metrics: [metric('当前规则', era ? '时代玩法 v5' : '本局未启用（需时代玩法 v5）'), metric('生效天气', era ? era.fields.filter(field => field.untilRound >= state.round).length : 0)],
+    return { metrics: [metric('当前规则', era ? '世代玩法 v5' : '本局未启用（需世代玩法 v5）'), metric('生效天气', era ? era.fields.filter(field => field.untilRound >= state.round).length : 0)],
       data: { eraAbilities: era ?? null } };
   }
   if (system.id === 's37-bonds') {
     const bonds = state.expansion?.bonds;
-    return { metrics: [metric('当前规则', bonds ? '时代玩法 v6' : '本局未启用（需时代玩法 v6）'), metric('羁绊低于 30 的城市', bonds ? Object.values(bonds).filter(value => value < 30).length : 0)],
+    return { metrics: [metric('当前规则', bonds ? '世代玩法 v6' : '本局未启用（需世代玩法 v6）'), metric('羁绊低于 30 的城市', bonds ? Object.values(bonds).filter(value => value < 30).length : 0)],
       data: { bonds: bonds ?? null } };
   }
   if (system.id === 's38-rare-berries') {
     const rare = state.expansion?.rareBerries;
-    return { metrics: [metric('当前规则', rare ? '时代玩法 v7' : '本局未启用（需时代玩法 v7）'), metric('矿点数', rare ? Object.keys(rare.deposits).length : 0)],
+    return { metrics: [metric('当前规则', rare ? '世代玩法 v7' : '本局未启用（需世代玩法 v7）'), metric('矿点数', rare ? Object.keys(rare.deposits).length : 0)],
       data: { rareBerries: rare ?? null } };
   }
   if (system.id === 's39-contests') {
     const contests = state.expansion?.contests;
-    return { metrics: [metric('当前规则', contests ? '时代玩法 v8' : '本局未启用（需时代玩法 v8）'), metric('当前文明人气', contests?.[state.activePlayerId]?.appeal ?? 0)],
+    return { metrics: [metric('当前规则', contests ? '世代玩法 v8' : '本局未启用（需世代玩法 v8）'), metric('当前文明人气', contests?.[state.activePlayerId]?.appeal ?? 0)],
       data: { contests: contests ?? null } };
   }
   if (system.id === 's40-faith') {
     const faith = state.expansion?.faith;
-    return { metrics: [metric('当前规则', faith ? '时代玩法 v9' : '本局未启用（需时代玩法 v9）'), metric('已创立信仰', faith ? Object.keys(faith.faiths).length : 0)],
+    return { metrics: [metric('当前规则', faith ? '世代玩法 v9' : '本局未启用（需世代玩法 v9）'), metric('已创立信仰', faith ? Object.keys(faith.faiths).length : 0)],
       data: { faith: faith ?? null } };
   }
   if (system.id === 's30-type-expansion') return { metrics: [metric('当前规则', state.expansion ? '18 属性、双属性防御' : '经典克制表'), metric('物种数', Object.keys(contentOf(state).species).length)],

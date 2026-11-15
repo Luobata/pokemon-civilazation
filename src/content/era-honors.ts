@@ -31,7 +31,7 @@ export const ERA_MILESTONES: Record<EraMilestone, { name: string; points: number
   eliteFour: { name: '战胜四天王', points: 3 },
   rivalDefeated: { name: '击退劲敌', points: 1 },
   /** Gameplay v26 only (depth-v26 §4.2): a Rare Candy evolution scores 2 − 1 = 1 (the `evolution` milestone still counts it). */
-  candyEvolution: { name: '神奇糖果进化（世代分减半）', points: -1 },
+  candyEvolution: { name: '神奇糖果进化（时代分减半）', points: -1 },
   /** Gameplay v26 only: a civilization's first final form of an evolution line (at most 3 per era). */
   finalEvolution: { name: '最终进化', points: 1 },
   /** Gameplay v26 only (§5.4): the top damage dealer of a Max Raid. */
@@ -50,8 +50,8 @@ export const ERA_HONOR_RULES = {
 export const ERA_HONOR_RULES_V22 = { goldenRatePermille: 1500, darkRatePermille: 1000 } as const;
 export type AgeLines = { goldenRatePermille: number; darkRatePermille: number };
 export const ERA_AGES: Record<EraAge, { name: string; policy: PolicyEffects; satisfaction: number; leaguePoints: number; description: string }> = {
-  normal: { name: '普通世代', policy: {}, satisfaction: 0, leaguePoints: 0, description: '没有额外效果。' },
-  golden: { name: '黄金世代', policy: { cityGold: 1 }, satisfaction: 3, leaguePoints: 2, description: '每座城市金币 +1，满意度每轮 +3，规章点每轮 +2。' },
-  dark: { name: '黑暗世代', policy: { trainingDiscountPercent: 20, healing: 3 }, satisfaction: -2, leaguePoints: 0,
+  normal: { name: '普通时代', policy: {}, satisfaction: 0, leaguePoints: 0, description: '没有额外效果。' },
+  golden: { name: '黄金时代', policy: { cityGold: 1 }, satisfaction: 3, leaguePoints: 2, description: '每座城市金币 +1，满意度每轮 +3，规章点每轮 +2。' },
+  dark: { name: '黑暗时代', policy: { trainingDiscountPercent: 20, healing: 3 }, satisfaction: -2, leaguePoints: 0,
     description: '满意度每轮 −2；逆境：训练宝可梦所需生产 −20%，所有宝可梦每轮额外恢复 3 HP。' },
 };

@@ -123,7 +123,7 @@ export function renderPolicyPanel(view: PlayerView, issue: (action: Command['act
     <details id="policy-cards" open><summary>方针卡 ${civHint('policyCard')} · 已用 ${current.length}/${ledger.slots.military + ledger.slots.economic + ledger.slots.wild}${changed ? ' · 未应用' : ''}</summary>
       ${board}
       ${cardGroups}
-      <div class="policy-actions"><span>${ledger.swapCost ? `更换需 ${ledger.swapCost} 金币（确立新规章或进入新时代后免费一次）` : '本次更换免费'}</span>
+      <div class="policy-actions"><span>${ledger.swapCost ? `更换需 ${ledger.swapCost} 金币（确立新规章或进入新世代后免费一次）` : '本次更换免费'}</span>
       <button type="button" id="apply-policies" class="primary" ${disabled || !changed || !valid || view.economy.player.gold < ledger.swapCost ? 'disabled' : ''}>应用方针</button></div>
     </details>
   </div>`;

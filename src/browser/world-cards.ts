@@ -26,6 +26,7 @@ import { artImage, escapeAttr, flagImage, statChip, uiIcon } from './ui-icons.ts
 import type { UiIconName } from './ui-icons.ts';
 import { captureBlocker, evolutionState } from './unit-action-bar.ts';
 import { depthWorldCards } from './late-game-ui.ts';
+import { CIV_SEAT_COLORS, civOrYou } from './civ-names.ts';
 
 type Pokemon = Extract<MapUnit, { kind: 'pokemon' }>;
 export type WorldCardId = 'gym' | 'rival' | 'conference' | 'contest' | 'nest' | 'sanctuary' | 'legend' | 'capture' | 'evolution'
@@ -42,8 +43,8 @@ export type WorldCard = { id: WorldCardId; title: string; status: string; tip: s
   lineup?: { label: string; target: string; available: boolean } };
 
 /** Civilization colours of the map (render/canvas2d.ts FACTIONS). */
-export const CIV_COLORS = ['#3BA68A', '#D3655C', '#9B83D0', '#D59A45'];
-const civName = (view: PlayerView, id: number | null) => id === null ? '无主' : id === view.playerId ? '你' : `文明 ${id + 1}`;
+export const CIV_COLORS = CIV_SEAT_COLORS;
+const civName = (view: PlayerView, id: number | null) => id === null ? '无主' : civOrYou(view, id);
 export const legendSpritePath = (id: LegendWonderId) => {
   const dex = LEGEND_WONDERS[id].dex;
   return `/sprites/${dex <= 386 ? 'gen3' : dex <= 493 ? 'gen4' : dex <= 649 ? 'gen5' : dex <= 721 ? 'gen6' : dex <= 809 ? 'gen7' : dex <= 905 ? 'gen8' : 'gen9'}/${dex}.png`;

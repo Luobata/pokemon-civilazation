@@ -35,6 +35,7 @@ import '../late-game.css';
 import { installDataTips } from './ui-tip.ts';
 import { openLineupPicker } from './lineup-picker.ts';
 import type { PickerKind } from './lineup-picker.ts';
+import { civFlag, civName } from './civ-names.ts';
 
 const escape = (value: unknown) => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 export function renderExpansionPanel(view: PlayerView, selectedUnitId: number | null, selectedCityId: number | null,
@@ -88,7 +89,7 @@ export function renderExpansionPanel(view: PlayerView, selectedUnitId: number | 
     html += card('s38-rare-berries', `稀有树果 ${rare.distinct}/${RARE_BERRY_IDS.length}${rare.festival ? ' · 丰收节' : ''} ${civHint('rareBerry')}`, `<p>城市耕作稀有树果地块即拥有该种类。每拥有一种：满意度每轮 +${RARE_BERRY_RULES.satisfactionPerType}、各城羁绊每轮 +${RARE_BERRY_RULES.bondPerType}；拥有 ${RARE_BERRY_RULES.festivalTypes} 种时进入丰收节，每城食物 +1。</p>`
       + `<ul class="rare-berry-list">${RARE_BERRY_IDS.map(id => `<li class="${rare.owned[id] ? 'owned' : ''}"><b>${RARE_BERRIES[id].mark}</b>${RARE_BERRIES[id].name} · ${({ forest: '森林', mountain: '山地', desert: '荒漠', grassland: '草原', snow: '雪原', ocean: '海洋' } as Record<string, string>)[RARE_BERRIES[id].biome]} · 拥有 ${rare.owned[id]}</li>`).join('')}</ul>`
       + (partners.length ? `<p>多余的一份可以赠送给贸易伙伴：信任 +${RARE_BERRY_RULES.giftTrust}，自己获得 ${RARE_BERRY_RULES.giftGold} 金币，同一伙伴每 ${RARE_BERRY_RULES.giftCooldown} 轮一次。</p>`
-        + partners.map(relation => RARE_BERRY_IDS.filter(id => rare.owned[id] >= 2).map(id => button(`赠送${RARE_BERRIES[id].name}给文明 ${relation.targetPlayerId + 1}`, { type: 'GiftBerry', targetPlayerId: relation.targetPlayerId, berry: id })).join('')).join('')
+        + partners.map(relation => RARE_BERRY_IDS.filter(id => rare.owned[id] >= 2).map(id => button(`赠送${RARE_BERRIES[id].name}给${civName(view, relation.targetPlayerId)}`, { type: 'GiftBerry', targetPlayerId: relation.targetPlayerId, berry: id })).join('')).join('')
         : '<p>与其他文明缔结贸易后，可以赠送多余的稀有树果。</p>'));
   }
   const contest = exp.contests;
@@ -126,7 +127,7 @@ export function renderExpansionPanel(view: PlayerView, selectedUnitId: number | 
         + `<p>${LEGENDS[mineFaith.legend].blessing}。传播：每次 ${spreadPrice} 供奉点，目标须在己方城市 ${FAITH_RULES.spreadRange} 格内；信仰城市每轮也会向 ${FAITH_RULES.passiveRange} 格内的城市自然传播。压力达到 ${FAITH_RULES.convertAt} 时改宗。</p>`
         + (city && legendFaith.cityFaith[city.id] !== player.id ? button(`向城市 #${city.id} 传播（压力 ${legendFaith.ownPressure[city.id] ?? 0}/${FAITH_RULES.convertAt}）`, { type: 'SpreadFaith', cityId: city.id }, offeringNow.offeringPoints >= spreadPrice) : '');
     }
-    body += `<ul class="faith-list">${legendFaith.faiths.map(item => `<li style="--legend:${LEGENDS[item.legend].color}"><b>${LEGENDS[item.legend].mark}</b>文明 ${item.founderId + 1} · ${LEGENDS[item.legend].name} · ${item.followers} 城</li>`).join('') || '<li>尚无信仰</li>'}</ul>`;
+    body += `<ul class="faith-list">${legendFaith.faiths.map(item => `<li style="--legend:${LEGENDS[item.legend].color}"><b>${LEGENDS[item.legend].mark}</b>${civName(view, item.founderId)} · ${LEGENDS[item.legend].name} · ${item.followers} 城</li>`).join('') || '<li>尚无信仰</li>'}</ul>`;
     html += card('s40-faith', `传说信仰${mineFaith ? ` · ${LEGENDS[mineFaith.legend].name}` : ''} ${civHint('faith')}`, body);
   }
   const civ = exp.civilization, faith = civ.player;
@@ -147,13 +148,13 @@ export function renderExpansionPanel(view: PlayerView, selectedUnitId: number | 
     + civ.sanctuaries.map(site => {
       const onSite = own.find(unit => hexDistance(unit.position, site.position, view.map) === 0);
       const team = own.filter(unit => unit.actionLeft && hexDistance(unit.position, site.position, view.map) <= 2).sort((a, b) => Number(b.id === onSite?.id) - Number(a.id === onSite?.id) || a.id - b.id).slice(0, 3);
-      return `<p>${escape(site.name)} · (${site.position.q},${site.position.r}) · ${site.ownerId === null ? '未控制' : `文明 ${site.ownerId + 1}`} · ${site.guardianDefeated ? '石板已获得' : escape(site.guardianName)}</p>`
+      return `<p>${escape(site.name)} · (${site.position.q},${site.position.r}) · ${site.ownerId === null ? '未控制' : civName(view, site.ownerId)} · ${site.guardianDefeated ? '石板已获得' : escape(site.guardianName)}</p>`
         + (site.ownerId === null && onSite ? button('建立圣所 · 80 金', { type: 'EstablishSanctuary', siteId: site.id, unitId: onSite.id }, player.gold >= 80 && Boolean(onSite.actionLeft)) : '')
         + (site.ownerId === player.id && !site.guardianDefeated ? (CONTENT.teamBattles
           // v26: a beatable boss (its species' attack and defence, more HP); the lineup picker shows the estimate.
           ? `<button type="button" data-lineup="guardian:${escape(site.id)}"${disabled || !onSite?.actionLeft ? ' disabled' : ''}>挑战守卫 · 选择阵容</button>`
           : button('挑战守卫', { type: 'ChallengeGuardian', siteId: site.id, unitIds: team.map(unit => unit.id) }, Boolean(onSite?.actionLeft) && team.length > 0)) : '');
-    }).join('') + `<p>已知石板：${Object.entries(civ.tabletOwners).map(([tablet, owner]) => `${escape(tablet)} → 文明 ${owner + 1}`).join('、') || '无'}</p>`);
+    }).join('') + `<p>已知石板：${Object.entries(civ.tabletOwners).map(([tablet, owner]) => `${escape(tablet)} → ${civName(view, owner)}`).join('、') || '无'}</p>`);
   // v24 B / C: badge box, circuit gyms, the Elite Four, the own rival.
   html += v24PanelCards(view, button, card);
   // v26 D: TMs, special training, contest-season entries (none before v26).
@@ -172,7 +173,7 @@ export function renderExpansionPanel(view: PlayerView, selectedUnitId: number | 
       const canPropose = (last: number | null, rejected: number | null) => relation.atPeace
         && view.round > (last ?? -Infinity) + CIVILIZATION_CONTENT.diplomacy.rejectionCooldownRounds
         && view.round > (rejected ?? -Infinity) + CIVILIZATION_CONTENT.diplomacy.rejectionCooldownRounds;
-      let controls = `<p>文明 ${targetPlayerId + 1} · 信任 ${relation.trust} · ${relation.allianceSinceRound !== null ? '同盟' : '无同盟'} · ${relation.tradeSinceRound !== null ? '贸易生效' : '无贸易'}</p>`;
+      let controls = `<p>${civFlag(view, targetPlayerId)}${civName(view, targetPlayerId)} · 信任 ${relation.trust} · ${relation.allianceSinceRound !== null ? '同盟' : '无同盟'} · ${relation.tradeSinceRound !== null ? '贸易生效' : '无贸易'}</p>`;
       if (relation.allianceProposal?.proposerId === targetPlayerId) controls += button('接受同盟', { type: 'RespondAlliance', targetPlayerId, accept: true }, relation.atPeace) + button('拒绝同盟', { type: 'RespondAlliance', targetPlayerId, accept: false }, relation.atPeace);
       else if (relation.allianceSinceRound === null) controls += button('提议同盟', { type: 'ProposeAlliance', targetPlayerId }, relation.allianceProposal === null && view.round >= relation.betrayalCooldownUntilRound && canPropose(relation.allianceLastProposalRound, relation.allianceLastRejectedRound));
       else controls += button('解散同盟', { type: 'DissolveAlliance', targetPlayerId }) + button('背叛 · 20 金', { type: 'BetrayAlliance', targetPlayerId }, player.gold >= 20);

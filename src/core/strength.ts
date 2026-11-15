@@ -109,13 +109,13 @@ export function strikeFactors(v: { leader: number; enraged: boolean; flank: numb
   return [
     { label: '领袖能力', permille: v.leader }, { label: '激怒', permille: v.enraged ? 1200 : 1000 }, { label: '夹击', permille: 1000 + v.flank },
     { label: '领袖能力（水）', permille: v.misty }, { label: '主场防守', permille: v.home, defense: true },
-    { label: '时代能力', permille: v.eraAttack }, { label: '时代能力', permille: v.eraDefense, defense: true },
+    { label: '世代能力', permille: v.eraAttack }, { label: '世代能力', permille: v.eraDefense, defense: true },
     { label: '信仰：狂信', permille: v.zealot }, { label: '晋升：猛攻', permille: v.assault }, { label: '晋升：坚守', permille: v.bulwark, defense: true },
     { label: v.classCounter < 1000 ? '攻城不擅野战' : '兵种克制', permille: v.classCounter }, { label: '属性契合', permille: v.affinity },
   ];
 }
 /** Labelled factors of a city attack. */
 export function cityFactors(v: { leader: number; eraAttack: number; enraged: boolean; assault: number; breacher: number; affinity: number }): StrikeFactor[] {
-  return [{ label: '攻城定位', permille: v.assault }, { label: '领袖能力', permille: v.leader }, { label: '时代能力', permille: v.eraAttack },
+  return [{ label: '攻城定位', permille: v.assault }, { label: '领袖能力', permille: v.leader }, { label: '世代能力', permille: v.eraAttack },
     { label: '激怒', permille: v.enraged ? 1200 : 1000 }, { label: '晋升：破城', permille: v.breacher }, { label: '属性契合', permille: v.affinity }];
 }

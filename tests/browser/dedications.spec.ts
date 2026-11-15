@@ -22,7 +22,7 @@ test('v22: entering an era, the end-turn button asks for a dedication, the era s
   const section = page.locator('.dedications.pending');
   await expect(section).toBeVisible();
   await expect(section.locator('button.dedication-card')).toHaveCount(DEDICATION_IDS.length);
-  await expect(section.locator('.dedication-head')).toContainText(honor.age === 'golden' ? '黄金世代' : '本世代按它的承诺额外得世代分');
+  await expect(section.locator('.dedication-head')).toContainText(honor.age === 'golden' ? '黄金时代' : '本世代按它的承诺额外得时代分');
   const confirm = section.locator('#confirm-dedication');
   await expect(confirm).toBeDisabled();
   // One card to pick: a click on another card moves the mark.
@@ -40,7 +40,7 @@ test('v22: entering an era, the end-turn button asks for a dedication, the era s
   const chosen = page.locator('.dedications:not(.pending)');
   await expect(chosen).toContainText('本世代献礼');
   await expect(chosen.locator('[data-dedication="professorNotes"]')).toContainText(DEDICATIONS.professorNotes.name);
-  await expect(chosen).toContainText(honor.age === 'golden' ? '黄金效果生效中' : '承诺进度 +0 世代分');
+  await expect(chosen).toContainText(honor.age === 'golden' ? '黄金效果生效中' : '承诺进度 +0 时代分');
   await expect(page.locator('[data-reminder="#era-panel"]')).toHaveCount(0);
   await expect(endTurn).not.toHaveText('选择时代献礼 ›');
   await chosen.scrollIntoViewIfNeeded();

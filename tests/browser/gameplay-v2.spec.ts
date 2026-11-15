@@ -86,5 +86,5 @@ test('gameplay v5: era ability panel lists generation unlocks and the unit panel
   await expect(page.locator('#era-panel .era-abilities')).toContainText('朱紫 · 太晶化');
   await page.locator('[data-reminder="unit"]').click();
   await page.locator('[data-reminder="unit"]').click();
-  await expect(page.locator('#era-ability-box')).toContainText('进入金银时代后解锁昼夜');
+  await expect(page.locator('#era-ability-box')).toContainText('进入金银世代后解锁昼夜');
 });
