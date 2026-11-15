@@ -88,7 +88,7 @@ test('an exhausted wild Pokémon neither strikes nor moves; on its last round HP
   expect(actWild(state, content).find(event => event.type === 'BattleResolved')).toMatchObject({ attackerId: wild.id, target: { kind: 'unit', id: starter.id } });
 });
 
-test('capture: the first ball on an exhausted target is certain (no draw), later ones +25 (cap 95); preview = authority', () => {
+test('capture: the first ball is certain (no draw), later exhausted targets +25 (cap 95); preview = authority', () => {
   const { state, content, starter } = arena(27);
   const first = addWild(state, content, starter.position, 'rattata', 40);
   first.exhaustedUntilRound = state.round + 1;
@@ -121,7 +121,8 @@ test('capture: the first ball on an exhausted target is certain (no draw), later
   if (!again.ok) return;
   expect(draws).toHaveBeenCalledTimes(1);
   expect(again.events.map(event => event.payload)).toContainEqual(expect.objectContaining({ type: 'Captured', probability: preview.probability }));
-  expect([encounterCaptureChance(90, true, true, content), encounterCaptureChance(98, true, true, content), encounterCaptureChance(10, false, false, content)]).toEqual([95, 98, 10]);
+  expect([encounterCaptureChance(90, true, true, content), encounterCaptureChance(98, true, true, content), encounterCaptureChance(10, false, true, content), encounterCaptureChance(10, false, false, content)])
+    .toEqual([95, 98, 10, 100]);
 });
 
 test('newbie protection: knocked out by a wild Pokémon up to round 30 → 1 round, back at 50%; later (and in v26) as before', () => {
@@ -156,4 +157,37 @@ test('the view shows the exhaustion (public, with the unit) and only the own led
   expect(mine.expansion!.wildEncounters).toEqual({ encountered: ['rattata'], firstBallUsed: false });
   expect(theirs.expansion!.wildEncounters).toEqual({ encountered: [], firstBallUsed: false });
   expect(observe(createGame(setup(26)), 0).expansion!.wildEncounters).toBeUndefined();
+});
+
+test('option A: the first ball after domestication is certain on a full-HP wild Pokémon too; the second one draws as before; v26 draws', () => {
+  for (const version of [26, 27] as const) {
+    const { state, content, starter } = arena(version);
+    const wild = addWild(state, content, starter.position, 'rattata');
+    expect(isExhausted(wild, state.round)).toBe(false);
+    const preview = previewCapture(observe(state, 0, content), starter.id, wild.id, 'pokeBall', content);
+    const draws = vi.spyOn(rng, 'randomBelow');
+    const result = step(state, { actorId: 0, expectedSeq: state.commandSeq, action: { type: 'Capture', unitId: starter.id, targetUnitId: wild.id, ballId: 'pokeBall' } }, content);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const captured = result.events.map(event => event.payload).find(payload => payload.type === 'Captured');
+    expect(captured).toMatchObject({ probability: preview.ok ? preview.probability : -1 });
+    if (version === 27) {
+      expect(preview).toEqual({ ok: true, probability: 100 });
+      expect(draws).not.toHaveBeenCalled();
+      expect(captured).toMatchObject({ success: true });
+      // The second ball on a full-HP target: the plain chance, one draw.
+      const after = result.state, own = after.units[starter.id] as MapUnit; own.actionLeft = 1;
+      const next = addWild(after, content, own.position, 'rattata');
+      const second = previewCapture(observe(after, 0, content), own.id, next.id, 'pokeBall', content);
+      expect(second.ok && second.probability < 100).toBe(true);
+      draws.mockClear();
+      const again = step(after, { actorId: 0, expectedSeq: after.commandSeq, action: { type: 'Capture', unitId: own.id, targetUnitId: next.id, ballId: 'pokeBall' } }, content);
+      expect(again.ok).toBe(true);
+      expect(draws).toHaveBeenCalledTimes(1);
+    } else {
+      expect(draws).toHaveBeenCalledTimes(1);
+      expect(preview.ok && preview.probability < 100).toBe(true);
+    }
+    vi.restoreAllMocks();
+  }
 });

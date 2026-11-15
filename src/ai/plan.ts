@@ -52,7 +52,7 @@ import { raidAttackBonus, raidMoveTargets } from './raid-plan.ts';
 import { planMaxRaidAction } from './max-raid-plan.ts';
 import { cityProjectCandidates } from './project-plan.ts';
 import { exhaustAttackBonus } from './encounter-plan.ts';
-import { isExhausted } from '../core/wild-encounters.ts';
+import { isExhausted, viewFirstBallUsed } from '../core/wild-encounters.ts';
 import { researchCaptureScore } from './research-plan.ts';
 import { embarkResearchBonus, isBoarding, moverOf, nearestTravel, safeToBoard, travelCloser, travelDistance, walkerTravel } from './travel.ts';
 import { canEnterTile, waterAccess } from '../core/movement.ts';
@@ -70,7 +70,9 @@ export function canCaptureByPersonality(view: PlayerView, target: MapUnit, query
   if (target.kind !== 'pokemon' || target.ownerId !== null || viewIsRivalUnit(view, target.id)) return false;
   const strategy = AI_STRATEGIES[view.economy.player.personality], ai = query.ai ?? AI_THRESHOLDS;
   const content = query.content === CONTENT ? contentForView(view) : query.content;
-  // v27 ② (pace-v27 §3.3): an exhausted target is low enough for every personality.
+  // v27 ② (pace-v27 §3.3, §13.4): an exhausted target is low enough for every personality; the certain first ball takes any wild Pokémon anywhere.
+  const firstBall = Boolean(content.wildEncounters) && !viewFirstBallUsed(view);
+  if (firstBall) return true;
   if (strategy.captureHpPercent !== null && !(content.wildEncounters && isExhausted(target, view.round)) && target.hp * 100 >= content.species[target.speciesId].maxHp * ai[strategy.captureHpPercent]) return false;
   if (strategy.captureTerritoryOnly !== null && ai[strategy.captureTerritoryOnly]) {
     const tile = hexToIndex(target.position, view.map);
@@ -350,8 +352,8 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
       const candy = evolution && unit.xp < evolution.xp ? candyGold(view, player, view.eraProgression, content.species[unit.speciesId].stage, evolution.gold) : null;
       if (evolution && !needsStone && (unit.xp >= evolution.xp ? player.gold >= evolution.gold : candy !== null && player.gold >= candy + 60) && (!evolution.requiresTraining || player.research.unlockedIds.includes('training'))) add({ type: 'Evolve', unitId: unit.id, intoSpeciesId: evolution.speciesId }, 'military', 200, unit.id);
       for (const target of view.units.filter(target => target.ownerId !== actorId).sort((a, b) => a.id - b.id)) {
-        // v27 ② (pace-v27 §3.3): an exhausted target is caught now, under the personality's first goal (it lasts 2 rounds).
-        const exhaustedTarget = Boolean(content.wildEncounters) && target.ownerId === null && isExhausted(target, view.round);
+        // v27 ② (pace-v27 §3.3, §13.4): an exhausted target (it lasts 2 rounds) or the certain first ball is caught now, under the personality's first goal.
+        const exhaustedTarget = Boolean(content.wildEncounters) && target.ownerId === null && (isExhausted(target, view.round) || !viewFirstBallUsed(view));
         let catchable = false;
         if (canCaptureByPersonality(view, target, query)) for (const ballId of ['pokeBall', 'greatBall'] as BallId[]) {
           const preview = query.capture(view, unit.id, target.id, ballId, content);

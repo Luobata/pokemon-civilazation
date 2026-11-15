@@ -259,7 +259,7 @@ export function depthToast(payload: VisibleEvent['payload'], view: PlayerView): 
   const content = contentForView(view), me = view.playerId, world = { kind: 'screen', screen: 'world' } as const;
   switch (payload.type) {
     case 'OpeningGiftReceived':
-      return payload.playerId === me ? { tone: 'growth', icon: '◓', title: `大木博士送来 ${payload.quantity} 个精灵球`, detail: '驯化完成：削弱相邻的野生宝可梦，再按 Q 捕捉。', target: null, action: '知道了', persistent: true } : null;
+      return payload.playerId === me ? { tone: 'growth', icon: '◓', title: `大木博士送来 ${payload.quantity} 个精灵球`, detail: content.wildEncounters ? '驯化完成：你的第一颗球对相邻的任何野生宝可梦都必中，选中宝可梦按 Q 捕捉。' : '驯化完成：削弱相邻的野生宝可梦，再按 Q 捕捉。', target: null, action: '知道了', persistent: true } : null;
     case 'GoldSinkUsed': return null;
     case 'ContestSeasonJudged': {
       const own = payload.placings.find(item => item.playerId === me), first = payload.placings[0];

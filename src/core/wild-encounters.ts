@@ -5,7 +5,8 @@
 //   A wild Pokémon is exhausted once (the field stays as the marker), so it cannot be held down for ever.
 // - Newbie protection: up to round 30, a Pokémon knocked out by a wild one recovers for 1 round (else 2 / 3) and returns at 50% HP (else 25%).
 // - First encounter: the first exhaustion of a species by a civilization before round 40 gives the striking Pokémon +15 XP and +5 science.
-// - The first ball: each civilization's first capture attempt on an exhausted wild Pokémon succeeds (no random draw).
+// - The first ball (2026-11-16, option A): each civilization's first capture attempt after domestication succeeds on any wild Pokémon it
+//   may catch (no random draw); exhausted targets keep their +25 afterwards.
 // All integers; no new random draws; the exhaustion is a public unit field (visible with the unit), the ledger is private.
 import { openingTuning } from '../content/pace-v27.ts';
 import type { SpeciesId } from '../content/species.ts';
@@ -64,19 +65,20 @@ export function exhaustedWildRests(state: GameState, unit: MapUnit, content: Con
   return true;
 }
 /**
- * The capture chance with the encounter rules (authority and preview share it): `base` is the chance without them; an exhausted target
- * adds the bonus (capped, never lowering `base`), and the civilization's first ball on an exhausted target is certain (100).
+ * The capture chance with the encounter rules (authority and preview share it): `base` is the chance without them; the civilization's
+ * first ball is certain (100) on any target; afterwards an exhausted target adds the bonus (capped, never lowering `base`).
  */
 export function encounterCaptureChance(base: number, exhausted: boolean, firstBallUsed: boolean, content: Content): number {
-  if (!content.wildEncounters || !exhausted) return base;
+  if (!content.wildEncounters) return base;
   if (!firstBallUsed) return 100;
+  if (!exhausted) return base;
   const tuning = openingTuning(content);
   return Math.max(base, Math.min(tuning.exhaustCaptureCap, base + tuning.exhaustCaptureBonus));
 }
 /** Whether this capture uses the civilization's first ball (certain, no random draw); marks it used. */
-export function useFirstBall(state: GameState, playerId: number, target: Pick<MapUnit, 'exhaustedUntilRound'>, content: Content): boolean {
+export function useFirstBall(state: GameState, playerId: number, content: Content): boolean {
   const ledger = state.expansion?.wildEncounters;
-  if (!content.wildEncounters || !ledger || ledger.firstBall[playerId] || !isExhausted(target, state.round)) return false;
+  if (!content.wildEncounters || !ledger || ledger.firstBall[playerId]) return false;
   ledger.firstBall[playerId] = true;
   return true;
 }

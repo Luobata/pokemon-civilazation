@@ -1008,9 +1008,9 @@ export const AUDIT_SYSTEMS: readonly AuditSystem[] = [
   }),
   system({
     id: 's-wild-encounters', name: '草丛遭遇：力竭、新手保护、第一颗球（v27）', status: 'implemented',
-    summary: 'gameplay v27 ②：野生宝可梦（不含劲敌、巢穴首领、暴走）被文明单位打到 HP ≤ 40% 时力竭 2 轮（不打击、不移动，捕捉 +25 个百分点、上限 95%，每只一次；结束时仍 ≤ 40% 则回到 41%）；每个文明对力竭目标的第一次捕捉必定成功（不抽随机数）；第 40 轮前每物种第一次力竭：出手宝可梦 +15 经验、科研 +5；第 30 轮及以前被野生打倒只休养 1 轮、回来 50% HP。',
+    summary: 'gameplay v27 ②：野生宝可梦（不含劲敌、巢穴首领、暴走）被文明单位打到 HP ≤ 40% 时力竭 2 轮（不打击、不移动，捕捉 +25 个百分点、上限 95%，每只一次；结束时仍 ≤ 40% 则回到 41%）；每个文明驯化后的第一次捕捉对任何野生目标必定成功（不抽随机数；2026-11-16 选项 A）；第 40 轮前每物种第一次力竭：出手宝可梦 +15 经验、科研 +5；第 30 轮及以前被野生打倒只休养 1 轮、回来 50% HP。',
     rules: ['力竭是单位的公开字段 exhaustedUntilRound（看得见单位就看得见）；账本 expansion.wildEncounters（已遭遇物种、第一颗球）只给自己。',
-      '捕捉率用同一个 encounterCaptureChance：权威捕捉与 previewCapture 一致；第一颗球不调用 randomBelow。', 'AI：力竭目标不受“扩张型只抓 < 50% HP”限制；打完会力竭且 2 格内有可捕捉的己方宝可梦时攻击分 +30；力竭的野生不算会出手的威胁。'],
+      '捕捉率用同一个 encounterCaptureChance：权威捕捉与 previewCapture 一致；第一颗球不调用 randomBelow。', 'AI：第一颗球没用时任何野生宝可梦都是捕捉目标（不看 HP 与领土）；力竭目标不受“扩张型只抓 < 50% HP”限制；打完会力竭且 2 格内有可捕捉的己方宝可梦时攻击分 +30；力竭的野生不算会出手的威胁。'],
     checks: ['tests/core/wild-encounters.test.ts（进入与退出、只一次、初次遭遇奖励、第一颗球不抽随机数、预览 = 结算、新手保护只到第 30 轮、视图）；tests/browser/pace-v27-opening.spec.ts（力竭目标的捕捉预览与捕捉）。'],
     sources: ['src/core/wild-encounters.ts', 'src/core/combat.ts', 'src/core/preview.ts', 'src/core/recovery.ts', 'src/ai/encounter-plan.ts', 'src/ai/plan.ts', 'src/browser/encounter-ui.ts', 'docs/design/pace-v27.md'],
     actionTypes: ['Attack', 'Capture'],

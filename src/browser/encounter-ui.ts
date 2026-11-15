@@ -22,7 +22,7 @@ export function encounterToast(payload: VisibleEvent['payload'], view: PlayerVie
   if (payload.type === 'WildExhausted' && payload.playerId === me && payload.firstEncounter) {
     const tuning = openingTuning(content), name = content.species[payload.speciesId]?.name ?? '宝可梦';
     return { tone: 'growth', icon: EXHAUSTED_GLYPH, title: `野生的${name}力竭了！`,
-      detail: `现在扔球：捕捉率 +${tuning.exhaustCaptureBonus}%${viewFirstBallUsed(view) ? '' : '，你的第一颗球必中'}。初次遭遇：经验 +${payload.xp}、科研 +${payload.science}。`
+      detail: `现在扔球：捕捉率 +${tuning.exhaustCaptureBonus}%${viewFirstBallUsed(view) ? '' : '（你的第一颗球对任何野生宝可梦都必中）'}。初次遭遇：经验 +${payload.xp}、科研 +${payload.science}。`
         + `力竭到第 ${payload.untilRound} 轮结束，期间它不攻击、不移动。`,
       target: { kind: 'unit', unitId: payload.unitId }, action: '捕捉', key: `exhausted:${payload.targetUnitId}` };
   }
@@ -32,10 +32,11 @@ export function encounterToast(payload: VisibleEvent['payload'], view: PlayerVie
 export function exhaustedLine(view: PlayerView, unit: MapUnit, content: Content = contentForView(view)): string | null {
   if (!content.wildEncounters || unit.ownerId !== null || !isExhausted(unit, view.round)) return null;
   const left = unit.exhaustedUntilRound! - view.round + 1;
-  return `力竭：不攻击、不移动，捕捉率 +${openingTuning(content).exhaustCaptureBonus}%${viewFirstBallUsed(view) ? '' : '（你的第一颗球必中）'} · 还剩 ${left} 轮`;
+  return `力竭：不攻击、不移动，捕捉率 +${openingTuning(content).exhaustCaptureBonus}% · 还剩 ${left} 轮`;
 }
-/** The capture-preview note for a target (exhausted bonus or the certain first ball); '' when none applies. */
+/** The capture-preview note for a target (the certain first ball, or the exhausted bonus); '' when none applies. */
 export function captureNote(view: PlayerView, target: MapUnit | undefined, content: Content = contentForView(view)): string {
-  if (!target || !content.wildEncounters || !isExhausted(target, view.round)) return '';
-  return viewFirstBallUsed(view) ? `（力竭 +${openingTuning(content).exhaustCaptureBonus}%）` : '（力竭：第一颗球必中）';
+  if (!target || !content.wildEncounters || target.ownerId !== null) return '';
+  if (!viewFirstBallUsed(view)) return '（第一颗球必中）';
+  return isExhausted(target, view.round) ? `（力竭 +${openingTuning(content).exhaustCaptureBonus}%）` : '';
 }

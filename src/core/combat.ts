@@ -231,12 +231,12 @@ export function applyCombatAction(state: GameState, actor: number, action: Comba
   const target = state.units[action.targetUnitId];
   if (target.kind !== 'pokemon') throw new Error('Expected wild pokemon');
   const definition = content.species[target.speciesId];
-  // v27 ② (pace-v27 §3.1): exhausted targets +25 (cap 95); the first ball on an exhausted target is certain and draws nothing.
+  // v27 ② (pace-v27 §3.1, §13.4): the first ball after domestication is certain and draws nothing; exhausted targets +25 (cap 95).
   const probability = encounterCaptureChance(Math.min(100, captureProbability(definition.maxHp, target.hp, action.ballId === 'greatBall' ? 1500 : 1000,
     hasTech(state, actor, 'fieldObservation'), definition.rare) + playerPolicyEffects(state, actor).captureBonus
     + leaderCaptureBonus(state, actor) + researchCaptureBonus(state, actor, target.speciesId)), isExhausted(target, state.round), firstBallUsed(state, actor), content);
   player.ballInventory[action.ballId]--;
-  const success = useFirstBall(state, actor, target, content) || randomBelow(state.rng, 100) < probability;
+  const success = useFirstBall(state, actor, content) || randomBelow(state.rng, 100) < probability;
   if (success) { target.ownerId = actor; target.actionLeft = 0; target.wildHome = null; delete target.exhaustedUntilRound; registerSpecies(player, target); player.gold += leaderEffects(player.leaderId).captureGold; }
   else target.enraged = true;
   return [{ type: 'Captured', playerId: actor, unitId: unit.id, targetUnitId: target.id, success, probability }];

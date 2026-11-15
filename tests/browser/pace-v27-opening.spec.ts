@@ -1,9 +1,9 @@
 // Gameplay v27 opening lane (docs/design/pace-v27.md §2.4, §3.4): real v27 AI games loaded through the menu, real input.
-// 1. An exhausted wild Pokémon: the tile card says so, the capture preview says the first ball is certain (100%), the capture succeeds.
+// 1. The first ball after domestication: the capture preview says it is certain (100%) on a wild Pokémon, the capture succeeds.
 // 2. A civilian next to a wild Pokémon: ending the turn (Shift+click) lets the round's wild phase startle it — the rail shows the notice.
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { exhaustedFixture, startledFixture } from './fixtures/pace-v27.ts';
+import { firstBallFixture, startledFixture } from './fixtures/pace-v27.ts';
 import type { Hex } from '../../src/core/hex.ts';
 import type { GameState, MapUnit } from '../../src/core/model.ts';
 
@@ -31,18 +31,18 @@ async function endTurn(page: Page) {
   await expect(page.locator('#end-turn')).toBeEnabled({ timeout: 60_000 });
 }
 
-test('v27 wild encounters: an exhausted wild Pokémon is caught with the certain first ball', async ({ page }) => {
+test('v27 wild encounters: the first wild Pokémon is caught with the certain first ball', async ({ page }) => {
   test.setTimeout(300_000);
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(String(error)));
-  const fixture = exhaustedFixture();
+  const fixture = firstBallFixture();
   await importSave(page, fixture.save);
-  // Aim the capture at the exhausted target: the preview names the rule and shows 100%.
+  // Aim the capture at the wild target: the preview names the rule and shows 100%.
   await page.locator('#unit-select').selectOption(String(fixture.unitId));
   await page.locator('#capture-unit').click();
   await clickHex(page, fixture.target);
-  await expect(page.locator('#capture-preview')).toContainText('捕捉成功率 100%（力竭：第一颗球必中）');
-  await page.screenshot({ path: `${shots}/pace-v27-exhausted-capture.png` });
+  await expect(page.locator('#capture-preview')).toContainText('捕捉成功率 100%（第一颗球必中）');
+  await page.screenshot({ path: `${shots}/pace-v27-first-ball.png` });
   // Confirm with a second click: the wild Pokémon joins seat 0.
   await clickHex(page, fixture.target);
   await expect.poll(async () => (await state(page)).units[fixture.targetId]?.ownerId).toBe(0);

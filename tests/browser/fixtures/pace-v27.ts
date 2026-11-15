@@ -12,6 +12,8 @@ import { observe } from '../../../src/core/vision.ts';
 import { step } from '../../../src/core/step.ts';
 import { gameVersions } from '../../../src/core/versions.ts';
 import { isExhausted } from '../../../src/core/wild-encounters.ts';
+import { viewIsRivalUnit } from '../../../src/core/rivals.ts';
+import { viewIsRaidUnit } from '../../../src/core/raids.ts';
 import { serializeSave } from '../../../src/app/save.ts';
 import type { CommandLog } from '../../../src/app/session.ts';
 import type { AiPersonality, Command, GameEvent, GameSetup, GameState, PlayerView } from '../../../src/core/model.ts';
@@ -60,11 +62,11 @@ function first(key: string, moment: Moment, until: number, confirm?: (state: Gam
   throw new Error(`No game reached the ${key} moment`);
 }
 
-/** Seat 0 has domestication, a Poké Ball and its first ball unused, and a ready Pokémon next to an exhausted wild one (target = it). */
-export const exhaustedFixture = () => first('exhausted', view => {
+/** Seat 0 has domestication, a Poké Ball and its first ball unused, and a ready Pokémon next to a catchable wild one (target = it). */
+export const firstBallFixture = () => first('firstBall', view => {
   const player = view.economy.player;
   if (!player.research.unlockedIds.includes('domestication') || player.ballInventory.pokeBall < 1 || view.expansion?.wildEncounters?.firstBallUsed !== false) return undefined;
-  for (const target of view.units.filter(unit => unit.ownerId === null && unit.kind === 'pokemon' && isExhausted(unit, view.round))) {
+  for (const target of view.units.filter(unit => unit.ownerId === null && unit.kind === 'pokemon' && !viewIsRivalUnit(view, unit.id) && !viewIsRaidUnit(view, unit.id))) {
     const own = view.units.find(unit => unit.ownerId === 0 && unit.kind === 'pokemon' && unit.actionLeft === 1 && hexDistance(unit.position, target.position, view.map) === 1);
     if (own) return { unitId: own.id, targetId: target.id, target: { ...target.position } };
   }

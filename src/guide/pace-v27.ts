@@ -18,9 +18,9 @@ export const PACE_V27_SECTIONS: readonly GuideSection[] = [
     <p>野外战斗的结局从“它把你打回家”变成“你决定抓不抓”。</p>
     <ul>
       <li>${uiIcon('exhausted', { size: 16, label: '力竭' })} <strong>力竭</strong>：野生宝可梦（不含劲敌和极巨巢穴的首领）被任何文明的攻击打到 <strong>HP ≤ ${O.exhaustHpPercent}%</strong> 时力竭 ${O.exhaustRounds} 轮：轮末不攻击、不移动，地图上变灰并顶着汗滴标记；捕捉成功率 <strong>+${O.exhaustCaptureBonus}%</strong>（最多 ${O.exhaustCaptureCap}%，不会因此变低）。力竭结束时 HP 若仍 ≤ ${O.exhaustHpPercent}%，恢复到 ${O.exhaustRecoverPercent}% 并照常行动。每只野生宝可梦只会力竭一次。</li>
-      <li><strong>第一颗球</strong>：每个文明对力竭野生宝可梦的<strong>第一次捕捉必定成功</strong>（不抽随机数，“大木博士的教学”），之后照常按概率。捕捉预览会写“力竭：第一颗球必中”。</li>
+      <li><strong>第一颗球</strong>：研究完「驯化」后，每个文明的<strong>第一次捕捉必定成功</strong>——对任何相邻的野生宝可梦都一样，不必先打残（不抽随机数，“大木博士的教学”）；之后照常按概率，力竭目标 +${O.exhaustCaptureBonus}%。捕捉预览会写“第一颗球必中”。</li>
       <li><strong>初次遭遇</strong>：第 ${O.encounterBeforeRound} 轮前，你第一次把某个物种打到力竭时，出手的宝可梦经验 +${O.encounterXp}、科研 +${O.encounterScience}，并收到“野生的 X 力竭了！”通知（点“捕捉”选中那只宝可梦，再按 Q）。</li>
       <li><strong>新手保护</strong>：第 ${O.protectionLastRound} 轮（含）之前，被<strong>野生</strong>宝可梦打倒的宝可梦只休养 ${O.protectionRounds} 轮（平时 2–3 轮），回来时 HP ${O.protectionHpPercent}%（平时 25%）。劲敌、别的文明和巢穴首领不变。</li>
     </ul>
-    ${tip('“先打残、再扔球”：驯化后让一只宝可梦攻击相邻的野生宝可梦，看到汗滴标记就按 Q。力竭只持续 2 轮，球不够时在城市的「物资采购」里买。')}` },
+    ${tip('第一颗球留给你最想要的物种。之后“先打残、再扔球”：攻击相邻的野生宝可梦，看到汗滴标记就按 Q。力竭只持续 2 轮，球不够时在城市的「物资采购」里买。')}` },
 ];

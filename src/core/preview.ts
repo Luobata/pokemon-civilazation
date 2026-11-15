@@ -119,7 +119,7 @@ export function previewCapture(view: PlayerView, unitId: number, targetUnitId: n
   // v26 D: a raid boss cannot be caught.
   if (viewIsRaidUnit(view, target.id)) return { ok: false, reason: 'capture-raid' };
   const definition = content.species[target.speciesId];
-  // v27 ②: the same encounter rule as the authority (exhausted +25, the first ball certain).
+  // v27 ②: the same encounter rule as the authority (the first ball certain, exhausted +25).
   return { ok: true, probability: encounterCaptureChance(Math.min(100, captureProbability(definition.maxHp, target.hp, ballId === 'greatBall' ? 1500 : 1000,
     player.research.unlockedIds.includes('fieldObservation'), definition.rare) + viewPolicyEffects(view).captureBonus + leaderEffects(player.leaderId).captureBonus
     + (player.leaderId === 'giovanni' && (view.expansion?.leaders.activeUntilRound ?? 0) >= view.round ? 15 : 0) + viewResearchCaptureBonus(view, target.speciesId)),
