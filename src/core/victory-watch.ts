@@ -4,10 +4,11 @@
 import { lateTuning } from '../content/depth-v26.ts';
 import { victoryTargets } from '../content/opening.ts';
 import { CIVILIZATION_CONTENT } from '../content/civilization-systems.ts';
-import { FAITH_RULES } from '../content/faith-legends.ts';
 import type { Content } from '../content/units.ts';
 import { CONTEST_RULES, contestMinimum } from './contests.ts';
 import { faithCities } from './faith-legends.ts';
+import { faithWinCount } from './opening-safety.ts';
+import { contentFor } from '../content/units.ts';
 import type { EventPayload, GameState } from './model.ts';
 
 export type VictoryRoute = 'conquest' | 'pokedex' | 'origin' | 'championship' | 'contest' | 'faith';
@@ -36,7 +37,7 @@ export function victoryProgress(state: GameState, playerId: number, content?: Co
     origin: percent(tablets, CIVILIZATION_CONTENT.sanctuaries.definitions.length),
     championship: percent(titles, (state.setup.gameplayVersion ?? 0) >= 21 ? victoryTargets(state.setup).championshipTitles : CIVILIZATION_CONTENT.championship.titlesNeededForVictory),
     contest: contests ? percent(appeal, contestTarget) : 0,
-    faith: faith ? percent(followers, Math.max(victoryTargets(state.setup).faithMinimumCities, Math.ceil(counted.length * FAITH_RULES.winShare))) : 0,
+    faith: faith ? percent(followers, Math.max(victoryTargets(state.setup).faithMinimumCities, faithWinCount(counted.length, content ?? contentFor(state.setup)))) : 0,
   };
 }
 /** No flag of its own: it comes with the late-game lanes (the v26 content sets them all). */

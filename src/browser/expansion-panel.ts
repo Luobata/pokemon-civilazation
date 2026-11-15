@@ -1,3 +1,4 @@
+import { viewFaithWinCount } from '../core/opening-safety.ts';
 import { leaderUnitFor, stoneEvolutionsFor } from '../content/roster.ts';
 import { FAITH_RULES, LEGENDS, LEGEND_IDS, TENETS, TENET_IDS } from '../content/faith-legends.ts';
 import type { LegendId, TenetId } from '../content/faith-legends.ts';
@@ -113,7 +114,7 @@ export function renderExpansionPanel(view: PlayerView, selectedUnitId: number | 
     const mineFaith = legendFaith.faiths.find(item => item.founderId === player.id);
     const offeringNow = exp.civilization.player;
     const free = LEGEND_IDS.filter(id => !legendFaith.faiths.some(item => item.legend === id));
-    const needed = Math.ceil(legendFaith.totalCities * legendFaith.winShare);
+    const needed = viewFaithWinCount(legendFaith);
     let body = `<p>累计供奉 ${FAITH_RULES.foundLifetime} 点后可花 ${FAITH_RULES.foundCost} 供奉点创立一个传说信仰（每个传说只能被一个文明选择），并选择 2 条教义。拥有圣所，或在有属性道馆或华丽大赛馆的城市里，都可以供奉。</p>`
       + `<p>供奉点 ${offeringNow.offeringPoints} · 累计 ${offeringNow.lifetimeOfferings}</p>`;
     if (!mineFaith) {

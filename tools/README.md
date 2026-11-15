@@ -15,6 +15,7 @@
 | `compare-games.ts` | `node tools/compare-games.ts /path/to/baseline /path/to/candidate`；要求两边 `games/*.json` 文件集合相同，逐字节比较，不归一化版本或 JSON。差异时非零退出。 |
 | `telemetry.ts` | 模拟器内部使用 `createTelemetry(state)`、`collectTelemetry(data, before, after, command, events)` 记录活动和战斗；`roundSnapshot(state, round)`、`uniqueScoreLeader(snapshot)` 记录第 30 轮领先者。无独立 CLI。 |
 | `regional-dex.ts` | v25 地区图鉴校验（`docs/design/roster-v25.md` §4.2）：`node tools/regional-dex.ts --eras simple --seeds 1-1000 [--size 48] [--leaders rotation\|none\|oak,misty] [--show 31] [--gaps] [--json out.json]`；用游戏里的 `drawRegionalDex` / `deriveRosterTables`，输出兵种 × 阶段矩阵与内容缺口、约束满足率、两两重合、入选率与招募槽。 |
+| `opening-probe.ts` | v27 开局探针（`docs/design/pace-v27.md` §0、§13.2）：`node tools/opening-probe.ts --gameplay 27 [--seeds 31-38] [--stop 36] [--workers 12] --out /tmp/opening-v27.jsonl` 重放 216 个门槛开局（`gate` 预设、图鉴轮换），逐文明记第三城、被野生打倒的职能单位、首捕（是否第一颗球）、御三家被打倒、受惊撤退与力竭；`--summary a.jsonl [b.jsonl]` 汇总并与基线逐局配对。 |
 | `balance-run.ts` 等 | 平衡门槛：并行跑批、报告、参数扫描，见下方[平衡门槛](#平衡门槛balance-run--balance-report--balance-sweep)。 |
 | `rejections.ts` | 模拟器内部调用 `classifyRejection(state, command, reason, content?)`，区分迷雾下合法尝试被拒与缺陷。无独立 CLI。 |
 

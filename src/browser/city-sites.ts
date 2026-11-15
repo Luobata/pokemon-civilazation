@@ -21,7 +21,9 @@ import { fieldTurns, goToField, hostilesNear, isSettler } from './waypoints.ts';
 
 /** Why a site scored what it did: yields within 2 tiles, resources, fresh water, coast, essence sources, turns away, danger. */
 export type SiteReasons = { food: number; production: number; gold: number; research: number; resources: number; freshWater: boolean;
-  coast: boolean; essences: number; turns: number; danger: boolean; unexplored: number };
+  coast: boolean; essences: number; turns: number; danger: boolean; unexplored: number;
+  /** v27 (pace-v27 §2.4): unexplored tiles within 3 may hide a city that makes founding fail (the AI takes the same risk). */
+  hiddenCityRisk?: true };
 export type CitySite = { index: number; position: Hex; score: number; rank: number; reasons: SiteReasons };
 
 /** §7.3 weights. */
@@ -65,7 +67,7 @@ export function suggestCitySites(view: PlayerView, settlerId: number, count = 3,
     const reasons: SiteReasons = { food: 0, production: 0, gold: 0, research: 0, resources: 0, freshWater: freshWater(view.map, position),
       coast: neighbors(position, view.map).some(hex => view.map.tiles[hexToIndex(hex, view.map) ?? -1] === 'ocean'), essences: 0, turns,
       danger: hostilesNear(view, position, 1).some(id => view.units.find(unit => unit.id === id)?.kind === 'pokemon')
-        || nests.some(nest => hexDistance(nest, position, view.map) <= 3), unexplored };
+        || nests.some(nest => hexDistance(nest, position, view.map) <= 3), unexplored, ...(content.openingSafety && unexplored ? { hiddenCityRisk: true as const } : {}) };
     const essences = new Set<EssenceId>();
     for (const tile of area) {
       const info = yieldOf(tile);

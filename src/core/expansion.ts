@@ -16,6 +16,7 @@ import { applyContestSeasonAction, initializeContestSeasons, isContestSeasonActi
 import { applyRivalDuelAction, isRivalDuelAction, validateRivalDuelAction } from './rival-duels.ts';
 import { initializeRaids, recordRaids, resolveRaidRound } from './raids.ts';
 import { applyMaxRaidAction, isMaxRaidAction, validateMaxRaidAction } from './max-raids.ts';
+import { initializeWildEncounters } from './wild-encounters.ts';
 import { recordLegendRace } from './legend-race.ts';
 import { recordOpeningGift } from './opening-gift.ts';
 import { initializeVictoryWatch, resolveVictoryWatchRound } from './victory-watch.ts';
@@ -68,6 +69,8 @@ export function initializeExpansion(state: GameState, content: Content): void {
   initializeVictoryWatch(state, content);
   initializeGoldSinks(state, content);
   initializeContestSeasons(state, content);
+  // v27 ② (pace-v27 §3): no-op unless the content has wild encounters.
+  initializeWildEncounters(state, content);
 }
 export function validateExpansionAction(state: GameState, actorId: number, action: Command['action'], content: Content): boolean {
   if (!state.expansion || !expansionActionType(action.type)) return false;

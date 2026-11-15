@@ -19,7 +19,11 @@ export function resolveRecovery(state: GameState, content: Content = contentFor(
     if (unit.location !== 'recovering') continue;
     if (unit.roundsLeft > 0) {
       unit.roundsLeft--;
-      if (unit.roundsLeft === 0) unit.hp = Math.floor(maxUnitHp(unit, content) * 250 / 1000);
+      // v27 newbie protection: back at `recoverHpPercent` (pace-v27 §3.1); 25% otherwise.
+      if (unit.roundsLeft === 0) {
+        unit.hp = unit.recoverHpPercent === undefined ? Math.floor(maxUnitHp(unit, content) * 250 / 1000) : Math.floor(maxUnitHp(unit, content) * unit.recoverHpPercent / 100);
+        delete unit.recoverHpPercent;
+      }
     }
     if (unit.roundsLeft > 0) continue;
     const city = state.cities[unit.cityId];

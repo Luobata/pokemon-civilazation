@@ -15,6 +15,8 @@ const GLYPH_ICONS: Record<string, UiIconName> = {
   '⚑': 'building', '↑': 'citizen', '↓': 'damaged', '✚': 'medicine', '✔': 'check', '◓': 'pokeBall', '◆': 'badge', '◇': 'gym', '♚': 'trophy',
   '⚔': 'swords', '✕': 'damaged', '✖': 'heart', '☠': 'damaged', '!': 'swords', '…': 'move', '⌃': 'eraScore', '✉': 'handshake', '◷': 'eraScore',
   '✧': 'wonder', '♛': 'wonder',
+  // v27 ① ②: a startled civilian, an exhausted wild Pokémon.
+  '‼': 'startled', '≋': 'exhausted',
 };
 const railIcon = (glyph: string, size = 24) => GLYPH_ICONS[glyph] ? uiIcon(GLYPH_ICONS[glyph]!, { size, className: 'toast-pixel' }) : glyph;
 

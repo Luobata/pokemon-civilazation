@@ -51,6 +51,8 @@ import { planRivalDuel } from './rival-duel-plan.ts';
 import { raidAttackBonus, raidMoveTargets } from './raid-plan.ts';
 import { planMaxRaidAction } from './max-raid-plan.ts';
 import { cityProjectCandidates } from './project-plan.ts';
+import { exhaustAttackBonus } from './encounter-plan.ts';
+import { isExhausted } from '../core/wild-encounters.ts';
 import { researchCaptureScore } from './research-plan.ts';
 import { embarkResearchBonus, isBoarding, moverOf, nearestTravel, safeToBoard, travelCloser, travelDistance, walkerTravel } from './travel.ts';
 import { canEnterTile, waterAccess } from '../core/movement.ts';
@@ -68,7 +70,8 @@ export function canCaptureByPersonality(view: PlayerView, target: MapUnit, query
   if (target.kind !== 'pokemon' || target.ownerId !== null || viewIsRivalUnit(view, target.id)) return false;
   const strategy = AI_STRATEGIES[view.economy.player.personality], ai = query.ai ?? AI_THRESHOLDS;
   const content = query.content === CONTENT ? contentForView(view) : query.content;
-  if (strategy.captureHpPercent !== null && target.hp * 100 >= content.species[target.speciesId].maxHp * ai[strategy.captureHpPercent]) return false;
+  // v27 ② (pace-v27 §3.3): an exhausted target is low enough for every personality.
+  if (strategy.captureHpPercent !== null && !(content.wildEncounters && isExhausted(target, view.round)) && target.hp * 100 >= content.species[target.speciesId].maxHp * ai[strategy.captureHpPercent]) return false;
   if (strategy.captureTerritoryOnly !== null && ai[strategy.captureTerritoryOnly]) {
     const tile = hexToIndex(target.position, view.map);
     return tile !== null && (view.territoryOwnerIds[tile]?.includes(view.playerId) ?? false);
@@ -121,7 +124,7 @@ export function siegeObjectives(view: PlayerView, ai: AiThresholds = AI_THRESHOL
 export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, memory: readonly RejectedCitySite[] = []): Command {
   const actorId = view.playerId, player = view.economy.player, content = query.content === CONTENT ? contentForView(view) : query.content, ai = query.ai ?? AI_THRESHOLDS;
   const strategy = AI_STRATEGIES[player.personality], declaration = strategy.declareWar;
-  const citySite = (position: MapUnit['position']) => !rejectedCitySite(memory, view, position) && query.citySite(view, position);
+  const citySite = (position: MapUnit['position']) => !rejectedCitySite(memory, view, position) && query.citySite(view, position, content);
   const result = (action: Command['action']): Command => ({ actorId, expectedSeq: view.commandSeq, action });
   if (view.outcome || view.activePlayerId !== actorId || player.eliminated) return result({ type: 'EndTurn' });
   // v22: a pending era dedication is chosen before anything else (never left open at the end of the turn).
@@ -311,12 +314,15 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
   // at once), and enemies at war move first (within 3); logistics units never step into that reach unless they found a city there, and step out.
   const warEnemies = new Set(view.diplomacy.filter(pair => pair.status === 'war' && (pair.a === actorId || pair.b === actorId)).map(pair => pair.a === actorId ? pair.b : pair.a));
   const wanderers = wanderersFor(content);
-  const strikers = v24Ai ? view.units.filter(other => other.kind === 'pokemon' && (other.ownerId === null ? !wanderers.includes(other.speciesId) && !viewIsRivalUnit(view, other.id) : warEnemies.has(other.ownerId))) : [];
+  // v27 ②: an exhausted wild Pokémon does not strike, so civilians may pass it.
+  const strikers = v24Ai ? view.units.filter(other => other.kind === 'pokemon' && (other.ownerId === null ? !wanderers.includes(other.speciesId) && !viewIsRivalUnit(view, other.id)
+    && !(content.wildEncounters && isExhausted(other, view.round)) : warEnemies.has(other.ownerId))) : [];
   const exposed = (position: MapUnit['position']) => strikers.some(other => hexDistance(other.position, position, view.map) <= (other.ownerId === null ? 1 : 3));
   // v24 AI (rival chasing): a response team — favourable matchups only, at most half of the Pokémon, none from another front (an enemy
   // at war within 3), escorts and the sanctuary team stay — goes after the own rival's Pokémon, under the personality's first of
   // economy / military so capture, garrison and gym moves do not pull it away. Empty before v24.
   const rivalGoal = strategy.priorities.find(goal => goal === 'economy' || goal === 'military')!;
+  const firstGoal = strategy.priorities.find(goal => goal !== 'diplomacy')!;
   const rivalTeam = rivalResponseTeam(view, content, unit => escortTargets.has(unit.id) || sanctuaryTeam.includes(unit.id)
     || view.units.some(other => other.ownerId !== null && warEnemies.has(other.ownerId) && hexDistance(other.position, unit.position, view.map) <= 3)
     || known.some(city => city.ownerId !== null && warEnemies.has(city.ownerId) && hexDistance(city.position, unit.position, view.map) <= 3));
@@ -344,19 +350,26 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
       const candy = evolution && unit.xp < evolution.xp ? candyGold(view, player, view.eraProgression, content.species[unit.speciesId].stage, evolution.gold) : null;
       if (evolution && !needsStone && (unit.xp >= evolution.xp ? player.gold >= evolution.gold : candy !== null && player.gold >= candy + 60) && (!evolution.requiresTraining || player.research.unlockedIds.includes('training'))) add({ type: 'Evolve', unitId: unit.id, intoSpeciesId: evolution.speciesId }, 'military', 200, unit.id);
       for (const target of view.units.filter(target => target.ownerId !== actorId).sort((a, b) => a.id - b.id)) {
+        // v27 ② (pace-v27 §3.3): an exhausted target is caught now, under the personality's first goal (it lasts 2 rounds).
+        const exhaustedTarget = Boolean(content.wildEncounters) && target.ownerId === null && isExhausted(target, view.round);
+        let catchable = false;
         if (canCaptureByPersonality(view, target, query)) for (const ballId of ['pokeBall', 'greatBall'] as BallId[]) {
           const preview = query.capture(view, unit.id, target.id, ballId, content);
-          if (preview.ok) add({ type: 'Capture', unitId: unit.id, targetUnitId: target.id, ballId }, 'capture', preview.probability
+          catchable ||= preview.ok;
+          if (preview.ok) add({ type: 'Capture', unitId: unit.id, targetUnitId: target.id, ballId }, exhaustedTarget ? firstGoal : 'capture', preview.probability
             + captureBonus(target) + siegeCaptureBonus(target) + (target.kind === 'pokemon' ? captureRoleBonus(view, target.speciesId, content) : 0) + researchCaptureScore(view, target), unit.id, target.id);
         }
         // v24 C: the own rival's Pokémon are worth +50 (a reward); another civilization's rival is left alone.
         const rival = rivalAttackBonus(view, target);
+        // v27 ②: never knock out an exhausted wild Pokémon this unit can catch instead.
+        if (exhaustedTarget && catchable) continue;
         const preview = query.attack(view, unit.id, { kind: 'unit', id: target.id }, content);
         if (rival !== null && preview.ok && preview.damage.min > 0 && (target.ownerId === null || !strategy.defendTerritoryOnly || canSiege(view, target.ownerId, ai)
           || cities.some(city => hexDistance(city.position, target.position, view.map) <= workRadius(city)))) add({ type: 'Attack', unitId: unit.id, target: { kind: 'unit', id: target.id } },
           // Wild-target weakening competes with capture; it is neither military training nor civilization defense.
           target.ownerId === null && !rival ? strategy.wildAttackGoal : 'military',
-          preview.damage.min - preview.counter.damage + (target.ownerId !== null ? 200 : 0) + (rival ?? 0) + raidAttackBonus(view, target), unit.id, target.id);
+          preview.damage.min - preview.counter.damage + (target.ownerId !== null ? 200 : 0) + (rival ?? 0) + raidAttackBonus(view, target)
+            + exhaustAttackBonus(view, target, preview.damage.min, content), unit.id, target.id);
         if (rival && rivalTeam.has(unit.id) && preview.ok && preview.damage.min > 0) add({ type: 'Attack', unitId: unit.id, target: { kind: 'unit', id: target.id } }, rivalGoal,
           400 + preview.damage.min - preview.counter.damage, unit.id, target.id);
       }

@@ -1,5 +1,6 @@
 // What the selected unit could do to the things on one tile: attack damage, counter-attack,
 // capture chance, or why not. Reuses previewAttack/previewCapture (player knowledge only). Pure.
+import { captureNote } from './encounter-ui.ts';
 import { strengthTotals } from './strength-panel.ts';
 import { classModifierLabels } from '../core/unit-classes.ts';
 import { unitDefinition, contentForView } from '../content/units.ts';
@@ -47,7 +48,7 @@ export function targetPreviews(view: PlayerView, unitId: number | null, index: n
       for (const ballId of Object.keys(content.balls) as BallId[]) {
         if (!player.research.unlockedIds.includes(content.balls[ballId].requiredTech) && ballId !== 'pokeBall') continue;
         const preview = previewCapture(view, unit.id, target.id, ballId), label = `用${BALL_NAMES[ballId]}捕捉`;
-        if (preview.ok) { options.push({ label, ok: true, text: `成功率 ${preview.probability}% · 剩 ${player.ballInventory[ballId]} 个`, action: { type: 'Capture', unitId: unit.id, targetUnitId: target.id, ballId }, short: `${BALL_NAMES[ballId]} ${preview.probability}%` }); continue; }
+        if (preview.ok) { options.push({ label, ok: true, text: `成功率 ${preview.probability}%${captureNote(view, target)} · 剩 ${player.ballInventory[ballId]} 个`, action: { type: 'Capture', unitId: unit.id, targetUnitId: target.id, ballId }, short: `${BALL_NAMES[ballId]} ${preview.probability}%` }); continue; }
         const text = generic ?? (distance !== 1 ? `需要相邻才能捕捉（现在距离 ${distance}）。`
           : !player.research.unlockedIds.includes('domestication') ? '先研究「驯化」。'
           : player.ballInventory[ballId] < 1 ? `没有${BALL_NAMES[ballId]}：在城市的「物资采购」里购买。` : '现在不能捕捉。');

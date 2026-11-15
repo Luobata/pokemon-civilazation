@@ -1,3 +1,4 @@
+import { encounterCaptureChance, isExhausted, viewFirstBallUsed } from './wild-encounters.ts';
 import { wallBonus } from './opening.ts';
 import { viewResearchCaptureBonus } from './research-tasks.ts';
 import { cityCounterTerrain, cityStrikeTerrain, isEmbarked, unitStrikeTerrain } from './terrain.ts';
@@ -118,7 +119,9 @@ export function previewCapture(view: PlayerView, unitId: number, targetUnitId: n
   // v26 D: a raid boss cannot be caught.
   if (viewIsRaidUnit(view, target.id)) return { ok: false, reason: 'capture-raid' };
   const definition = content.species[target.speciesId];
-  return { ok: true, probability: Math.min(100, captureProbability(definition.maxHp, target.hp, ballId === 'greatBall' ? 1500 : 1000,
+  // v27 ②: the same encounter rule as the authority (exhausted +25, the first ball certain).
+  return { ok: true, probability: encounterCaptureChance(Math.min(100, captureProbability(definition.maxHp, target.hp, ballId === 'greatBall' ? 1500 : 1000,
     player.research.unlockedIds.includes('fieldObservation'), definition.rare) + viewPolicyEffects(view).captureBonus + leaderEffects(player.leaderId).captureBonus
-    + (player.leaderId === 'giovanni' && (view.expansion?.leaders.activeUntilRound ?? 0) >= view.round ? 15 : 0) + viewResearchCaptureBonus(view, target.speciesId)) };
+    + (player.leaderId === 'giovanni' && (view.expansion?.leaders.activeUntilRound ?? 0) >= view.round ? 15 : 0) + viewResearchCaptureBonus(view, target.speciesId)),
+    isExhausted(target, view.round), viewFirstBallUsed(view), content) };
 }

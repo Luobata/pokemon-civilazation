@@ -1,3 +1,4 @@
+import { exhaustedLine } from './encounter-ui.ts';
 import { LANDMARKS, TERRAIN_RULES_V24 } from '../content/terrain.ts';
 import { freshWater, isDeep, isHill, isLake, isLandmarkTile, isPeak, isPolarIce, isRiver, landmarkAt } from '../core/terrain.ts';
 import { ROLE_POKEMON } from '../content/roles.ts';
@@ -131,6 +132,8 @@ export function describeTile(view: PlayerView, index: number): TileInfo {
     const lines = [`${typeText([species.typeId, species.secondaryTypeId])} · ${ROLE_NAMES[species.role]} · 第 ${species.stage} 阶段`,
       `HP ${unit.hp}/${maxUnitHp(unit, content)} · 攻 ${species.attack} · 防 ${species.defense} · 移动 ${species.move + promotionMovement(view, unit.id)} · 射程 ${species.range}`];
     if (unit.enraged) lines.push('被激怒：下一次攻击伤害 ×1.2');
+    const exhausted = exhaustedLine(view, unit, content);
+    if (exhausted) lines.push(exhausted);
     const promotion = promotionLine(view, unit.id);
     if (promotion) lines.push(promotion);
     let subtitle: string, hint: string | undefined;

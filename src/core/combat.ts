@@ -33,6 +33,7 @@ import { isRivalUnit, rivalSpirit } from './rivals.ts';
 import { stateProtectedCivilian } from './stacking.ts';
 import { isRaidUnit } from './raids.ts';
 import { maxRaidHit } from './max-raids.ts';
+import { encounterCaptureChance, exhaustAfterStrike, firstBallUsed, isExhausted, protectedRecovery, useFirstBall } from './wild-encounters.ts';
 
 type Rejection = Extract<StepResult, { ok: false }>['reason'];
 const hasTech = (state: GameState, owner: number | null, tech: TechId) => owner !== null && state.players[owner].research.unlockedIds.includes(tech);
@@ -83,14 +84,16 @@ function experience(state: GameState, unit: MapUnit, base: number): void {
   const training = hasTech(state, unit.ownerId, 'training') ? 1250 : 1000;
   unit.xp += Math.floor(base * starter * training / 1_000_000);
 }
-function knockedDown(state: GameState, unit: MapUnit, sourceOwner: number | null, wildPhase: boolean, events: CombatEvent[]): void {
+function knockedDown(state: GameState, unit: MapUnit, sourceOwner: number | null, wildPhase: boolean, events: CombatEvent[], source: MapUnit | null = null, content?: Content): void {
   if (sourceOwner !== null) state.players[sourceOwner].knockdownCount++;
   if (unit.ownerId === null || unit.kind === 'logistics') { delete state.units[unit.id]; return; }
   const city = Object.values(state.cities).filter(city => city.ownerId === unit.ownerId)
     .sort((a, b) => hexDistance(unit.position, a.position, state.map) - hexDistance(unit.position, b.position, state.map) || a.id - b.id)[0];
   if (!city) throw new Error('Surviving civilization must own a city.');
-  const roundsLeft = Math.max(1, (wildPhase ? 2 : 3) - leaderEffects(state.players[unit.ownerId].leaderId).recoveryReduction);
-  state.units[unit.id] = { ...unit, location: 'recovering', position: null, cityId: city.id, roundsLeft, hp: 1, actionLeft: 0 };
+  // v27 ② newbie protection (pace-v27 §3.1): knocked out by a wild Pokémon up to round 30 — 1 round, back at 50% (null before v27).
+  const protection = content ? protectedRecovery(state, source, content) : null;
+  const roundsLeft = Math.max(1, (protection ? protection.roundsLeft : wildPhase ? 2 : 3) - leaderEffects(state.players[unit.ownerId].leaderId).recoveryReduction);
+  state.units[unit.id] = { ...unit, location: 'recovering', position: null, cityId: city.id, roundsLeft, hp: 1, actionLeft: 0, ...(protection ? { recoverHpPercent: protection.hpPercent } : {}) };
   events.push({ type: 'UnitRecovering', playerId: unit.ownerId, unitId: unit.id, cityId: city.id, roundsLeft });
 }
 function combatant(unit: MapUnit, content: Content): KnockdownCombatant {
@@ -128,10 +131,13 @@ function unitStrike(state: GameState, attacker: MapUnit, defender: MapUnit, coun
   attacker.enraged = false;
   defender.hp = Math.max(0, defender.hp - hit);
   experience(state, attacker, (hit > 0 ? 10 : 0) + (defender.hp === 0 && d ? 40 * d.stage : 0));
+  // v27 ② (pace-v27 §3.1): a wild Pokémon struck down to 40% is exhausted (null before v27).
+  const exhausted = exhaustAfterStrike(state, attacker, defender, content);
+  if (exhausted) events.push(exhausted);
   if (defender.hp === 0) {
     knockdowns.push({ source: combatant(attacker, content), target: combatant(defender, content), counter,
       effectiveness: d ? (state.expansion ? dualEffectiveness(content.species[attacker.speciesId].typeId, teraTypes(era, defender.id) ?? [d.typeId, ...(d.secondaryTypeId ? [d.secondaryTypeId] : [])], hasTech(state, attacker.ownerId, 'typeResearch')) : effectiveness(content.species[attacker.speciesId].typeId, d.typeId, d.immunities, hasTech(state, attacker.ownerId, 'typeResearch'))) : 100 });
-    knockedDown(state, defender, attacker.ownerId, wildPhase, events);
+    knockedDown(state, defender, attacker.ownerId, wildPhase, events, attacker, content);
   }
   return hit;
 }
@@ -225,12 +231,13 @@ export function applyCombatAction(state: GameState, actor: number, action: Comba
   const target = state.units[action.targetUnitId];
   if (target.kind !== 'pokemon') throw new Error('Expected wild pokemon');
   const definition = content.species[target.speciesId];
-  const probability = Math.min(100, captureProbability(definition.maxHp, target.hp, action.ballId === 'greatBall' ? 1500 : 1000,
+  // v27 ② (pace-v27 §3.1): exhausted targets +25 (cap 95); the first ball on an exhausted target is certain and draws nothing.
+  const probability = encounterCaptureChance(Math.min(100, captureProbability(definition.maxHp, target.hp, action.ballId === 'greatBall' ? 1500 : 1000,
     hasTech(state, actor, 'fieldObservation'), definition.rare) + playerPolicyEffects(state, actor).captureBonus
-    + leaderCaptureBonus(state, actor) + researchCaptureBonus(state, actor, target.speciesId));
+    + leaderCaptureBonus(state, actor) + researchCaptureBonus(state, actor, target.speciesId)), isExhausted(target, state.round), firstBallUsed(state, actor), content);
   player.ballInventory[action.ballId]--;
-  const success = randomBelow(state.rng, 100) < probability;
-  if (success) { target.ownerId = actor; target.actionLeft = 0; target.wildHome = null; registerSpecies(player, target); player.gold += leaderEffects(player.leaderId).captureGold; }
+  const success = useFirstBall(state, actor, target, content) || randomBelow(state.rng, 100) < probability;
+  if (success) { target.ownerId = actor; target.actionLeft = 0; target.wildHome = null; delete target.exhaustedUntilRound; registerSpecies(player, target); player.gold += leaderEffects(player.leaderId).captureGold; }
   else target.enraged = true;
   return [{ type: 'Captured', playerId: actor, unitId: unit.id, targetUnitId: target.id, success, probability }];
 }

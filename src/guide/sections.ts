@@ -5,6 +5,7 @@ import * as T from './tables.ts';
 import { OVERVIEW_SECTIONS, SYSTEM_SECTIONS } from './systems.ts';
 import { civ6Section } from './civ6.ts';
 import { LATE_GAME_SECTIONS } from './late-game.ts';
+import { PACE_V27_SECTIONS } from './pace-v27.ts';
 
 export type GuideSection = { id: string; group: string; title: string; badge?: string; html: string };
 
@@ -403,6 +404,8 @@ const CHAPTERS: readonly GuideSection[] = [
 
   // v26 late game (src/guide/late-game.ts).
   ...LATE_GAME_SECTIONS,
+  // v27 opening (src/guide/pace-v27.ts).
+  ...PACE_V27_SECTIONS,
   ...SYSTEM_SECTIONS,
 ];
 

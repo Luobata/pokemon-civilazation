@@ -6,6 +6,7 @@ import { observeRivals } from './rivals.ts';
 import { observeGoldSinks } from './gold-sinks.ts';
 import { observeContestSeasons } from './contest-seasons.ts';
 import { observeRaids } from './raids.ts';
+import { observeWildEncounters } from './wild-encounters.ts';
 import { observeLegendRace, withLegendRace } from './legend-race.ts';
 import { observeVictoryWatch } from './victory-watch.ts';
 import { observeResearchTasks } from './research-tasks.ts';
@@ -145,8 +146,9 @@ export function observe(state: GameState, playerId: number, content: Content = c
       ...(state.expansion.goldSinks ? { goldSinks: observeGoldSinks(state, playerId) } : {}),
       ...(state.expansion.contestSeasons ? { contestSeasons: observeContestSeasons(state, playerId, content) } : {}),
       ...(state.expansion.raids ? { raids: observeRaids(state, playerId, content) } : {}),
+      ...(state.expansion.wildEncounters ? { wildEncounters: observeWildEncounters(state, playerId) } : {}),
       ...(state.expansion.promotions ? { promotions: observePromotions(state, playerId, visible, hex => hexToIndex(hex, state.map)) } : {}),
-      ...(state.expansion.faith ? { faith: observeFaith(state, playerId) } : {}),
+      ...(state.expansion.faith ? { faith: observeFaith(state, playerId, content) } : {}),
       ...(state.expansion.contests ? { contests: observeContests(state, playerId, content) } : {}),
       ...(state.expansion.rareBerries ? { rareBerries: observeRareBerries(state, playerId, visible) } : {}),
       ...(state.expansion.eraAbilities ? { eraAbilities: observeEraAbilities(state, playerId, visible, hex => hexToIndex(hex, state.map)) } : {}) } } : {}),

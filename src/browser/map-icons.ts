@@ -474,6 +474,34 @@ const MARKER_ICONS = {
     'kRk...kRk',
     'k.......k',
   ], { R: '#E0483A' }),
+  /** v27 ② (pace-v27 §3.4): an exhausted wild Pokémon — a sweat drop and three dizzy arcs. */
+  exhausted: icon([
+    '.kk..kk..kk.',
+    'kYYkkYYkkYYk',
+    '.kk..kk..kk.',
+    '............',
+    '.......k....',
+    '......kBk...',
+    '.....kBBBk..',
+    '....kBBWBBk.',
+    '....kBBBWBk.',
+    '....kBBBBBk.',
+    '.....kBBBk..',
+    '......kkk...',
+  ], { Y: '#F2C14E', B: '#7EC8F0', W: '#E6F7FF' }),
+  /** v27 ① (pace-v27 §2.4): a startled civilian — an exclamation mark and a sweat drop. */
+  startled: icon([
+    '.kkk......',
+    '.kRk......',
+    '.kRk....k.',
+    '.kRk...kBk',
+    '.kRk..kBBk',
+    '.kRk..kBWk',
+    '.kkk..kBBk',
+    '.kkk...kk.',
+    '.kRk......',
+    '.kkk......',
+  ], { R: '#E0483A', B: '#7EC8F0', W: '#E6F7FF' }),
 } satisfies Record<string, IconDef>;
 
 const ICONS = { ...YIELD_ICONS, ...RESOURCE_ICONS, ...IMPROVEMENT_ICONS, ...DISTRICT_ICONS, ...MARKER_ICONS } as const;

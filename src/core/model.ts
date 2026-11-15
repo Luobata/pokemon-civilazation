@@ -1,3 +1,4 @@
+import type { WildEncounterEvent } from './wild-encounters.ts';
 import type { LegendWonderId } from '../content/legend-wonders.ts';
 import type { DistrictId } from '../content/districts.ts';
 import type { ObservedDistrict } from './districts.ts';
@@ -39,9 +40,13 @@ type UnitBase = UnitIdentity & { id: number; ownerId: number | null; actionLeft:
   /** Gameplay v16 only: movement points spent this round (absent = none). */
   movesSpent?: number;
   /** Gameplay v18 builders only: improvements left. */
-  charges?: number };
+  charges?: number;
+  /** Gameplay v27 wild Pokémon only (pace-v27 §3.1): exhausted through the end of this round; kept afterwards (a wild Pokémon is exhausted once). */
+  exhaustedUntilRound?: number };
 export type MapUnit = UnitBase & { location: 'map'; position: Hex };
-export type RecoveringUnit = UnitBase & { location: 'recovering'; cityId: number; roundsLeft: number; position: null };
+export type RecoveringUnit = UnitBase & { location: 'recovering'; cityId: number; roundsLeft: number; position: null;
+  /** Gameplay v27 newbie protection (pace-v27 §3.1): returns at this percent of its max HP (absent = 25%). */
+  recoverHpPercent?: number };
 export type UnitState = MapUnit | RecoveringUnit;
 export function isMapUnit(unit: UnitState): unit is MapUnit { return unit.location === 'map'; }
 export type ProductionItem = { kind: 'building'; defId: BuildingId }
@@ -137,6 +142,7 @@ export type CombatEvent =
   | { type: 'GameEnded'; outcome: GameOutcome }
   | { type: 'BattleResolved'; attackerId: number; target: CombatTarget; positions: Hex[]; damage: number; counterDamage: number; capturedCity: boolean; knockedDownUnitIds: number[]; knockdowns?: KnockdownRecord[] }
   | { type: 'Captured'; playerId: number; unitId: number; targetUnitId: number; success: boolean; probability: number }
+  | WildEncounterEvent
   | { type: 'Evolved'; playerId: number; unitId: number; speciesId: SpeciesId }
   | { type: 'UnitRecovering'; playerId: number; unitId: number; cityId: number; roundsLeft: number }
   | { type: 'UnitRecovered'; playerId: number; unitId: number; position: Hex }

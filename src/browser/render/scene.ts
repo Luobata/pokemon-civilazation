@@ -1,6 +1,7 @@
 // Scene building: decides WHAT the map shows, from the PlayerView and UI state only.
 // Pure (no DOM, no canvas), so fog and selection rules can be unit-tested in Node.
 // Positions are tile indices plus world coordinates; the camera is applied by the renderer.
+import { isExhausted } from '../../core/wild-encounters.ts';
 import { legendSprite } from '../legend-panel.ts';
 import { pendingPromotions } from '../../core/promotions.ts';
 import { LEGENDS } from '../../content/faith-legends.ts';
@@ -72,7 +73,9 @@ export type SceneUnit = { key: string; unit: UnitMarkIdentity; index: number; wo
   /** v13: number of promotion traits (public), and whether an own unit can be promoted now. */
   rank?: number; promotable?: boolean;
   /** Only while the unit is damaged (current < max); units in the scene are the visible ones. */
-  hp?: { current: number; max: number } };
+  hp?: { current: number; max: number };
+  /** v27 ②: an exhausted wild Pokémon (public unit state): drawn grey with the `exhausted` mark. */
+  exhausted?: true };
 export type SceneGoTo = { path: readonly number[]; stops: readonly { index: number; turn: number }[]; preview: boolean };
 export type SceneYield = { index: number; yields: Yield; workable: boolean; inFocus: boolean };
 export type SceneWeather = { key: string; color: string; mark: string; tiles: number[]; center: number | null };
@@ -252,7 +255,8 @@ export function buildScene(input: MapRenderInput): MapScene {
       ...(label ?? (viewRivalSighting(view, unit.id) ? '劲' : undefined) ? { status: label ?? '劲' } : {}),
       ...(promotion?.traits.length ? { rank: promotion.traits.length } : {}),
       ...(unit.ownerId === view.playerId && pendingPromotions(promotion) ? { promotable: true } : {}),
-      ...(unit.hp < maxHp ? { hp: { current: Math.max(0, unit.hp), max: maxHp } } : {}) };
+      ...(unit.hp < maxHp ? { hp: { current: Math.max(0, unit.hp), max: maxHp } } : {}),
+      ...(content.wildEncounters && unit.ownerId === null && isExhausted(unit, view.round) ? { exhausted: true as const } : {}) };
   });
 
   const mode = input.actionMode ?? null;

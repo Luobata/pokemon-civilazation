@@ -1,3 +1,4 @@
+import { captureNote } from './encounter-ui.ts';
 import { isEmbarked } from '../core/terrain.ts';
 import { strengthMarkup } from './strength-panel.ts';
 import { captureBlocker, evolutionState, foundingReason } from './unit-action-bar.ts';
@@ -149,7 +150,7 @@ export function renderUnitPanel(view: PlayerView, selected: number | null, mode:
       : `不可攻击：${reasonText(attackPreview.reason)}`
     : '选择红色虚线目标查看伤害、反击与击坠。';
   const captureText = capturePreview
-    ? capturePreview.ok ? `捕捉成功率 ${capturePreview.probability}%；使用${ballId === 'greatBall' ? '超级球' : '精灵球'}。`
+    ? capturePreview.ok ? `捕捉成功率 ${capturePreview.probability}%${captureNote(view, targetUnit ?? undefined)}；使用${ballId === 'greatBall' ? '超级球' : '精灵球'}。`
       : `不可捕捉：${reasonText(capturePreview.reason)}`
     : '选择野生宝可梦查看成功率。';
   const preview = mode === 'attack'

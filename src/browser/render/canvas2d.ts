@@ -478,7 +478,13 @@ function drawUnits(d: Draw, frame: AnimationFrame, camera: Camera) {
     }
     const shared = item.unit.kind !== 'pokemon' && pokemonTiles.has(item.index), base = centers[item.index];
     const p = shared ? { x: base.x + radius * .48, y: base.y + radius * .42 } : base;
-    unitMark(d, item.unit, p, item.actionLeft, item.enraged, shared ? .55 : 1);
+    if (item.exhausted) {
+      // v27 ②: an exhausted wild Pokémon is drawn grey, with the sweat-drop mark over its head.
+      context.save(); context.filter = 'grayscale(1) brightness(.9)';
+      unitMark(d, item.unit, p, item.actionLeft, item.enraged, shared ? .55 : 1);
+      context.restore();
+      if (d.onscreen(p)) drawIcon(context, 'exhausted', p.x + radius * .45, p.y - radius * .7, Math.max(12, radius * .5));
+    } else unitMark(d, item.unit, p, item.actionLeft, item.enraged, shared ? .55 : 1);
     if (item.status && d.onscreen(p)) {
       const q = { x: p.x - radius * .55, y: p.y - radius * .55 }, size = Math.max(8, radius * .28);
       context.beginPath(); context.arc(q.x, q.y, size, 0, Math.PI * 2); context.fillStyle = '#B15AD6'; context.fill();

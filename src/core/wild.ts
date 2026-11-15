@@ -16,6 +16,8 @@ import { isRivalUnit } from './rivals.ts';
 import { stateProtectedCivilian } from './stacking.ts';
 import { isRaidUnit } from './raids.ts';
 import { isDeep, isHill, isLandmarkTile, isPeak, isRiver } from './terrain.ts';
+import { exhaustedWildRests } from './wild-encounters.ts';
+import { startleCivilian } from './opening-safety.ts';
 import type { FeatureMap } from './terrain.ts';
 import { adjacentLandmarks } from './landmarks.ts';
 import { LANDMARK_RULES_V24, NIGHT_SPAWN_MULTIPLIER_V24 } from '../content/terrain.ts';
@@ -112,6 +114,8 @@ export function actWild(state: GameState, content: Content = contentFor(state.se
     // v24 C: rival trainers act in resolveRivalRound, not as wild Pokémon.
     // v26 D: a raid boss strikes in resolveRaidRound and never wanders.
     if (!unit || !isMapUnit(unit) || unit.kind !== 'pokemon' || state.expansion?.world.rampagingUnitIds.includes(id) || isRivalUnit(state, id) || isRaidUnit(state, id)) continue;
+    // v27 ② (pace-v27 §3.1): an exhausted wild Pokémon neither moves nor strikes (false before v27).
+    if (exhaustedWildRests(state, unit, content)) continue;
     if (wanderersFor(content).includes(unit.speciesId)) {
       const occupied = new Set(Object.values(state.units).filter(isMapUnit).map(other => hexToIndex(other.position, state.map)));
       const candidates = neighbors(unit.position, state.map).filter(position => {
@@ -127,7 +131,10 @@ export function actWild(state: GameState, content: Content = contentFor(state.se
       // v26 C2: a logistics unit sharing its tile with an own Pokémon is not struck (never before v26).
       const target = Object.values(state.units).filter(isMapUnit).filter(other => other.ownerId !== null && hexDistance(unit.position, other.position, state.map) === 1 && !stateProtectedCivilian(state, other, content))
         .sort((a, b) => a.id - b.id)[0];
-      if (target) events.push(...resolveAttack(state, id, { kind: 'unit', id: target.id }, content, true));
+      // v27 ① (pace-v27 §2.2 R1): a civilian flees instead of being struck when it can (null before v27).
+      const fled = target ? startleCivilian(state, unit, target, content) : null;
+      if (fled) events.push(...fled);
+      else if (target) events.push(...resolveAttack(state, id, { kind: 'unit', id: target.id }, content, true));
     }
   }
   return events;

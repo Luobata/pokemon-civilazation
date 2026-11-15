@@ -32,7 +32,7 @@ export function sitePinsMarkup(sites: readonly CitySite[]): string {
     return `<div class="site-pin" data-site-rank="${site.rank}" data-tile="${site.index}">
   <button type="button" class="site-pin-button" data-site="${site.index}" aria-label="${escapeAttr(label)}" aria-describedby="site-card-${site.index}">${uiIcon('sitePin', { size: 26 })}<b aria-hidden="true">${site.rank}</b></button>
   <div class="site-card" id="site-card-${site.index}" role="tooltip"><strong>${uiIcon('sitePin', { size: 16 })} 推荐城址 ${circled(site.rank)} <small>得分 ${site.score}</small></strong>
-    <span class="site-chips">${siteReasonChips(site)}</span><small>点击图钉：设路标前往，到达后按「建城」（B）。</small></div>
+    <span class="site-chips">${siteReasonChips(site)}</span>${site.reasons.hiddenCityRisk ? `<small class="site-fog">${uiIcon('cloud', { size: 14 })} 周围还有未探索的格子，可能有看不见的城市</small>` : ''}<small>点击图钉：设路标前往，到达后按「建城」（B）。</small></div>
 </div>`;
   }).join('');
 }

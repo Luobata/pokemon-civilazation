@@ -3,6 +3,8 @@ import { FAITH_RULES, LEGENDS, LEGEND_IDS, TENETS } from '../content/faith-legen
 import type { LegendId, TenetId } from '../content/faith-legends.ts';
 import { gameplayAtLeast } from '../content/eras.ts';
 import type { Content } from '../content/units.ts';
+import { contentFor } from '../content/units.ts';
+import { faithWinCount, faithWinShareView } from './opening-safety.ts';
 import { hexDistance } from './hex.ts';
 import type { MapShape } from './hex.ts';
 import { finishGame } from './victory.ts';
@@ -21,7 +23,9 @@ export type FaithAction =
 export type FaithEvent =
   | { type: 'FaithFounded'; playerId: number; legend: LegendId; tenets: TenetId[]; public: true }
   | { type: 'CityConverted'; playerId: number; cityId: number; legend: LegendId; public: true };
-export type FaithView = { faiths: (Faith & { followers: number })[]; cityFaith: Record<number, number>; ownPressure: Record<number, number>; totalCities: number; winShare: number };
+export type FaithView = { faiths: (Faith & { followers: number })[]; cityFaith: Record<number, number>; ownPressure: Record<number, number>; totalCities: number; winShare: number;
+  /** v27: the exact percent (the authority's integer rule; `winShare` = percent / 100). */
+  winSharePercent?: number };
 
 export const usesFaith = (state: Pick<GameState, 'setup' | 'expansion'>) => state.expansion !== undefined && gameplayAtLeast(state.setup, 9);
 export function isFaithAction(action: { type: unknown }): action is FaithAction { return action.type === 'FoundFaith' || action.type === 'SpreadFaith'; }
@@ -136,7 +140,8 @@ export function resolveFaithRound(state: GameState, content: Content): EventPayl
   const owned = Object.values(state.cities).filter(city => city.ownerId !== null), counted = faithCities(state), followsAll = gameplayAtLeast(state.setup, 26);
   if (counted.length >= victoryTargets(state.setup).faithMinimumCities) {
     const winners = Object.keys(faith.faiths).map(Number).filter(founder => !state.players[founder].eliminated
-      && counted.filter(city => faith.cityFaith[city.id] === founder).length >= Math.ceil(counted.length * FAITH_RULES.winShare)
+      // v27 ① R4: 70% of the counted cities (pace-v27 §2.2; 60% before).
+      && counted.filter(city => faith.cityFaith[city.id] === founder).length >= faithWinCount(counted.length, content)
       // Every living rival must follow it in at least one of their cities, so a faith cannot win by isolation. v26: every original rival —
       // an eliminated one through its former capital (whoever holds it now), so eliminating a non-follower no longer clears the condition.
       && state.turnOrder.filter(id => id !== founder && (followsAll || !state.players[id].eliminated)).every(rival => state.players[rival].eliminated
@@ -155,7 +160,7 @@ export function faithCities(state: Pick<GameState, 'cities' | 'setup'>): GameSta
   const cities = Object.values(state.cities);
   return gameplayAtLeast(state.setup, 25) ? cities : cities.filter(city => city.ownerId !== null);
 }
-export function observeFaith(state: GameState, playerId: number): FaithView | undefined {
+export function observeFaith(state: GameState, playerId: number, content: Content = contentFor(state.setup)): FaithView | undefined {
   const faith = state.expansion?.faith;
   if (!faith) return undefined;
   const owned = faithCities(state);
@@ -163,7 +168,7 @@ export function observeFaith(state: GameState, playerId: number): FaithView | un
     faiths: Object.values(faith.faiths).map(item => ({ ...item, tenets: [...item.tenets], followers: owned.filter(city => faith.cityFaith[city.id] === item.founderId).length })),
     cityFaith: { ...faith.cityFaith },
     ownPressure: Object.fromEntries(Object.entries(faith.pressure).map(([cityId, row]) => [Number(cityId), row[playerId] ?? 0])),
-    totalCities: owned.length, winShare: FAITH_RULES.winShare,
+    totalCities: owned.length, ...faithWinShareView(content),
   };
 }
 export const legendTypes = (legend: LegendId) => LEGENDS[legend].types;

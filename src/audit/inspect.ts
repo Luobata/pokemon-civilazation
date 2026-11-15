@@ -749,6 +749,21 @@ export function inspectSystem(systemId: string, state: GameState): AuditSystemIn
       ...Object.entries(circuit.badges).map(([id, list]) => metric(`玩家 ${id} 徽章`, `${list.length}${circuit.eliteFour[Number(id)]?.won ? ' · 已胜四天王' : ''}`))],
       data: { gyms: circuit.gyms, badges: circuit.badges, eliteFour: circuit.eliteFour } };
   }
+  // v27 opening lane (pace-v27 §2, §3).
+  if (system.id === 's-opening-safety') {
+    const content = contentFor(state.setup);
+    if (!content.openingSafety) return { metrics: [metric('当前规则', '未启用（需 v27）')], data: {} };
+    return { metrics: [metric('当前规则', '开局安全 v27'), metric('信仰门槛', `${content.pace27!.opening.faithWinSharePercent}%`), metric('AI 城址探索半径', content.pace27!.opening.aiSiteRadius)],
+      data: { opening: content.pace27!.opening } };
+  }
+  if (system.id === 's-wild-encounters') {
+    const ledger = state.expansion?.wildEncounters;
+    if (!ledger) return { metrics: [metric('当前规则', '未启用（需 v27）')], data: {} };
+    const exhausted = Object.values(state.units).filter(unit => unit.ownerId === null && unit.exhaustedUntilRound !== undefined && state.round <= unit.exhaustedUntilRound);
+    return { metrics: [metric('当前规则', '草丛遭遇 v27'), metric('力竭中的野生', exhausted.length),
+      ...Object.entries(ledger.encountered).map(([id, list]) => metric(`玩家 ${id} 初次遭遇`, `${list.length} 种${ledger.firstBall[Number(id)] ? ' · 第一颗球已用' : ''}`))],
+      data: { wildEncounters: ledger, exhaustedUnitIds: exhausted.map(unit => unit.id) } };
+  }
   // v26 lane 2 (depth-v26 §5, §7.2, §8).
   if (system.id === 's-gold-sinks') {
     const sinks = state.expansion?.goldSinks;

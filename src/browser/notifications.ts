@@ -29,6 +29,7 @@ import { rivalSays } from './gym-panel.ts';
 import { leagueCountdown, leagueSummary } from './league-card.ts';
 import { latestReplayKey, replayKey, storedReplay } from './battle-replay.ts';
 import { depthToast } from './late-game-ui.ts';
+import { encounterToast } from './encounter-ui.ts';
 import { civName } from './civ-names.ts';
 
 /** `battle` (depth-v26 §2.5): opens the replay of an own gym / guardian / Elite Four result (battle-replay.ts key). */
@@ -255,7 +256,8 @@ export function toastFor(payload: VisibleEvent['payload'], view: PlayerView, mem
       return strategic(toast('war', '☠', `${civName(view, payload.eliminatedPlayerId)}出局`, '', null));
     default: {
       // v26 late game: contest seasons, raids, the near-victory warning, the legend race, the opening gift (late-game-ui.ts).
-      const note = depthToast(payload, view);
+      // v27 ① ②: the startled civilian and the first exhaustion of a species (encounter-ui.ts).
+      const note = depthToast(payload, view) ?? encounterToast(payload, view);
       if (!note) return null;
       const item = toast(note.tone, note.icon, note.title, note.detail, note.target, note.action, note.persistent ? decision(undefined, note.key) : { ...(note.key ? { key: note.key } : {}) });
       return note.strategic ? strategic(item) : item;
