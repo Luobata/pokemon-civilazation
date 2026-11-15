@@ -1,5 +1,6 @@
 /* Gameplay v26 lineup picker (src/browser/lineup-picker.ts). */
-.lineup-picker { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 60; width: min(920px, 96vw); max-height: 92vh; overflow: auto; }
+.combat-card.lineup-picker { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 60; width: min(920px, 96vw); max-height: 92vh; overflow: auto; }
+.combat-card.lineup-picker[hidden] { display: none; }
 .lineup-picker .lp-rules { font-size: 12px; opacity: 0.85; margin: 4px 0 8px; }
 .lineup-picker .lp-columns { display: grid; grid-template-columns: 1fr 1.2fr 1fr; gap: 10px; }
 .lineup-picker h3 { font-size: 13px; margin: 0 0 4px; }
