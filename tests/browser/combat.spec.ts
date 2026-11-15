@@ -53,7 +53,8 @@ test('attack a wild unit with a real preview and visible damage resolution', asy
   await expect(page.locator('#battle-preview')).toContainText('击坠');
   await page.screenshot({ path: `${reports}/m3ui-attack.png`, fullPage: true });
   await page.locator('#confirm-action').click();
-  await expect(page.locator('#action-notice')).toContainText('攻击结算');
+  // Playtest 2026-11b N10: the notice names the attacker and the target.
+  await expect(page.locator('#action-notice')).toContainText(/^你的.+ 攻击 野生 .+：造成 \d+ 伤害/);
   const resolved = await state(page);
   expect(resolved.units[fixture.unitId].actionLeft).toBe(0);
   expect(resolved.units[target.id].hp).toBeLessThan(target.hp);

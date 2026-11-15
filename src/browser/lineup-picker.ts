@@ -45,7 +45,7 @@ export function pickerAction(target: PickerTarget, unitIds: number[], stake: Riv
 export function pickerBlocker(view: PlayerView, target: PickerTarget, unitIds: readonly number[], spec: LineupSpec): string | null {
   if (view.outcome || view.activePlayerId !== view.playerId) return '现在不是你的回合。';
   if (unitIds.length < spec.size.min || unitIds.length > spec.size.max) return spec.size.min === spec.size.max ? `要正好带 ${spec.size.min} 只宝可梦。` : `要带 ${spec.size.min}–${spec.size.max} 只宝可梦。`;
-  if (target.kind === 'gym') { const reason = viewGymBlocker(view, Number(target.key), unitIds); return reason ? gymBlockerText(reason) : null; }
+  if (target.kind === 'gym') { const reason = viewGymBlocker(view, Number(target.key), unitIds); return reason ? gymBlockerText(reason, view) : null; }
   if (target.kind === 'elite') { const reason = viewEliteFourBlocker(view, unitIds); return reason ? gymBlockerText(reason) : null; }
   if (target.kind === 'rival') { const reason = viewRivalDuelBlocker(view, unitIds); return reason ? DUEL_BLOCKERS[reason] ?? '现在不能对决。' : null; }
   if (target.kind === 'guardian') {
@@ -98,7 +98,9 @@ export function lineupPickerMarkup(view: PlayerView, target: PickerTarget, order
   const all = lineupFighters(view, spec.candidates, content), lineup = lineupFighters(view, order, content);
   const foes = spec.opponents[Math.min(opponent, spec.opponents.length - 1)] ?? [];
   const blocker = pickerBlocker(view, target, order, spec), estimate = lineup.length && spec.opponents.length ? estimateLineup(spec, lineup) : null;
-  const pool = all.filter(fighter => !order.includes(fighter.unitId!)).map(fighter => `<li><button type="button" class="lp-candidate" data-add="${fighter.unitId}" aria-label="加入队伍：${esc(content.species[fighter.speciesId]?.name)}">${fighterChip(fighter, content, spec.onSite.includes(fighter.unitId!) ? '<small class="lp-site">在场地上</small>' : '')}</button></li>`).join('');
+  // Playtest 2026-11b U-e: a 1-Pokémon gym takes only a Pokémon standing on the gym (the one entrant must be on site).
+  const siteOnly = target.kind === 'gym' && spec.size.max === 1, offSite = siteOnly ? all.filter(fighter => !spec.onSite.includes(fighter.unitId!)).length : 0;
+  const pool = all.filter(fighter => !order.includes(fighter.unitId!) && (!siteOnly || spec.onSite.includes(fighter.unitId!))).map(fighter => `<li><button type="button" class="lp-candidate" data-add="${fighter.unitId}" aria-label="加入队伍：${esc(content.species[fighter.speciesId]?.name)}">${fighterChip(fighter, content, spec.onSite.includes(fighter.unitId!) ? '<small class="lp-site">在场地上</small>' : '')}</button></li>`).join('');
   const rows = lineup.map((fighter, index) => `<li class="lp-row" draggable="true" tabindex="0" data-index="${index}" data-unit="${fighter.unitId}" aria-label="第 ${index + 1} 位：${esc(content.species[fighter.speciesId]?.name)}（[ ] 调整顺序）">`
     + `<span class="lp-slot">${index + 1}</span>${fighterChip(fighter, content)}<span class="lp-moves"><button type="button" data-up="${index}" aria-label="上移" ${index === 0 ? 'disabled' : ''}>↑</button><button type="button" data-down="${index}" aria-label="下移" ${index === lineup.length - 1 ? 'disabled' : ''}>↓</button><button type="button" data-remove="${fighter.unitId}" aria-label="移出队伍">×</button></span></li>`).join('');
   const tabs = spec.opponents.length > 1 ? `<p class="lp-tabs" role="tablist">${spec.opponents.map((_, index) => `<button type="button" role="tab" data-opponent="${index}" aria-selected="${index === opponent}">${esc(spec.names[index] ?? `第 ${index + 1} 队`)}</button>`).join('')}</p>` : '';
@@ -106,7 +108,7 @@ export function lineupPickerMarkup(view: PlayerView, target: PickerTarget, order
   const size = spec.size.min === spec.size.max ? `正好 ${spec.size.min} 只` : `${spec.size.min}–${spec.size.max} 只`;
   return `<header><p class="eyebrow">${esc(title(view, target))}</p><button type="button" class="cp-close" id="lineup-close" aria-label="取消（Esc）">×</button></header>
     <p class="lp-rules">单打接力：按顺序一只对一只，倒下由下一只补上；先手看兵种（快速 4 · 侦察 / 飞行 3 · 远程 2 · 近战 / 水面 1 · 攻城 0）；每次出手自动用对当前对手最有效的属性；被对手 ×2 克制而自己打不动时，每方每场自动换一次人。带 ${size}。</p>
-    <div class="lp-columns"><section class="lp-pool"><h3>可出战</h3><ul>${pool || '<li class="lp-empty">没有其他可出战的宝可梦</li>'}</ul></section>
+    <div class="lp-columns"><section class="lp-pool"><h3>可出战</h3>${siteOnly ? `<p class="lp-site-note" id="lineup-site-note">${uiIcon('badge', { size: 14, label: '道馆' })}馆主只派 1 只：只有<b>站在道馆格上</b>的宝可梦能出战${offSite ? `（2 格内另有 ${offSite} 只，要先走上道馆）` : ''}。</p>` : ''}<ul>${pool || '<li class="lp-empty">没有其他可出战的宝可梦</li>'}</ul></section>
     <section class="lp-lineup"><h3>出场顺序</h3><ol id="lineup-order">${rows || '<li class="lp-empty">点左边的宝可梦加入队伍</li>'}</ol></section>
     <section class="lp-foes"><h3>对手${leader ? ` · ${esc(leader)}` : ''}</h3>${tabs}<ul>${foes.map(foe => `<li>${fighterChip(foe, content)}</li>`).join('') || '<li class="lp-empty">对手名单赛前 5 轮公布</li>'}</ul></section></div>
     ${matchupGridMarkup(lineup, foes, '属性克制：你的出场顺序对这支对手', 'lineup-grid', true)}

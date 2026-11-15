@@ -47,16 +47,21 @@ export function depthWorldCards(view: PlayerView, content: Content = contentForV
     const left = seasons.nextRound - view.round, best = bestEntrant(view, content), hall = view.economy.cities.find(city => exp.contests?.own.halls.includes(city.id));
     const entryUnit = best && viewContestEntryBlocker(view, best.unit.id, content) === null ? best.unit : ownPokemon(view).find(unit => viewContestEntryBlocker(view, unit.id, content) === null);
     const category = seasons.category ? CONTEST_CATEGORY_INFO[seasons.category] : null;
+    // Playtest 2026-11b N7: an open season nobody can enter says why, and is not ranked as an urgent next step.
+    const open = Boolean(seasons.category && !seasons.ownEntry);
+    const blocked = open && !entryUnit ? !exp.contests?.own.halls.length ? '你还没有华丽大赛馆：先在城市建大赛馆，再派宝可梦站在馆所在的城里或旁边参赛'
+      : CONTEST_SEASON_REASONS[(best ? viewContestEntryBlocker(view, best.unit.id, content) : null) ?? 'season-hall'] ?? '现在没有能参赛的宝可梦' : null;
     cards.push({ id: 'season', title: `华丽大赛季 第 ${seasons.season} 届`, art: { icon: seasons.category ? CATEGORY_ICONS[seasons.category] : 'ribbon' },
-      status: `${category ? category.name : '类别未公布'} · ${left <= 0 ? '本轮评审' : `${left} 轮后`}${seasons.ownEntry ? ' · 已参赛' : ''}`,
+      status: `${category ? category.name : '类别未公布'} · ${left <= 0 ? '本轮评审' : `${left} 轮后`}${seasons.ownEntry ? ' · 已参赛' : ''}${blocked ? ` · 不能参赛：${exp.contests?.own.halls.length ? '没有合适的宝可梦' : '没有大赛馆'}` : ''}`,
       tip: `第 ${seasons.nextRound} 轮轮末评审；赛前 ${lateTuning(content).seasonAnnounce} 轮（第 ${seasons.announceRound} 轮）公布类别后开放报名。\n`
         + (category ? `本届「${category.name}」加分属性：${category.types.map(type => TYPE_NAMES[type]).join('、')}。\n` : '')
         + `得分 = 20 × 匹配属性（最多 2，学习器也算）+ 10 × 阶段 + 历练 + 5 × 大赛馆（最多 4）+ 0–9 决胜。名次人气：+${lateTuning(content).seasonRewards.join(' / +')}，其余 +${lateTuning(content).seasonEntryAppeal}；冠军得缎带。`
         + (best ? `\n你的最佳人选：${unitDefinition(best.unit, content).name}（#${best.unit.id}）${best.score} 分。` : '')
+        + (blocked ? `\n不能参赛：${blocked}。` : '')
         + `\n缎带：${Object.entries(seasons.ribbons).map(([id, count]) => `${civ(view, Number(id))} ×${count}`).join('、') || '还没有'}。`,
-      urgency: seasons.category && !seasons.ownEntry ? (left <= 2 ? 0 : 1) : 3, distance: null,
+      urgency: open && !blocked ? (left <= 2 ? 0 : 1) : 3, distance: null,
       ...(hall ? { tileIndex: hexToIndex(hall.position, view.map) ?? undefined } : {}),
-      ...(seasons.category && !seasons.ownEntry ? { action: { label: '参赛', command: { type: 'EnterContest', unitId: entryUnit?.id ?? best?.unit.id ?? 0 } as Command['action'], available: Boolean(entryUnit) } } : {}) });
+      ...(seasons.category && !seasons.ownEntry ? { action: { label: '参赛', command: { type: 'EnterContest', unitId: entryUnit?.id ?? best?.unit.id ?? 0 } as Command['action'], available: Boolean(entryUnit), ...(blocked ? { reason: blocked } : {}) } } : {}) });
   }
   const raids = exp.raids;
   if (raids?.active) {

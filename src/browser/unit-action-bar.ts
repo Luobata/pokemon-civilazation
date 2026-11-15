@@ -24,6 +24,7 @@ import { openLineupPicker, refreshLineupPicker } from './lineup-picker.ts';
 import { viewDuelCandidates } from '../core/rival-duels.ts';
 import { rivalDuelSpec } from '../ai/rival-duel-plan.ts';
 import { uiIcon } from './ui-icons.ts';
+import { captureUnitReason } from './capture-reason.ts';
 import type { UiIconName } from './ui-icons.ts';
 
 type Pokemon = Extract<MapUnit, { kind: 'pokemon' }>;
@@ -109,7 +110,7 @@ export type UnitBarCallbacks = {
   cancelGoTo?: () => void;
 };
 /** The selected unit's go-to state (client waypoints, waypoints.ts): choosing a target, an order with its turns left, just arrived. */
-export type UnitBarGoTo = { mode: boolean; turns: number | null; arrived: boolean };
+export type UnitBarGoTo = { mode: boolean; turns: number | null; arrived: boolean; /** N5: the shared arrival text (waypoints.ts arrivalText). */ eta?: string };
 type BarAction = {
   id: string; action: string; icon?: IconName; kit?: UiIconName; label: string; hotkey: string; key: string;
   /** Full description (title line of the hover card, accessible name). */
@@ -135,7 +136,7 @@ function barActions(view: PlayerView, unit: MapUnit, mode: ActionMode, lock: str
   if (goTo) {
     actions.push({
       id: 'goto-unit', action: 'goto', kit: 'goTo', label: '前往', hotkey: 'W', key: UNIT_BAR_HOTKEYS.goTo, selected: goTo.mode,
-      title: goTo.mode ? '取消选择路标' : goTo.turns !== null ? `前往 · 路标约 ${goTo.turns} 轮到达` : '前往（多回合）', reason: lock,
+      title: goTo.mode ? '取消选择路标' : goTo.turns !== null ? `前往 · 路标${goTo.eta ?? `约 ${goTo.turns} 轮到达`}` : '前往（多回合）', reason: lock,
       detail: goTo.mode ? '点击地图上任意格子设路标：虚线是路线，圆圈数字是第几回合走到那里。Esc 取消。'
         : '设一个远处的路标：之后每回合开始时自动走一段，遇敌、受到攻击、被挡住或你另下命令时停下。也可右键点远处的格子。',
     });
@@ -151,7 +152,8 @@ function barActions(view: PlayerView, unit: MapUnit, mode: ActionMode, lock: str
       title: mode === 'attack' ? '取消攻击' : '攻击', reason: blocked(null), selected: mode === 'attack',
       detail: targets ? `射程内 ${targets} 个可攻击目标（红色虚线），选中后确认攻击。` : '射程内暂无可攻击目标（和平中的文明不能攻击）。',
     });
-    const capture = captureBlocker(view);
+    // N8: the unit's own reasons (on water, ...) are checked in advance, with the ball the capture mode would pick first.
+    const capture = captureBlocker(view) ?? captureUnitReason(view, unit.id, player.ballInventory.pokeBall > 0 ? 'pokeBall' : 'greatBall');
     actions.push({
       id: 'capture-unit', action: 'capture', icon: 'capture', label: '捕捉', hotkey: 'Q', key: UNIT_BAR_HOTKEYS.capture,
       title: mode === 'capture' ? '取消捕捉' : '捕捉', reason: blocked(capture), selected: mode === 'capture', count: player.ballInventory.pokeBall + player.ballInventory.greatBall,

@@ -44,7 +44,16 @@ const blockerText: Record<string, string> = {
   'elite-locked': `集齐 ${GYM_RULES_V24.gymCount} 枚巡回徽章后才能挑战。`, 'elite-won': '你已经战胜过四天王（每局一次）。', 'elite-cooldown': `每 ${GYM_RULES_V24.eliteFour.cooldownRounds} 轮只能挑战一次。`,
   'unit-unavailable': `需要 ${GYM_RULES_V24.eliteFour.team} 只有行动的宝可梦。`, 'gym-unavailable': '这里没有道馆。', 'gyms-unavailable': '本局没有道馆巡回。',
 };
-export const gymBlockerText = (reason: string) => blockerText[reason] ?? '现在不能挑战。';
+/** Playtest 2026-11b N3: the team rule of the viewer's next gym — v26 relay battles need exactly the leader's team size (1 only from the gym tile). */
+export function gymTeamRule(view: PlayerView): string {
+  const content = contentForView(view);
+  if (!content.teamBattles) return '带 1–3 只宝可梦：一只站在道馆上，其余在 2 格内';
+  const members = leaderTeamFor(badgesOf(view).length, content).members;
+  return members === 1 ? '带 1 只宝可梦（与馆主同数）：只有站在道馆上的那只能出战' : `带正好 ${members} 只宝可梦（与馆主同数）：一只站在道馆上，其余在 2 格内`;
+}
+/** Why a gym / Elite Four challenge is refused; with the view, the team-size reason follows the version (N3). */
+export const gymBlockerText = (reason: string, view?: PlayerView) => reason === 'invalid-team' && view && contentForView(view).teamBattles ? `${gymTeamRule(view)}。`
+  : blockerText[reason] ?? '现在不能挑战。';
 
 // ---------- tile inspector ----------
 
@@ -61,8 +70,8 @@ export function v24TileEntities(view: PlayerView, index: number): (TileEntity & 
       lines: [won ? '你已赢得这枚徽章 ✓' : `你的下一位馆主：${nextLeaderText(view)}（馆主强度随你已有的徽章数提高）`,
         `胜利：徽章、金币 ${GYM_RULES_V24.reward.goldPerBadge} × 第几枚、${ESSENCES[gym.essence].name}精华 +${GYM_RULES_V24.reward.essence}、参战宝可梦经验 +${GYM_RULES_V24.reward.xp}。`,
         `已获得这枚徽章：${holders.join('、') || '还没有人'}`],
-      hint: won ? undefined : '挑战需要 1–3 只宝可梦：一只站在道馆上，其余在 2 格内；同一道馆每 3 轮一次。',
-      ...(won ? {} : { action: { label: `挑战${GYM_LEADERS[gym.leader].name}`, command: reason ? null : { type: 'ChallengeGym', gymId: gym.id, unitIds: team }, ...(reason ? { reason: gymBlockerText(reason) } : {}) } }) });
+      hint: won ? undefined : `挑战要${gymTeamRule(view)}；同一道馆每 3 轮一次。`,
+      ...(won ? {} : { action: { label: `挑战${GYM_LEADERS[gym.leader].name}`, command: reason ? null : { type: 'ChallengeGym', gymId: gym.id, unitIds: team }, ...(reason ? { reason: gymBlockerText(reason, view) } : {}) } }) });
   }
   const rivals = view.expansion?.rivals, pending = rivals?.pending;
   if (rivals && pending?.tileIndex === index) {
@@ -103,7 +112,7 @@ export function v24PanelCards(view: PlayerView, button: (label: string, action: 
     const rows = circuit.gyms.map(gym => `<li class="${won.includes(gym.id) ? 'won' : ''}">${typeBadge(gym.typeId, 20)}<span>${esc(gymTitle(gym))}</span>${gym.homeOf === view.playerId ? '<small>家门口</small>' : ''}${won.includes(gym.id) ? uiIcon('check', { size: 14, label: '已获得徽章' }) : ''}</li>`).join('');
     const others = Object.entries(circuit.badges).filter(([id]) => Number(id) !== view.playerId).map(([id, list]) => `<span class="icon-stat" role="img" aria-label="${esc(`文明 ${Number(id) + 1} ${list.length} 枚${circuit.eliteFour[Number(id)]?.won ? '（已胜四天王）' : ''}`)}">文明 ${Number(id) + 1} ${uiIcon('badge', { size: 14 })}<b aria-hidden="true">${list.length}</b>${circuit.eliteFour[Number(id)]?.won ? uiIcon('trophy', { size: 14 }) : ''}</span>`).join('');
     html += card('s-gym-circuit', `道馆巡回 · 徽章 ${won.length}/${GYM_RULES_V24.gymCount}`,
-      `<p>8 座中立道馆，谁都能带 1–3 只宝可梦挑战，各自赢得徽章。馆主强度随你已有的徽章数提高：你的下一位馆主 <b>${esc(nextLeaderText(view))}</b>。巡回徽章和自建属性道馆一样，能解锁对应属性的最终形态${cityGyms.size ? `（自建道馆：${[...cityGyms].map(id => ESSENCES[id].name).join('、')}）` : ''}。</p>`
+      `<p>8 座中立道馆，谁都能挑战，各自赢得徽章${content.teamBattles ? '（单打接力：带与馆主同样多的宝可梦，1–3 只，随你的徽章数增加）' : '（带 1–3 只宝可梦）'}。馆主强度随你已有的徽章数提高：你的下一位馆主 <b>${esc(nextLeaderText(view))}</b>。巡回徽章和自建属性道馆一样，能解锁对应属性的最终形态${cityGyms.size ? `（自建道馆：${[...cityGyms].map(id => ESSENCES[id].name).join('、')}）` : ''}。</p>`
       + `<ul class="badge-box" id="badge-box">${slots}</ul>`
       + `<p>已发现的道馆：</p><ul class="gym-list gym-list-icons">${rows || '<li>还没有发现道馆，派宝可梦去探索。</li>'}</ul>`
       + `<p class="world-stats">其他文明：${others || '无'}</p>`
@@ -135,7 +144,7 @@ export function gymBarState(view: PlayerView, unit: MapUnit): { gym: GymSite; te
   const content = contentForView(view), team = viewGymTeam(view, gym.id, content), blocked = viewGymBlocker(view, gym.id, team);
   // v26: equal-size teams (the lineup picker then chooses who and the order).
   const size = leaderTeamFor(badgesOf(view).length, content).members;
-  return { gym, team, reason: blocked === 'invalid-team' && content.teamBattles ? `要正好带 ${size} 只宝可梦（与馆主同数），都有行动、在道馆 2 格内。` : blocked ? gymBlockerText(blocked) : null };
+  return { gym, team, reason: blocked === 'invalid-team' && content.teamBattles ? `要正好带 ${size} 只宝可梦（与馆主同数），都有行动、在道馆 2 格内${size === 1 ? '；1 只时只有站在道馆上的那只能出战' : ''}。` : blocked ? gymBlockerText(blocked, view) : null };
 }
 type Opened = { unitId: number; confirm: (action: Command['action']) => void } | null;
 let opened: Opened = null, host: HTMLElement | null = null, markup = '';

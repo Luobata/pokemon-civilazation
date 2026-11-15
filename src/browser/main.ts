@@ -9,6 +9,7 @@ import { usesMovementPoints } from '../core/movement.ts';
 import { leagueCountdownToast, toastFor } from './notifications.ts';
 import { leagueActivityText, renderLeagueResult, showLatestLeagueSeason } from './league-card.ts';
 import { captureNoTargetReason, captureTargetReason } from './capture-reason.ts';
+import { attackTargetReason } from './attack-reason.ts';
 import { renderBallStock } from './ball-stock.ts';
 import { createNotificationRail } from './notification-rail.ts';
 import { ReviewedUnits, cycleId, idleCityIds, idleUnitIds, turnReminders, turnStep } from './turn-button.ts';
@@ -82,7 +83,7 @@ import { TYPE_COLORS } from '../content/type-colors.ts';
 import type { TypeId } from '../content/species.ts';
 import { attackSound } from './audio/sfx.ts';
 import type { Camera, Point } from './camera.ts';
-import { GoToOrders, isSettler, planGoTo, planStops, stopText } from './waypoints.ts';
+import { arrivalText, GoToOrders, isSettler, planArrivalRound, planGoTo, planStops, stopText } from './waypoints.ts';
 import type { GoToPlan, GoToStop } from './waypoints.ts';
 import { suggestCitySites } from './city-sites.ts';
 import type { CitySite } from './city-sites.ts';
@@ -333,7 +334,9 @@ function wonderTrack(payload: Extract<VisibleEvent['payload'], { type: 'LegendWo
 }
 function summary(payload: VisibleEvent['payload']) {
   switch (payload.type) {
-    case 'BattleResolved': return `攻击结算：造成 ${payload.damage} 伤害${payload.counterDamage ? `，反击 ${payload.counterDamage}` : ''}${payload.knockedDownUnitIds.length ? '，有单位击坠/休养' : ''}。`;
+    // N10: the notice names who hit whom (the activity log's labels).
+    case 'BattleResolved': { const view = session.getView(), sides = battleSides(payload, view), own = (label: string) => label.replace(`文明 ${view.playerId + 1} 的 `, '你的');
+      return `${own(sides.attacker)} 攻击 ${own(sides.target)}：造成 ${payload.damage} 伤害${payload.counterDamage ? `，反击 ${payload.counterDamage}` : ''}${payload.knockedDownUnitIds.length ? '，有单位被击倒/回城休养' : ''}。`; }
     case 'Captured': return payload.success ? `捕捉成功（${payload.probability}%）。` : `捕捉失败（${payload.probability}%），目标激怒。`;
     case 'Evolved': case 'WorldStoneEvolution': { const to = payload.type === 'Evolved' ? payload.speciesId : payload.intoSpeciesId, from = evolvedFrom(payload);
       return `进化完成：${speciesDisplay(to).name}。${from ? `恭喜！${speciesDisplay(from).name}进化成了${speciesDisplay(to).name}！` : ''}`; }
@@ -342,7 +345,8 @@ function summary(payload: VisibleEvent['payload']) {
 }
 /** Labels of units seen earlier, so a unit removed by the battle (e.g. a defeated settler) still has a name. */
 const knownUnitLabels = new Map<number, string>();
-export function battleActivityText(payload: BattlePayload, view: PlayerView, known: ReadonlyMap<number, string> = knownUnitLabels): string {
+/** The attacker and target of a battle as the log names them ("文明 1 的 小火龙", "野生 绿毛虫", "文明 2 的 城市 4"). */
+export function battleSides(payload: BattlePayload, view: PlayerView, known: ReadonlyMap<number, string> = knownUnitLabels): { attacker: string; target: string } {
   const CONTENT = contentForView(view);
   const unitLabel = (id: number) => {
     const unit = view.units.find(candidate => candidate.id === id) ?? view.recoveringUnits.find(candidate => candidate.id === id && candidate.ownerId === view.playerId);
@@ -355,10 +359,14 @@ export function battleActivityText(payload: BattlePayload, view: PlayerView, kno
     if (!city) return '未知城市';
     return city.ownerId === null ? `中立营地 ${city.id}` : `文明 ${city.ownerId + 1} 的 城市 ${city.id}`;
   })();
+  return { attacker: unitLabel(payload.attackerId), target: targetLabel };
+}
+export function battleActivityText(payload: BattlePayload, view: PlayerView, known: ReadonlyMap<number, string> = knownUnitLabels): string {
+  const { attacker, target: targetLabel } = battleSides(payload, view, known);
   const ownDown = payload.knockedDownUnitIds.some(id => view.recoveringUnits.some(unit => unit.id === id && unit.ownerId === view.playerId));
   const ownLost = payload.target.kind === 'unit' && !view.units.some(unit => unit.id === payload.target.id) && !view.recoveringUnits.some(unit => unit.id === payload.target.id)
     && known.get(payload.target.id)?.startsWith(`文明 ${view.playerId + 1} 的`);
-  return `${unitLabel(payload.attackerId)} 攻击了 ${targetLabel}：${payload.damage} 伤害${payload.counterDamage ? `，反击 ${payload.counterDamage}` : ''}${ownDown ? '（己方单位被击倒，回城休养）' : ownLost ? '（己方单位被击败）' : ''}`;
+  return `${attacker} 攻击了 ${targetLabel}：${payload.damage} 伤害${payload.counterDamage ? `，反击 ${payload.counterDamage}` : ''}${ownDown ? '（己方单位被击倒，回城休养）' : ownLost ? '（己方单位被击败）' : ''}`;
 }
 function activityText(payload: VisibleEvent['payload']) {
   switch (payload.type) {
@@ -533,7 +541,12 @@ function goToRoute(view: PlayerView): SceneGoTo | null {
 function barGoTo(view: PlayerView): UnitBarGoTo | null {
   if (selected === null) return null;
   const order = goToOrders.get(selected), plan = order ? cachedPlan(view, selected, hexToIndex(order.target, view.map)!) : null;
-  return { mode: goToMode, turns: order ? plan?.total ?? 1 : null, arrived: arrivedUnitId === selected };
+  return { mode: goToMode, turns: order ? plan?.total ?? 1 : null, arrived: arrivedUnitId === selected, ...(order ? { eta: goToEta(view, selected) } : {}) };
+}
+/** N5: the arrival estimate of a unit's standing order, the same text in the notice, the bar and the unit line. */
+function goToEta(view: PlayerView, unitId: number): string {
+  const order = goToOrders.get(unitId), plan = order ? cachedPlan(view, unitId, hexToIndex(order.target, view.map)!) : null;
+  return plan ? arrivalText(view, planArrivalRound(view, unitId, plan)) : '路线待重新规划';
 }
 let siteCache: { key: string; sites: CitySite[] } | null = null;
 function selectedSites(view: PlayerView): CitySite[] {
@@ -568,8 +581,9 @@ function setGoTo(unitId: number, index: number, site = false) {
   }
   tapFeedback(index);
   if (arrivedUnitId === unitId) arrivedUnitId = null;
-  notice = `已设路标${site ? '（推荐城址）' : ''}：约 ${plan.total} 轮到达，每回合开始时自动前进。`;
   runGoTo(new Set(), [unitId]);
+  // N5: worded after this round's first step, from the same plan the unit bar shows (a stop or an arrival reports itself).
+  if (goToOrders.has(unitId)) notice = `已设路标${site ? '（推荐城址）' : ''}：${goToEta(session.getView(), unitId)}，每回合开始时自动前进。`;
   controls(); requestFrame();
 }
 /**
@@ -652,7 +666,7 @@ function controls() {
   const placementSite = districtPlacement && districtPlacement.tileIndex !== null
     ? previewDistrict(view, districtPlacement.cityId, districtPlacement.kind, districtPlacement.tileIndex) : null;
   selection.textContent = unit && inspectedTile !== null ? `${unitDefinition(unit, CONTENT).name} → ${tileSummary(describeTile(view, inspectedTile))} · 右侧可直接攻击或捕捉`
-    : unit ? `${unitDefinition(unit, CONTENT).name} · 行动点 ${unit.actionLeft} · ${goToOrders.has(unit.id) ? `路标约 ${barGoTo(view)?.turns ?? 1} 轮到达` : unit.actionLeft ? '点击高亮格直接移动，右键远处的格子设路标' : '本回合已行动'}`
+    : unit ? `${unitDefinition(unit, CONTENT).name} · 行动点 ${unit.actionLeft} · ${goToOrders.has(unit.id) ? `路标${goToEta(view, unit.id)}` : unit.actionLeft ? '点击高亮格直接移动，右键远处的格子设路标' : '本回合已行动'}`
     : selectedCity !== null ? `已选城市 ${selectedCity} · 在城市面板建造、训练或采购`
     : inspectedTile !== null ? `查看：${tileSummary(describeTile(view, inspectedTile))}`
     : '点选城市管理生产，点选单位执行行动，点任意地块查看详情；拖动地图平移，滚轮缩放。';
@@ -1201,8 +1215,9 @@ function activateIndex(index: number | null, confirmSelection = false) {
     if (target) { pendingTarget = { kind: target.kind, id: target.id, index }; tapFeedback(index); }
     else {
       pendingTarget = null; tapFeedback(index, 'error');
-      const why = actionMode === 'capture' ? captureTargetReason(view, selected, index, selectedBall) : null;
-      notice = why ? `无法捕捉：${why}` : '该目标不适用；请选择高亮目标。';
+      // N9: an attack refusal says why too (range, at peace, on water, escorted, ...).
+      const why = actionMode === 'capture' ? captureTargetReason(view, selected, index, selectedBall) : actionMode === 'attack' ? attackTargetReason(view, selected, index) : null;
+      notice = why ? `${actionMode === 'capture' ? '无法捕捉' : '无法攻击'}：${why}` : '该目标不适用；请选择高亮目标。';
     }
     controls(); requestFrame();
     if (target && actionMode === 'capture') document.querySelector('#capture-preview')?.closest('.combat-preview')?.scrollIntoView({ block: 'nearest' });
@@ -1265,7 +1280,7 @@ function updateTooltip(event: PointerEvent) {
   if (`${index}:${selected}:${goToMode}` !== tooltipKey) {
     const preview = previewSummary(targetPreviews(view, selected, index));
     const route = goToMode && selected !== null ? cachedPlan(view, selected, index) : null;
-    tooltip.textContent = tileSummary(describeTile(view, index)) + (preview ? ` · ${preview}` : '') + (goToMode && selected !== null ? route ? ` · 前往：约 ${route.total} 轮` : ' · 无法前往' : '');
+    tooltip.textContent = tileSummary(describeTile(view, index)) + (preview ? ` · ${preview}` : '') + (goToMode && selected !== null ? route ? ` · 前往：约${arrivalText(view, planArrivalRound(view, selected, route))}` : ' · 无法前往' : '');
     tooltipKey = `${index}:${selected}:${goToMode}`;
   }
   tooltip.hidden = false;

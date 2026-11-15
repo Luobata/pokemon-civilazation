@@ -21,6 +21,7 @@ import type { Hex } from '../core/hex.ts';
 import type { Command, MapUnit, PlayerView } from '../core/model.ts';
 import type { ChampionshipSeason } from '../core/civilization-systems.ts';
 import { pokemonSpritePath } from './sprites.ts';
+import { gymTeamRule } from './gym-panel.ts';
 import { artImage, escapeAttr, flagImage, statChip, uiIcon } from './ui-icons.ts';
 import type { UiIconName } from './ui-icons.ts';
 import { captureBlocker, evolutionState } from './unit-action-bar.ts';
@@ -36,7 +37,7 @@ export type CardArt = { icon: UiIconName } | { sprite: string };
  * `unitId`: an own unit to select instead. `urgency`: 0 = a countdown of 2 rounds or less, 1 = can act now, 2 = soon, 3 = later.
  */
 export type WorldCard = { id: WorldCardId; title: string; status: string; tip: string; art: CardArt; urgency: number; distance: number | null;
-  tileIndex?: number; unitId?: number; action?: { label: string; command: Command['action']; available: boolean };
+  tileIndex?: number; unitId?: number; action?: { label: string; command: Command['action']; available: boolean; /** N7: why it is unavailable (hover). */ reason?: string };
   /** v26 relay battles: opens the lineup picker (`data-lineup`, bound by the world panel) instead of issuing a default team. */
   lineup?: { label: string; target: string; available: boolean } };
 
@@ -75,7 +76,7 @@ export function worldCards(view: PlayerView, content: Content = contentForView(v
       const gym = open.item, ready = (circuit.readyAt[gym.id] ?? 0) <= view.round;
       cards.push({ id: 'gym', title: `${GYM_LEADERS[gym.leader].name}的道馆`, art: { icon: `gym:${gym.typeId}` },
         status: `${TYPE_NAMES[gym.typeId]} · 馆主 ${next.members} 只${STAGE_NAMES[next.stage]}${ready ? '' : ` · ${circuit.readyAt[gym.id] - view.round} 轮后可再挑战`}`,
-        tip: `下一座道馆：${GYM_LEADERS[gym.leader].name}（${TYPE_NAMES[gym.typeId]}属性）。\n你的下一位馆主：${next.members} 只${STAGE_NAMES[next.stage]}，战力 ${next.power}（随你已有的徽章数提高）。\n徽章 ${won.length}/${GYM_RULES_V24.gymCount}。带 1–3 只宝可梦：一只站在道馆上，其余在 2 格内。`,
+        tip: `下一座道馆：${GYM_LEADERS[gym.leader].name}（${TYPE_NAMES[gym.typeId]}属性）。\n你的下一位馆主：${next.members} 只${STAGE_NAMES[next.stage]}，战力 ${next.power}（随你已有的徽章数提高）。\n徽章 ${won.length}/${GYM_RULES_V24.gymCount}。${gymTeamRule(view)}。`,
         urgency: 3, distance: finite(open.distance), tileIndex: gym.tileIndex });
     } else if (won.length >= GYM_RULES_V24.gymCount && !circuit.eliteFour[me]?.won) {
       cards.push({ id: 'gym', title: '四天王', art: { icon: 'trophy' }, status: `徽章已集齐 · 派 ${GYM_RULES_V24.eliteFour.team} 只连战`,
@@ -195,7 +196,10 @@ export function worldCards(view: PlayerView, content: Content = contentForView(v
   // v26 late game: contest season, Max Raid, legend race, near-victory warning, spare gold (none before v26).
   cards.push(...depthWorldCards(view, content));
   const order: WorldCardId[] = ['alarm', 'rival', 'raid', 'conference', 'gym', 'season', 'evolution', 'capture', 'contest', 'goldSink', 'legendRace', 'nest', 'sanctuary', 'legend'];
-  return cards.sort((a, b) => a.urgency - b.urgency || (a.distance ?? 99) - (b.distance ?? 99) || order.indexOf(a.id) - order.indexOf(b.id));
+  // Playtest 2026-11b N7: a card whose only action cannot be taken now is never ranked (or drawn) as urgent or ready.
+  const blocked = (card: WorldCard) => { const offers = [card.action?.available, card.lineup?.available].filter(item => item !== undefined); return offers.length > 0 && !offers.some(Boolean); };
+  return cards.map(card => blocked(card) && card.urgency < 2 ? { ...card, urgency: 2 } : card)
+    .sort((a, b) => a.urgency - b.urgency || (a.distance ?? 99) - (b.distance ?? 99) || order.indexOf(a.id) - order.indexOf(b.id));
 }
 
 const esc = escapeAttr;
@@ -207,7 +211,7 @@ export const selectUnitButton = (unitId: number, label: string) =>
   `<button type="button" class="locate-btn" data-locate-unit="${unitId}" aria-label="选中：${esc(label)}" title="选中：${esc(label)}">${uiIcon('locate', { size: 18 })}</button>`;
 
 /** The card row. `button` renders an action through the panel's own command path. */
-export function worldCardsMarkup(cards: readonly WorldCard[], button: (label: string, action: Command['action'], available?: boolean) => string): string {
+export function worldCardsMarkup(cards: readonly WorldCard[], button: (label: string, action: Command['action'], available?: boolean, reason?: string) => string): string {
   if (!cards.length) return '';
   return `<section class="next-cards" aria-label="下一步"><h3 class="next-head">${uiIcon('map', { size: 18 })}下一步</h3><div class="next-grid">${cards.map(card => {
     const name = `${card.title}：${card.status}`;
@@ -215,7 +219,7 @@ export function worldCardsMarkup(cards: readonly WorldCard[], button: (label: st
       <div class="next-art">${artMarkup(card.art, name)}</div>
       <div class="next-text"><b>${esc(card.title)}</b><span>${esc(card.status)}</span></div>
       <div class="next-foot">${card.distance !== null && card.distance > 0 ? statChip('move', `${card.distance} 格`, '距最近的己方单位或城市') : '<span></span>'}
-        <span class="next-actions">${card.action ? button(card.action.label, card.action.command, card.action.available) : ''}${card.lineup ? `<button type="button" data-lineup="${esc(card.lineup.target)}"${card.lineup.available ? '' : ' disabled'}>${esc(card.lineup.label)}</button>` : ''}${card.tileIndex !== undefined ? locateButton(card.tileIndex, card.title)
+        <span class="next-actions">${card.action ? button(card.action.label, card.action.command, card.action.available, card.action.reason) : ''}${card.lineup ? `<button type="button" data-lineup="${esc(card.lineup.target)}"${card.lineup.available ? '' : ' disabled'}>${esc(card.lineup.label)}</button>` : ''}${card.tileIndex !== undefined ? locateButton(card.tileIndex, card.title)
           : card.unitId !== undefined ? selectUnitButton(card.unitId, card.title) : ''}</span></div></article>`;
   }).join('')}</div></section>`;
 }

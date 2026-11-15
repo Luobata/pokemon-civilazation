@@ -21,9 +21,11 @@ import { researchTaskToast } from './research-card.ts';
 import { ESSENCES } from '../content/essences.ts';
 import { GYM_LEADERS } from '../content/gym-circuit.ts';
 import { traceTurns } from '../core/team-battle.ts';
+import type { BattleTraceV26 } from '../core/team-battle.ts';
+import type { BattleTrace } from '../core/civilization-systems.ts';
 import { rivalSays } from './gym-panel.ts';
 import { leagueCountdown, leagueSummary } from './league-card.ts';
-import { latestReplayKey, replayKey } from './battle-replay.ts';
+import { latestReplayKey, replayKey, storedReplay } from './battle-replay.ts';
 import { depthToast } from './late-game-ui.ts';
 
 /** `battle` (depth-v26 §2.5): opens the replay of an own gym / guardian / Elite Four result (battle-replay.ts key). */
@@ -49,6 +51,18 @@ const toast = (tone: ToastTone, icon: string, title: string, detail: string, tar
     ...(options.resolve ? { resolve: options.resolve } : {}), ...(options.key ? { key: options.key } : {}) });
 /** Options for a notification that waits for the player. */
 const decision = (resolve?: ToastResolve, key?: string): ToastOptions => ({ persistent: true, ...(resolve ? { resolve } : {}), ...(key ? { key } : {}) });
+
+/**
+ * Playtest 2026-11b N4: a v26 relay result in words — who won, how many Pokémon each side has left, the turns, and the estimate the
+ * lineup picker showed (from the stored replay). Null for a v24/v25 auto-battle (those keep the power comparison).
+ */
+export function relayResultText(battle: BattleTrace | BattleTraceV26, victory: boolean, foe: string, key: string): string | null {
+  if (!('format' in battle) || battle.format !== 'relay') return null;
+  const trace = battle, fainted = new Set(trace.turns.flatMap(turn => turn.acts.flatMap(act => act.kind === 'faint' ? [act.id] : [])));
+  const left = (side: 'home' | 'away') => `${trace.lineups[side].filter(id => !fainted.has(id)).length}/${trace.lineups[side].length}`;
+  const estimate = storedReplay(key)?.estimate;
+  return `${victory ? '你的队伍获胜' : `${foe}获胜`}（你剩 ${left('home')} 只，${foe}剩 ${left('away')} 只，${traceTurns(trace)} 回合）。${estimate === undefined ? '' : `赛前估计胜率 ${estimate}%。`}`;
+}
 
 /** The toast for one presented event, or null when it is not a personal milestone. */
 export function toastFor(payload: VisibleEvent['payload'], view: PlayerView, memory: ToastMemory = {}): Toast | null {
@@ -173,9 +187,10 @@ export function toastFor(payload: VisibleEvent['payload'], view: PlayerView, mem
       const name = gym ? `${ESSENCES[gym.essence].name}徽章` : '徽章';
       // depth-v26 §2.5: the result offers its replay.
       const replay: ToastTarget = { kind: 'battle', key: replayKey(payload) };
+      const relay = relayResultText(payload.battle, payload.victory, '馆主', replay.key);
       return payload.victory
-        ? toast('growth', '◆', `你赢得了${name}（第 ${payload.badges} 枚）`, `${gym ? `${GYM_LEADERS[gym.leader].name}：` : ''}队伍战力 ${payload.teamPower} 对馆主 ${payload.leaderPower}，${traceTurns(payload.battle)} 回合获胜。`, replay, '观看对战', decision())
-        : toast('war', '◇', `道馆挑战失败${gym ? `：${GYM_LEADERS[gym.leader].name}` : ''}`, `队伍战力 ${payload.teamPower} 对馆主 ${payload.leaderPower}。宝可梦恢复后 3 轮可再挑战。`, replay, '观看对战');
+        ? toast('growth', '◆', `你赢得了${name}（第 ${payload.badges} 枚）`, `${gym ? `${GYM_LEADERS[gym.leader].name}：` : ''}${relay ?? `队伍战力 ${payload.teamPower} 对馆主 ${payload.leaderPower}，${traceTurns(payload.battle)} 回合获胜。`}`, replay, '观看对战', decision())
+        : toast('war', '◇', `道馆挑战失败${gym ? `：${GYM_LEADERS[gym.leader].name}` : ''}`, `${relay ?? `队伍战力 ${payload.teamPower} 对馆主 ${payload.leaderPower}。`}宝可梦恢复后 3 轮可再挑战。`, replay, '观看对战');
     }
     case 'EliteFourChallenged': {
       if (payload.playerId !== me) return null;
@@ -187,8 +202,9 @@ export function toastFor(payload: VisibleEvent['payload'], view: PlayerView, mem
       if (payload.playerId !== me) return null;
       const site = view.expansion?.civilization?.sanctuaries.find(item => item.id === payload.siteId);
       const replay: ToastTarget = { kind: 'battle', key: replayKey(payload) };
-      return payload.victory ? toast('wonder', '◈', `击败了圣所守卫${site ? `${site.guardianName}` : ''}！`, `${site ? `获得石板「${site.tabletName}」。` : ''}${traceTurns(payload.battle)} 回合获胜。`, replay, '观看对战', decision())
-        : toast('war', '◇', `圣所守卫挑战失败${site ? `：${site.guardianName}` : ''}`, `队伍战力 ${payload.teamPower} 对守卫 ${payload.challengePower}。`, replay, '观看对战');
+      const relay = relayResultText(payload.battle, payload.victory, '守卫', replay.key);
+      return payload.victory ? toast('wonder', '◈', `击败了圣所守卫${site ? `${site.guardianName}` : ''}！`, `${site ? `获得石板「${site.tabletName}」。` : ''}${relay ?? `${traceTurns(payload.battle)} 回合获胜。`}`, replay, '观看对战', decision())
+        : toast('war', '◇', `圣所守卫挑战失败${site ? `：${site.guardianName}` : ''}`, relay ?? `队伍战力 ${payload.teamPower} 对守卫 ${payload.challengePower}。`, replay, '观看对战');
     }
     // v24 C: the own rival (these events reach only their target).
     case 'RivalAnnounced':

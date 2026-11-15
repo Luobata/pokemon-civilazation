@@ -27,6 +27,14 @@ const ownUnit = (view: PlayerView, unitId: number) => view.units.find(unit => un
 /** Whether the unit can still move in the current round (the viewer's turn, action left). */
 const movesNow = (view: PlayerView, unit: MapUnit) => view.activePlayerId === view.playerId && unit.actionLeft > 0;
 
+/** Playtest 2026-11b N5: the round a plan reaches its target (turn 1 is this round while the unit can still move, else the next one). */
+export function planArrivalRound(view: PlayerView, unitId: number, plan: GoToPlan): number {
+  const unit = ownUnit(view, unitId);
+  return view.round + plan.total - (unit && movesNow(view, unit) ? 1 : 0);
+}
+/** The one arrival estimate shown everywhere (the notice, the unit bar, the unit line): "第 12 轮到达（还要 3 轮）". */
+export const arrivalText = (view: PlayerView, round: number) => round <= view.round ? '本轮到达' : `第 ${round} 轮到达（还要 ${round - view.round} 轮）`;
+
 /** Packed Dijkstra label: turn * SCALE + movement points spent in that turn (never above the budget). */
 const SCALE = 1024;
 /** Turn-aware labels from a unit to every tile it can reach on known terrain (or until `goal` is settled). */

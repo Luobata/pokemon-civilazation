@@ -106,7 +106,7 @@ for (const width of widths) {
     await expect(page.locator('#battle-preview')).toContainText('预计伤害');
     await screenshot(page, `p3-ui-attack-${width}`);
     await page.locator('#confirm-action').click();
-    await expect(page.locator('#action-notice')).toContainText('攻击结算');
+    await expect(page.locator('#action-notice')).toContainText(/^你的.+ 攻击 .+：造成 \d+ 伤害/); // N10: names the attacker and target
     await page.locator('#end-turn').click({ modifiers: ['Shift'] });
     await expect(page.locator('#map-info')).toContainText(`第 ${attack.state.round + 1} 轮 · 当前文明 1`);
     await openScreen(page, 'log');
@@ -178,8 +178,12 @@ test('attack clicks reject peaceful and out-of-range targets', async ({ page }) 
     }, { reason, unitId: fixture.unitId });
     expect(candidate, `missing ${reason} fixture`).not.toBeNull();
     expect(candidate!.eligible).toBe(false);
+    // The whole map in view (F), so a far target is on screen; the notice changes with each refusal.
+    await page.locator('#map').focus();
+    await page.keyboard.press('f');
     await clickHex(page, candidate!.position);
-    await expect(page.locator('#action-notice')).toContainText('该目标不适用；请选择高亮目标');
+    // Playtest 2026-11b N9: the refusal names its reason.
+    await expect(page.locator('#action-notice')).toContainText(reason === 'at-peace' ? /无法攻击：(与文明 \d+ 处于和平|这是你自己的|不能攻击自己)/ : /无法攻击：(超出射程|开拓队、工匠和商队只能近身攻击)/);
     await expect(page.locator('#battle-preview')).toContainText('选择红色虚线目标查看伤害、反击与击坠');
     await expect(page.locator('#confirm-action')).toBeDisabled();
   }

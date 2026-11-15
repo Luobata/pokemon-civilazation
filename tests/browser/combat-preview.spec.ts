@@ -100,7 +100,7 @@ test('P0-4: the floating combat card shows strength, bonuses and HP after the hi
   await clickUnit(page, fixture.targetId);
   await expect(card).toBeVisible();
   await clickUnit(page, fixture.targetId);
-  await expect(page.locator('#action-notice')).toContainText('攻击结算');
+  await expect(page.locator('#action-notice')).toContainText(/^你的.+ 攻击 .+：造成 \d+ 伤害/); // N10: names the attacker and target
   await expect(card).toBeHidden();
   const hpAfter = await targetHp(page, fixture.targetId);
   expect(hpAfter === null || hpAfter < hpBefore).toBe(true);
@@ -141,7 +141,7 @@ test('P0-4: the card button attacks too; pre-v20 games show only the damage rang
   await page.locator('#attack-unit').click();
   await clickUnit(page, action.target.id);
   await card.locator('#combat-card-attack').click();
-  await expect(page.locator('#action-notice')).toContainText('攻击结算');
+  await expect(page.locator('#action-notice')).toContainText(/^你的.+ 攻击 .+：造成 \d+ 伤害/); // N10: names the attacker and target
 });
 
 test.describe('narrow desktop (1024×768)', () => {
