@@ -101,7 +101,7 @@ export type TrainersTuning = {
    * `depth26.npcBasePower`; the season and slot steps stay v26's). Calibrated so the championship share stays near v26's. */
   npcBasePower: number;
 };
-export const TRAINERS_TUNING: TrainersTuning = { rosterSize: 8, stageWeights: [8, 10, 13], signaturePercent: 120, npcBasePower: 1150 };
+export const TRAINERS_TUNING: TrainersTuning = { rosterSize: 8, stageWeights: [8, 10, 13], signaturePercent: 120, npcBasePower: 1050 };
 
 export type Pace27Tuning = { opening: OpeningTuning; economy: EconomyTuning; events: EventsTuning; trainers: TrainersTuning };
 export const PACE27_TUNING: Pace27Tuning = { opening: OPENING_TUNING, economy: ECONOMY_TUNING, events: EVENTS_TUNING, trainers: TRAINERS_TUNING };
