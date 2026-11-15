@@ -102,6 +102,17 @@ export const AUDIT_SYSTEMS: readonly AuditSystem[] = [
     actionTypes: ['ChallengeRival'],
   }),
   system({
+    id: 's-league-trainers', name: '联盟训练家（v27）', status: 'implemented',
+    summary: 'gameplay v27 ⑥：每局固定 8 位原创联盟训练家（8 种职业原型各一位：山岳向导、潮汐冲浪手、灵媒学徒、炉火匠人、林间诗人、霜原骑手、雷光技师、龙谷守望；24 个原创名字里每局各取一个，原创像素头像 public/trainers/*.svg）。主属性互不相同，招牌是主属性的三阶宝可梦（互不相同），另 5 只取最终形态；队伍逐届成长：第 1–2 届 4 只、招牌是二阶形态，第 3–4 届 5 只、招牌进化，第 5 届起 6 只全部最终形态。总战力 = 训练家基础战力 + 届 × 届增量 + 名额 × 名额增量，按阶段权重 8 / 10 / 13 分配、招牌 ×1.2。上届没出场的先出场；战绩、冠军头衔和“宿敌”（打败你次数最多的训练家）都从公开的大会历史算出；击败宿敌时代分 +1（每届最多 1）。',
+    rules: ['名册只由公开设置算出：stableSeed(seed, \'league-roster\', …) 与本局地区图鉴（leagueRoster(seed, content)，权威、视图与 AI 共用同一个记忆化对象）；不消耗 state.rng，全部整数。',
+      '每届的 NPC = leagueSeasonTrainers：上一届没出场的在前，其余按 stableSeed(seed, 届, 职业) 排；名额 n 的战力 = pace27.trainers.npcBasePower + 届 × depth26.npcSeasonPower + n × depth26.npcSlotPower。v≤26 内容没有 leagueTrainers 标记，仍是 v26 每届重抽。',
+      '战绩与宿敌（leagueRecords / leagueNemesis）只读 ChampionshipResolved 写入的历史；击败宿敌发 LeagueNemesisBeaten（时代分，按“击退劲敌”计）。',
+      'AI：训练评分对宿敌主属性的克制 +10（nemesisTrainingBonus，只在 v27 内容下）；选阵仍用 chooseLineup 读公布的名单。'],
+    checks: ['district-smoke v24–v26 逐字节不变；v27 两次运行一致、0 异常。', 'tests/core/league-roster.test.ts（72 套门槛图鉴的名册不重名、主属性与招牌互不相同、逐届成长、阶段权重、出场轮换、战绩与宿敌、时代分、v26 不变）；tests/browser/league-trainers.spec.ts（真实 AI 存档：名册、宿敌、资料卡、选阵、对阵表头像，Shift+点击结束回合）。'],
+    sources: ['src/core/league-roster.ts', 'src/content/conference.ts', 'src/content/pace-v27.ts', 'src/core/civilization-systems.ts', 'src/ai/roster-plan.ts', 'src/browser/trainer-card.ts', 'src/browser/league-bracket.ts', 'src/browser/league-card.ts', 'src/browser/lineup-picker.ts', 'docs/design/pace-v27.md'],
+    actionTypes: ['RegisterChampionshipTeam'],
+  }),
+  system({
     id: 's-regional-dex', name: '地区图鉴（v25）', status: 'implemented',
     summary: 'gameplay v25：每局按图鉴种子（缺省 = 地图种子）、世代模式和在场领袖，用 stableSeed 抽出整条进化线组成的地区图鉴（精简约 48 种、完整约 60 种），满足兵种 × 阶段、属性、世代、群系刷新、巢穴、稀有、水面线和核心招募槽约束；野外、巢穴、霸主、招募、劲敌、道馆、地标常驻和调查卡都只用图鉴物种；招募按槽解析；图鉴目标按图鉴占物种池的份额缩放。另含 v25 规则修正：放不下的单位排产即拒、新单位避开会出手的野生宝可梦、信仰胜利计入中立城、劲敌后两次登场更好打。',
     rules: ['地区图鉴不存进状态：contentFor(setup) 每次由开局设置重新算出并记忆化；权威与视图共用同一个派生内容对象（PlayerView.regionalDex 只是公开的物种名单，不含位置）。',
