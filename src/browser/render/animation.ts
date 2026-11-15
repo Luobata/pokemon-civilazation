@@ -31,7 +31,9 @@ export type MapEffect = { kind: 'impact'; position: Hex; color: string; burst: b
   /** V9 era form change on a unit: Mega rainbow ring, Dynamax red glow, Tera crystal (in `color`), Z-Move gold column. */
   | { kind: 'form'; position: Hex; form: FormKind; color: string; progress: number }
   /** V10 wonder reveal: a gold light pillar on the city, with rising particles when `burst`. */
-  | { kind: 'pillar'; position: Hex; burst: boolean; progress: number };
+  | { kind: 'pillar'; position: Hex; burst: boolean; progress: number }
+  /** v27 ⑤: Max shields breaking on the raid boss (pink fragments; a fading ring only without `motion`); `phaseTwo` adds the purple surge. */
+  | { kind: 'shatter'; position: Hex; broken: number; phaseTwo: boolean; motion: boolean; progress: number };
 export type PulseIcon = 'chevron' | 'alert' | 'star';
 export type FormKind = 'mega' | 'dynamax' | 'tera' | 'zMove';
 /** damage: the hit on the target; counter: the counter-attack, drawn on the attacker; super / weak: the type matchup; tag: 休养 / 击倒. */
@@ -416,6 +418,16 @@ export function formTrack(key: string, unit: UnitMarkIdentity, form: FormKind, c
         const grow = progress < .35 ? easeOut(progress / .35) : progress < .7 ? 1 : 1 - easeInOut((progress - .7) / .3);
         if (grow > 0) frame.poses.push({ unit, position: hexToWorld(position), scale: 1 + .5 * grow });
       }
+    } };
+}
+
+/** v27 ⑤: Max shields break on the boss (follows its live position). Non-blocking, like a pulse. */
+export const SHATTER_MS = 800;
+export function shatterTrack(key: string, unitId: number, broken: number, phaseTwo: boolean, motion: boolean): Track {
+  return { key, duration: phaseTwo ? SHATTER_MS + 400 : SHATTER_MS, blocking: false,
+    sample(elapsed, context, frame) {
+      const position = context.unitPosition(unitId);
+      if (position) frame.effects.push({ kind: 'shatter', position, broken, phaseTwo, motion, progress: Math.min(1, elapsed / (phaseTwo ? SHATTER_MS + 400 : SHATTER_MS)) });
     } };
 }
 

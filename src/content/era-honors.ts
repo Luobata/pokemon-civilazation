@@ -5,7 +5,7 @@ export type EraAge = 'normal' | 'golden' | 'dark';
 export type EraMilestone = 'documentedSpecies' | 'cityFounded' | 'evolution' | 'capture' | 'charterAdopted' | 'districtCompleted'
   | 'nestCleared' | 'sanctuaryEstablished' | 'guardianDefeated' | 'faithFounded' | 'contestHallBuilt' | 'discovery' | 'cityCaptured' | 'legendWonder'
   | 'landmarkDiscovered' | 'researchComplete' | 'gymBadge' | 'eliteFour' | 'rivalDefeated'
-  | 'candyEvolution' | 'finalEvolution' | 'raidWon';
+  | 'candyEvolution' | 'finalEvolution' | 'raidWon' | 'contestSeasonWon';
 export const ERA_MILESTONES: Record<EraMilestone, { name: string; points: number }> = {
   documentedSpecies: { name: '图鉴新记录物种', points: 1 },
   cityFounded: { name: '建立新城市', points: 3 },
@@ -36,6 +36,8 @@ export const ERA_MILESTONES: Record<EraMilestone, { name: string; points: number
   finalEvolution: { name: '最终进化', points: 1 },
   /** Gameplay v26 only (§5.4): the top damage dealer of a Max Raid. */
   raidWon: { name: '极巨团体战夺魁', points: 1 },
+  /** Gameplay v27 only (pace-v27 §8.1): the winner of a contest season of the circuit. */
+  contestSeasonWon: { name: '华丽大赛季冠军', points: 1 },
 };
 export const ERA_MILESTONE_IDS = Object.keys(ERA_MILESTONES) as EraMilestone[];
 export const ERA_HONOR_RULES = {

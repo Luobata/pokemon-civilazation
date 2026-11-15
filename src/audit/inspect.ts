@@ -768,6 +768,21 @@ export function inspectSystem(systemId: string, state: GameState): AuditSystemIn
     return { metrics: [metric('当前规则', '后期事件 v26'), metric('已出现的极巨巢穴', raids.held), metric('当前巢穴', raids.active ? `${raids.active.speciesId} · 第 ${raids.active.endsAtRound} 轮离开` : '无')],
       data: { raids, victoryWatch: state.expansion?.victoryWatch ?? {} } };
   }
+  // v27 events lane (pace-v27 §6, §8).
+  if (system.id === 's-max-raids') {
+    const raids = state.expansion?.raids, boss = raids?.active;
+    if (!raids || (state.setup.gameplayVersion ?? 0) < 27) return { metrics: [metric('当前规则', '未启用（需 v27）')], data: {} };
+    return { metrics: [metric('当前规则', '极巨团体战 v27'), metric('已出现的极巨巢穴', raids.held),
+      metric('当前首领', boss ? `${boss.speciesId} · HP ${state.units[boss.unitId]?.hp ?? 0}/${boss.maxHp}` : '无'),
+      ...(boss?.max ? [metric('护盾', `${boss.max.shields}/${boss.max.shieldMax}`), metric('阶段', boss.max.phase), metric('已极巨化', Object.keys(boss.max.dynamax).length)] : [])],
+      data: { raids } };
+  }
+  if (system.id === 's-contest-circuit') {
+    const seasons = state.expansion?.contestSeasons;
+    if (!seasons || (state.setup.gameplayVersion ?? 0) < 27) return { metrics: [metric('当前规则', '未启用（需 v27）')], data: {} };
+    return { metrics: [metric('当前规则', '巡回华丽大赛 v27'), metric('已评审', seasons.held), metric('本届参赛', Object.keys(seasons.entries).length),
+      ...Object.entries(state.expansion?.goldSinks?.prizeTms ?? {}).map(([id, list]) => metric(`玩家 ${id} 奖品学习器`, list.join('、') || '0'))], data: { contestSeasons: seasons, prizeTms: state.expansion?.goldSinks?.prizeTms ?? {} } };
+  }
   if (system.id === 's-stacking') {
     const on = (state.setup.gameplayVersion ?? 0) >= 26;
     if (!on) return { metrics: [metric('当前规则', '未启用（需 v26）')], data: {} };

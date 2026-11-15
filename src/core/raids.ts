@@ -17,19 +17,25 @@ import { adjacentLandmarks } from './landmarks.ts';
 import { placementBlocked, stateProtectedCivilian } from './stacking.ts';
 import { isLandmarkTile, isPeak } from './terrain.ts';
 import { createMapUnit, registerSpecies } from './unit.ts';
+import { randomBelow } from './rng.ts';
+import { initialMaxLedger, maxWaveRange, observeMaxRaid, raidCatchChance, raidCatchSpecies, raidContribution, raidSharers, resolveRaidSupport } from './max-raids.ts';
+import type { MaxRaidEvent, MaxRaidLedger, MaxRaidView } from './max-raids.ts';
+import { eventsTuning } from '../content/pace-v27.ts';
 
-export type RaidBoss = { unitId: number; tileIndex: number; endsAtRound: number; damage: Record<number, number>; speciesId: SpeciesId; maxHp: number; index: number };
+/** `max`: v27 ⑤ Max raid ledger (shields, phase, shields broken, support healing, den Dynamax); absent before v27. */
+export type RaidBoss = { unitId: number; tileIndex: number; endsAtRound: number; damage: Record<number, number>; speciesId: SpeciesId; maxHp: number; index: number; max?: MaxRaidLedger };
 /** `pending`: the next den, announced `raidAnnounce` rounds before it opens (site and species fixed then). */
 export type RaidDen = { tileIndex: number; speciesId: SpeciesId; round: number; index: number };
 export type RaidState = { active: RaidBoss | null; held: number; pending: RaidDen | null };
 /** `tileIndex` / `unitId` only for civilizations that explored the den's tile; the damage ledger is public. */
 export type RaidView = { nextRound: number | null; held: number; pending: { tileIndex: number | null; speciesId: SpeciesId; round: number } | null;
-  active: { unitId: number | null; tileIndex: number | null; endsAtRound: number; damage: Record<number, number>; speciesId: SpeciesId; maxHp: number } | null };
+  active: { unitId: number | null; tileIndex: number | null; endsAtRound: number; damage: Record<number, number>; speciesId: SpeciesId; maxHp: number; max?: MaxRaidView } | null };
 export type RaidEvent =
   | { type: 'RaidAnnounced'; playerId: number; speciesId: SpeciesId; tileIndex: number | null; round: number }
   | { type: 'RaidAppeared'; playerId: number; speciesId: SpeciesId; tileIndex: number | null; endsAtRound: number; hp: number }
-  | { type: 'RaidDefeated'; public: true; playerId: number; speciesId: SpeciesId; unitId: number | null; damage: Record<number, number>; gold: Record<number, number> }
-  | { type: 'RaidEnded'; speciesId: SpeciesId; damage: Record<number, number> };
+  | { type: 'RaidDefeated'; public: true; playerId: number; speciesId: SpeciesId; unitId: number | null; damage: Record<number, number>; gold: Record<number, number>; contribution?: Record<number, number> }
+  | { type: 'RaidEnded'; speciesId: SpeciesId; damage: Record<number, number>; contribution?: Record<number, number>; gold?: Record<number, number> }
+  | MaxRaidEvent;
 
 export const isRaidUnit = (state: Pick<GameState, 'expansion'>, unitId: number) => state.expansion?.raids?.active?.unitId === unitId;
 export const viewIsRaidUnit = (view: Pick<PlayerView, 'expansion'>, unitId: number) => view.expansion?.raids?.active?.unitId === unitId;
@@ -78,17 +84,27 @@ export function resolveRaidRound(state: GameState, content: Content): EventPaylo
   const boss = raids.active;
   if (boss && state.units[boss.unitId]) {
     const unit = state.units[boss.unitId];
+    // v27 ⑤: the Max wave reaches 2 tiles in phase two (adjacent before v27 and in phase one).
+    const reach = maxWaveRange(boss.max, content);
     if (isMapUnit(unit)) for (const target of Object.values(state.units).filter(isMapUnit)
-      .filter(other => other.ownerId !== null && hexDistance(other.position, unit.position, state.map) === 1 && !stateProtectedCivilian(state, other, content))
+      .filter(other => other.ownerId !== null && hexDistance(other.position, unit.position, state.map) >= 1 && hexDistance(other.position, unit.position, state.map) <= reach && !stateProtectedCivilian(state, other, content))
       .sort((a, b) => a.id - b.id)) {
       if (!state.units[boss.unitId] || !isMapUnit(state.units[boss.unitId]) || !state.units[target.id] || !isMapUnit(state.units[target.id])) continue;
       events.push(...resolveAttack(state, boss.unitId, { kind: 'unit', id: target.id }, content, true));
     }
+    // v27 ⑤: support Pokémon near the den heal their neighbours.
+    const standing = state.units[boss.unitId];
+    if (boss.max && standing && isMapUnit(standing)) resolveRaidSupport(state, boss.max, standing.position, content);
     // A boss knocked out by a counter-strike is awarded by recordRaids (it sees these events); an expired one leaves now.
     if (state.units[boss.unitId] && state.round >= boss.endsAtRound) {
       delete state.units[boss.unitId];
       raids.active = null;
-      events.push({ type: 'RaidEnded', speciesId: boss.speciesId, damage: { ...boss.damage } });
+      if (boss.max) {
+        // v27 ⑤: every share of at least 10% earns the participation gold.
+        const contribution = raidContribution(boss.damage, boss.max, content), gold: Record<number, number> = {};
+        for (const id of raidSharers(contribution, content)) if (!state.players[id].eliminated) { gold[id] = eventsTuning(content).participationGold; state.players[id].gold += gold[id]; }
+        events.push({ type: 'RaidEnded', speciesId: boss.speciesId, damage: { ...boss.damage }, contribution, gold });
+      } else events.push({ type: 'RaidEnded', speciesId: boss.speciesId, damage: { ...boss.damage } });
     }
   }
   // Announce the next den `raidAnnounce` rounds ahead (site and species fixed now), then open it on its round.
@@ -109,7 +125,8 @@ export function resolveRaidRound(state: GameState, content: Content): EventPaylo
     if (tile !== null) {
       const id = state.nextEntityId++, position = indexToHex(tile, state.map);
       state.units[id] = { ...createMapUnit({ kind: 'pokemon', speciesId: den.speciesId }, id, null, position, content), hp: tuning.raidBaseHp + tuning.raidHpPerCiv * alive(state).length };
-      raids.active = { unitId: id, tileIndex: tile, endsAtRound: den.round + tuning.raidRounds - 1, damage: {}, speciesId: den.speciesId, maxHp: state.units[id].hp, index: den.index };
+      raids.active = { unitId: id, tileIndex: tile, endsAtRound: den.round + tuning.raidRounds - 1, damage: {}, speciesId: den.speciesId, maxHp: state.units[id].hp, index: den.index,
+        ...(content.maxRaids ? { max: initialMaxLedger(alive(state).length, content) } : {}) };
       raids.held++;
       for (const playerId of [...alive(state)].sort((a, b) => a - b)) {
         events.push({ type: 'RaidAppeared', playerId, speciesId: den.speciesId, tileIndex: explored(playerId, tile) ? tile : null, endsAtRound: raids.active.endsAtRound, hp: state.units[id].hp });
@@ -162,7 +179,9 @@ export function recordRaids(before: GameState, after: GameState, events: readonl
     }
   }
   const unit = after.units[boss.unitId];
-  if (unit && isMapUnit(unit)) return [];
+  const shieldEvents = boss.max ? shieldNews(before, after, boss) : [];
+  if (unit && isMapUnit(unit)) return shieldEvents;
+  if (boss.max) return [...shieldEvents, ...awardMaxRaid(after, boss, content)];
   // Knocked out: the top damage dealer gets the species and +1 era score; every share of at least the minimum earns gold.
   raids.active = null;
   const tuning = lateTuning(content);
@@ -187,6 +206,55 @@ export function recordRaids(before: GameState, after: GameState, events: readonl
   return [{ type: 'RaidDefeated', public: true, playerId: top, speciesId: boss.speciesId, unitId, damage: { ...boss.damage }, gold }];
 }
 
+/** v27 ⑤: shields broken by this command (and the phase change), for every civilization that explored the den. */
+function shieldNews(before: GameState, after: GameState, boss: RaidBoss): EventPayload[] {
+  const was = before.expansion?.raids?.active, ledger = boss.max!;
+  if (!was?.max || was.unitId !== boss.unitId) return [];
+  const broken = Object.values(ledger.broken).reduce((sum, value) => sum + value, 0) - Object.values(was.max.broken).reduce((sum, value) => sum + value, 0);
+  const phaseTwo = was.max.phase === 1 && ledger.phase === 2;
+  if (broken <= 0 && !phaseTwo) return [];
+  return alive(after).sort((a, b) => a - b).filter(id => after.knowledge[id]?.exploredTileIds.includes(boss.tileIndex))
+    .map(playerId => ({ type: 'RaidShieldsBroken' as const, playerId, unitId: boss.unitId, broken: Math.max(0, broken), shields: ledger.shields, phase: ledger.phase, phaseTwo }));
+}
+/**
+ * v27 ⑤ award: ranked by contribution, the top civilization gets the boss and +1 era score; gold by contribution share; every other
+ * civilization with a share of at least 10% rolls a catch chance (`state.rng`, ascending ids) for the first form of the boss's line.
+ */
+function awardMaxRaid(after: GameState, boss: RaidBoss, content: Content): EventPayload[] {
+  const raids = after.expansion!.raids!;
+  raids.active = null;
+  const tuning = lateTuning(content), contribution = raidContribution(boss.damage, boss.max!, content);
+  const ranked = Object.entries(contribution).map(([id, value]) => ({ id: Number(id), value })).filter(item => !after.players[item.id]?.eliminated)
+    .sort((a, b) => b.value - a.value || a.id - b.id);
+  const total = ranked.reduce((sum, item) => sum + item.value, 0);
+  if (!ranked.length || total <= 0) return [{ type: 'RaidEnded', speciesId: boss.speciesId, damage: { ...boss.damage }, contribution, gold: {} }];
+  const top = ranked[0].id, gold: Record<number, number> = {};
+  for (const item of ranked) if (item.value * 100 >= tuning.raidMinSharePercent * total) {
+    gold[item.id] = Math.min(tuning.raidMaxGold, Math.floor(tuning.raidShareGold * item.value * 10 / total));
+    after.players[item.id].gold += gold[item.id];
+  }
+  const grant = (playerId: number, speciesId: SpeciesId): number | null => {
+    const tile = rewardTile(after, playerId, speciesId, boss.tileIndex, content);
+    if (tile === null) return null;
+    const unitId = after.nextEntityId++;
+    after.units[unitId] = createMapUnit({ kind: 'pokemon', speciesId }, unitId, playerId, indexToHex(tile, after.map), content);
+    registerSpecies(after.players[playerId], after.units[unitId]);
+    return unitId;
+  };
+  const unitId = grant(top, boss.speciesId);
+  const honor = after.expansion?.eraHonors?.players[top];
+  if (honor) { honor.score += ERA_MILESTONES.raidWon.points; honor.byMilestone.raidWon = (honor.byMilestone.raidWon ?? 0) + 1; }
+  const events: EventPayload[] = [{ type: 'RaidDefeated', public: true, playerId: top, speciesId: boss.speciesId, unitId, damage: { ...boss.damage }, gold, contribution }];
+  const catchSpecies = raidCatchSpecies(content, boss.speciesId);
+  for (const item of [...ranked].sort((a, b) => a.id - b.id)) {
+    if (item.id === top || item.value * 100 < tuning.raidMinSharePercent * total) continue;
+    const chance = raidCatchChance(Math.floor(item.value * 100 / total), content);
+    const success = randomBelow(after.rng, 100) < chance;
+    events.push({ type: 'RaidCaptureRolled', public: true, playerId: item.id, speciesId: catchSpecies, chance, success, unitId: success ? grant(item.id, catchSpecies) : null });
+  }
+  return events;
+}
+
 export function observeRaids(state: GameState, playerId: number, content: Content): RaidView | undefined {
   const raids = state.expansion?.raids;
   if (!raids) return undefined;
@@ -195,5 +263,6 @@ export function observeRaids(state: GameState, playerId: number, content: Conten
   const den = raids.pending, knows = (tile: number) => state.knowledge[playerId]?.exploredTileIds.includes(tile) ?? false;
   return { nextRound: boss ? null : den?.round ?? nextRaidRound(content, state.round + 1, state.setup.roundLimit ?? 100), held: raids.held,
     pending: den ? { tileIndex: knows(den.tileIndex) ? den.tileIndex : null, speciesId: den.speciesId, round: den.round } : null,
-    active: boss ? { unitId: explored ? boss.unitId : null, tileIndex: explored ? boss.tileIndex : null, endsAtRound: boss.endsAtRound, damage: { ...boss.damage }, speciesId: boss.speciesId, maxHp: boss.maxHp } : null };
+    active: boss ? { unitId: explored ? boss.unitId : null, tileIndex: explored ? boss.tileIndex : null, endsAtRound: boss.endsAtRound, damage: { ...boss.damage }, speciesId: boss.speciesId, maxHp: boss.maxHp,
+      ...(boss.max ? { max: observeMaxRaid(state, playerId, boss.damage, boss.max, explored, content) } : {}) } : null };
 }

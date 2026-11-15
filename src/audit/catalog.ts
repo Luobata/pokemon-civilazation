@@ -1030,6 +1030,28 @@ export const AUDIT_SYSTEMS: readonly AuditSystem[] = [
     sources: ['src/core/stacking.ts', 'src/ai/escort-plan.ts', 'src/core/opening-gift.ts', 'src/core/evolution-goals.ts'],
     actionTypes: ['Move', 'Attack', 'FoundCity', 'Evolve'],
   }),
+  system({
+    id: 's-max-raids', name: '极巨团体战（v27）', status: 'implemented',
+    summary: 'gameplay v27 ⑤（pace-v27 §6，5A）：首领带 2 + ⌈存活文明数 / 2⌉ 格极巨护盾（伤害 ×25%，每次命中打掉 1 格，破盾手或效果拔群 2 格）；HP ≤ 50% 进入第二阶段（护盾回到 2 格、极巨波 2 格）；每文明每次团体战免费极巨化一只（RaidDynamax）；职能按兵种；贡献 = 伤害 + 15 × 破盾 + 回复；第一必得，其余 ≥ 10% 各一次捕捉机会；奖励预览。',
+    rules: ['护盾结算是一个纯函数（shieldStrike），权威（combat.ts unitStrike → maxRaidHit）、攻击预览（preview.ts）和奖励预览共用；全部整数（千分比）。',
+      '护盾格数与阶段只给探索过巢穴的文明；贡献账本公开；自己的极巨化是否用过只给自己。',
+      '捕捉机会按文明编号从小到大从 state.rng 各抽一次，事件 RaidCaptureRolled { playerId, chance, success } 公开记录；成功得到这条进化线的一阶。',
+      'RaidDynamax 套用 v26 的极巨化状态到团体战结束，不花精华、不占冷却；同一次团体战每文明一只。',
+      'v≤26 的内容没有 maxRaids 标记：巢穴没有 max 账本，行为与存档逐字节不变。'],
+    checks: ['tests/core/max-raids.test.ts：护盾与阶段算术、职能、贡献、初始护盾、迷雾、预览 = 结算、极巨化一次、第二阶段范围与支援、捕捉机会按编号顺序、参与奖、AI 组队与攻击分。',
+      'tests/browser/pace-v27-events.spec.ts：真实 AI 对局里的团体战卡、护盾格与奖励预览、地图首领的极巨外观。'],
+    sources: ['src/core/max-raids.ts', 'src/core/raids.ts', 'src/ai/max-raid-plan.ts', 'src/ai/raid-plan.ts', 'src/browser/max-raid-ui.ts', 'src/browser/render/canvas2d.ts'],
+    actionTypes: ['RaidDynamax', 'Attack', 'EndTurn'],
+  }),
+  system({
+    id: 's-contest-circuit', name: '巡回华丽大赛（v27）', status: 'implemented',
+    summary: 'gameplay v27 ⑦（pace-v27 §8，7A）：任意己方城市里或旁边的宝可梦都能报名大赛季（大赛馆仍加分）；名次奖品：第 1 名本届类别第一个属性的免费学习器（不需要徽章）+ 时代分 +1，第 2 / 3 名 30 / 15 金，其余参赛宝可梦经验 +20。',
+    rules: ['报名城市由 contestEntryCityIds 一处决定，权威与视图（viewContestEntryBlocker）共用。', '奖品是公开事件 ContestCircuitPrizes；学习器进获奖文明自己的 prizeTms（私有）。不消耗随机数。',
+      'AI：所有性格在类别公布后从任意己方城市 8 格内挑得分最高的宝可梦（同距离先去有大赛馆的城），交战时只派离敌方宝可梦 ≥ 4 格的。'],
+    checks: ['tests/core/contest-circuit.test.ts：无馆报名（v26 拒绝、v27 接受）、名次奖品、学习器免费且不需要徽章、三种性格的 AI 都报名。'],
+    sources: ['src/core/contest-circuit.ts', 'src/core/contest-seasons.ts', 'src/core/gold-sinks.ts', 'src/ai/contest-season-plan.ts', 'src/browser/late-game-ui.ts'],
+    actionTypes: ['EnterContest', 'TeachMove', 'EndTurn'],
+  }),
 ];
 
 export const AUDIT_SYSTEM_BY_ID: ReadonlyMap<string, AuditSystem> = new Map(AUDIT_SYSTEMS.map(item => [item.id, item]));

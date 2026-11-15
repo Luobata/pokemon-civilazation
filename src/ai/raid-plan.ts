@@ -4,6 +4,9 @@ import { hexDistance, indexToHex } from '../core/hex.ts';
 import type { Hex } from '../core/hex.ts';
 import type { MapUnit, PlayerView } from '../core/model.ts';
 import { contentForView } from '../content/units.ts';
+import type { Content } from '../content/units.ts';
+import { estimatedRaidStrike, raidRole } from '../core/max-raids.ts';
+import type { RaidRole } from '../core/max-raids.ts';
 
 const RAID_REACH = 10, RAID_TEAM = 3;
 type Pokemon = Extract<MapUnit, { kind: 'pokemon' }>;
@@ -15,10 +18,41 @@ function raidTeam(view: PlayerView): { den: Hex; team: Pokemon[] } | null {
   const enemies = new Set(view.diplomacy.filter(pair => pair.status === 'war' && (pair.a === view.playerId || pair.b === view.playerId)).map(pair => pair.a === view.playerId ? pair.b : pair.a));
   if (view.units.some(unit => unit.ownerId !== null && enemies.has(unit.ownerId) && view.economy.cities.some(city => hexDistance(city.position, unit.position, view.map) <= 5))) return null;
   const den = indexToHex(active.tileIndex, view.map), content = contentForView(view);
+  if (content.maxRaids) return maxRaidTeam(view, den, content);
   const team = view.units.filter((unit): unit is Pokemon => unit.ownerId === view.playerId && unit.kind === 'pokemon'
     && unit.hp * 2 >= content.species[unit.speciesId].maxHp && hexDistance(unit.position, den, view.map) <= RAID_REACH)
     .sort((a, b) => hexDistance(a.position, den, view.map) - hexDistance(b.position, den, view.map) || a.id - b.id).slice(0, RAID_TEAM);
   return team.length >= 2 ? { den, team } : null;
+}
+/**
+ * v27 ⑤ (pace-v27 §6.3): the team by role — the nearest breaker, then damage dealers, one support when there is a scout — from healthy
+ * Pokémon within `MAX_RAID_REACH`, kept out of a garrison: an own city keeps one Pokémon in or next to it. It goes (alone too) only if its
+ * estimated contribution over the rounds left would be at least 10% of the ledger (`raidPreview` numbers, view-only).
+ */
+const MAX_RAID_REACH = 12;
+function maxRaidTeam(view: PlayerView, den: Hex, content: Content): { den: Hex; team: Pokemon[] } | null {
+  const raids = view.expansion!.raids!, open = raids.active;
+  const distance = (unit: Pokemon) => hexDistance(unit.position, den, view.map);
+  const own = view.units.filter((unit): unit is Pokemon => unit.ownerId === view.playerId && unit.kind === 'pokemon');
+  // A city's last defender stays home.
+  const keep = new Set(view.economy.cities.map(city => own.filter(unit => hexDistance(unit.position, city.position, view.map) <= 1).sort((a, b) => a.id - b.id))
+    .filter(guards => guards.length === 1).map(guards => guards[0].id));
+  const pool = own.filter(unit => !keep.has(unit.id) && unit.hp * 2 >= content.species[unit.speciesId].maxHp && distance(unit) <= MAX_RAID_REACH)
+    .sort((a, b) => distance(a) - distance(b) || a.id - b.id);
+  const role = (unit: Pokemon): RaidRole => raidRole(content.species[unit.speciesId].role);
+  const team: Pokemon[] = [];
+  const take = (unit: Pokemon | undefined) => { if (unit && !team.includes(unit) && team.length < RAID_TEAM) team.push(unit); };
+  take(pool.find(unit => role(unit) === 'breaker'));
+  for (const unit of pool.filter(unit => role(unit) === 'dealer')) if (team.length < RAID_TEAM - 1) take(unit);
+  take(pool.find(unit => role(unit) === 'support'));
+  for (const unit of pool) take(unit);
+  if (!team.length) return null;
+  // The preview gate: the team's estimated contribution over the rounds left against the ledger so far.
+  const ledger = open?.max?.contribution ?? {}, total = Object.values(ledger).reduce((sum, value) => sum + value, 0), mine = ledger[view.playerId] ?? 0;
+  const rounds = open ? Math.max(1, open.endsAtRound - view.round + 1) : 3;
+  const shields = open?.max?.shields ?? 0;
+  const estimate = team.reduce((sum, unit) => sum + estimatedRaidStrike(content, unit.speciesId, shields), 0) * rounds;
+  return (mine + estimate) * 100 >= 10 * (total + estimate) ? { den, team } : null;
 }
 /** Extra attack score against a raid boss (0 = not a raid boss / not worth it). */
 export function raidAttackBonus(view: PlayerView, target: MapUnit): number {

@@ -51,7 +51,7 @@ test('a v27 game uses its v26 regional Pokédex with the pace overlay; the view 
   expect(contentForView(observe(state, 0, content))).toBe(content);
 });
 
-test('scaffolding: RaidDynamax is a known command, refused in v26 and (until the events lane lands) in v27', () => {
+test('scaffolding: RaidDynamax is a known command, refused in v26 and in v27 while no Max raid is open', () => {
   for (const version of [26, 27] as const) {
     const state = createGame(setup(version));
     const unitId = Object.values(state.units).find(unit => unit.ownerId === 0 && unit.kind === 'pokemon')!.id;

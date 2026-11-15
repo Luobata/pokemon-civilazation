@@ -4,6 +4,7 @@ import { cityCounterTerrain, cityStrikeTerrain, isEmbarked, unitStrikeTerrain } 
 import { viewIsRivalUnit, viewRivalSpirit } from './rivals.ts';
 import { protectedCivilian } from './stacking.ts';
 import { viewIsRaidUnit } from './raids.ts';
+import { viewMaxRaidDamage } from './max-raids.ts';
 
 /** Same test as the authority (owner's headquarters is this city): a captured former capital still names its fallen founder in `headquartersOf`. */
 const isOwnCapital = (city: { ownerId: number | null; headquartersOf?: number | null } | undefined) => city?.headquartersOf != null && city.headquartersOf === city.ownerId;
@@ -31,7 +32,9 @@ export type AttackPreview = { ok: true; damage: { min: number; max: number };
   counter: { trigger: 'always' | 'possible' | 'never'; damage: number };
   /** v20: the strength comparison behind the numbers (attacker strength, target strength, every bonus). */
   strength?: StrengthBreakdown;
-  knockdown: 'guaranteed' | 'possible' | 'none' } | { ok: false; reason: string };
+  knockdown: 'guaranteed' | 'possible' | 'none';
+  /** v27 ⑤: on a Max raid boss, the shields this hit breaks and whether it starts phase two (absent elsewhere and before v27). */
+  maxRaid?: { shields: number; phaseTwo: boolean } } | { ok: false; reason: string };
 export type CapturePreview = { ok: true; probability: number } | { ok: false; reason: string };
 // Queries consume only the observation, never state, RNG, or last-known entities as live targets.
 export function previewAttack(view: PlayerView, unitId: number, target: CombatTarget, content: Content = contentForView(view)): AttackPreview {
@@ -102,9 +105,12 @@ export function previewAttack(view: PlayerView, unitId: number, target: CombatTa
     if (canCounter) counter = cityCounterDamage(city.counterAttack, unit, to, from, content);
     }
   }
+  // v27 ⑤: Max shields on a raid boss (the same arithmetic as the authority; null elsewhere and before v27).
+  const shielded = target.kind === 'unit' && 'kind' in defender ? viewMaxRaidDamage(view, unit, defender, { min, max }, content) : null;
+  if (shielded) { min = shielded.min; max = shielded.max; }
   const trigger = !canCounter || min >= hp ? 'never' : max >= hp ? 'possible' : 'always';
   return { ok: true, damage: { min, max }, counter: { trigger, damage: trigger === 'never' ? 0 : counter }, ...(strength ? { strength } : {}),
-    knockdown: min >= hp ? 'guaranteed' : max >= hp ? 'possible' : 'none' };
+    knockdown: min >= hp ? 'guaranteed' : max >= hp ? 'possible' : 'none', ...(shielded ? { maxRaid: { shields: shielded.shields, phaseTwo: shielded.phaseTwo } } : {}) };
 }
 export function previewCapture(view: PlayerView, unitId: number, targetUnitId: number, ballId: BallId, content: Content = contentForView(view)): CapturePreview {
   const unit = view.units.find(unit => unit.id === unitId && unit.ownerId === view.playerId), target = view.units.find(unit => unit.id === targetUnitId);

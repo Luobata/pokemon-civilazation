@@ -27,6 +27,7 @@ import { MAP_ICON_NAMES } from './map-icons.ts';
 import { pokemonSpritePath } from './sprites.ts';
 import { v24PanelCards } from './gym-panel.ts';
 import { depthPanelCards } from './late-game-ui.ts';
+import { maxRaidPanelMarkup } from './max-raid-ui.ts';
 import { dexCaptureCounts, isStarterRecord } from './dex-owned.ts';
 import { regionalDexMarkup } from './regional-dex-panel.ts';
 import { bracketMarkup, worldCards, worldCardsMarkup } from './world-cards.ts';
@@ -60,6 +61,8 @@ export function renderExpansionPanel(view: PlayerView, selectedUnitId: number | 
   // Playtest 2026-11 B4: the titles needed come from the victory targets (v21+: by round limit), as the victory page shows.
   const titlesNeeded = (view.gameplayVersion ?? 0) >= 21 ? victoryTargets(view).championshipTitles : CIVILIZATION_CONTENT.championship.titlesNeededForVictory;
   let html = worldCardsMarkup(worldCards(view, CONTENT), button)
+    // v27 ⑤: the open Max raid ('' before v27).
+    + maxRaidPanelMarkup(view, button, CONTENT)
     + bracketMarkup(view, championship.history.at(-1), { own: championship.titlesByPlayer[player.id] ?? 0, need: titlesNeeded })
     + '<h2 class="rules-head">规则与详情</h2><p>地图标记：巢 · 暴走巢穴，霸 · 霸主，果 · 树果，石 · 矿脉，圣 / 碑 · 圣所与已取得石板。</p>';
   const leader = player.leaderId && LEADER_KITS[player.leaderId];

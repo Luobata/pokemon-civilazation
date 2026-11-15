@@ -479,7 +479,7 @@ export function soundsFor(payload: VisibleEvent['payload'], view: PlayerView, an
     case 'LegendClueFound': return own(payload.playerId, 'notify');
     case 'EraAgeBegan': return own(payload.playerId, 'eraChange');
     case 'WeatherSummoned': return own(payload.playerId, 'weather');
-    case 'EraAbilityUsed': return own(payload.playerId, 'formChange');
+    case 'EraAbilityUsed': case 'RaidDynamaxed': return own(payload.playerId, 'formChange');
     case 'WildSpawned': case 'WorldNestSpawned': return ['alarm'];
     case 'WorldRampageStruckCity': return knownOwnCityIds.has(payload.cityId) ? ['alarm'] : [];
     case 'GameEnded': return payload.outcome.winners.includes(me) ? ['victory'] : ['defeat'];

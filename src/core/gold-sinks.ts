@@ -39,10 +39,14 @@ export type GoldSinkKind = GoldSinkAction['type'];
  * gold spent on each sink (telemetry and the economy panel).
  */
 export type GoldSinkState = { trainedAt: Record<number, Record<number, number>>; moves: Record<number, TypeId>; rushedAt: Record<number, number>;
-  freeUsed: Record<number, TypeId[]>; spent: Record<number, Partial<Record<GoldSinkKind, number>>> };
+  freeUsed: Record<number, TypeId[]>; spent: Record<number, Partial<Record<GoldSinkKind, number>>>;
+  /** v27 ⑦: contest prize TMs not yet taught, per player (free, no badge needed; absent before v27). */
+  prizeTms?: Record<number, TypeId[]> };
 /** The viewer's own: TM types of its units, special-training rounds, cities rushed this round, free TMs left, gold spent per sink. */
 export type GoldSinkView = { moves: Record<number, TypeId>; trainedAt: Record<number, number>; rushedCityIds: number[]; freeTms: TypeId[];
-  spent: Partial<Record<GoldSinkKind, number>> };
+  spent: Partial<Record<GoldSinkKind, number>>;
+  /** v27 ⑦: the viewer's contest prize TMs (also in `freeTms`); absent before v27. */
+  prizeTms?: TypeId[] };
 export type GoldSinkEvent = { type: 'GoldSinkUsed'; playerId: number; kind: GoldSinkKind; gold: number; cityId?: number; unitId?: number; typeId?: TypeId; free?: true };
 const TYPES = ['RushProduction', 'RushRecovery', 'SpecialTraining', 'TeachMove'] as const;
 export const isGoldSinkAction = (action: { type: unknown }): action is GoldSinkAction => (TYPES as readonly unknown[]).includes(action.type);
@@ -106,8 +110,10 @@ export function goldSinkQuote(state: GameState, actorId: number, action: GoldSin
   }
   const species = content.species[unit.speciesId];
   if (!Object.hasOwn(TYPE_ESSENCE, action.typeId) || species.typeId === action.typeId || species.secondaryTypeId === action.typeId || ledger.moves[unit.id] === action.typeId) return fail('tm-redundant');
-  if (!stateBadges(state, actorId).has(TYPE_ESSENCE[action.typeId])) return fail('tm-badge');
-  const free = freeTmsLeft(state.expansion?.gymCircuit, actorId, ledger.freeUsed[actorId] ?? []).includes(action.typeId);
+  // v27 ⑦: a contest prize TM needs no badge.
+  const prize = (ledger.prizeTms?.[actorId] ?? []).includes(action.typeId);
+  if (!prize && !stateBadges(state, actorId).has(TYPE_ESSENCE[action.typeId])) return fail('tm-badge');
+  const free = prize || freeTmsLeft(state.expansion?.gymCircuit, actorId, ledger.freeUsed[actorId] ?? []).includes(action.typeId);
   return priced(tmGold(species.stage, content), free);
 }
 export function validateGoldSinkAction(state: GameState, actorId: number, action: GoldSinkAction, content: Content): string | null {
@@ -142,7 +148,9 @@ export function applyGoldSinkAction(state: GameState, actorId: number, action: G
     return [{ ...base, unitId: unit.id }];
   }
   ledger.moves[unit.id] = action.typeId;
-  if (quote.free) (ledger.freeUsed[actorId] ??= []).push(action.typeId);
+  const prizes = ledger.prizeTms?.[actorId] ?? [];
+  if (quote.free && prizes.includes(action.typeId)) prizes.splice(prizes.indexOf(action.typeId), 1);
+  else if (quote.free) (ledger.freeUsed[actorId] ??= []).push(action.typeId);
   return [{ ...base, unitId: unit.id, typeId: action.typeId, ...(quote.free ? { free: true as const } : {}) }];
 }
 export function initializeGoldSinks(state: GameState, content: Content): void {
@@ -162,7 +170,8 @@ export function observeGoldSinks(state: GameState, playerId: number): GoldSinkVi
   return { moves: Object.fromEntries(Object.entries(ledger.moves).filter(([id]) => own.has(Number(id)))),
     trainedAt: Object.fromEntries(Object.entries(ledger.trainedAt[playerId] ?? {}).filter(([id]) => own.has(Number(id)))),
     rushedCityIds: Object.entries(ledger.rushedAt).filter(([id, round]) => round === state.round && state.cities[Number(id)]?.ownerId === playerId).map(([id]) => Number(id)).sort((a, b) => a - b),
-    freeTms: freeTmsLeft(state.expansion?.gymCircuit, playerId, ledger.freeUsed[playerId] ?? []), spent: { ...ledger.spent[playerId] } };
+    freeTms: [...freeTmsLeft(state.expansion?.gymCircuit, playerId, ledger.freeUsed[playerId] ?? []), ...(ledger.prizeTms?.[playerId] ?? [])].sort(), spent: { ...ledger.spent[playerId] },
+    ...(ledger.prizeTms ? { prizeTms: [...(ledger.prizeTms[playerId] ?? [])].sort() } : {}) };
 }
 /** Same as `taughtMoveType`, for the viewer's own units (the preview and the AI). */
 export const viewTaughtMoveType = (view: Pick<PlayerView, 'expansion'>, unitId: number): TypeId | undefined => view.expansion?.goldSinks?.moves[unitId];
@@ -199,13 +208,18 @@ export function viewGoldSinkQuote(view: PlayerView, action: GoldSinkAction, cont
   }
   const species = content.species[unit.speciesId];
   if (!Object.hasOwn(TYPE_ESSENCE, action.typeId) || species.typeId === action.typeId || species.secondaryTypeId === action.typeId || sinks.moves[unit.id] === action.typeId) return fail('tm-redundant');
-  if (!viewBadges(view).has(TYPE_ESSENCE[action.typeId])) return fail('tm-badge');
+  if (!(sinks.prizeTms ?? []).includes(action.typeId) && !viewBadges(view).has(TYPE_ESSENCE[action.typeId])) return fail('tm-badge');
   return priced(tmGold(species.stage, content), sinks.freeTms.includes(action.typeId));
+}
+/** TM types the viewer may teach: those of its badges and (v27 ⑦) its contest prize TMs, in type order. */
+export function viewTmTypes(view: PlayerView): TypeId[] {
+  const prizes = view.expansion?.goldSinks?.prizeTms ?? [];
+  return (Object.keys(TYPE_ESSENCE) as TypeId[]).filter(type => prizes.includes(type) || viewBadges(view).has(TYPE_ESSENCE[type]));
 }
 /** Player-facing reasons. */
 export const GOLD_SINK_REASONS: Record<string, string> = {
   'gold-sinks-unavailable': '现在不能使用', 'city-unavailable': '这座城市现在不能加急', rushed: '这座城市本轮已经加急过', 'nothing-to-buy': '当前生产项不能加急（传说奇观、设施区不能购买）',
   gold: '金币不够', 'unit-unavailable': '没有这只宝可梦', 'not-recovering': '它没有在休养', 'no-room': '城市旁没有空地', 'no-action': '它本轮已经行动过',
   'training-cooldown': '特训冷却中（每只每 8 轮 1 次）', 'no-training-ground': '要站在有宝可梦中心的己方城市里或旁边', 'tm-redundant': '它已经会这个属性',
-  'tm-badge': '要先拿到这个属性所属精华的徽章',
+  'tm-badge': '要先拿到这个属性所属精华的徽章（华丽大赛奖品学习器不需要）',
 };

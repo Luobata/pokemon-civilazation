@@ -12,3 +12,30 @@
 .race-cells { display: inline-flex; gap: 2px; }
 .race-cells i { width: 8px; height: 8px; background: #3a4a48; image-rendering: pixelated; }
 .race-cells i.on { background: #F2C14E; }
+
+/* Gameplay v27 ⑤ Max raids (src/browser/max-raid-ui.ts): the boss with its red-pink aura, shield pips, HP (purple in phase two),
+   the reward preview and the contribution ledger; the free den Dynamax button pulses while it can be used. */
+.max-raid { margin: 8px 0 12px; padding: 8px; border: 1px solid #F0507A; border-radius: 10px; background: linear-gradient(180deg, #3A1424 0%, transparent 70%); }
+.max-raid.phase-two { border-color: #A259E0; background: linear-gradient(180deg, #2C1840 0%, transparent 70%); }
+.max-raid h3 { display: flex; align-items: center; gap: 6px; margin: 0 0 6px; font-size: 15px; }
+.max-raid-boss { display: flex; align-items: center; gap: 10px; }
+.max-raid-sprite { border-radius: 50%; background: radial-gradient(circle, #F0507A88 0%, #E5304F44 55%, transparent 72%); }
+.max-raid.phase-two .max-raid-sprite { background: radial-gradient(circle, #A259E088 0%, #F0507A44 55%, transparent 72%); }
+.max-raid-meters { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 120px; }
+.max-shields { display: inline-flex; gap: 2px; }
+.max-shields img.off { opacity: .28; filter: grayscale(1); }
+.hp-bar.max-hp > span { background: #F0507A; }
+.hp-bar.max-hp.phase-two > span { background: #A259E0; }
+.raid-rewards { list-style: none; margin: 6px 0; padding: 0; display: grid; gap: 4px; font-size: 13px; }
+.raid-rewards li { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.raid-ledger { list-style: none; margin: 4px 0; padding: 0; display: grid; gap: 3px; font-size: 13px; }
+.raid-ledger-row { display: flex; align-items: center; gap: 6px; padding: 2px 4px; border-radius: 6px; }
+.raid-ledger-row.own { background: #F0507A2E; font-weight: 600; }
+.raid-ledger-name { min-width: 4em; }
+.raid-bar { flex: 1; min-width: 60px; height: 6px; background: #3a4a48; border-radius: 3px; overflow: hidden; }
+.raid-bar > span { display: block; height: 100%; background: #F0507A; }
+.raid-team { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; }
+.raid-member { display: inline-flex; align-items: center; gap: 2px; }
+button.raid-dynamax-ready { box-shadow: 0 0 0 2px #F0507A; animation: raid-ready 1.2s ease-in-out infinite; }
+@keyframes raid-ready { 50% { box-shadow: 0 0 0 4px #F0507A88; } }
+@media (prefers-reduced-motion: reduce) { button.raid-dynamax-ready { animation: none; } }
