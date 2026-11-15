@@ -1,6 +1,8 @@
 import { IMPROVEMENTS } from '../content/improvements.ts';
 import { pillageRewardLabel } from '../core/pillage.ts';
-import { hexDistance } from '../core/hex.ts';
+import { hexDistance, hexToIndex } from '../core/hex.ts';
+import { rivalMemory } from './rival-tracker.ts';
+import { tileCoords } from './tile-coords.ts';
 // Civilization-style notifications for the viewer's own milestones and threats (research, production, growth,
 // wonders, war, knocked-out units, attacked cities). Pure description from the PlayerView; the notification rail
 // (notification-rail.ts) shows them and main.ts decides what a click does.
@@ -28,7 +30,7 @@ import { depthToast } from './late-game-ui.ts';
 
 /** `battle` (depth-v26 §2.5): opens the replay of an own gym / guardian / Elite Four result (battle-replay.ts key). */
 export type ToastTarget = { kind: 'screen'; screen: 'research' | 'legends' | 'era' | 'diplomacy' | 'world' | 'log' } | { kind: 'city'; cityId: number } | { kind: 'unit'; unitId: number }
-  | { kind: 'battle'; key: string } | null;
+  | { kind: 'battle'; key: string } | { kind: 'tile'; tileIndex: number } | null;
 export type ToastTone = 'research' | 'production' | 'growth' | 'wonder' | 'war' | 'info';
 /** When a persistent notification has been handled without clicking it (the player made the choice elsewhere). */
 export type ToastResolve = { kind: 'research' } | { kind: 'city-queued'; cityId: number } | { kind: 'peace-answered'; otherId: number }
@@ -195,8 +197,13 @@ export function toastFor(payload: VisibleEvent['payload'], view: PlayerView, mem
       return toast('war', '!', `劲敌${view.expansion?.rivals?.name ?? ''}将在第 ${payload.round} 轮出现`, `目标：${view.economy.player.headquartersCityId === payload.cityId ? '首都' : `城市 ${payload.cityId}`}。地图上的红色“!”是它的登场地点。`,
         { kind: 'city', cityId: payload.cityId }, '查看城市', decision(undefined, 'rival-warning'));
     case 'RivalArrived':
-      return strategic(toast('war', '!', `劲敌${view.expansion?.rivals?.name ?? ''}登场！`, `“${rivalSays(payload.encounter, 'arrive')}” 劲敌气势 ${payload.spirit >= 0 ? '+' : ''}${payload.spirit}。`,
-        payload.unitIds.length ? { kind: 'unit', unitId: payload.unitIds[0] } : null, '查看', decision(undefined, 'rival-warning')));
+    {
+      // Playtest 2026-11b N2: an arrival in fog still reads "已到达" and points at the warned tile (rival-tracker.ts), never at a hidden unit.
+      const seen = view.units.find(unit => payload.unitIds.includes(unit.id)), warned = rivalMemory.current(view);
+      const tile = seen ? hexToIndex(seen.position, view.map) : warned?.tileIndex ?? null;
+      return strategic(toast('war', '!', `劲敌${view.expansion?.rivals?.name ?? ''}已到达！`, `“${rivalSays(payload.encounter, 'arrive')}” 劲敌气势 ${payload.spirit >= 0 ? '+' : ''}${payload.spirit}。${seen ? '' : warned ? `登场点 ${tileCoords(warned.tileIndex, view.map)} 在迷雾里：地图上的“!”标记保留，派宝可梦去看清它们才能对决。` : '它在你的视野外：世界页「劲敌」卡片可定位。'}`,
+        tile !== null ? { kind: 'tile', tileIndex: tile } : { kind: 'screen', screen: 'world' }, seen ? '查看' : '定位', decision(undefined, 'rival-warning')));
+    }
     case 'RivalStruckCity':
       return toast('war', '⚔', `劲敌攻击城市 ${payload.cityId}`, `造成 ${payload.damage} 伤害，城防剩余 ${payload.cityHpAfter}（劲敌不会把城市打到 1 HP 以下）。`, { kind: 'city', cityId: payload.cityId }, '查看城市',
         decision(undefined, `city-attacked:${payload.cityId}`));

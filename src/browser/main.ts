@@ -83,6 +83,8 @@ import type { TypeId } from '../content/species.ts';
 import { attackSound } from './audio/sfx.ts';
 import type { Camera, Point } from './camera.ts';
 import { GoToOrders, isSettler, planGoTo, planStops, stopText } from './waypoints.ts';
+import { rivalMemory } from './rival-tracker.ts';
+import { goToButtonOrder } from './world-goto.ts';
 import type { GoToPlan, GoToStop } from './waypoints.ts';
 import { suggestCitySites } from './city-sites.ts';
 import type { CitySite } from './city-sites.ts';
@@ -407,6 +409,7 @@ const rail = createNotificationRail(document.querySelector<HTMLElement>('#toast-
   }
   else if (target.kind === 'city') { closeScreen(); selectCity(target.cityId); }
   else if (target.kind === 'battle') watchReplay(target.key);
+  else if (target.kind === 'tile') locateTile(target.tileIndex);
   else { closeScreen(); selectUnit(target.unitId); }
 });
 /** Cities the viewer owned at the last refresh, so a city taken during the AI turns still reads as "yours". */
@@ -518,7 +521,7 @@ function cachedPlan(view: PlayerView, unitId: number, index: number): GoToPlan |
   }
   return planCache.get(key)!;
 }
-function resetGoTo() { goToOrders.clear(); goToMode = false; goToHover = null; arrivedUnitId = null; planCache.clear(); siteCache = null; }
+function resetGoTo() { goToOrders.clear(); goToMode = false; goToHover = null; arrivedUnitId = null; planCache.clear(); siteCache = null; rivalMemory.clear(); }
 /** Units the to-do flow skips this round: the ones the end-turn button already showed, and those on a go-to order. */
 function skippedUnits(view: PlayerView): ReadonlySet<number> { return new Set([...reviewedUnits.of(view.round), ...goToOrders.ids()]); }
 const idleWithoutOrders = (view: PlayerView) => idleUnitIds(view).filter(id => !goToOrders.has(id));
@@ -620,6 +623,7 @@ function controls() {
   const view = session.getView();
   const CONTENT = contentForView(view);
   const ended = view.outcome !== null, pendingPeace = hasPendingPeace(view);
+  rivalMemory.observe(view);
   if (selected !== null && !view.units.some(unit => unit.id === selected && unit.ownerId === view.playerId)) {
     selected = null; resetAction();
   }
@@ -702,6 +706,7 @@ function controls() {
       explain: text => { notice = text; controls(); },
       goTo: () => { const choosing = !goToMode; resetAction(); goToMode = choosing; notice = ''; controls(); requestFrame(); },
       cancelGoTo: () => { if (selected !== null && goToOrders.cancel(selected)) { notice = '路标已取消。'; if (arrivedUnitId === selected) arrivedUnitId = null; } controls(); requestFrame(); },
+      goToTile: setGoTo,
     }, barGoTo(view));
   if (placementSite) {
     document.querySelector<HTMLElement>('#unit-panel')!.innerHTML = districtPreviewMarkup(view, placementSite, busy() || ended || pendingPeace);
@@ -1096,6 +1101,12 @@ document.addEventListener('click', event => {
   if (!button || button.disabled || !session) return;
   if (button.dataset.locateTile !== undefined) locateTile(Number(button.dataset.locateTile));
   else { closeScreen(); selectUnit(Number(button.dataset.locateUnit)); }
+});
+// Playtest 2026-11b: the World page's 前往 buttons (raid cards) set a go-to order for the chosen unit (client waypoints).
+document.addEventListener('click', event => {
+  const order = session ? goToButtonOrder(event) : null;
+  if (!order) return;
+  closeScreen(); selectUnit(order.unitId); setGoTo(order.unitId, order.tileIndex);
 });
 function selectUnit(id: number | null, focus = true) {
   const unit = session.getView().units.find(unit => unit.id === id && unit.ownerId === session.getView().playerId);

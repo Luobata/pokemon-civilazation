@@ -30,6 +30,7 @@ import type { Yield } from '../content/economy.ts';
 import { BIOME_DISPLAY } from './canvas.ts';
 import { tileYieldReader } from './tile-yields.ts';
 import { rivalUnitNote, v24TileEntities } from './gym-panel.ts';
+import { rivalTrailEntities } from './rival-tracker.ts';
 import type { Command } from '../core/model.ts';
 
 /** own = yours; ally/peace/enemy = another civilization by relation; wild = wild Pokémon; neutral = no owner. */
@@ -72,7 +73,7 @@ export function describeTile(view: PlayerView, index: number): TileInfo {
   const empty: TileInfo = { index, terrain: null, visible: false, yields: null, workable: false,
     territory: { tone: 'info', text: '尚未探索' }, workedBy: null, entities: [] };
   // v24 C: the own rival's warning is shown even on a tile not explored yet (the red “!” is drawn there).
-  if (!biome) return { ...empty, entities: v24TileEntities(view, index).filter(entity => entity.kind === 'rival') };
+  if (!biome) return { ...empty, entities: [...v24TileEntities(view, index).filter(entity => entity.kind === 'rival'), ...rivalTrailEntities(view, index)] };
 
   const essence = ESSENCES[BIOME_ESSENCE[biome]];
   const defense = biome === 'forest' || biome === 'mountain' ? `防守方受伤 ×0.8${biome === 'mountain' ? '；从山地出手 ×1.2' : ''}` : null;
@@ -197,7 +198,7 @@ export function describeTile(view: PlayerView, index: number): TileInfo {
       hint: owner === null ? `单位站在上面花 ${CIVILIZATION_CONTENT.sanctuaries.establishmentCost} 金即可建立，永久归你。` : owner === view.playerId && !sanctuary.guardianDefeated ? '带 1–3 只宝可梦（2 格内）挑战守卫。' : undefined });
   }
   // v24 B / C: a circuit gym, and the viewer's own rival warning.
-  entities.push(...v24TileEntities(view, index));
+  entities.push(...v24TileEntities(view, index), ...rivalTrailEntities(view, index));
   // v15: a legend's trace site (shared by everyone; walking a Pokémon onto it yields that civilization's clue).
   const trace = expansion?.legends?.sites.find(site => site.tileIndex === index);
   if (trace && !expansion!.legends!.wonders.some(wonder => wonder.legendId === trace.legendId)) {

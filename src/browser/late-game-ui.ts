@@ -21,6 +21,7 @@ import { pokemonSpritePath } from './sprites.ts';
 import { artImage, escapeAttr, statChip, typeBadge, uiIcon } from './ui-icons.ts';
 import type { UiIconName } from './ui-icons.ts';
 import type { WorldCard } from './world-cards.ts';
+import { approachText, approachTile } from './world-goto.ts';
 
 type Pokemon = Extract<MapUnit, { kind: 'pokemon' }>;
 const esc = escapeAttr;
@@ -62,14 +63,16 @@ export function depthWorldCards(view: PlayerView, content: Content = contentForV
   if (raids?.active) {
     const boss = raids.active, unit = boss.unitId === null ? undefined : view.units.find(item => item.id === boss.unitId), name = content.species[boss.speciesId]?.name ?? '';
     const total = Object.values(boss.damage).reduce((sum, value) => sum + value, 0);
+    const reach = raidReach(view, boss.tileIndex, content);
     cards.push({ id: 'raid', title: `极巨巢穴：${name}`, art: { sprite: pokemonSpritePath(boss.speciesId) },
-      status: `${unit ? `HP ${unit.hp}/${boss.maxHp}` : `HP ${boss.maxHp}`} · 第 ${boss.endsAtRound} 轮后离开`,
-      tip: `本地区的${name}出现在${boss.tileIndex === null ? '远方（你还没探索过那里）' : '地图上'}，不移动，每轮末攻击所有相邻单位，不能捕捉。\n用普通攻击打它：伤害第一的文明得到这只宝可梦（出现在离巢最近的己方城市旁）和世代分 +1；伤害 ≥ 10% 的文明各得金币（每 10% 份额 ${lateTuning(content).raidShareGold} 金，最多 ${lateTuning(content).raidMaxGold}）。\n伤害：${Object.entries(boss.damage).map(([id, value]) => `${civ(view, Number(id))} ${value}（${total ? Math.round(value * 100 / total) : 0}%）`).join('、') || '还没有人出手'}。`,
+      status: `${unit ? `HP ${unit.hp}/${boss.maxHp}` : `HP ${boss.maxHp}`} · 第 ${boss.endsAtRound} 轮后离开 · ${reach.status}`, ...reach.goTo,
+      tip: `本地区的${name}出现在${boss.tileIndex === null ? '远方（你还没探索过那里）' : '地图上'}，不移动，每轮末攻击所有相邻单位，不能捕捉。\n用普通攻击打它：伤害第一的文明得到这只宝可梦（出现在离巢最近的己方城市旁）和世代分 +1；伤害 ≥ 10% 的文明各得金币（每 10% 份额 ${lateTuning(content).raidShareGold} 金，最多 ${lateTuning(content).raidMaxGold}）。\n伤害：${Object.entries(boss.damage).map(([id, value]) => `${civ(view, Number(id))} ${value}（${total ? Math.round(value * 100 / total) : 0}%）`).join('、') || '还没有人出手'}。\n${reach.tip}`,
       urgency: 0, distance: boss.tileIndex === null ? null : hexDistanceToOwn(view, boss.tileIndex), ...(boss.tileIndex === null ? {} : { tileIndex: boss.tileIndex }) });
   } else if (raids?.pending) {
     const den = raids.pending, name = content.species[den.speciesId]?.name ?? '';
-    cards.push({ id: 'raid', title: `极巨巢穴预告：${name}`, art: { sprite: pokemonSpritePath(den.speciesId) }, status: `第 ${den.round} 轮出现（${den.round - view.round} 轮）`,
-      tip: `第 ${den.round} 轮，本地区的${name}会出现在${den.tileIndex === null ? '远方（你还没探索过那里）' : '定位处'}，停留 ${lateTuning(content).raidRounds} 轮。提前把队伍带过去：伤害第一的文明得到它。`,
+    const reach = raidReach(view, den.tileIndex, content);
+    cards.push({ id: 'raid', title: `极巨巢穴预告：${name}`, art: { sprite: pokemonSpritePath(den.speciesId) }, status: `第 ${den.round} 轮出现（${den.round - view.round} 轮）· ${reach.status}`, ...reach.goTo,
+      tip: `第 ${den.round} 轮，本地区的${name}会出现在${den.tileIndex === null ? '远方（你还没探索过那里）' : '定位处'}，停留 ${lateTuning(content).raidRounds} 轮。提前把队伍带过去：伤害第一的文明得到它。\n${reach.tip}`,
       urgency: den.round - view.round <= 2 ? 0 : 2, distance: den.tileIndex === null ? null : hexDistanceToOwn(view, den.tileIndex), ...(den.tileIndex === null ? {} : { tileIndex: den.tileIndex }) });
   } else if (raids?.nextRound) {
     cards.push({ id: 'raid', title: '极巨巢穴', art: { icon: 'raid' }, status: `第 ${raids.nextRound} 轮出现`,
@@ -101,6 +104,14 @@ export function depthWorldCards(view: PlayerView, content: Content = contentForV
     }
   }
   return cards;
+}
+/** Playtest 2026-11b: can my Pokémon get beside the den, in about how many rounds, and a one-click go-to (world-goto.ts). */
+function raidReach(view: PlayerView, tileIndex: number | null, content: Content): { status: string; tip: string; goTo: Pick<WorldCard, 'goTo'> } {
+  // The den's tile is in the view only once the viewer explored it; elsewhere neither its place nor its distance is known.
+  if (tileIndex === null) return { status: '未探索 · 位置未知', tip: '巢穴在你还没探索过的地方：地图上没有它的位置，也算不出距离。向远离各国首都的方向探索。', goTo: {} };
+  const approach = approachTile(view, tileIndex, content), stop = approach ? approach.tileIndex : null;
+  return { status: approachText(approach), tip: approach ? `${approachText(approach)}（按已知地形估算，未探索的格子按草原算）。「前往」给它设路标，每回合开始自动前进。` : '你的宝可梦在已知地形上都到不了它旁边：先探索周围，或从别的方向绕过去。',
+    goTo: approach && stop !== null && approach.turns > 0 ? { goTo: { unitId: approach.unitId, tileIndex: stop, label: `${approach.name}前往极巨巢穴旁（约 ${approach.turns} 轮）` } } : {} };
 }
 const hexDistanceToOwn = (view: PlayerView, tileIndex: number) => {
   const at = indexToHex(tileIndex, view.map), anchors = [...view.units.filter(unit => unit.ownerId === view.playerId).map(unit => unit.position), ...view.economy.cities.map(city => city.position)];

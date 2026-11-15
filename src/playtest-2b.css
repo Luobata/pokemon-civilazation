@@ -1,0 +1,5 @@
+/* Playtest 2026-11b (batches C and D): duel conditions, World page go-to, research queue, gold sinks, quick fill, tile coordinates.
+   Selectors carry two classes where they restyle shared elements, so the built bundle's CSS order cannot override them (N1). */
+.unit-action-tip small { white-space: pre-line; }
+.next-actions .goto-btn { border-color: #4F8F6F; background: #1F3029; }
+.next-actions .goto-btn:hover:not(:disabled) { background: #2C4438; }

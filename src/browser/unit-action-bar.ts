@@ -21,7 +21,7 @@ import { viewGymBlocksCity } from '../core/gym-circuit.ts';
 import type { ActionMode } from './unit-panel.ts';
 import { gymBarState, gymTitle, nextLeaderText, openGymCard, refreshGymCard } from './gym-panel.ts';
 import { openLineupPicker, refreshLineupPicker } from './lineup-picker.ts';
-import { viewDuelCandidates } from '../core/rival-duels.ts';
+import { duelBarState } from './rival-tracker.ts';
 import { rivalDuelSpec } from '../ai/rival-duel-plan.ts';
 import { uiIcon } from './ui-icons.ts';
 import type { UiIconName } from './ui-icons.ts';
@@ -107,6 +107,8 @@ export type UnitBarCallbacks = {
   /** v26 §7.1: toggle the go-to (waypoint) mode, and cancel the unit's standing go-to order. */
   goTo?: () => void;
   cancelGoTo?: () => void;
+  /** Playtest 2026-11b N2: set a go-to order for a unit toward a tile (the duel button when rival Pokémon are out of sight). */
+  goToTile?: (unitId: number, tileIndex: number) => void;
 };
 /** The selected unit's go-to state (client waypoints, waypoints.ts): choosing a target, an order with its turns left, just arrived. */
 export type UnitBarGoTo = { mode: boolean; turns: number | null; arrived: boolean };
@@ -225,13 +227,16 @@ function barActions(view: PlayerView, unit: MapUnit, mode: ActionMode, lock: str
     detail: contentForView(view).teamBattles ? `单打接力：带与馆主同数的宝可梦（2 格内），自己选人和出场顺序。你的下一位馆主：${nextLeaderText(view)}。`
       : `带上 2 格内最多 3 只宝可梦。你的下一位馆主：${nextLeaderText(view)}。`,
   });
-  // v26 P3: a Pokémon in reach of the own rival's team can open the duel picker (who, the order, the stake).
-  if (unit.kind === 'pokemon' && content.rivalDuels && viewDuelCandidates(view).candidates.includes(unit.id)) {
-    const spec = rivalDuelSpec(view, content);
+  // v26 P3: a Pokémon in reach of the own rival's team can open the duel picker (who, the order, the stake). Playtest 2026-11b N2 / O2:
+  // the hover card lists the duel's conditions; while rival Pokémon are out of sight the button says so and sets a go-to order there.
+  const duel = duelBarState(view, unit, content);
+  if (duel) {
+    const spec = duel.goTo === null && !duel.reason ? rivalDuelSpec(view, content) : null;
     actions.push({
-      id: 'duel-unit', action: 'duel', icon: 'attack', label: '对决', hotkey: 'D', key: UNIT_BAR_HOTKEYS.duel, tone: 'primary',
-      title: `劲敌对决 · ${view.expansion?.rivals?.name ?? ''}`, reason: lock ?? (spec ? null : '劲敌这次登场的宝可梦要全部在视野里，且你有同样多只在 2 格内的宝可梦（每轮一次）。'),
-      detail: '单打接力：带与在场劲敌同样多的宝可梦，选切磋（一半奖励，劲敌不走）或真剑（全额奖励，输了付奖金）。',
+      id: 'duel-unit', action: duel.goTo !== null ? 'duel-goto' : 'duel', icon: 'attack', label: '对决', hotkey: 'D', key: UNIT_BAR_HOTKEYS.duel, tone: 'primary',
+      title: duel.title || `劲敌对决 · ${view.expansion?.rivals?.name ?? ''}`, data: duel.goTo !== null ? String(duel.goTo) : '',
+      reason: lock ?? duel.reason ?? (duel.goTo !== null || spec ? null : '对决条件还没满足（见下方）。'),
+      detail: `${duel.goTo === null ? '单打接力：带与在场劲敌同样多的宝可梦，选切磋（一半奖励，劲敌不走）或真剑（全额奖励，输了付奖金）。\n' : ''}${duel.detail}`,
     });
   }
   const others = view.units.some(other => other.ownerId === view.playerId && other.actionLeft && other.id !== unit.id);
@@ -300,6 +305,7 @@ function run(button: HTMLButtonElement) {
       return;
     }
     case 'duel': if (lastView && callbacks.order) openLineupPicker(lastView, { kind: 'rival', key: '' }, callbacks.order); return;
+    case 'duel-goto': if (current.unitId !== null && button.dataset.species) callbacks.goToTile?.(current.unitId, Number(button.dataset.species)); return;
     case 'goto': callbacks.goTo?.(); return;
     case 'cancel-goto': callbacks.cancelGoTo?.(); return;
     case 'skip': callbacks.skip(); return;
