@@ -137,6 +137,9 @@ test('rival duel: the unit bar opens the picker with the stake row; a friendly d
   await expect(picker).toBeVisible();
   const rivals = (await view(page)).expansion!.rivals!;
   await expect(picker.locator('.lp-row')).toHaveCount(rivals.activeUnitIds.length);
+  // Playtest 2026-11b U-d: the duel opens on the friendly stake; 真剑 is chosen explicitly.
+  await expect(picker.locator('[data-stake="spar"]')).toHaveAttribute('aria-checked', 'true');
+  await picker.locator('[data-stake="serious"]').click();
   await expect(picker.locator('#lineup-stake-note')).toContainText('真剑');
   await picker.locator('[data-stake="spar"]').click();
   await expect(picker.locator('[data-stake="spar"]')).toHaveAttribute('aria-checked', 'true');

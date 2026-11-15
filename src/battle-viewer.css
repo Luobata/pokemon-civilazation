@@ -65,3 +65,13 @@
 /* Gens 6–9 sprites get `padding: 12%` globally (of the container's width): small sprites in wide rows keep a fixed inset instead. */
 .bv-steps .px-art, .matchup-grid .px-art, .cp-team-sprites .px-art { padding: 1px; }
 .bv-steps button { min-height: 0; }
+
+/* Playtest 2026-11b: key turns above a collapsible step list. */
+.bv-keys-box h4 { display: flex; align-items: center; gap: 4px; margin: 0 0 2px; color: var(--ink-muted); font-size: 11px; font-weight: 600; }
+.bv-keys { display: flex; flex-wrap: wrap; gap: 3px; margin: 0; padding: 0; list-style: none; }
+.bv-key button { display: inline-flex; align-items: center; gap: 2px; min-height: 0; padding: 1px 4px; border: 1px solid var(--border-strong); border-radius: 4px; background: transparent; color: var(--ink-secondary); }
+.bv-key.faint.away button { border-color: #6fdc6f; }
+.bv-key.faint.home button { border-color: #d3655c; }
+.bv-key .grey { filter: grayscale(1) opacity(0.7); }
+.bv-key.none { color: var(--ink-muted); font-size: 11px; }
+.bv-steps-box summary { cursor: pointer; color: var(--ink-muted); font-size: 11px; }

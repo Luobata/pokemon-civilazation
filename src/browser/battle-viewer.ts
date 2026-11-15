@@ -339,6 +339,31 @@ function beatCaption(state: Viewer, index: number, local: number): string {
   if (state.motion && local < impactAt(attacker) + 120) return `${sentText(battle, strike)}${nameOf(attacker)}发动${TYPE_NAMES[strike.typeId]}属性攻击！`;
   return strikeText(battle, strike).line;
 }
+/**
+ * Playtest 2026-11b: the key turns above the (collapsible) step list — every knockout, every automatic switch, and with several battles
+ * each battle's start — as seek buttons with sprites (the full sentence is the accessible name).
+ */
+function keyTurnsMarkup(replay: BattleReplay, plan: Plan): string {
+  const items = plan.beats.flatMap((beat, index) => {
+    if (beat.kind === 'intro') return replay.battles.length > 1 ? [`<li class="bv-key battle"><button type="button" data-seek="${index}" aria-label="${escapeAttr(`第 ${beat.battle + 1} 场开始：${replay.battles[beat.battle]!.title}`)}" title="${escapeAttr(replay.battles[beat.battle]!.title)}">${uiIcon('swords', { size: 14 })}<b>${beat.battle + 1}</b></button></li>`] : [];
+    if (beat.kind !== 'strike') return [];
+    const battle = replay.battles[beat.battle]!, strike = battle.strikes[beat.strike]!, all = [...battle.home, ...battle.away];
+    const out: string[] = [];
+    for (const sent of strike.sentIn ?? []) {
+      const who = all.find(member => member.id === sent.id);
+      if (!who || !sent.switched) continue;
+      const label = `第 ${strike.round} 回合：${nameOf(who)}换上场`;
+      out.push(`<li class="bv-key switch ${who.side}"><button type="button" data-seek="${index}" aria-label="${escapeAttr(label)}" title="${escapeAttr(label)}"><span class="bv-round" aria-hidden="true">R${strike.round}</span>${uiIcon('goTo', { size: 12 })}${artImage(pokemonSpritePath(who.speciesId), { size: 24, className: who.side === 'home' ? 'bv-mirror' : '' })}</button></li>`);
+    }
+    if (strike.fainted) {
+      const attacker = all.find(item => item.id === strike.attackerId)!, defender = all.find(item => item.id === strike.defenderId)!;
+      const label = `第 ${strike.round} 回合：${nameOf(attacker)}击倒了${nameOf(defender)}（${multiplierText(strike.effectiveness)}，−${strike.damage}）`;
+      out.push(`<li class="bv-key faint ${defender.side}"><button type="button" data-seek="${index}" aria-label="${escapeAttr(label)}" title="${escapeAttr(label)}"><span class="bv-round" aria-hidden="true">R${strike.round}</span>${artImage(pokemonSpritePath(attacker.speciesId), { size: 24, className: attacker.side === 'home' ? 'bv-mirror' : '' })}${uiIcon('damaged', { size: 12 })}${artImage(pokemonSpritePath(defender.speciesId), { size: 24, className: defender.side === 'home' ? 'bv-mirror grey' : 'grey' })}</button></li>`);
+    }
+    return out;
+  });
+  return items.length ? items.join('') : '<li class="bv-key none">没有击倒或换人</li>';
+}
 function stepListMarkup(replay: BattleReplay, plan: Plan): string {
   return plan.beats.map((beat, index) => {
     if (beat.kind === 'intro') {
@@ -480,7 +505,9 @@ export function openBattleViewer(replay: BattleReplay, options: ViewerOptions = 
       <button type="button" id="bv-speed" ${motion ? '' : 'hidden'} aria-label="播放速度 ×1（点击切换）" title="播放速度 ×1（点击切换）">×1</button>
       <button type="button" id="bv-skip" aria-label="跳到结果（End）" title="跳到结果（End）">⏩ 结果</button>
     </div>
-    <ol class="bv-steps" id="bv-steps" aria-label="逐回合记录">${stepListMarkup(replay, plan)}</ol>`;
+    <section class="bv-keys-box" aria-label="关键回合"><h4>${uiIcon('flag', { size: 12 })}关键回合</h4><ol class="bv-keys" id="bv-keys">${keyTurnsMarkup(replay, plan)}</ol></section>
+    <details class="bv-steps-box" id="bv-steps-box"${motion ? '' : ' open'}><summary>逐回合记录（${plan.beats.filter(beat => beat.kind === 'strike').length} 次出手）</summary>
+    <ol class="bv-steps" id="bv-steps" aria-label="逐回合记录">${stepListMarkup(replay, plan)}</ol></details>`;
   document.body.append(root);
   const canvas = root.querySelector<HTMLCanvasElement>('#bv-canvas')!;
   const state: Viewer = { root, canvas, context: canvas.getContext('2d')!, caption: root.querySelector('#bv-caption')!, steps: root.querySelector('#bv-steps')!,
@@ -500,7 +527,7 @@ export function openBattleViewer(replay: BattleReplay, options: ViewerOptions = 
     const button = event.currentTarget as HTMLButtonElement, label = `播放速度 ×${state.speed}（点击切换）`;
     button.textContent = `×${state.speed}`; button.setAttribute('aria-label', label); button.title = label; root.dataset.speed = String(state.speed);
   });
-  state.steps.addEventListener('click', event => {
+  for (const list of [state.steps, root.querySelector<HTMLElement>('#bv-keys')!]) list.addEventListener('click', event => {
     const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-seek]');
     if (button) { state.playing = false; seekBeat(state, Number(button.dataset.seek)); }
   });

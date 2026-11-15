@@ -18,11 +18,12 @@ import { depth26Tuning } from '../content/depth-v26.ts';
 import { viewEliteFourBlocker, viewGymBlocker } from '../core/gym-circuit.ts';
 import { hexDistance } from '../core/hex.ts';
 import type { Command, PlayerView } from '../core/model.ts';
+import { bestAttack } from '../core/team-battle.ts';
 import type { RelayFighter } from '../core/team-battle.ts';
 import { estimateLineup, lineupFighters, viewChampionshipSpec, viewEliteFourSpec, viewGuardianSpec, viewGymSpec } from '../core/team-battle-views.ts';
 import type { LineupSpec } from '../core/team-battle-views.ts';
 import { pokemonSpritePath } from './sprites.ts';
-import { typeBadge, uiIcon } from './ui-icons.ts';
+import { statChip, typeBadge, uiIcon } from './ui-icons.ts';
 import { gymBlockerText, gymTitle } from './gym-panel.ts';
 import { matchupGridMarkup } from './matchup-grid.ts';
 import '../lineup.css';
@@ -68,7 +69,7 @@ const DUEL_BLOCKERS: Record<string, string> = {
   'not-your-turn': '现在不是你的回合。', 'rival-duels-unavailable': '本局没有劲敌对决。',
 };
 /** The stake row and what each outcome pays (§3.1), from the viewer's own ledger. */
-function stakeMarkup(view: PlayerView, stake: RivalDuelStake): string {
+function stakeMarkup(view: PlayerView, stake: RivalDuelStake, estimate: number | null): string {
   const rivals = view.expansion?.rivals, visit = Math.max(0, (rivals?.encounter ?? 1) - 1), reward = RIVAL_RULES_V24.rewards[visit] as { gold: number; pokeBalls?: number; research?: number; xp?: number };
   const tuning = depth26Tuning(contentForView(view)), half = (value = 0) => Math.round(value * tuning.sparRewardPercent / 100);
   const prize = Math.min(Math.floor(view.economy.player.gold * tuning.prizePercent / 100), tuning.prizePerVisit * (visit + 1));
@@ -78,21 +79,58 @@ function stakeMarkup(view: PlayerView, stake: RivalDuelStake): string {
     + `<button type="button" role="radio" data-stake="spar" aria-checked="${stake === 'spar'}">${uiIcon('handshake', { size: 14 })}切磋</button>`
     + `<button type="button" role="radio" data-stake="serious" aria-checked="${stake === 'serious'}">${uiIcon('swords', { size: 14 })}真剑</button></p>`
     + `<p class="lp-stake-note" id="lineup-stake-note">${stake === 'spar' ? `切磋：赢了得一半奖励（${spar}），劲敌不走；输了只写回 HP。`
-      : `真剑：赢了得全额奖励（${full}；劲敌满 HP 时金币 ×1.5${rivals?.streak ? '，连胜 ×1.25' : ''}）和「劲敌之证」世代分 +1，劲敌离场；输了劲敌拿走奖金 ${prize} 金，本次剩余轮里气势 +3。`}</p>`;
+      : `真剑：赢了得全额奖励（${full}；劲敌满 HP 时金币 ×1.5${rivals?.streak ? '，连胜 ×1.25' : ''}）和「劲敌之证」世代分 +1，劲敌离场；输了劲敌拿走奖金 ${prize} 金，本次剩余轮里气势 +3。`}</p>`
+    // Playtest 2026-11b BA5 / U-d: a serious duel at a low estimate is warned about (the default stake is the friendly one).
+    + (stake === 'serious' && estimate !== null && estimate < LOW_ESTIMATE ? `<p class="cp-reason lp-stake-warning" id="lineup-stake-warning" role="alert">${uiIcon('alarm', { size: 14, label: '警告' })}估计胜率只有 ${estimate}%：真剑输了劲敌拿走 ${prize} 金、气势 +3。先切磋试试，或换人再来。</p>` : '');
+}
+/** Below this estimate a serious duel shows a warning. */
+const LOW_ESTIMATE = 20;
+const SPEED_NAMES: Record<number, string> = { 4: '快速', 3: '侦察 / 飞行', 2: '远程', 1: '近战 / 水面', 0: '攻城' };
+const attackOf = (fighter: RelayFighter) => fighter.attack + fighter.veteran, defenseOf = (fighter: RelayFighter) => fighter.defense + fighter.veteran;
+const average = (values: number[]) => values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : 0;
+const multiplier = (value: number) => `×${(value / 100).toFixed(2).replace(/\.?0+$/, '')}`;
+/**
+ * Playtest 2026-11b U-b: one line on why the estimate is what it is — the strongest attack against the other side's average defence,
+ * the type matchups over every pair, the HP totals when far apart, and who strikes first in the opening pair.
+ */
+export function estimateReason(lineup: readonly RelayFighter[], foes: readonly RelayFighter[]): string {
+  if (!lineup.length || !foes.length) return '';
+  const theirAttack = Math.max(...foes.map(attackOf)), myDefense = average(lineup.map(defenseOf)), myAttack = Math.max(...lineup.map(attackOf)), theirDefense = average(foes.map(defenseOf));
+  const pairs = lineup.flatMap(me => foes.map(foe => [me, foe] as const));
+  const mine = average(pairs.map(([me, foe]) => bestAttack(me, foe).effectiveness)), theirs = average(pairs.map(([me, foe]) => bestAttack(foe, me).effectiveness));
+  const hp = lineup.reduce((sum, fighter) => sum + fighter.hp, 0), foeHp = foes.reduce((sum, fighter) => sum + fighter.hp, 0);
+  return [
+    theirAttack > myDefense ? `对手攻 ${theirAttack} > 你防 ${myDefense}` : `你防 ${myDefense} ≥ 对手攻 ${theirAttack}`,
+    myAttack > theirDefense ? `你攻 ${myAttack} > 对手防 ${theirDefense}` : `你攻 ${myAttack} ≤ 对手防 ${theirDefense}`,
+    mine * 100 > theirs * 115 ? `属性有利（平均 ${multiplier(mine)} 对 ${multiplier(theirs)}）` : theirs * 100 > mine * 115 ? `属性不利（平均 ${multiplier(mine)} 对 ${multiplier(theirs)}）` : '属性持平',
+    ...(hp * 4 < foeHp * 3 || foeHp * 4 < hp * 3 ? [`HP ${hp} 对 ${foeHp}`] : []),
+    lineup[0].speed > foes[0].speed ? '你的首发先手' : lineup[0].speed < foes[0].speed ? '对手首发先手' : '首发同速',
+  ].join('，');
+}
+/** Why the suggested order (U-b): it won the most of the fixed estimate trials; what its lead does against the first opponent. */
+export function suggestReason(lineup: readonly RelayFighter[], foes: readonly RelayFighter[], content: Content, estimate: number | null, before: number | null): string {
+  const lead = lineup[0], foe = foes[0];
+  if (!lead) return '';
+  const name = (fighter: RelayFighter) => content.species[fighter.speciesId]?.name ?? fighter.speciesId;
+  const opening = foe ? `首发${name(lead)}对对手首发${name(foe)}：打 ${multiplier(bestAttack(lead, foe).effectiveness)}、挨 ${multiplier(bestAttack(foe, lead).effectiveness)}${lead.speed > foe.speed ? '、先手' : lead.speed < foe.speed ? '、后手' : ''}` : '';
+  return `建议理由：在所有可行的人选和顺序里，这一种在固定估算里赢得最多、损失 HP 最少${estimate === null ? '' : `（${before !== null && before !== estimate ? `${before}% → ` : ''}${estimate}%）`}。${opening}${opening ? '。' : ''}`;
 }
 const stars = (count: number) => count ? `<span class="lp-stars" title="历练 +${count}（攻防）" aria-label="历练 ${count}">${'★'.repeat(count)}</span>` : '';
 function fighterChip(fighter: RelayFighter, content: Content, extra = ''): string {
   const species = content.species[fighter.speciesId];
   return `<img src="${pokemonSpritePath(fighter.speciesId)}" alt="" width="32" height="32"><span class="lp-name"><b>${esc(species?.name ?? fighter.speciesId)}</b>`
     + `<small>${fighter.typeIds.map(type => typeBadge(type, 14)).join('')}${uiIcon(`class:${species?.role ?? 'melee'}`, { size: 14, label: `${CLASS_NAMES[species?.role ?? 'melee']}（先手 ${fighter.speed}）` })}`
-    + ` HP ${fighter.hp}/${fighter.maxHp}${stars(fighter.veteran)}</small></span>${extra}`;
+    + ` HP ${fighter.hp}/${fighter.maxHp}${stars(fighter.veteran)}</small>`
+    // U-b: attack, defence (历练 included) and the speed class, as icon chips (the numbers are their accessible names).
+    + `<small class="lp-stats">${statChip('attack', attackOf(fighter), '攻击', 'lp-stat')}${statChip('defense', defenseOf(fighter), '防御', 'lp-stat')}${statChip('move', fighter.speed, `先手（${SPEED_NAMES[fighter.speed] ?? ''}）`, 'lp-stat')}</small></span>${extra}`;
 }
 const bar = (percent: number) => `<span class="lp-bar" aria-hidden="true">${Array.from({ length: 16 }, (_, index) => `<i class="${index < Math.round(percent * 16 / 100) ? 'on' : ''}"></i>`).join('')}</span>`;
 
-type PickerState = { target: PickerTarget; order: number[]; opponent: number; stake: RivalDuelStake; confirm: (action: Command['action']) => void };
+type PickerState = { target: PickerTarget; order: number[]; opponent: number; stake: RivalDuelStake; confirm: (action: Command['action']) => void;
+  /** U-b: the reason line of the last suggested order (cleared once the order changes). */ suggested?: { order: string; note: string } };
 let state: PickerState | null = null, host: HTMLElement | null = null, lastView: PlayerView | null = null, dragged: number | null = null;
 
-export function lineupPickerMarkup(view: PlayerView, target: PickerTarget, order: readonly number[], opponent = 0, stake: RivalDuelStake = 'serious'): string | null {
+export function lineupPickerMarkup(view: PlayerView, target: PickerTarget, order: readonly number[], opponent = 0, stake: RivalDuelStake = 'spar', suggestion = ''): string | null {
   const content = contentForView(view), spec = pickerSpec(view, target, content);
   if (!spec) return null;
   const all = lineupFighters(view, spec.candidates, content), lineup = lineupFighters(view, order, content);
@@ -113,7 +151,9 @@ export function lineupPickerMarkup(view: PlayerView, target: PickerTarget, order
     <section class="lp-foes"><h3>对手${leader ? ` · ${esc(leader)}` : ''}</h3>${tabs}<ul>${foes.map(foe => `<li>${fighterChip(foe, content)}</li>`).join('') || '<li class="lp-empty">对手名单赛前 5 轮公布</li>'}</ul></section></div>
     ${matchupGridMarkup(lineup, foes, '属性克制：你的出场顺序对这支对手', 'lineup-grid', true)}
     <div class="lp-estimate"><b id="lineup-estimate">${estimate === null ? '—' : `${estimate}%`}</b>${estimate === null ? '' : bar(estimate)}<small>估计胜率（16 次固定估算，取整到 5%；真实对战的随机在结算时才抽）</small></div>
-    ${target.kind === 'rival' ? stakeMarkup(view, stake) : ''}
+    ${estimate === null ? '' : `<p class="lp-why" id="lineup-why">${uiIcon('clipboard', { size: 14, label: '胜率原因' })}${esc(estimateReason(lineup, foes))}${spec.opponents.length > 1 ? `<small>（对 ${esc(spec.names[Math.min(opponent, spec.opponents.length - 1)] ?? '这一队')}）</small>` : ''}</p>`}
+    ${suggestion ? `<p class="lp-why" id="lineup-suggest-why">${uiIcon('check', { size: 14, label: '建议顺序' })}${esc(suggestion)}</p>` : ''}
+    ${target.kind === 'rival' ? stakeMarkup(view, stake, estimate) : ''}
     ${blocker ? `<p class="cp-reason" id="lineup-blocker">${esc(blocker)}</p>` : ''}
     <footer><button type="button" id="lineup-suggest">建议顺序</button><button type="button" class="primary" id="lineup-confirm" ${blocker ? 'disabled' : ''}>${target.kind === 'championship' ? '报名' : target.kind === 'rival' ? '对决' : '挑战'}</button></footer>`;
 }
@@ -143,7 +183,8 @@ function move(index: number, delta: number, focus = false): void {
 }
 function render(): void {
   if (!state || !lastView) return;
-  const body = lineupPickerMarkup(lastView, state.target, state.order, state.opponent, state.stake), element = ensureHost();
+  const suggestion = state.suggested?.order === state.order.join(',') ? state.suggested.note : '';
+  const body = lineupPickerMarkup(lastView, state.target, state.order, state.opponent, state.stake, suggestion), element = ensureHost();
   if (!body) { closeLineupPicker(); return; }
   element.innerHTML = body; element.hidden = false;
   const spec = pickerSpec(lastView, state.target)!;
@@ -173,8 +214,14 @@ function render(): void {
   });
   element.querySelector('#lineup-suggest')?.addEventListener('click', () => {
     if (!state || !lastView) return;
-    const choice = chooseLineup(lastView, spec, contentForView(lastView), { fullHp: state.target.kind === 'championship' });
-    if (choice) { state.order = choice.unitIds; render(); }
+    const content = contentForView(lastView), choice = chooseLineup(lastView, spec, content, { fullHp: state.target.kind === 'championship' });
+    if (!choice) return;
+    const estimateOf = (ids: readonly number[]) => { const fighters = lineupFighters(lastView!, ids, content); return fighters.length && spec.opponents.length ? estimateLineup(spec, fighters) : null; };
+    const before = state.order.length >= spec.size.min ? estimateOf(state.order) : null;
+    const lineup = lineupFighters(lastView, choice.unitIds, content), foes = spec.opponents[Math.min(state.opponent, spec.opponents.length - 1)] ?? [];
+    state.order = choice.unitIds;
+    state.suggested = { order: choice.unitIds.join(','), note: suggestReason(lineup, foes, content, estimateOf(choice.unitIds), before) };
+    render();
   });
   element.querySelector('#lineup-confirm')?.addEventListener('click', () => {
     if (!state) return;
@@ -193,7 +240,8 @@ export function openLineupPicker(view: PlayerView, target: PickerTarget, confirm
   const spec = pickerSpec(view, target);
   if (!spec) return;
   lastView = view;
-  state = { target, order: initialOrder(view, target, spec), opponent: 0, stake: 'serious', confirm };
+  // U-d / BA5: a duel starts on the friendly stake (切磋); 真剑 is the player's explicit choice.
+  state = { target, order: initialOrder(view, target, spec), opponent: 0, stake: 'spar', confirm };
   render();
   host?.querySelector<HTMLElement>('#lineup-confirm:not([disabled]), #lineup-suggest')?.focus();
 }

@@ -93,6 +93,7 @@ import type { UnitBarGoTo } from './unit-action-bar.ts';
 // depth-v26 §2.5 / §4.2 (presentation only): battle replays, guardian / Elite Four preview cards, the evolution moment.
 import { clearReplays, recordChallengeResult, rememberChallenge, storedReplay } from './battle-replay.ts';
 import type { BattleReplay } from './battle-replay.ts';
+import { renderBattleLog, resetBattleLog, setBattleLogFilter, unitBattleLogButton } from './battle-log.ts';
 import { closeBattleViewer, openBattleViewer } from './battle-viewer.ts';
 import { challengeCardResult, closeChallengeCard, isPreviewedChallenge, openChallengeCard } from './challenge-card.ts';
 import { evolutionTrack } from './render/animation.ts';
@@ -704,6 +705,14 @@ function controls() {
     improve: (tileIndex, kind) => { if (selected !== null) issue({ type: 'ImproveTile', unitId: selected, tileIndex, kind }); },
     issue,
   }, { actionsInBar: true });
+  // Playtest 2026-11b U-a: the selected Pokémon's battles open the battle log (动态 screen) filtered to it.
+  if (selected !== null) {
+    const head = document.querySelector<HTMLElement>('#unit-panel .unit-head'), entry = unitBattleLogButton(selected);
+    if (head && entry) {
+      head.insertAdjacentHTML('beforeend', entry);
+      head.querySelector('#unit-battle-log')?.addEventListener('click', () => { setBattleLogFilter(selected); controls(); openScreen('log', '#battle-log'); });
+    }
+  }
   // Unit orders live in the bar at the bottom-right of the map (same callbacks as the old drawer buttons).
   renderUnitActionBar(view, districtPlacement ? null : selected, actionMode,
     busy() ? '动画播放中，请稍候或跳过动画。' : ended ? '对局已结束。' : pendingPeace ? '请先回应停战提议。' : null, {
@@ -728,6 +737,7 @@ function controls() {
   renderDiplomacyPanel(view, busy() || ended, issue);
   renderOutcome(view, newGame);
   renderLeagueResult(view, openReplay);
+  renderBattleLog(view, openReplay);
   renderBallStock(view, openBallShop);
   const shown = activityLog.filter(entry => !activityImportantOnly || !entry.routine);
   document.querySelector('#activity-list')!.innerHTML = shown.length ? shown.map((entry, index) =>
@@ -1049,7 +1059,7 @@ const ambient = new AmbientTransitions();
 /** New game, load, replay: no fades from the previous game, no war layers carried over, no reveal camera to restore. */
 function resetPresentationState() {
   ambient.reset(); warIntensity.reset(); revealHome = null; pendingReveal = null; endingPresented = false; resetGoTo();
-  clearReplays(); closeBattleViewer(); closeChallengeCard(); speciesChanges.clear(); foreignEvolutions.length = 0;
+  clearReplays(); resetBattleLog(); closeBattleViewer(); closeChallengeCard(); speciesChanges.clear(); foreignEvolutions.length = 0;
 }
 /** depth-v26 §2.5: the replay viewer (still under reduced motion), with the game's sound effects. */
 function openReplay(replay: BattleReplay) {
