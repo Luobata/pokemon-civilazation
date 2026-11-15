@@ -1,4 +1,5 @@
-import { leagueRosterEntrants } from './league-roster.ts';
+import { leagueRosterEntrants, settleLeagueNemeses } from './league-roster.ts';
+import type { LeagueTrainerEvent } from './league-roster.ts';
 import { worldSiteAllowed } from './terrain.ts';
 import type { MapFeatures } from './terrain.ts';
 import { victoryTargets } from '../content/opening.ts';
@@ -144,6 +145,8 @@ export type CivilizationAction =
       accept?: boolean;
     };
 export type CivilizationEvent =
+  /** v27 ⑥: a civilization beat its league nemesis (era score). */
+  | LeagueTrainerEvent
   | { type: 'OfferingMade'; playerId: number; cityId: number; resource: OfferingResource; points: number }
   | { type: 'PhantomSummoned'; playerId: number; phantomId: string; name: string; cost: number; offeringPointsAfter: number }
   | { type: 'PhantomActivated'; playerId: number; phantomId: string; name: string; cityId?: number; techId?: string; unitIds?: number[]; amount: number }
@@ -288,9 +291,9 @@ export type ChampionshipNpc = { entrantId: string; name: string; roster: BattleC
  * two types (stableSeed) and picks regional Pokémon of those types, highest stage first; its total power is
  * `npcBasePower + season × npcSeasonPower + slot × npcSlotPower`, split evenly and scaled per Pokémon (integers). Public setup only.
  */
-export function championshipNpcEntrants(seed: number, season: number, content: Content): ChampionshipNpc[] {
-  // v27 ⑥: the league roster (null before v27).
-  const league = leagueRosterEntrants(seed, season, content);
+export function championshipNpcEntrants(seed: number, season: number, content: Content, history: readonly ChampionshipSeason[] = []): ChampionshipNpc[] {
+  // v27 ⑥: the league roster (null before v27); who sat out the previous season (public history) comes first.
+  const league = leagueRosterEntrants(seed, season, content, history);
   if (league) return league;
   const tuning = depth26Tuning(content), size = CIVILIZATION_CONTENT.championship.teamSize;
   const ids = [...regionalSpeciesIds(content)].filter(id => content.species[id]).sort() as SpeciesId[];
@@ -321,7 +324,7 @@ export function seasonNpcEntrants(state: CivilizationHost, content: Civilization
   const championship = civilization(state)!.championship, season = championship.nextSeason, tuning = depth26Tuning(content.world);
   const slots = Math.max(0, content.championship.entrantCount - entered.length);
   const rivals = conferenceRivals(state, content.world, season, entered, slots, slot => tuning.npcBasePower + season * tuning.npcSeasonPower + slot * tuning.npcSlotPower, entered.length + 1);
-  const npcs = championshipNpcEntrants(state.setup.seed, season, content.world).slice(0, slots - rivals.length);
+  const npcs = championshipNpcEntrants(state.setup.seed, season, content.world, championship.history).slice(0, slots - rivals.length);
   return { npcs: [...rivals.map(rival => ({ entrantId: rival.entrantId, name: rival.name, roster: rival.roster })), ...npcs], rivals };
 }
 /** v26 (depth-v26 §2.2): a guardian keeps its species' attack and defence; its HP is 150% (challenge power 620) to 200% (860), linear. */
@@ -886,6 +889,8 @@ function resolveChampionship(state: CivilizationHost, content: CivilizationConte
     finishChampionship(state, content, events, entrants, (label, first, second) => relayChampionshipMatch(label, first, second, relays, fought, state));
     // v26 P3: a civilization that knocked its own rival out of the conference earns the fated-duel reward.
     if (rivals.length) events.push(...settleConferenceRivals(state, rivals, state.expansion!.civilization.championship.history.at(-1)!.matches));
+    // v27 ⑥: beating the own league nemesis ([] before v27).
+    events.push(...settleLeagueNemeses(state, content.world));
     return;
   }
   for (let npcIndex = 1; entrants.length < content.championship.entrantCount; npcIndex++) {
@@ -1002,7 +1007,7 @@ export function resolveCivilizationRound(state: CivilizationHost, content: Civil
   else if (content.world.teamBattles && civilizationState.championship.nextRound - state.round === 6) {
     const championship = civilizationState.championship;
     events.push({ type: 'ChampionshipLineupAnnounced', public: true, season: championship.nextSeason, round: championship.nextRound,
-      entrants: championshipNpcEntrants(state.setup.seed, championship.nextSeason, content.world).map(npc => ({ entrantId: npc.entrantId, name: npc.name, speciesIds: npc.roster.map(member => member.speciesId) })) });
+      entrants: championshipNpcEntrants(state.setup.seed, championship.nextSeason, content.world, championship.history).map(npc => ({ entrantId: npc.entrantId, name: npc.name, speciesIds: npc.roster.map(member => member.speciesId) })) });
   }
   events.push(...checkCivilizationVictory(state, content));
   return events;

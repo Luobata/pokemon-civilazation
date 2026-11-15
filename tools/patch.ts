@@ -72,7 +72,7 @@ export function patchSchema(base: Content): Schema {
     events: { shieldBase: [0, 20], shieldPhaseTwo: [0, 20], shieldDamagePermille: [0, 1000], phaseTwoPercent: [0, 100], phaseTwoRange: [1, 5],
       breakerShields: [1, 10], dealerPermille: [1000, 5000], supportHeal: [0, 1000], shieldPoints: [0, 1000], dynamaxRange: [1, 10],
       catchBasePercent: [0, 100], catchMaxPercent: [0, 100], participationGold: [0, 1000], circuitGold: indexed(base.pace27.events.circuitGold, [0, 1000]), circuitEntrantXp: amount },
-    trainers: { rosterSize: [6, 8], stageWeights: indexed(base.pace27.trainers.stageWeights, [1, 100]), signaturePercent: [100, 300] },
+    trainers: { rosterSize: [6, 8], stageWeights: indexed(base.pace27.trainers.stageWeights, [1, 100]), signaturePercent: [100, 300], npcBasePower: [10, 10_000] },
   } } : {}),
   };
 }

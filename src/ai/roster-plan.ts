@@ -6,6 +6,8 @@ import type { Content, SpeciesId } from '../content/units.ts';
 import { dualEffectiveness } from '../core/combat-math.ts';
 import { evolutionBlocker, evolutionOptions, playerGeneration, tileBiome } from '../core/roster.ts';
 import type { MapUnit, PlayerView } from '../core/model.ts';
+import { leagueNemesis, leagueRoster } from '../core/league-roster.ts';
+import type { ChampionshipSeason } from '../core/civilization-systems.ts';
 
 /** First evolution option whose conditions hold now (data order decides between branches); stone-only paths excluded. */
 export function rosterEvolution(view: PlayerView, unit: MapUnit & { kind: 'pokemon' }, content: Content): EvolutionOption | null {
@@ -50,4 +52,18 @@ export function classTrainingBonus(view: PlayerView, speciesId: SpeciesId, conte
     if (classStrikeMultiplier(view, unit, mine, content) / (hasAffinity(unit, content) ? 1.15 : 1) > 1000) score -= 4;
   }
   return Math.max(-24, Math.min(24, score)) + (hasAffinity(mine, content) ? 8 : 0);
+}
+
+const nemesisTypes = new WeakMap<readonly ChampionshipSeason[], TypeId | null>();
+/** v27 ⑥ (pace-v27 §7.3): +10 for a species that hits the own league nemesis's primary type super-effectively (0 without a nemesis). */
+export function nemesisTrainingBonus(view: PlayerView, speciesId: SpeciesId, content: Content): number {
+  const history = view.expansion?.civilization?.championship.history;
+  if (!content.leagueTrainers || !history?.length) return 0;
+  let type = nemesisTypes.get(history);
+  if (type === undefined) {
+    const nemesis = leagueNemesis(history, view.playerId);
+    type = nemesis ? leagueRoster(view.seed, content).find(trainer => trainer.entrantId === nemesis.entrantId)?.primaryType ?? null : null;
+    nemesisTypes.set(history, type);
+  }
+  return type && dualEffectiveness(content.species[speciesId].typeId, [type]) > 100 ? 10 : 0;
 }

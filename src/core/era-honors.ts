@@ -74,6 +74,8 @@ function milestones(before: GameState, after: GameState, events: readonly EventP
       case 'RivalDefeated': for (let visit = 0; visit < event.encounter + (event.proof ? 1 : 0); visit++) found.push([event.playerId, 'rivalDefeated']); break;
       // v26 P3: the rival's proof (+1, above) and the rival beaten at the conference (+2).
       case 'RivalConferenceBeaten': for (let point = 0; point < event.eraScore; point++) found.push([event.playerId, 'rivalDefeated']); break;
+      // v27 ⑥: the league nemesis beaten at the conference (+1, once per season).
+      case 'LeagueNemesisBeaten': for (let point = 0; point < event.eraScore; point++) found.push([event.playerId, 'rivalDefeated']); break;
       case 'BattleResolved':
         if (event.capturedCity && event.target.kind === 'city') { const id = owner(event.target.id); if (id !== null) found.push([id, 'cityCaptured']); }
         break;

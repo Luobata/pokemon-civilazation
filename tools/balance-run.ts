@@ -205,7 +205,9 @@ export type Roster25Record = { dex: string[]; pokedexTarget: number; recruits: s
  * civilization and the guardians beaten.
  */
 export type World26Record = { gymChallenges: number[]; gymWins: number[]; guardianChallenges: number[]; guardianWins: number[];
-  duels: { spar: number; serious: number; won: number }[]; conferenceRival: (string | null)[]; seasons: number; seasonsWonByCivs: number };
+  duels: { spar: number; serious: number; won: number }[]; conferenceRival: (string | null)[]; seasons: number; seasonsWonByCivs: number;
+  /** v27 ⑥: every conference season — the champion's entrant id, the entrant ids and names (league trainers, rivals, civilizations). */
+  league?: { season: number; round: number; champion: string; entrantIds: string[]; entrants: string[] }[] };
 export type BalanceGameRecord = { schemaVersion: 1; case: BalanceCase; result: LeaderGameResult; samples: RoundSample[]; curves: CurvePoint[]; world24?: World24Record;
   roster25?: Roster25Record; world26?: World26Record };
 export const CURVE_INTERVAL = 10;
@@ -311,7 +313,9 @@ export function createObserver(content: Content) {
       return { gymChallenges: seats.map(seat => row(seat).gym), gymWins: seats.map(seat => row(seat).gymWins), guardianChallenges: seats.map(seat => row(seat).guard),
         guardianWins: seats.map(seat => row(seat).guardWins), duels: seats.map(seat => ({ spar: row(seat).spar, serious: row(seat).serious, won: row(seat).won })),
         conferenceRival: seats.map(seat => state.expansion?.rivals?.byPlayer[seat]?.conference ?? null),
-        seasons: history.length, seasonsWonByCivs: history.filter(season => season.championPlayerId !== null).length };
+        seasons: history.length, seasonsWonByCivs: history.filter(season => season.championPlayerId !== null).length,
+        ...(content.leagueTrainers ? { league: history.map(season => ({ season: season.season, round: season.round, champion: season.championEntrantId,
+          entrantIds: season.entrants.map(entrant => entrant.entrantId), entrants: season.entrants.map(entrant => entrant.name ?? entrant.entrantId) })) } : {}) };
     },
     onState(state: GameState) {
       if (dex) latest = state;

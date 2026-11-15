@@ -97,8 +97,11 @@ export const EVENTS_TUNING: EventsTuning = {
 export type TrainersTuning = {
   /** ⑥ §7.1 roster size; stage weights (stage 1, 2, 3) for splitting the team power; the signature Pokémon's weight (percent). */
   rosterSize: number; stageWeights: [number, number, number]; signaturePercent: number;
+  /** ⑥ §7.7: a roster team's power is `npcBasePower + season × npcSeasonPower + slot × npcSlotPower` with this base (the v26 base is
+   * `depth26.npcBasePower`; the season and slot steps stay v26's). Calibrated so the championship share stays near v26's. */
+  npcBasePower: number;
 };
-export const TRAINERS_TUNING: TrainersTuning = { rosterSize: 8, stageWeights: [8, 10, 13], signaturePercent: 120 };
+export const TRAINERS_TUNING: TrainersTuning = { rosterSize: 8, stageWeights: [8, 10, 13], signaturePercent: 120, npcBasePower: 1150 };
 
 export type Pace27Tuning = { opening: OpeningTuning; economy: EconomyTuning; events: EventsTuning; trainers: TrainersTuning };
 export const PACE27_TUNING: Pace27Tuning = { opening: OPENING_TUNING, economy: ECONOMY_TUNING, events: EVENTS_TUNING, trainers: TRAINERS_TUNING };
