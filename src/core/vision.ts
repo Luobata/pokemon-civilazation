@@ -6,6 +6,7 @@ import { observeRivals } from './rivals.ts';
 import { observeGoldSinks } from './gold-sinks.ts';
 import { observeContestSeasons } from './contest-seasons.ts';
 import { observeRaids } from './raids.ts';
+import { observeCityProjects } from './city-projects.ts';
 import { observeLegendRace, withLegendRace } from './legend-race.ts';
 import { observeVictoryWatch } from './victory-watch.ts';
 import { observeResearchTasks } from './research-tasks.ts';
@@ -133,7 +134,7 @@ export function observe(state: GameState, playerId: number, content: Content = c
       ...(state.expansion.districts ? { districts: observeDistricts(state, playerId, visible) } : {}),
       ...(state.expansion.eraHonors ? { eraHonors: observeEraHonors(state, playerId) } : {}),
       // v26 D: the legend race rides on the legend view (absent before v26).
-      ...(state.expansion.legends ? { legends: withLegendRace(observeLegends(state, playerId, visible), observeLegendRace(state, playerId, content)) } : {}),
+      ...(state.expansion.legends ? { legends: withLegendRace(observeLegends(state, playerId, visible, content), observeLegendRace(state, playerId, content)) } : {}),
       ...(state.expansion.victoryWatch ? { victoryWatch: observeVictoryWatch(state, content) } : {}),
       ...(state.expansion.cityNetwork ? { cityNetwork: observeCityNetwork(state, playerId) } : {}),
       ...(state.expansion.opening ? { opening: observeOpening(state, playerId, visible) } : {}),
@@ -145,6 +146,8 @@ export function observe(state: GameState, playerId: number, content: Content = c
       ...(state.expansion.goldSinks ? { goldSinks: observeGoldSinks(state, playerId) } : {}),
       ...(state.expansion.contestSeasons ? { contestSeasons: observeContestSeasons(state, playerId, content) } : {}),
       ...(state.expansion.raids ? { raids: observeRaids(state, playerId, content) } : {}),
+      // v27 ③: the viewer's own project counts (absent before v27).
+      ...(content.cityProjects ? { cityProjects: observeCityProjects(state, playerId) } : {}),
       ...(state.expansion.promotions ? { promotions: observePromotions(state, playerId, visible, hex => hexToIndex(hex, state.map)) } : {}),
       ...(state.expansion.faith ? { faith: observeFaith(state, playerId) } : {}),
       ...(state.expansion.contests ? { contests: observeContests(state, playerId, content) } : {}),

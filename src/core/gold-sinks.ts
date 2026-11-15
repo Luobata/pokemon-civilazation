@@ -26,6 +26,8 @@ import { placementBlocked } from './stacking.ts';
 import { createMapUnit, maxUnitHp } from './unit.ts';
 import { unitIdentity } from './vision.ts';
 import type { GymCircuitView } from './gym-circuit.ts';
+import { stateProjectsDone, viewProjectsDone } from './city-projects.ts';
+import type { CityProjectId } from '../content/pace-v27.ts';
 
 export type GoldSinkAction =
   | { type: 'RushProduction'; cityId: number }
@@ -49,13 +51,15 @@ export const isGoldSinkAction = (action: { type: unknown }): action is GoldSinkA
 
 // ---------- shared rules (state and view) ----------
 const atWarWith = (diplomacy: readonly Diplomacy[], playerId: number) => diplomacy.some(pair => pair.status === 'war' && (pair.a === playerId || pair.b === playerId));
-/** Gold to finish `order` now (null = it cannot be bought: legends, districts, already complete). */
-export function rushGold(order: ProductionOrder | undefined, content: Content, player: Pick<PlayerState, 'leaderId'>, trainingDiscountPercent: number, atWar: boolean): number | null {
+/** Gold to finish `order` now (null = it cannot be bought: legends, districts, already complete). v27 ③: a city project is bought like a
+ *  building, at its current cost (`projectsDone`: the civilization's completions). */
+export function rushGold(order: ProductionOrder | undefined, content: Content, player: Pick<PlayerState, 'leaderId'>, trainingDiscountPercent: number, atWar: boolean,
+  projectsDone: Partial<Record<CityProjectId, number>> = {}): number | null {
   if (!order || order.item.kind === 'legend' || order.item.kind === 'district') return null;
   const tuning = lateTuning(content);
-  const cost = productionCost(order.item, content, trainingDiscountPercent, leaderEffects(player.leaderId).settlerDiscountPercent), left = cost - order.progress;
+  const cost = productionCost(order.item, content, trainingDiscountPercent, leaderEffects(player.leaderId).settlerDiscountPercent, projectsDone), left = cost - order.progress;
   if (left <= 0) return null;
-  const rate = order.item.kind === 'building' ? tuning.rushBuildingGold : tuning.rushUnitGold;
+  const rate = order.item.kind === 'building' || order.item.kind === 'project' ? tuning.rushBuildingGold : tuning.rushUnitGold;
   return Math.max(1, Math.ceil(left * rate * (atWar ? tuning.rushWarPercent : 100) / 100));
 }
 export const recoveryGold = (roundsLeft: number, content: Content) => Math.min(lateTuning(content).recoveryMaxGold, lateTuning(content).recoveryGold * roundsLeft);
@@ -86,7 +90,7 @@ export function goldSinkQuote(state: GameState, actorId: number, action: GoldSin
     const city = state.cities[action.cityId];
     if (!city || city.ownerId !== actorId || city.capturedAtRound === state.round) return fail('city-unavailable');
     if (ledger.rushedAt[city.id] === state.round) return fail('rushed');
-    return priced(rushGold(city.queue[0], content, player, playerPolicyEffects(state, actorId).trainingDiscountPercent, atWarWith(state.diplomacy, actorId)));
+    return priced(rushGold(city.queue[0], content, player, playerPolicyEffects(state, actorId).trainingDiscountPercent, atWarWith(state.diplomacy, actorId), stateProjectsDone(state, actorId)));
   }
   const unit = state.units[action.unitId];
   if (!unit || unit.ownerId !== actorId || unit.kind !== 'pokemon') return fail('unit-unavailable');
@@ -124,7 +128,7 @@ export function applyGoldSinkAction(state: GameState, actorId: number, action: G
   const base = { type: 'GoldSinkUsed' as const, playerId: actorId, kind: action.type, gold: quote.gold };
   if (action.type === 'RushProduction') {
     const city = state.cities[action.cityId], order = city.queue[0];
-    order.progress = productionCost(order.item, content, playerPolicyEffects(state, actorId).trainingDiscountPercent, leaderEffects(player.leaderId).settlerDiscountPercent);
+    order.progress = productionCost(order.item, content, playerPolicyEffects(state, actorId).trainingDiscountPercent, leaderEffects(player.leaderId).settlerDiscountPercent, stateProjectsDone(state, actorId));
     ledger.rushedAt[city.id] = state.round;
     return [{ ...base, cityId: city.id }];
   }
@@ -177,7 +181,7 @@ export function viewGoldSinkQuote(view: PlayerView, action: GoldSinkAction, cont
     const city = view.economy.cities.find(item => item.id === action.cityId);
     if (!city || city.capturedAtRound === view.round) return fail('city-unavailable');
     if (sinks.rushedCityIds.includes(city.id)) return fail('rushed');
-    return priced(rushGold(city.queue[0], content, player, viewPolicyEffects(view).trainingDiscountPercent, atWarWith(view.diplomacy, view.playerId)));
+    return priced(rushGold(city.queue[0], content, player, viewPolicyEffects(view).trainingDiscountPercent, atWarWith(view.diplomacy, view.playerId), viewProjectsDone(view)));
   }
   if (action.type === 'RushRecovery') {
     const unit = view.recoveringUnits.find(item => item.id === action.unitId && item.ownerId === view.playerId);

@@ -1122,3 +1122,20 @@ img[src*="/sprites/gen6/"], img[src*="/sprites/gen7/"], img[src*="/sprites/gen8/
 .civ-flag { vertical-align: -3px; margin-right: 4px; }
 .diplomacy-name { display: inline-flex; align-items: center; }
 .diplomacy-seat { margin-left: 6px; color: var(--muted, #6b7770); }
+
+/* v27 ③ ④ (pace-v27 §4.3, §5.4): city project cards and the legend favour chip. */
+.project-cards { list-style: none; margin: 6px 0; padding: 0; display: grid; gap: 6px; }
+.project-card { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; align-items: center; gap: 8px; width: 100%; min-height: 52px; padding: 4px 9px 4px 6px; text-align: left; }
+.project-card.blocked { opacity: .62; }
+.project-main { display: grid; min-width: 0; }
+.project-main b { color: #F3E7C9; font-size: var(--text-sm); font-weight: 650; }
+.project-effect { color: var(--ink-muted); font-size: 11px; line-height: 1.35; }
+.project-card:hover:not(:disabled) .project-effect { color: var(--ink-secondary); }
+.project-blocker { display: inline-flex; align-items: center; gap: 3px; color: #E0A86D; }
+.project-cost { display: grid; justify-items: end; font-variant-numeric: tabular-nums; }
+.project-cost b { color: #E0A86D; font-size: var(--text-sm); }
+.project-cost small { color: #A9DABE; font-size: 11px; white-space: nowrap; display: inline-flex; align-items: center; gap: 2px; }
+.project-cost .project-nth { color: #F3E7C9; }
+.legend-favor-chip { display: inline-flex; align-items: center; gap: 4px; margin: 2px 6px; padding: 1px 7px; border: 1px solid #72C99E; border-radius: 10px; color: #F3E7C9; font-size: 11px; cursor: help; }
+.legend-favor-chip b { color: #E0A86D; }
+.legend-trail { display: flex; align-items: center; gap: 4px; margin: 4px 0; color: #A9DABE; font-size: 12px; }

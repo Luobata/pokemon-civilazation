@@ -7,7 +7,7 @@ import type { SpeciesDefinition, SpeciesId } from '../../src/content/species.ts'
 import { ALL_SPECIES_TAGS, deriveRosterTables, dexConstraintIds, dexMaxGeneration, drawRegionalDex, evolutionLines, unmetConstraints } from '../../src/content/regional-dex.ts';
 import type { RegionalDexDraw } from '../../src/content/regional-dex.ts';
 import { RECRUIT_SLOTS, resolveRecruits } from '../../src/content/recruit-slots.ts';
-import { DEPTH_CONTENT, REGIONAL_CONTENT, STOCK_CONTENTS, WORLD24_CONTENT, contentFor, contentForView, depthContentFor, depthDexDraw, isStockContent,
+import { DEPTH_CONTENT, PACE_CONTENT, REGIONAL_CONTENT, STOCK_CONTENTS, WORLD24_CONTENT, contentFor, contentForView, depthContentFor, depthDexDraw, isStockContent,
   regionalContentFor, regionalDexDraw, regionalPoolSize } from '../../src/content/units.ts';
 import type { EraProgression } from '../../src/content/eras.ts';
 import { LEADER_IDS } from '../../src/content/leaders.ts';
@@ -87,7 +87,7 @@ test('evolution chains: early lines at 60 / 150 XP without training, the others 
 });
 
 test('v<=25 contents are unchanged: no new species, no new evolutions, the same pool sizes and recruit first choices', () => {
-  for (const content of STOCK_CONTENTS.filter(content => content !== DEPTH_CONTENT)) {
+  for (const content of STOCK_CONTENTS.filter(content => content !== DEPTH_CONTENT && content !== PACE_CONTENT)) {
     for (const id of NEW_IDS) expect(content.species[id], `${content.version} ${id}`).toBeUndefined();
     if (content.species.caterpie) expect(content.species.caterpie.evolution).toBeNull();
     if (content.species.meowth) expect(content.species.meowth.evolution).toBeNull();

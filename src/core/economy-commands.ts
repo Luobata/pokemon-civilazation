@@ -6,6 +6,7 @@ import { applyEscortBonus } from './city-network.ts';
 import { CITY_NETWORK_RULES } from '../content/city-network.ts';
 import { legendWonderBlocker } from './legends.ts';
 import { districtBlocker, districtInput, releaseDistrictWorkers } from './districts.ts';
+import { cityProjectBlocker, stateCityProjectInput, takeLegendTrail } from './city-projects.ts';
 import { visibleTiles } from './vision.ts';
 import { ballPrice, playerPolicyEffects } from './policies.ts';
 import { trainableSpeciesIds } from './role-tactics.ts';
@@ -74,6 +75,10 @@ export function validateEconomyAction(state: GameState, actor: number, action: E
     } else if (item.kind === 'legend') {
       if (!state.expansion?.legends || action.orders.filter(other => other.item.kind === 'legend' && other.item.defId === item.defId).length > 1) return 'invalid-production';
       if (order.orderId === undefined && legendWonderBlocker(state, city, item.defId) !== null) return 'invalid-production';
+    } else if (item.kind === 'project') {
+      // v27 ③: at most one project per queue; a new one needs its requirement (refused before v27).
+      if (!content.cityProjects || action.orders.filter(other => other.item.kind === 'project').length > 1) return 'invalid-production';
+      if (order.orderId === undefined && cityProjectBlocker(stateCityProjectInput(state, city, content), item.defId, true) !== null) return 'invalid-production';
     } else if (item.kind === 'building') {
       const def = content.buildings[item.defId];
       if (!Object.hasOwn(content.buildings, item.defId) || def.cost === null || buildings.has(item.defId)
@@ -113,7 +118,8 @@ export function applyEconomyAction(state: GameState, actor: number, action: Econ
   const city = state.cities[action.cityId];
   if (action.type === 'SetProductionQueue') {
     city.queue = action.orders.map(order => order.orderId === undefined
-      ? { id: state.nextEntityId++, progress: 0, item: { ...order.item } }
+      // v27 ④: a new legend starts with the city's legend trail (always 0 before v27).
+      ? { id: state.nextEntityId++, progress: order.item.kind === 'legend' ? takeLegendTrail(state, city.id) : 0, item: { ...order.item } }
       : city.queue.find(existing => existing.id === order.orderId)!);
     releaseDistrictWorkers(state, city.id);
     return [{ type: 'ProductionQueueChanged', playerId: actor, cityId: city.id, orders: JSON.parse(JSON.stringify(city.queue)) }];

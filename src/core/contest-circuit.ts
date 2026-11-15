@@ -5,6 +5,7 @@
 import type { Content } from '../content/units.ts';
 import type { EventPayload, GameState } from './model.ts';
 import type { ContestPlacing } from './contest-seasons.ts';
+import { rehearsalScoreBonus } from './city-projects.ts';
 
 /** City ids a Pokémon may enter from (in or next to): the contest halls before v27. Same rule for the authority and the view. */
 export function contestEntryCityIds(halls: readonly number[], _ownCityIds: readonly number[], content: Content): readonly number[] {
@@ -12,9 +13,9 @@ export function contestEntryCityIds(halls: readonly number[], _ownCityIds: reado
   return halls;
 }
 /** ③ → ⑦: extra season score for `playerId`'s entrant this season (the contest rehearsal project); 0 before v27. */
-export function seasonScoreBonus(_state: GameState, _playerId: number, content: Content): number {
+export function seasonScoreBonus(state: GameState, playerId: number, content: Content): number {
   if (!content.contestCircuit) return 0;
-  return 0;
+  return rehearsalScoreBonus(state, playerId, content);
 }
 /** Placing prizes after a season is judged ([] before v27). */
 export function resolveCircuitPrizes(_state: GameState, _placings: readonly ContestPlacing[], content: Content): EventPayload[] {

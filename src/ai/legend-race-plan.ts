@@ -1,14 +1,16 @@
 // Gameplay v26 D (docs/design/depth-v26.md §5.3): the AI and the legend race, view-only. It does not start a legend another
 // civilization has past half while its own estimate is over 10 rounds (over 3 once that rival is in the final stage), and drops a legend
 // it has under half done once a rival reaches the final stage (otherwise it would only get half the production back as gold).
-import { legendCost } from '../content/legend-wonders.ts';
+import { contentForView } from '../content/units.ts';
+import { viewLegendCost } from '../core/legend-favor.ts';
 import type { LegendWonderId } from '../content/legend-wonders.ts';
 import type { Command, PlayerView } from '../core/model.ts';
 
 /** Rounds the viewer's most productive city needs for this legend (Infinity without production). */
 const ownEstimate = (view: PlayerView, legendId: LegendWonderId, progress = 0) => {
   const production = Math.max(0, ...view.economy.cities.map(city => city.yields.production));
-  return production > 0 ? Math.ceil((legendCost(legendId) - progress) / production) : Infinity;
+  // v27 ④: the viewer's favoured cost (the stock cost before v27).
+  return production > 0 ? Math.ceil((viewLegendCost(view, legendId, contentForView(view)) - progress) / production) : Infinity;
 };
 export function legendRaceVeto(view: PlayerView, legendId: LegendWonderId): boolean {
   const race = view.expansion?.legends?.race ?? [];

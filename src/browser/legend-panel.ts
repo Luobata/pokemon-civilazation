@@ -9,6 +9,9 @@ import type { LegendView } from '../core/legends.ts';
 import type { PlayerView } from '../core/model.ts';
 import { civHint } from './civ-hint.ts';
 import { civOrYou } from './civ-names.ts';
+import { contentForView } from '../content/units.ts';
+import { viewLegendCost } from '../core/legend-favor.ts';
+import { legendFavorChip, legendTrailNote } from './city-projects-ui.ts';
 
 type ViewCity = PlayerView['economy']['cities'][number];
 const YIELD_NAMES = { food: '食物', production: '生产', gold: '金币', research: '科研' } as const;
@@ -44,11 +47,12 @@ export function legendProductionMarkup(view: PlayerView, city: ViewCity): string
   const legends = view.expansion?.legends;
   if (!legends) return '';
   const known = legends.clues.filter(id => !legends.wonders.some(wonder => wonder.legendId === id));
-  if (!known.length) return '<p class="empty-note">还没有任何传说的线索。打开顶栏「传说」查看每位传说的线索条件。</p>';
-  return `<ul class="legend-production">${known.map(id => {
+  const content = contentForView(view), favor = `${legendFavorChip(view, content)}${legendTrailNote(view, city.id)}`;
+  if (!known.length) return `${favor}<p class="empty-note">还没有任何传说的线索。打开顶栏「传说」查看每位传说的线索条件。</p>`;
+  return `${favor}<ul class="legend-production">${known.map(id => {
     const blocker = legendStartBlocker(view, city, id);
     return `<li class="${blocker ? 'blocked' : 'ready'}"><img src="${legendSprite(id)}" alt="" width="40" height="40"><div><strong>${legendTitle(id)}</strong>
-      <small>${legendCost(id)} 生产 · ${legendEffectText(id)}</small>${blocker ? `<small class="legend-blocker">${blocker}</small>` : ''}</div></li>`;
+      <small>${viewLegendCost(view, id, content)} 生产 · ${legendEffectText(id)}</small>${blocker ? `<small class="legend-blocker">${blocker}</small>` : ''}</div></li>`;
   }).join('')}</ul>`;
 }
 
@@ -61,6 +65,7 @@ export function legendScreenMarkup(view: PlayerView): string {
   const built = legends.wonders.filter(wonder => wonder.ownerId === view.playerId).length;
   const civName = (id: number | null) => id === null ? '无主' : civOrYou(view, id);
   const groups = [...new Set(ids.map(id => LEGEND_WONDERS[id].generation))];
+  const content = contentForView(view);
   const card = (id: LegendWonderId) => {
     const legend = LEGEND_WONDERS[id], wonder = legends.wonders.find(item => item.legendId === id), building = legends.building.find(item => item.legendId === id);
     const clue = legends.clues.includes(id), story = LEGEND_STORIES[id];
@@ -73,11 +78,11 @@ export function legendScreenMarkup(view: PlayerView): string {
     const site = legends.sites.find(item => item.legendId === id);
     return `<article class="legend-card ${state}" data-legend="${id}"><img src="${legendSprite(id)}" alt="" width="64" height="64">
       <div><p class="legend-dex">#${String(legend.dex).padStart(3, '0')}</p><h3>${legendTitle(id)}</h3><p class="legend-status">${status}</p>
-      <p class="legend-effect">${legendCost(id)} 生产 · ${legendEffectText(id)}</p>
+      <p class="legend-effect">${wonder ? legendCost(id) : viewLegendCost(view, id, content)} 生产 · ${legendEffectText(id)}</p>
       ${site && !wonder ? `<button type="button" data-legend-site="${site.tileIndex}">在地图上定位踪迹</button>` : ''}
       ${chapters.length ? `<details class="legend-story"><summary>剧情（${chapters.length}/3）</summary>${chapters.map(([title, text]) => `<h4>${title}</h4><p>${text}</p>`).join('')}</details>` : ''}</div></article>`;
   };
-  return `<div class="legend-screen"><p class="legend-summary">你建成 ${built} 座传说奇观 · 全世界已建成 ${legends.wonders.length}/${ids.length} 座 · 你的线索 ${legends.clues.length} · 当前第 ${legends.generation} 世代 ${civHint('wonder')}</p>${legendRaceMarkup(view)}
+  return `<div class="legend-screen"><p class="legend-summary">你建成 ${built} 座传说奇观 · 全世界已建成 ${legends.wonders.length}/${ids.length} 座 · 你的线索 ${legends.clues.length} · 当前第 ${legends.generation} 世代 ${civHint('wonder')}${legendFavorChip(view, content)}</p>${legendRaceMarkup(view)}
     ${groups.map(generation => `<section class="legend-generation"><h2>第 ${generation} 世代</h2><div class="legend-grid">${ids.filter(id => LEGEND_WONDERS[id].generation === generation).map(card).join('')}</div></section>`).join('')}</div>`;
 }
 

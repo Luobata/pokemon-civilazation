@@ -28,6 +28,7 @@ import type { ContestSeasonAction, ContestSeasonEvent, ContestSeasonState, Conte
 import type { RaidEvent, RaidState, RaidView } from './raids.ts';
 import type { RivalDuelAction, RivalDuelEvent } from './rival-duels.ts';
 import type { MaxRaidAction } from './max-raids.ts';
+import type { CityProjectEvent, CityProjectState, CityProjectView } from './city-projects.ts';
 import type { LegendRaceEvent } from './legend-race.ts';
 import type { OpeningGiftEvent } from './opening-gift.ts';
 import type { VictoryWatchEvent, VictoryWatchState, VictoryWatchView } from './victory-watch.ts';
@@ -78,12 +79,16 @@ export type ExpansionState = {
   contestSeasons?: ContestSeasonState;
   raids?: RaidState;
   victoryWatch?: VictoryWatchState;
+  /** gameplayVersion >= 27 only (docs/design/pace-v27.md §4), created at the first completed city project or legend trail. */
+  cityProjects?: CityProjectState;
 };
 export type ExpansionView = { version: 1; world: WorldView; civilization: CivilizationView; leaders: LeaderSystemsView; improvements?: ImprovementView; discoveries?: TechId[]; policies?: PolicyView; essences?: EssenceView; eraAbilities?: EraAbilityView; bonds?: Record<number, { bond: number; pressure: BondBreakdown }>; rareBerries?: RareBerryView; contests?: ContestView; faith?: FaithView; districts?: DistrictView; eraHonors?: EraHonorView; promotions?: PromotionView; legends?: LegendView; cityNetwork?: CityNetworkView; opening?: OpeningView;
   landmarks?: LandmarkView; gymCircuit?: GymCircuitView; rivals?: RivalView; researchTasks?: ResearchTaskView;
-  goldSinks?: GoldSinkView; contestSeasons?: ContestSeasonView; raids?: RaidView; victoryWatch?: VictoryWatchView };
+  goldSinks?: GoldSinkView; contestSeasons?: ContestSeasonView; raids?: RaidView; victoryWatch?: VictoryWatchView;
+  cityProjects?: CityProjectView };
 export type ExpansionAction = WorldAction | CivilizationAction | LeaderAction | ImprovementAction | PolicyAction | EssenceAction | EraAbilityAction | BondAction | RareBerryAction | ContestAction | FaithAction | PromotionAction | CityNetworkAction | DedicationAction | PillageAction | GymCircuitAction
   | GoldSinkAction | ContestSeasonAction | RivalDuelAction | MaxRaidAction;
 export type ExpansionEvent = WorldEvent | CivilizationEvent | LeaderEvent | ImprovementEvent | DiscoveryEvent | PolicyEvent | EssenceEvent | EraAbilityEvent | BondEvent | RareBerryEvent | ContestEvent | FaithEvent | EraHonorEvent | PromotionEvent | LegendEvent | CityNetworkEvent | OpeningEvent | DedicationEvent | PillageEvent
   | LandmarkEvent | GymCircuitEvent | RivalEvent | ResearchTaskEvent
-  | GoldSinkEvent | ContestSeasonEvent | RaidEvent | RivalDuelEvent | LegendRaceEvent | OpeningGiftEvent | VictoryWatchEvent;
+  | GoldSinkEvent | ContestSeasonEvent | RaidEvent | RivalDuelEvent | LegendRaceEvent | OpeningGiftEvent | VictoryWatchEvent
+  | CityProjectEvent;

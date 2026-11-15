@@ -16,7 +16,7 @@ import { hexToIndex, neighbors } from './hex.ts';
 import { besideStrikingWild, canEnterTile, usesDeploymentRulesV25 } from './movement.ts';
 import { wanderersFor } from '../content/roster.ts';
 import { placementBlocked } from './stacking.ts';
-import { completeCityProject } from './city-projects.ts';
+import { completeCityProject, stateProjectsDone } from './city-projects.ts';
 import { legendFavorCost } from './legend-favor.ts';
 import { playerPolicyEffects } from './policies.ts';
 import { assignNewWorkers, cityYield, cleanWork, growthThreshold, productionCost, releaseWorker } from './city.ts';
@@ -79,7 +79,7 @@ export function resolveEconomy(state: GameState, content: Content = contentFor(s
     consumeCivilizationProduction(state, city.id);
     order.progress += productionAfterHall(state, city, output.get(city.id)!.production) + essenceTrainingBonus(state, city, content, events as never);
     // v27 ④ (pace-v27 §5): legend favour (the stock cost before v27).
-    const cost = legendFavorCost(state, city.ownerId, order.item, productionCost(order.item, content, playerPolicyEffects(state, city.ownerId).trainingDiscountPercent, leaderEffects(state.players[city.ownerId].leaderId).settlerDiscountPercent), content);
+    const cost = legendFavorCost(state, city.ownerId, order.item, productionCost(order.item, content, playerPolicyEffects(state, city.ownerId).trainingDiscountPercent, leaderEffects(state.players[city.ownerId].leaderId).settlerDiscountPercent, stateProjectsDone(state, city.ownerId)), content);
     if (order.progress < cost) continue;
     if (order.item.kind === 'logistics') state.players[city.ownerId].lastSettlerProducedRound = state.round;
     const overflow = order.progress - cost;
@@ -93,12 +93,12 @@ export function resolveEconomy(state: GameState, content: Content = contentFor(s
       events.push({ type: 'DistrictCompleted', playerId: city.ownerId, cityId: city.id, orderId: order.id,
         tileIndex: order.item.tileIndex, kind: order.item.defId, cost, overflow });
     } else if (order.item.kind === 'legend') {
-      events.push(...completeLegendWonder(state, city, order.item.defId) as never[]);
+      events.push(...completeLegendWonder(state, city, order.item.defId, content) as never[]);
     } else if (order.item.kind === 'building') {
       city.buildingIds.push(order.item.defId); city.buildingIds.sort(); city.hp += content.balance.city.buildingHp;
       events.push({ type: 'BuildingCompleted', playerId: city.ownerId, cityId: city.id, orderId: order.id,
         definitionId: order.item.defId, cost, overflow });
-    } else {
+    } else if (order.item.kind !== 'project') {
       const pending = { enteredAtRound: state.round, sourceOrderId: order.id, item: { ...order.item } };
       if (!deploy(state, city, pending, content, events)) {
         city.pendingDeployments.push(pending);

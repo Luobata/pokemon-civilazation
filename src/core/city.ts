@@ -3,6 +3,8 @@ import { cityNetworkYield } from './city-network.ts';
 import { legendCityYield } from './legends.ts';
 import { legendCost } from '../content/legend-wonders.ts';
 import { DISTRICTS } from '../content/districts.ts';
+import { cityProjectCost } from '../content/pace-v27.ts';
+import type { CityProjectId } from '../content/pace-v27.ts';
 import { cityDistrictEffects, districtOccupiedTiles } from './districts.ts';
 import { faithCityYield } from './faith-legends.ts';
 import { rareBerryCityFood } from './rare-berries.ts';
@@ -126,7 +128,10 @@ export function cityYield(state: GameState, city: CityState, content: Content = 
   for (const key of ['food', 'production', 'gold', 'research'] as const) result[key] += district[key];
   return result;
 }
-export function productionCost(item: ProductionItem, content: Content = CONTENT, trainingDiscountPercent = 0, settlerDiscountPercent = 0): number {
+/** `projectsDone` (v27 ③): the civilization's completions per city project, which raise a project's cost. */
+export function productionCost(item: ProductionItem, content: Content = CONTENT, trainingDiscountPercent = 0, settlerDiscountPercent = 0,
+  projectsDone: Partial<Record<CityProjectId, number>> = {}): number {
+  if (item.kind === 'project') return cityProjectCost(content, item.defId, projectsDone[item.defId] ?? 0);
   if (item.kind === 'district') return DISTRICTS[item.defId].cost;
   if (item.kind === 'legend') return legendCost(item.defId);
   if (item.kind === 'building') return content.buildings[item.defId].cost!;
