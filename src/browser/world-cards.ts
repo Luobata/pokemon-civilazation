@@ -27,6 +27,7 @@ import type { UiIconName } from './ui-icons.ts';
 import { captureBlocker, evolutionState } from './unit-action-bar.ts';
 import { depthWorldCards } from './late-game-ui.ts';
 import { CIV_SEAT_COLORS, civOrYou } from './civ-names.ts';
+import { conditionLines, duelConditions, rivalTrail } from './rival-tracker.ts';
 
 type Pokemon = Extract<MapUnit, { kind: 'pokemon' }>;
 export type WorldCardId = 'gym' | 'rival' | 'conference' | 'contest' | 'nest' | 'sanctuary' | 'legend' | 'capture' | 'evolution'
@@ -40,7 +41,9 @@ export type CardArt = { icon: UiIconName } | { sprite: string };
 export type WorldCard = { id: WorldCardId; title: string; status: string; tip: string; art: CardArt; urgency: number; distance: number | null;
   tileIndex?: number; unitId?: number; action?: { label: string; command: Command['action']; available: boolean; /** N7: why it is unavailable (hover). */ reason?: string };
   /** v26 relay battles: opens the lineup picker (`data-lineup`, bound by the world panel) instead of issuing a default team. */
-  lineup?: { label: string; target: string; available: boolean } };
+  lineup?: { label: string; target: string; available: boolean };
+  /** Playtest 2026-11b: a one-click go-to order (client waypoints) for an own unit toward a known tile. */
+  goTo?: { unitId: number; tileIndex: number; label: string } };
 
 /** Civilization colours of the map (render/canvas2d.ts FACTIONS). */
 export const CIV_COLORS = CIV_SEAT_COLORS;
@@ -98,10 +101,12 @@ export function worldCards(view: PlayerView, content: Content = contentForView(v
         tip: `劲敌${rivals.name}第 ${rivals.encounter + 1} 次登场：第 ${rivals.pending.round} 轮，目标${capital ? '首都' : `城市 ${rivals.pending.cityId}`}（只有你看得到这条预告）。\n它带克制你御三家的宝可梦，停留 ${rivalStayRounds(content, rivals.encounter)} 轮后离开；全部击倒有奖励。`,
         urgency: left <= 2 ? 0 : 2, distance: 0, tileIndex: rivals.pending.tileIndex });
     } else if (rivals.activeUnitIds.length) {
-      const seen = nearest(view, hunting);
-      cards.push({ id: 'rival', title: `劲敌${rivals.name}`, art: { icon: 'rival' }, status: `在你的领土附近 · 还剩 ${rivals.activeUnitIds.length} 只`,
-        tip: `劲敌${rivals.name}正在你的领土附近（第 ${rivals.encounter} 次登场）。只打你的宝可梦和城市，不能捕捉；全部击倒有奖励。`,
-        urgency: 0, distance: seen ? finite(seen.distance) : null, ...(seen ? { tileIndex: tileOf(view, seen.item.position) } : {}) });
+      // Playtest 2026-11b N2 / O2: in sight, else last seen, else the warned arrival tile (rival-tracker.ts); the duel's conditions in the tip.
+      const seen = nearest(view, hunting), trail = rivalTrail(view), spot = seen ? null : trail?.target ?? null;
+      cards.push({ id: 'rival', title: `劲敌${rivals.name}`, art: { icon: 'rival' }, status: `已到达 · 还剩 ${rivals.activeUnitIds.length} 只${trail?.missing ? ` · ${trail.short}` : ''}`,
+        tip: `劲敌${rivals.name}已到达你的领土附近（第 ${rivals.encounter} 次登场）${trail ? `：${trail.where}` : ''}。只打你的宝可梦和城市，不能捕捉；全部击倒有奖励。${content.rivalDuels ? `\n对决条件：\n${conditionLines(duelConditions(view, trail))}` : ''}`,
+        urgency: 0, distance: seen ? finite(seen.distance) : spot ? ownDistance(view, indexToHex(spot.tileIndex, view.map)) : null,
+        ...(seen ? { tileIndex: tileOf(view, seen.item.position) } : spot ? { tileIndex: spot.tileIndex } : {}) });
     } else if (rivals.nextArrival !== null) {
       const left = rivals.nextArrival - view.round;
       cards.push({ id: 'rival', title: `劲敌${rivals.name}`, art: { icon: 'rival' }, status: `第 ${rivals.nextArrival} 轮登场（${left} 轮）`,
@@ -211,6 +216,10 @@ export const locateButton = (tileIndex: number, label: string) =>
 export const selectUnitButton = (unitId: number, label: string) =>
   `<button type="button" class="locate-btn" data-locate-unit="${unitId}" aria-label="选中：${esc(label)}" title="选中：${esc(label)}">${uiIcon('locate', { size: 18 })}</button>`;
 
+/** A go-to button (client waypoints): an icon whose accessible name says who goes where; bound in main.ts. */
+export const goToButton = (order: { unitId: number; tileIndex: number; label: string }) =>
+  `<button type="button" class="locate-btn goto-btn" data-goto-unit="${order.unitId}" data-goto-tile="${order.tileIndex}" aria-label="前往：${esc(order.label)}" title="前往：${esc(order.label)}">${uiIcon('goTo', { size: 18 })}</button>`;
+
 /** The card row. `button` renders an action through the panel's own command path. */
 export function worldCardsMarkup(cards: readonly WorldCard[], button: (label: string, action: Command['action'], available?: boolean, reason?: string) => string): string {
   if (!cards.length) return '';
@@ -220,7 +229,7 @@ export function worldCardsMarkup(cards: readonly WorldCard[], button: (label: st
       <div class="next-art">${artMarkup(card.art, name)}</div>
       <div class="next-text"><b>${esc(card.title)}</b><span>${esc(card.status)}</span></div>
       <div class="next-foot">${card.distance !== null && card.distance > 0 ? statChip('move', `${card.distance} 格`, '距最近的己方单位或城市') : '<span></span>'}
-        <span class="next-actions">${card.action ? button(card.action.label, card.action.command, card.action.available, card.action.reason) : ''}${card.lineup ? `<button type="button" data-lineup="${esc(card.lineup.target)}"${card.lineup.available ? '' : ' disabled'}>${esc(card.lineup.label)}</button>` : ''}${card.tileIndex !== undefined ? locateButton(card.tileIndex, card.title)
+        <span class="next-actions">${card.action ? button(card.action.label, card.action.command, card.action.available, card.action.reason) : ''}${card.lineup ? `<button type="button" data-lineup="${esc(card.lineup.target)}"${card.lineup.available ? '' : ' disabled'}>${esc(card.lineup.label)}</button>` : ''}${card.goTo ? goToButton(card.goTo) : ''}${card.tileIndex !== undefined ? locateButton(card.tileIndex, card.title)
           : card.unitId !== undefined ? selectUnitButton(card.unitId, card.title) : ''}</span></div></article>`;
   }).join('')}</div></section>`;
 }

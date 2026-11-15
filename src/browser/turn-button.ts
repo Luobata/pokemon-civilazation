@@ -10,10 +10,13 @@ import { canResearch } from '../core/economy-commands.ts';
 import { hexDistance } from '../core/hex.ts';
 import type { MapUnit, PlayerView } from '../core/model.ts';
 import { ROLE_POKEMON } from '../content/roles.ts';
+import { conferenceDue } from './client-plans.ts';
 
-export type Reminder = { label: string; target: string };
+/** `tip`: the chip's hover card (title and accessible description). */
+export type Reminder = { label: string; target: string; tip?: string };
 export type TurnStep =
   | { kind: 'dedication' | 'research' | 'charter'; label: string; panel: string }
+  | { kind: 'conference'; label: string }
   | { kind: 'city'; label: string; cityId: number }
   | { kind: 'unit'; label: string; unitId: number; remaining: number }
   | { kind: 'ready'; label: string };
@@ -47,6 +50,10 @@ export function turnReminders(view: PlayerView, content: typeof EXPANSION_CONTEN
   if (player.research.techId === null && (Object.keys(content.techs) as TechId[]).some(id => canResearch(player, id, content))) items.push({ label: '选择研究', target: '#research-panel' });
   const policies = view.expansion?.policies;
   if (policies && policies.charterId === null && policies.adopted.length < Object.keys(CHARTERS).length) items.push({ label: '选择规章', target: '#policy-panel' });
+  // Playtest 2026-11b O3: the league conference in the 5 rounds before a season, while eligible and not registered.
+  const conference = conferenceDue(view);
+  if (conference !== null) items.push({ label: `报名联盟大会（${conference ? `${conference} 轮后` : '本轮'}）`, target: 'conference',
+    tip: `第 ${view.expansion!.civilization.championship.nextSeason} 届联盟大会${conference ? `还有 ${conference} 轮` : '本轮举办'}，你还没报名：和平时报名六只宝可梦。` });
   const shaky = Object.values(view.expansion?.bonds ?? {}).filter(info => info.bond < 30 && info.pressure.total < 0).length;
   if (shaky) items.push({ label: `${shaky} 城羁绊告急`, target: 'city' });
   const exposed = view.units.filter(unit => unit.ownerId === view.playerId && unit.kind === 'logistics'
@@ -55,7 +62,7 @@ export function turnReminders(view: PlayerView, content: typeof EXPANSION_CONTEN
     && !view.units.some(guard => guard.ownerId === view.playerId && guard.kind === 'pokemon' && hexDistance(guard.position, unit.position, view.map) <= 1));
   if (exposed.length) items.push({ label: `${ROLE_POKEMON[civilianRole(exposed[0]!)!].unitName}有危险`, target: `danger:${exposed[0]!.id}` });
   const idleCities = idleCityIds(view).length;
-  if (idleCities) items.push({ label: `${idleCities} 城空闲`, target: 'city' });
+  if (idleCities) items.push({ label: `${idleCities} 城空闲`, target: 'city', tip: `城市 ${idleCityIds(view).join('、')} 的生产队列是空的：点击前往，城市面板里有一键「建议」。` });
   const settler = view.units.find(unit => unit.ownerId === view.playerId && civilianRole(unit) === 'settler' && unit.actionLeft);
   if (settler && !exposed.some(unit => unit.id === settler.id)) items.push({ label: '开拓队：去建新城', target: `unit:${settler.id}` });
   const idleUnits = idleUnitIds(view).filter(id => !reviewed.has(id)).length;
@@ -64,10 +71,13 @@ export function turnReminders(view: PlayerView, content: typeof EXPANSION_CONTEN
 }
 
 /** What the end-turn button says and where a plain click goes: a dedication (v22), research, charter, an idle city, a unit waiting for orders, or the next turn. */
-export function turnStep(view: PlayerView, reminders: readonly Reminder[], selection: { unitId: number | null; cityId: number | null }, reviewed: ReadonlySet<number>): TurnStep {
+export function turnStep(view: PlayerView, reminders: readonly Reminder[], selection: { unitId: number | null; cityId: number | null }, reviewed: ReadonlySet<number>,
+  seen: { conference?: boolean } = {}): TurnStep {
   if (reminders.some(item => item.target === '#era-panel')) return { kind: 'dedication', label: '选择时代献礼 ›', panel: '#era-panel' };
   if (reminders.some(item => item.target === '#research-panel')) return { kind: 'research', label: '选择研究 ›', panel: '#research-panel' };
   if (reminders.some(item => item.target === '#policy-panel')) return { kind: 'charter', label: '选择规章 ›', panel: '#policy-panel' };
+  // O3: once a round (a second plain click goes on, Shift+click always ends the turn).
+  if (reminders.some(item => item.target === 'conference') && !seen.conference) return { kind: 'conference', label: '报名联盟大会 ›' };
   const cities = idleCityIds(view);
   if (cities.length) {
     // Stay on the selected city while it still needs production; otherwise go to the next idle one.

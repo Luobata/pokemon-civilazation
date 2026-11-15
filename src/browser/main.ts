@@ -84,6 +84,11 @@ import type { TypeId } from '../content/species.ts';
 import { attackSound } from './audio/sfx.ts';
 import type { Camera, Point } from './camera.ts';
 import { arrivalText, GoToOrders, isSettler, planArrivalRound, planGoTo, planStops, stopText } from './waypoints.ts';
+import { clearClientPlans, conferenceReviewed, markConferenceReviewed, researchQueue, runResearchQueue } from './client-plans.ts';
+import { rivalMemory } from './rival-tracker.ts';
+import { goToButtonOrder } from './world-goto.ts';
+import { openLineupPicker } from './lineup-picker.ts';
+import { escapeAttr } from './ui-icons.ts';
 import type { GoToPlan, GoToStop } from './waypoints.ts';
 import { suggestCitySites } from './city-sites.ts';
 import type { CitySite } from './city-sites.ts';
@@ -416,6 +421,7 @@ const rail = createNotificationRail(document.querySelector<HTMLElement>('#toast-
   }
   else if (target.kind === 'city') { closeScreen(); selectCity(target.cityId); }
   else if (target.kind === 'battle') watchReplay(target.key);
+  else if (target.kind === 'tile') locateTile(target.tileIndex);
   else { closeScreen(); selectUnit(target.unitId); }
 });
 /** Cities the viewer owned at the last refresh, so a city taken during the AI turns still reads as "yours". */
@@ -527,7 +533,7 @@ function cachedPlan(view: PlayerView, unitId: number, index: number): GoToPlan |
   }
   return planCache.get(key)!;
 }
-function resetGoTo() { goToOrders.clear(); goToMode = false; goToHover = null; arrivedUnitId = null; planCache.clear(); siteCache = null; }
+function resetGoTo() { goToOrders.clear(); goToMode = false; goToHover = null; arrivedUnitId = null; planCache.clear(); siteCache = null; rivalMemory.clear(); clearClientPlans(); }
 /** Units the to-do flow skips this round: the ones the end-turn button already showed, and those on a go-to order. */
 function skippedUnits(view: PlayerView): ReadonlySet<number> { return new Set([...reviewedUnits.of(view.round), ...goToOrders.ids()]); }
 const idleWithoutOrders = (view: PlayerView) => idleUnitIds(view).filter(id => !goToOrders.has(id));
@@ -635,6 +641,7 @@ function controls() {
   const view = session.getView();
   const CONTENT = contentForView(view);
   const ended = view.outcome !== null, pendingPeace = hasPendingPeace(view);
+  rivalMemory.observe(view);
   if (selected !== null && !view.units.some(unit => unit.id === selected && unit.ownerId === view.playerId)) {
     selected = null; resetAction();
   }
@@ -725,6 +732,7 @@ function controls() {
       explain: text => { notice = text; controls(); },
       goTo: () => { const choosing = !goToMode; resetAction(); goToMode = choosing; notice = ''; controls(); requestFrame(); },
       cancelGoTo: () => { if (selected !== null && goToOrders.cancel(selected)) { notice = '路标已取消。'; if (arrivedUnitId === selected) arrivedUnitId = null; } controls(); requestFrame(); },
+      goToTile: setGoTo,
     }, barGoTo(view));
   if (placementSite) {
     document.querySelector<HTMLElement>('#unit-panel')!.innerHTML = districtPreviewMarkup(view, placementSite, busy() || ended || pendingPeace);
@@ -762,12 +770,13 @@ function controls() {
   // Playtest 2026-11 B1: the league countdown (5 rounds and 1 round before a season), once per round.
   if (!busy() && !ended && view.round !== countdownRound) { countdownRound = view.round; rail.push(leagueCountdownToast(view)); }
   rail.sync(view, busy(), { unitId: selected, cityId: selectedCity });
-  document.querySelector('#turn-reminders')!.innerHTML = ended ? '' : reminders.map(item => `<button type="button" data-reminder="${item.target}">${item.label}</button>`).join('');
+  document.querySelector('#turn-reminders')!.innerHTML = ended ? '' : reminders.map(item => `<button type="button" data-reminder="${item.target}"${item.tip ? ` title="${escapeAttr(item.tip)}"` : ''}>${item.label}</button>`).join('');
   for (const button of document.querySelectorAll<HTMLButtonElement>('[data-reminder]')) button.onclick = () => {
     const kind = button.dataset.reminder!;
     if (kind.startsWith('danger:')) { selectUnit(Number(kind.slice(7))); notice = '附近有野生或敌方宝可梦：让宝可梦护送，或先撤回城市。'; controls(); return; }
     if (kind.startsWith('unit:')) { selectUnit(Number(kind.slice(5))); notice = '开拓队：移动到离其他城市至少 4 格的陆地，下一回合点「在此建立城市」。'; controls(); return; }
     if (kind === 'city' || kind === 'unit') { cycleIdle(kind); return; }
+    if (kind === 'conference') { openConference(); return; }
     const target = document.querySelector<HTMLElement>(kind);
     if (target) revealPanel(target);
   };
@@ -787,7 +796,7 @@ const turnHint = document.querySelector<HTMLElement>('#turn-hint')!;
 const unitCycle = [...document.querySelectorAll<HTMLButtonElement>('[data-cycle-unit]')];
 let turnState: TurnStep | null = null;
 function renderTurnButton(view: PlayerView, reminders: ReturnType<typeof turnReminders>, ended: boolean, pendingPeace: boolean) {
-  turnState = ended ? null : turnStep(view, reminders, { unitId: selected, cityId: selectedCity }, skippedUnits(view));
+  turnState = ended ? null : turnStep(view, reminders, { unitId: selected, cityId: selectedCity }, skippedUnits(view), { conference: conferenceReviewed(view) });
   endTurn.disabled = busy() || ended || pendingPeace;
   endTurn.textContent = turnState?.label ?? `第 ${view.round} 轮 · 对局已结束`;
   endTurn.dataset.state = turnState?.kind ?? 'ended';
@@ -802,6 +811,7 @@ function onEndTurn(force: boolean) {
   const step = turnState;
   if (force || step.kind === 'ready') { issue({ type: 'EndTurn' }); return; }
   audio.play('click');
+  if (step.kind === 'conference') { openConference(); return; }
   if (step.kind === 'city') {
     selectCity(step.cityId);
     const economy = document.querySelector<HTMLElement>('#economy');
@@ -814,6 +824,21 @@ function onEndTurn(force: boolean) {
   selectUnit(step.unitId);
   notice = step.remaining > 1 ? `待命单位（还有 ${step.remaining - 1} 个）：下达命令，或再点一次按钮看下一个。` : '最后一个待命单位：下达命令，或再点一次按钮进入下一回合。';
   controls();
+}
+/** Playtest 2026-11b O3: the conference registration (the lineup picker in v26, else the World page's conference card). */
+function openConference() {
+  const view = session.getView();
+  markConferenceReviewed(view);
+  if (contentForView(view).teamBattles) { closeScreen(); openLineupPicker(view, { kind: 'championship', key: '' }, issue); }
+  else { openScreen('world'); const card = document.querySelector<HTMLDetailsElement>('details[data-system="s27-championship"]'); if (card) { card.open = true; card.scrollIntoView({ block: 'nearest' }); } }
+  notice = '联盟大会报名：选六只宝可梦和出场顺序。不想报名就 Shift+点击结束回合。'; controls();
+}
+/** Playtest 2026-11b: the research queue starts its next tech (start of turn, or when the queue changes with nothing being researched). */
+function startQueuedResearch() {
+  const started = runResearchQueue(session.getView(), action => session.issue(action));
+  if (started) rail.push({ id: ++goToToastSerial, tone: 'research', icon: '⚗', title: `研究队列：开始研究「${techOf(contentForView(session.getView()), started).name}」`,
+    detail: researchQueue.list().length ? `队列里还有 ${researchQueue.list().length} 项。` : '队列已空。', target: { kind: 'screen', screen: 'research' }, persistent: false, key: 'research-queue' });
+  return started;
 }
 /** U6: the top-bar ball stock opens the capital's 物资采购 tab. */
 function openBallShop() {
@@ -852,6 +877,7 @@ function issue(action: Command['action'], successNotice?: string) {
       const attacked = new Set(session.presentationQueue.flatMap(event => event.payload.type === 'BattleResolved' && event.payload.target.kind === 'unit' ? [event.payload.target.id] : []));
       runGoTo(attacked);
       remindArrived();
+      startQueuedResearch();
     }
     if (action.type === 'Attack' || action.type === 'Capture' || action.type === 'Move' || action.type === 'EndTurn') resetAction();
     if (action.type === 'SetProductionQueue' && action.orders.some(order => order.item.kind === 'district')) districtPlacement = null;
@@ -1120,6 +1146,12 @@ document.addEventListener('click', event => {
   if (!button || button.disabled || !session) return;
   if (button.dataset.locateTile !== undefined) locateTile(Number(button.dataset.locateTile));
   else { closeScreen(); selectUnit(Number(button.dataset.locateUnit)); }
+});
+// Playtest 2026-11b: the World page's 前往 buttons (raid cards) set a go-to order for the chosen unit (client waypoints).
+document.addEventListener('click', event => {
+  const order = session ? goToButtonOrder(event) : null;
+  if (!order) return;
+  closeScreen(); selectUnit(order.unitId); setGoTo(order.unitId, order.tileIndex);
 });
 function selectUnit(id: number | null, focus = true) {
   const unit = session.getView().units.find(unit => unit.id === id && unit.ownerId === session.getView().playerId);

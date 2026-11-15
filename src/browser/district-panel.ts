@@ -1,9 +1,9 @@
+import { tileCoords } from './tile-coords.ts';
 import { DISTRICTS, DISTRICT_IDS, districtTech } from '../content/districts.ts';
 import type { DistrictEffects, DistrictId } from '../content/districts.ts';
 import { EXPANSION_CONTENT, WORLD_CONTENT, techOf } from '../content/units.ts';
 import { cityDistrictDetails, districtSites } from '../core/districts.ts';
 import type { DistrictBreakdown, DistrictSite } from '../core/districts.ts';
-import { indexToHex } from '../core/hex.ts';
 import type { PlayerView } from '../core/model.ts';
 import { BIOME_DISPLAY } from './canvas.ts';
 import { uiIcon } from './ui-icons.ts';
@@ -65,8 +65,8 @@ export function districtTypeCards(view: PlayerView, cityId: number, disabled: bo
 }
 
 export function districtPreviewMarkup(view: PlayerView, site: DistrictSite, disabled: boolean): string {
-  const definition = DISTRICTS[site.kind], position = indexToHex(site.tileIndex, view.map), biome = view.map.tiles[site.tileIndex];
-  return `<section id="district-preview" class="district-preview" aria-label="设施区选址预览"><p class="eyebrow">设施区选址</p><h3>${definition.name} · 地块 ${site.tileIndex}（${position.q},${position.r}）</h3>
+  const definition = DISTRICTS[site.kind], biome = view.map.tiles[site.tileIndex];
+  return `<section id="district-preview" class="district-preview" aria-label="设施区选址预览"><p class="eyebrow">设施区选址</p><h3>${definition.name} · ${tileCoords(site.tileIndex, view.map)}</h3>
     <p>当前地形：${biome ? BIOME_DISPLAY[biome].label : '未知'}</p>${breakdownMarkup(site.effects)}
     ${site.releasesWork ? `<p class="district-release">下单后，城市 ${site.releasedCityIds.join('、')} 将释放该格工作与锁定；对应人口成为观测者，不自动改派。</p>` : ''}
     ${site.reason ? `<p class="district-reason" role="status">${districtReason(site.reason, site.kind, view.gameplayVersion)}</p>` : ''}
@@ -79,11 +79,11 @@ export function cityDistrictMarkup(view: PlayerView, cityId: number): string {
   const completed = cityDistrictDetails(view, cityId), projects = districts.projects.filter(item => item.cityId === cityId);
   return `<section id="city-districts" class="city-districts" aria-label="城市设施区"><p class="section-label">设施区 ${completed.length + projects.length}/2 ${civHint('district')}</p>
     ${completed.map(item => {
-      const definition = DISTRICTS[item.kind], position = indexToHex(item.tileIndex, view.map);
-      return `<details class="district-detail" data-district-tile="${item.tileIndex}"><summary><span class="district-mark has-icon">${uiIcon(item.kind as UiIconName, { size: 20 })}</span>${definition.name} · 地块 ${item.tileIndex}（${position.q},${position.r}）${item.active ? '' : ' · 停用'}</summary>
+      const definition = DISTRICTS[item.kind];
+      return `<details class="district-detail" data-district-tile="${item.tileIndex}"><summary><span class="district-mark has-icon">${uiIcon(item.kind as UiIconName, { size: 20 })}</span>${definition.name} · ${tileCoords(item.tileIndex, view.map)}${item.active ? '' : ' · 停用'}</summary>
         ${item.ownerId === null ? '<p class="district-reason">当前停用</p>' : ''}${breakdownMarkup(item.effects)}</details>`;
     }).join('')}
-    ${projects.map(item => `<p class="district-project" data-district-project="${item.orderId}">${uiIcon(item.kind as UiIconName, { size: 18 })}${uiIcon('construction', { size: 12, label: '在建' })} ${DISTRICTS[item.kind].name} · 地块 ${item.tileIndex} · 在建 ${item.progress}/${DISTRICTS[item.kind].cost}</p>`).join('')}
+    ${projects.map(item => `<p class="district-project" data-district-project="${item.orderId}">${uiIcon(item.kind as UiIconName, { size: 18 })}${uiIcon('construction', { size: 12, label: '在建' })} ${DISTRICTS[item.kind].name} · ${tileCoords(item.tileIndex, view.map)} · 在建 ${item.progress}/${DISTRICTS[item.kind].cost}</p>`).join('')}
     ${completed.length + projects.length ? '' : '<p class="empty-note">尚未建造设施区。</p>'}</section>`;
 }
 

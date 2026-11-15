@@ -9,6 +9,7 @@
     "lint": "eslint src server tests *.ts *.js",
     "test": "vitest",
     "test:e2e": "playwright test",
+    "test:e2e:prod": "playwright test -c playwright.prod.config.ts",
     "sim": "node tools/simulate.ts",
     "lint:tools": "eslint tools",
     "sim:explore": "node tools/explore.ts",

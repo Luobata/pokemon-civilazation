@@ -61,7 +61,8 @@ test('v22: panning past the east edge shows the west columns; a click across the
   const box = (await page.locator('#map').boundingBox())!;
   await page.mouse.click(box.x + seam.copy.x, box.y + seam.copy.y);
   await expect(page.locator('#tile-info')).toBeVisible();
-  await expect(page.locator('#tile-info .subpanel-head span')).toHaveText(`地块 ${seam.index}`);
+  // Playtest 2026-11b U-f: the inspector names the tile by (column, row) — the canonical first column, not the copy's.
+  await expect(page.locator('#tile-info .subpanel-head .tile-coords')).toHaveText(`(${seam.index % seam.width}, ${Math.floor(seam.index / seam.width)})`);
   // Hover across the seam: the tooltip describes the same tile.
   await page.mouse.move(box.x + seam.copy.x + 2, box.y + seam.copy.y + 2);
   await expect(page.locator('#map-tooltip')).toBeVisible();

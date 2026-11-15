@@ -14,6 +14,7 @@ import type { ContestCategory } from '../core/contest-seasons.ts';
 import { GOLD_SINK_REASONS, viewGoldSinkQuote, viewTaughtMoveType } from '../core/gold-sinks.ts';
 import type { GoldSinkAction } from '../core/gold-sinks.ts';
 import { hexDistance, hexToIndex, indexToHex } from '../core/hex.ts';
+import { ballPrice, viewPolicyEffects } from '../core/policies.ts';
 import type { Command, MapUnit, PlayerView, VisibleEvent } from '../core/model.ts';
 import { viewBadges } from '../core/unit-classes.ts';
 import type { VictoryRoute } from '../core/victory-watch.ts';
@@ -22,6 +23,7 @@ import { artImage, escapeAttr, statChip, typeBadge, uiIcon } from './ui-icons.ts
 import type { UiIconName } from './ui-icons.ts';
 import type { WorldCard } from './world-cards.ts';
 import { civOrYou } from './civ-names.ts';
+import { approachText, approachTile } from './world-goto.ts';
 
 type Pokemon = Extract<MapUnit, { kind: 'pokemon' }>;
 const esc = escapeAttr;
@@ -68,14 +70,16 @@ export function depthWorldCards(view: PlayerView, content: Content = contentForV
   if (raids?.active) {
     const boss = raids.active, unit = boss.unitId === null ? undefined : view.units.find(item => item.id === boss.unitId), name = content.species[boss.speciesId]?.name ?? '';
     const total = Object.values(boss.damage).reduce((sum, value) => sum + value, 0);
+    const reach = raidReach(view, boss.tileIndex, content);
     cards.push({ id: 'raid', title: `极巨巢穴：${name}`, art: { sprite: pokemonSpritePath(boss.speciesId) },
-      status: `${unit ? `HP ${unit.hp}/${boss.maxHp}` : `HP ${boss.maxHp}`} · 第 ${boss.endsAtRound} 轮后离开`,
-      tip: `本地区的${name}出现在${boss.tileIndex === null ? '远方（你还没探索过那里）' : '地图上'}，不移动，每轮末攻击所有相邻单位，不能捕捉。\n用普通攻击打它：伤害第一的文明得到这只宝可梦（出现在离巢最近的己方城市旁）和时代分 +1；伤害 ≥ 10% 的文明各得金币（每 10% 份额 ${lateTuning(content).raidShareGold} 金，最多 ${lateTuning(content).raidMaxGold}）。\n伤害：${Object.entries(boss.damage).map(([id, value]) => `${civ(view, Number(id))} ${value}（${total ? Math.round(value * 100 / total) : 0}%）`).join('、') || '还没有人出手'}。`,
+      status: `${unit ? `HP ${unit.hp}/${boss.maxHp}` : `HP ${boss.maxHp}`} · 第 ${boss.endsAtRound} 轮后离开 · ${reach.status}`, ...reach.goTo,
+      tip: `本地区的${name}出现在${boss.tileIndex === null ? '远方（你还没探索过那里）' : '地图上'}，不移动，每轮末攻击所有相邻单位，不能捕捉。\n用普通攻击打它：伤害第一的文明得到这只宝可梦（出现在离巢最近的己方城市旁）和时代分 +1；伤害 ≥ 10% 的文明各得金币（每 10% 份额 ${lateTuning(content).raidShareGold} 金，最多 ${lateTuning(content).raidMaxGold}）。\n伤害：${Object.entries(boss.damage).map(([id, value]) => `${civ(view, Number(id))} ${value}（${total ? Math.round(value * 100 / total) : 0}%）`).join('、') || '还没有人出手'}。\n${reach.tip}`,
       urgency: 0, distance: boss.tileIndex === null ? null : hexDistanceToOwn(view, boss.tileIndex), ...(boss.tileIndex === null ? {} : { tileIndex: boss.tileIndex }) });
   } else if (raids?.pending) {
     const den = raids.pending, name = content.species[den.speciesId]?.name ?? '';
-    cards.push({ id: 'raid', title: `极巨巢穴预告：${name}`, art: { sprite: pokemonSpritePath(den.speciesId) }, status: `第 ${den.round} 轮出现（${den.round - view.round} 轮）`,
-      tip: `第 ${den.round} 轮，本地区的${name}会出现在${den.tileIndex === null ? '远方（你还没探索过那里）' : '定位处'}，停留 ${lateTuning(content).raidRounds} 轮。提前把队伍带过去：伤害第一的文明得到它。`,
+    const reach = raidReach(view, den.tileIndex, content);
+    cards.push({ id: 'raid', title: `极巨巢穴预告：${name}`, art: { sprite: pokemonSpritePath(den.speciesId) }, status: `第 ${den.round} 轮出现（${den.round - view.round} 轮）· ${reach.status}`, ...reach.goTo,
+      tip: `第 ${den.round} 轮，本地区的${name}会出现在${den.tileIndex === null ? '远方（你还没探索过那里）' : '定位处'}，停留 ${lateTuning(content).raidRounds} 轮。提前把队伍带过去：伤害第一的文明得到它。\n${reach.tip}`,
       urgency: den.round - view.round <= 2 ? 0 : 2, distance: den.tileIndex === null ? null : hexDistanceToOwn(view, den.tileIndex), ...(den.tileIndex === null ? {} : { tileIndex: den.tileIndex }) });
   } else if (raids?.nextRound) {
     cards.push({ id: 'raid', title: '极巨巢穴', art: { icon: 'raid' }, status: `第 ${raids.nextRound} 轮出现`,
@@ -98,15 +102,32 @@ export function depthWorldCards(view: PlayerView, content: Content = contentForV
   if (sinks) {
     const rushable = view.economy.cities.map(city => ({ city, quote: viewGoldSinkQuote(view, { type: 'RushProduction', cityId: city.id }, content) }))
       .filter(item => item.quote.ok).sort((a, b) => (a.quote.ok ? a.quote.gold : 0) - (b.quote.ok ? b.quote.gold : 0) || a.city.id - b.city.id);
-    if (rushable.length && player.gold >= 150) {
-      const first = rushable[0];
-      cards.push({ id: 'goldSink', title: '金币可以花', art: { icon: 'rush' }, status: `金币 ${player.gold} · ${rushable.length} 座城可加急`,
-        tip: `加急采购：当前生产项剩余生产 × ${lateTuning(content).rushBuildingGold} 金（建筑）/ × ${lateTuning(content).rushUnitGold} 金（宝可梦、职能单位），本轮末完成；每城每轮 1 次。\n${rushable.map(item => `城市 ${item.city.id}：${quoteText(item.quote)}`).join('\n')}\n另有宝可梦中心（休养立刻归队）、特训和招式学习器（世界页「训练与学习器」）。`,
-        urgency: player.gold >= 500 ? 1 : 3, distance: null, tileIndex: hexToIndex(first.city.position, view.map) ?? undefined,
-        action: { label: `加急城市 ${first.city.id}`, command: { type: 'RushProduction', cityId: first.city.id }, available: true } });
+    // Playtest 2026-11b U-c: spare gold also goes to special training, TMs and balls, not only rushes.
+    const sinkOptions = goldSinkOptions(view, content);
+    if (player.gold >= 150 && (rushable.length || sinkOptions.training.length || sinkOptions.tms.length || sinkOptions.balls)) {
+      const first = rushable[0], trainee = sinkOptions.training[0];
+      const parts = [rushable.length ? `加急 ${rushable.length} 城` : '', sinkOptions.training.length ? `特训 ${sinkOptions.training.length}` : '',
+        sinkOptions.tms.length ? `学习器 ${sinkOptions.tms.length}` : '', sinkOptions.balls ? '买球' : ''].filter(Boolean);
+      cards.push({ id: 'goldSink', title: '金币可以花', art: { icon: first ? 'rush' : trainee ? 'training' : sinkOptions.tms.length ? 'tm' : 'pokeBall' }, status: `金币 ${player.gold} · ${parts.join(' · ')}`,
+        tip: `${rushable.length ? `加急采购：当前生产项剩余生产 × ${lateTuning(content).rushBuildingGold} 金（建筑）/ × ${lateTuning(content).rushUnitGold} 金（宝可梦、职能单位），本轮末完成；每城每轮 1 次。\n${rushable.map(item => `城市 ${item.city.id}：${quoteText(item.quote)}`).join('\n')}\n` : ''}`
+          + `${sinkOptions.training.length ? `特训（${lateTuning(content).trainingGold} 金 → +${lateTuning(content).trainingXp} 经验）：${sinkOptions.training.map(unit => `${unitDefinition(unit, content).name}#${unit.id}`).join('、')}。\n` : '特训：宝可梦要站在有宝可梦中心的己方城市里或旁边。\n'}`
+          + `${sinkOptions.tms.length ? `招式学习器：${sinkOptions.tms.map(item => `${unitDefinition(item.unit, content).name}#${item.unit.id}（${item.types.map(type => TYPE_NAMES[type]).join('、')}）`).join('、')}。\n` : ''}`
+          + `${sinkOptions.balls ? '精灵球：城市面板「物资采购」。\n' : ''}选中宝可梦或城市（物资采购）即可使用；世界页「训练与学习器」列出全部。`,
+        urgency: player.gold >= 500 ? 1 : 3, distance: null,
+        ...(first ? { tileIndex: hexToIndex(first.city.position, view.map) ?? undefined, action: { label: `加急城市 ${first.city.id}`, command: { type: 'RushProduction', cityId: first.city.id } as Command['action'], available: true } }
+          : trainee ? { unitId: trainee.id, action: { label: `特训 ${unitDefinition(trainee, content).name}`, command: { type: 'SpecialTraining', unitId: trainee.id } as Command['action'], available: true } }
+          : sinkOptions.tms[0] ? { unitId: sinkOptions.tms[0].unit.id } : {}) });
     }
   }
   return cards;
+}
+/** Playtest 2026-11b: can my Pokémon get beside the den, in about how many rounds, and a one-click go-to (world-goto.ts). */
+function raidReach(view: PlayerView, tileIndex: number | null, content: Content): { status: string; tip: string; goTo: Pick<WorldCard, 'goTo'> } {
+  // The den's tile is in the view only once the viewer explored it; elsewhere neither its place nor its distance is known.
+  if (tileIndex === null) return { status: '未探索 · 位置未知', tip: '巢穴在你还没探索过的地方：地图上没有它的位置，也算不出距离。向远离各国首都的方向探索。', goTo: {} };
+  const approach = approachTile(view, tileIndex, content), stop = approach ? approach.tileIndex : null;
+  return { status: approachText(approach), tip: approach ? `${approachText(approach)}（按已知地形估算，未探索的格子按草原算）。「前往」给它设路标，每回合开始自动前进。` : '你的宝可梦在已知地形上都到不了它旁边：先探索周围，或从别的方向绕过去。',
+    goTo: approach && stop !== null && approach.turns > 0 ? { goTo: { unitId: approach.unitId, tileIndex: stop, label: `${approach.name}前往极巨巢穴旁（约 ${approach.turns} 轮）` } } : {} };
 }
 const hexDistanceToOwn = (view: PlayerView, tileIndex: number) => {
   const at = indexToHex(tileIndex, view.map), anchors = [...view.units.filter(unit => unit.ownerId === view.playerId).map(unit => unit.position), ...view.economy.cities.map(city => city.position)];
@@ -141,6 +162,52 @@ export function depthPanelCards(view: PlayerView, button: (label: string, action
   return card('s-gold-sinks', `${uiIcon('training', { size: 18 })}训练与学习器`, `<p class="unit-note">特训：站在有宝可梦中心的己方城市里或旁边，${lateTuning(content).trainingGold} 金换 ${lateTuning(content).trainingXp} 经验（每只每 ${lateTuning(content).trainingCooldown} 轮 1 次）。`
     + `招式学习器：给一只宝可梦加 1 个只在对战与大赛季里用的属性，属性要属于你有徽章的精华；一、二阶 ${lateTuning(content).tmGold} 金，三阶 ${lateTuning(content).tmFinalGold} 金；每赢一枚巡回徽章送 1 张该道馆属性的学习器。</p>`
     + `<p class="world-stats">${statChip('tm', sinks.freeTms.length, '免费学习器')}${sinks.freeTms.map(type => typeBadge(type, 16)).join('')}${spent ? `<span class="unit-note">已花：${esc(spent)}</span>` : ''}</p>${rows || '<p>没有宝可梦。</p>'}`);
+}
+/** Playtest 2026-11b U-c: what spare gold can buy now (the same quotes the buttons use). */
+export function goldSinkOptions(view: PlayerView, content: Content = contentForView(view)): { training: Pokemon[]; tms: { unit: Pokemon; types: TypeId[] }[]; balls: boolean } {
+  const sinks = view.expansion?.goldSinks, player = view.economy.player;
+  if (!sinks) return { training: [], tms: [], balls: false };
+  const badges = (Object.keys(TYPE_ESSENCE) as TypeId[]).filter(type => viewBadges(view).has(TYPE_ESSENCE[type]));
+  const own = ownPokemon(view);
+  const training = own.filter(unit => viewGoldSinkQuote(view, { type: 'SpecialTraining', unitId: unit.id }, content).ok);
+  const tms = own.map(unit => ({ unit, types: badges.filter(type => viewGoldSinkQuote(view, { type: 'TeachMove', unitId: unit.id, typeId: type }, content).ok) })).filter(item => item.types.length);
+  const unlocked = player.research.unlockedIds;
+  const balls = unlocked.includes('domestication') && view.economy.cities.length > 0 && (Object.keys(content.balls) as (keyof typeof content.balls)[])
+    .some(id => unlocked.includes(content.balls[id].requiredTech) && player.gold >= ballPrice(content.balls[id].goldCost, viewPolicyEffects(view).ballDiscount));
+  return { training, tms, balls };
+}
+
+/** One Pokémon's special training and TM buttons (icon first, the price and the reason in the hover card); `data-gold-sink` (bindGoldSinkButtons). */
+export function pokemonGoldSinkButtons(view: PlayerView, unit: Pokemon, disabled: boolean, content: Content = contentForView(view)): string {
+  const sinks = view.expansion?.goldSinks;
+  if (!sinks) return '';
+  const species = content.species[unit.speciesId], name = unitDefinition(unit, content).name, tm = sinks.moves[unit.id];
+  const train: GoldSinkAction = { type: 'SpecialTraining', unitId: unit.id }, quote = viewGoldSinkQuote(view, train, content);
+  const sink = (action: GoldSinkAction, icon: string, label: string, ok: boolean, why: string) =>
+    `<button type="button" class="gold-sink-btn sink-icon-btn" data-gold-sink="${esc(JSON.stringify(action))}" aria-label="${esc(`${label}：${why}`)}" title="${esc(`${label}：${why}`)}"${disabled || !ok ? ' disabled' : ''}>${icon}</button>`;
+  const types = (Object.keys(TYPE_ESSENCE) as TypeId[]).filter(type => viewBadges(view).has(TYPE_ESSENCE[type]) && type !== species.typeId && type !== species.secondaryTypeId && type !== tm);
+  return `<span class="sink-row" role="group" aria-label="${esc(`${name}的特训与学习器`)}">${sink(train, `${uiIcon('training', { size: 18 })}<small>${quote.ok ? quote.gold : '—'}</small>`, `特训 ${name}`, quote.ok,
+    quote.ok ? `${quote.gold} 金换 +${lateTuning(content).trainingXp} 经验（每只每 ${lateTuning(content).trainingCooldown} 轮 1 次）` : quoteText(quote))}`
+    + types.map(type => {
+      const action: GoldSinkAction = { type: 'TeachMove', unitId: unit.id, typeId: type }, item = viewGoldSinkQuote(view, action, content);
+      return sink(action, `${uiIcon('tm', { size: 14 })}${typeBadge(type, 16)}`, `学习器：教${name}${TYPE_NAMES[type]}属性招式`, item.ok, item.ok ? (item.free ? '免费（徽章奖励）' : `${item.gold} 金；只在对战与大赛季里用`) : quoteText(item));
+    }).join('') + (tm ? `<span class="sink-known" role="img" aria-label="${esc(`已学：${TYPE_NAMES[tm]}属性`)}" title="${esc(`已学：${TYPE_NAMES[tm]}属性`)}">${uiIcon('tm', { size: 14 })}${typeBadge(tm, 16)}</span>` : '') + '</span>';
+}
+/** The unit panel's training / TM section for a selected own Pokémon (none before v26). */
+export function unitGoldSinkMarkup(view: PlayerView, unitId: number, disabled: boolean): string {
+  const unit = ownPokemon(view).find(item => item.id === unitId);
+  if (!unit || !view.expansion?.goldSinks) return '';
+  return `<section class="unit-gold-sinks" aria-label="训练与学习器"><p class="section-label">${uiIcon('training', { size: 16 })}训练与学习器</p>${pokemonGoldSinkButtons(view, unit, disabled)}</section>`;
+}
+/** 物资采购: this city's rush and recoveries, and training / TMs for own Pokémon in or beside it. */
+export function citySupplyMarkup(view: PlayerView, cityId: number, disabled: boolean): string {
+  const content = contentForView(view), city = view.economy.cities.find(item => item.id === cityId);
+  if (!city || !view.expansion?.goldSinks) return '';
+  const near = ownPokemon(view).filter(unit => hexDistance(unit.position, city.position, view.map) <= 1);
+  return `<section class="city-supply-sinks" aria-label="金币采购"><p class="section-label">${uiIcon('rush', { size: 16 })}金币采购</p>${cityGoldSinkMarkup(view, cityId, disabled)}`
+    + `<p class="unit-note">特训要站在有宝可梦中心的己方城市里或旁边；学习器的属性要属于你有徽章的精华。</p>`
+    + (near.length ? `<ul class="supply-units">${near.map(unit => `<li>${artImage(pokemonSpritePath(unit.speciesId), { size: 28, label: `${unitDefinition(unit, content).name}#${unit.id}` })}${pokemonGoldSinkButtons(view, unit, disabled, content)}</li>`).join('')}</ul>`
+      : '<p class="unit-note">城里和城旁没有你的宝可梦。</p>') + '</section>';
 }
 const SINK_NAMES: Record<GoldSinkAction['type'], string> = { RushProduction: '加急采购', RushRecovery: '宝可梦中心', SpecialTraining: '特训', TeachMove: '学习器' };
 

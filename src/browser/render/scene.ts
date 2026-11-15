@@ -28,6 +28,7 @@ import type { SceneTerrain } from './terrain-features.ts';
 import { ESSENCES } from '../../content/essences.ts';
 import { RIVAL_COUNTERS } from '../../content/rivals.ts';
 import { viewRivalSighting } from '../../core/rivals.ts';
+import { rivalTrail } from '../rival-tracker.ts';
 
 export type DebugOverlay = 'none' | 'tiles' | 'vision' | 'wild' | 'ai';
 /** Optional presentation layers; they never add information beyond the PlayerView. */
@@ -187,6 +188,13 @@ export function buildScene(input: MapRenderInput): MapScene {
     const rivalWarning = expansion.rivals?.pending;
     if (rivalWarning) badges.push({ kind: 'sprite', index: rivalWarning.tileIndex, speciesId: RIVAL_COUNTERS[view.economy.player.starterId].primary[0], fallback: '劲',
       crown: false, ring: '#D3655C', luxury: false, dim: false, warning: true });
+    // Playtest 2026-11b N2: after a foggy arrival the warned tile keeps its alarm (the player was shown it), then the rival Pokémon
+    // out of sight are drawn dim where they were last seen (the view's lastKnownUnits; never a live hidden position).
+    const trail = rivalTrail(view);
+    if (trail?.arrival) badges.push({ kind: 'sprite', index: trail.arrival.tileIndex, speciesId: RIVAL_COUNTERS[view.economy.player.starterId].primary[0], fallback: '劲',
+      crown: false, ring: '#D3655C', luxury: false, dim: false, warning: true });
+    for (const spot of trail?.remembered ?? []) badges.push({ kind: 'sprite', index: spot.tileIndex, speciesId: spot.speciesId ?? RIVAL_COUNTERS[view.economy.player.starterId].primary[0],
+      fallback: '劲', crown: false, ring: '#D3655C', luxury: false, dim: true });
     for (const site of expansion.civilization.sanctuaries) {
       const index = indexOf(site.position);
       if (index !== null && visible.has(index)) badges.push({ kind: 'icon', index, icon: site.guardianDefeated ? 'tablet' : 'sanctuary', ring: '#B58AD6', luxury: false, dim: false });
