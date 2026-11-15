@@ -16,6 +16,8 @@ import { hexToIndex, neighbors } from './hex.ts';
 import { besideStrikingWild, canEnterTile, usesDeploymentRulesV25 } from './movement.ts';
 import { wanderersFor } from '../content/roster.ts';
 import { placementBlocked } from './stacking.ts';
+import { completeCityProject } from './city-projects.ts';
+import { legendFavorCost } from './legend-favor.ts';
 import { playerPolicyEffects } from './policies.ts';
 import { assignNewWorkers, cityYield, cleanWork, growthThreshold, productionCost, releaseWorker } from './city.ts';
 import type { CityState, EconomyEvent, GameState, PendingDeployment } from './model.ts';
@@ -76,13 +78,17 @@ export function resolveEconomy(state: GameState, content: Content = contentFor(s
     if (!order) continue;
     consumeCivilizationProduction(state, city.id);
     order.progress += productionAfterHall(state, city, output.get(city.id)!.production) + essenceTrainingBonus(state, city, content, events as never);
-    const cost = productionCost(order.item, content, playerPolicyEffects(state, city.ownerId).trainingDiscountPercent, leaderEffects(state.players[city.ownerId].leaderId).settlerDiscountPercent);
+    // v27 ④ (pace-v27 §5): legend favour (the stock cost before v27).
+    const cost = legendFavorCost(state, city.ownerId, order.item, productionCost(order.item, content, playerPolicyEffects(state, city.ownerId).trainingDiscountPercent, leaderEffects(state.players[city.ownerId].leaderId).settlerDiscountPercent), content);
     if (order.progress < cost) continue;
     if (order.item.kind === 'logistics') state.players[city.ownerId].lastSettlerProducedRound = state.round;
     const overflow = order.progress - cost;
     city.queue.shift();
     if (city.queue[0]) city.queue[0].progress += overflow;
-    if (order.item.kind === 'district') {
+    // v27 ③ (pace-v27 §4): a finished city project (null for every other order, and before v27).
+    const project = completeCityProject(state, city, order, content);
+    if (project) events.push(...project);
+    else if (order.item.kind === 'district') {
       state.expansion!.districts!.tiles[order.item.tileIndex] = { cityId: city.id, kind: order.item.defId, tileIndex: order.item.tileIndex, builtAtRound: state.round };
       events.push({ type: 'DistrictCompleted', playerId: city.ownerId, cityId: city.id, orderId: order.id,
         tileIndex: order.item.tileIndex, kind: order.item.defId, cost, overflow });

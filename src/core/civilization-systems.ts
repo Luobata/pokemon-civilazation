@@ -1,3 +1,4 @@
+import { leagueRosterEntrants } from './league-roster.ts';
 import { worldSiteAllowed } from './terrain.ts';
 import type { MapFeatures } from './terrain.ts';
 import { victoryTargets } from '../content/opening.ts';
@@ -288,6 +289,9 @@ export type ChampionshipNpc = { entrantId: string; name: string; roster: BattleC
  * `npcBasePower + season × npcSeasonPower + slot × npcSlotPower`, split evenly and scaled per Pokémon (integers). Public setup only.
  */
 export function championshipNpcEntrants(seed: number, season: number, content: Content): ChampionshipNpc[] {
+  // v27 ⑥: the league roster (null before v27).
+  const league = leagueRosterEntrants(seed, season, content);
+  if (league) return league;
   const tuning = depth26Tuning(content), size = CIVILIZATION_CONTENT.championship.teamSize;
   const ids = [...regionalSpeciesIds(content)].filter(id => content.species[id]).sort() as SpeciesId[];
   const types = [...new Set(ids.flatMap(id => [content.species[id].typeId, content.species[id].secondaryTypeId].filter((type): type is TypeId => Boolean(type))))].sort();

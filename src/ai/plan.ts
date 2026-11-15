@@ -49,6 +49,8 @@ import { legendRaceSwitch } from './legend-race-plan.ts';
 import { escortedSettler, stackEscorts } from './escort-plan.ts';
 import { planRivalDuel } from './rival-duel-plan.ts';
 import { raidAttackBonus, raidMoveTargets } from './raid-plan.ts';
+import { planMaxRaidAction } from './max-raid-plan.ts';
+import { cityProjectCandidates } from './project-plan.ts';
 import { researchCaptureScore } from './research-plan.ts';
 import { embarkResearchBonus, isBoarding, moverOf, nearestTravel, safeToBoard, travelCloser, travelDistance, walkerTravel } from './travel.ts';
 import { canEnterTile, waterAccess } from '../core/movement.ts';
@@ -144,6 +146,9 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
   if (seasonAction) return result(seasonAction);
   const goldSinkAction = planGoldSinkAction(view, content);
   if (goldSinkAction) return result(goldSinkAction);
+  // v27 ⑤: the den Dynamax (null before v27).
+  const maxRaidAction = planMaxRaidAction(view, content);
+  if (maxRaidAction) return result(maxRaidAction);
   const raceAction = legendRaceSwitch(view);
   if (raceAction) return result(raceAction);
   const faithAction = planFaithAction(view);
@@ -259,6 +264,8 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
       queue({ kind: 'building', defId: id }, 'economy', (y.food + y.production * 2 + y.gold * 2 + y.research * 2) * 100 - building.cost
         + (id === 'trainingGround' && bondThreatened.has(city.id) ? 1000 : 0), i);
     }
+    // v27 ③: city projects for an idle city ([] before v27).
+    for (const [i, candidate] of cityProjectCandidates(view, city.id, content).entries()) queue(candidate.item, 'economy', candidate.benefit, i);
     if (combat.length < Math.max(4, cities.length * 2) && (income > upkeep || player.gold >= 80)) {
       const badges = viewBadges(view);
       for (const [i, id] of trainableSpeciesIds(player, view.gameplayVersion, content, view.eraProgression).entries()) {

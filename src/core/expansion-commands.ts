@@ -48,6 +48,8 @@ export function expansionActionFields(content: Content = ROSTER_CONTENT): Record
   RushProduction: { cityId: 'id' }, RushRecovery: { unitId: 'id' }, SpecialTraining: { unitId: 'id' }, TeachMove: { unitId: 'id', typeId: Object.keys(TYPE_ESSENCE) },
   EnterContest: { unitId: 'id' },
   ChallengeRival: { unitIds: 'ids', stake: ['spar', 'serious'] },
+  // v27 ⑤ (pace-v27 §6.1): the den Dynamax.
+  RaidDynamax: { unitId: 'id' },
   };
 }
 export const EXPANSION_ACTION_FIELDS: Record<ExpansionAction['type'], Fields> = expansionActionFields();

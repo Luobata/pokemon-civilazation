@@ -61,6 +61,19 @@ export function patchSchema(base: Content): Schema {
       raidFirstRound: [1, 300], raidInterval: [1, 300], raidRounds: [1, 30], raidAnnounce: [0, 50], raidBaseHp: [1, 10_000], raidHpPerCiv: [0, 1000], raidCapitalDistance: [0, 30],
       raidShareGold: [0, 1000], raidMaxGold: [0, 10_000], raidMinSharePercent: [0, 100], watchPercent: [1, 100], escortMaxCities: [0, 100], giftBalls: [0, 100] },
   } } : {}),
+  // v27 knobs (src/content/pace-v27.ts): only the v27 content carries them; one block per lane.
+  ...(base.pace27 ? { pace27: {
+    opening: { faithWinSharePercent: [1, 100], aiSiteRadius: [1, 3], exhaustHpPercent: [0, 100], exhaustRounds: [1, 10], exhaustRecoverPercent: [1, 100],
+      exhaustCaptureBonus: [0, 100], exhaustCaptureCap: [1, 100], protectionLastRound: [0, 300], protectionRounds: [1, 10], protectionHpPercent: [1, 100],
+      encounterBeforeRound: [0, 300], encounterXp: [0, 1000], encounterScience: [0, 1000], aiExhaustAttackBonus: [0, 10_000] },
+    economy: { projectCost: keyed(base.pace27.economy.projectCost, () => cost), projectStepPercent: [0, 1000], hatchXp: amount, drillXp: amount, drillUnits: [0, 20],
+      reportScience: amount, rehearsalAppeal: amount, rehearsalScore: amount, festivalSatisfaction: [0, 100], festivalEraInterval: [1, 300],
+      legendFavorPercent: [0, 1000], legendTrailPercent: [0, 100] },
+    events: { shieldBase: [0, 20], shieldPhaseTwo: [0, 20], shieldDamagePermille: [0, 1000], phaseTwoPercent: [0, 100], phaseTwoRange: [1, 5],
+      breakerShields: [1, 10], dealerPermille: [1000, 5000], supportHeal: [0, 1000], shieldPoints: [0, 1000], dynamaxRange: [1, 10],
+      catchBasePercent: [0, 100], catchMaxPercent: [0, 100], participationGold: [0, 1000], circuitGold: indexed(base.pace27.events.circuitGold, [0, 1000]), circuitEntrantXp: amount },
+    trainers: { rosterSize: [6, 8], stageWeights: indexed(base.pace27.trainers.stageWeights, [1, 100]), signaturePercent: [100, 300] },
+  } } : {}),
   };
 }
 const indexed = (values: readonly unknown[], range: readonly [number, number]): Schema => Object.fromEntries(values.map((_, index) => [String(index), range]));

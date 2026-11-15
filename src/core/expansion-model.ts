@@ -27,6 +27,7 @@ import type { GoldSinkAction, GoldSinkEvent, GoldSinkState, GoldSinkView } from 
 import type { ContestSeasonAction, ContestSeasonEvent, ContestSeasonState, ContestSeasonView } from './contest-seasons.ts';
 import type { RaidEvent, RaidState, RaidView } from './raids.ts';
 import type { RivalDuelAction, RivalDuelEvent } from './rival-duels.ts';
+import type { MaxRaidAction } from './max-raids.ts';
 import type { LegendRaceEvent } from './legend-race.ts';
 import type { OpeningGiftEvent } from './opening-gift.ts';
 import type { VictoryWatchEvent, VictoryWatchState, VictoryWatchView } from './victory-watch.ts';
@@ -82,7 +83,7 @@ export type ExpansionView = { version: 1; world: WorldView; civilization: Civili
   landmarks?: LandmarkView; gymCircuit?: GymCircuitView; rivals?: RivalView; researchTasks?: ResearchTaskView;
   goldSinks?: GoldSinkView; contestSeasons?: ContestSeasonView; raids?: RaidView; victoryWatch?: VictoryWatchView };
 export type ExpansionAction = WorldAction | CivilizationAction | LeaderAction | ImprovementAction | PolicyAction | EssenceAction | EraAbilityAction | BondAction | RareBerryAction | ContestAction | FaithAction | PromotionAction | CityNetworkAction | DedicationAction | PillageAction | GymCircuitAction
-  | GoldSinkAction | ContestSeasonAction | RivalDuelAction;
+  | GoldSinkAction | ContestSeasonAction | RivalDuelAction | MaxRaidAction;
 export type ExpansionEvent = WorldEvent | CivilizationEvent | LeaderEvent | ImprovementEvent | DiscoveryEvent | PolicyEvent | EssenceEvent | EraAbilityEvent | BondEvent | RareBerryEvent | ContestEvent | FaithEvent | EraHonorEvent | PromotionEvent | LegendEvent | CityNetworkEvent | OpeningEvent | DedicationEvent | PillageEvent
   | LandmarkEvent | GymCircuitEvent | RivalEvent | ResearchTaskEvent
   | GoldSinkEvent | ContestSeasonEvent | RaidEvent | RivalDuelEvent | LegendRaceEvent | OpeningGiftEvent | VictoryWatchEvent;

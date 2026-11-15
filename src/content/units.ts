@@ -26,6 +26,8 @@ import { SPECIES_TAGS } from './species-tags.ts';
 import { DEPTH26_TUNING, DEPTH_FLAGS } from './depth-v26.ts';
 import { ROSTER_V26_EVOLUTIONS, ROSTER_V26_SPECIES, ROSTER_V26_TAGS, ROSTER_V26_VERSION } from './roster-v26-data.ts';
 import type { Depth26Tuning, DepthFlags } from './depth-v26.ts';
+import { PACE27_TUNING, PACE_FLAGS } from './pace-v27.ts';
+import type { Pace27Tuning, PaceFlags } from './pace-v27.ts';
 
 export const STARTER_IDS = ['bulbasaur', 'charmander', 'squirtle'] as const;
 export type StarterId = (typeof STARTER_IDS)[number];
@@ -33,7 +35,7 @@ export type UnitIdentity = { kind: 'pokemon'; speciesId: SpeciesId; uniqueLeader
   /** v17: `escortId` = the escort / carrier Pokémon; traders remember the city that trained them. */
   | { kind: 'logistics'; role: 'settler' | 'trader' | 'builder'; escortId?: SpeciesId; homeCityId?: number };
 export type UnitDefinition = { name: string; move: number; vision: number; terrain: readonly BiomeId[]; trainCost: number; upkeep: number };
-export type Content = DepthFlags & {
+export type Content = DepthFlags & PaceFlags & {
   version: string;
   biomes: typeof BIOME_YIELDS; buildings: typeof BUILDINGS; techs: TechTable;
   balls: { [K in keyof typeof BALLS]: Omit<typeof BALLS[K], 'goldCost'> & { goldCost: number } };
@@ -60,6 +62,8 @@ export type Content = DepthFlags & {
   regionalDex?: { speciesIds: readonly SpeciesId[]; size: number; pool: number };
   /** Gameplay v26 balance knobs (src/content/depth-v26.ts); only the v26 content carries them. The v26 flags come from `DepthFlags`. */
   depth26?: Depth26Tuning;
+  /** Gameplay v27 balance knobs (src/content/pace-v27.ts); only the v27 content carries them. The v27 flags come from `PaceFlags`. */
+  pace27?: Pace27Tuning;
 };
 /** A stone evolution path (same shape as `WORLD_DEFINITIONS.stoneEvolutions`). */
 export type RosterStoneEvolution = { fromSpeciesId: SpeciesId; intoSpeciesId: SpeciesId; stoneId: 'fireStone' | 'waterStone' | 'leafStone' | 'thunderStone' | 'moonStone'; requiredXp: number };
@@ -294,6 +298,27 @@ export function depthContentFor(setup: ContentSetup): Content {
   depthBySetup.set(setup, content);
   return content;
 }
+/** v27 (docs/design/pace-v27.md): a v26 content with the pace flags, its own knobs and its own copies of the world24 and depth26 tuning. */
+const paceOverlay = (base: Content): Content => ({ ...base, version: 'pace-v27', ...PACE_FLAGS,
+  world24: JSON.parse(JSON.stringify(base.world24)) as World24Tuning, depth26: JSON.parse(JSON.stringify(base.depth26)) as Depth26Tuning,
+  pace27: JSON.parse(JSON.stringify(PACE27_TUNING)) as Pace27Tuning });
+/** v27 base: the v26 base plus the pace flags (setups without a seed, the manual). */
+export const PACE_CONTENT: Content = paceOverlay(DEPTH_CONTENT);
+const paceContents = new WeakMap<Content, Content>();
+/** v27 of a v26 content (memoized by the v26 object, so the authority and every view of one game share one object). */
+function paceOf(depth: Content): Content {
+  if (depth === DEPTH_CONTENT) return PACE_CONTENT;
+  let content = paceContents.get(depth);
+  if (!content) {
+    paceContents.set(depth, content = paceOverlay(depth));
+    derivedContents.add(content);
+  }
+  return content;
+}
+/** v27: the content of one game = its v26 content (the v26 regional Pokédex draw) with the pace overlay. */
+export const paceContentFor = (setup: ContentSetup): Content => paceOf(depthContentFor(setup));
+/** v27: the content of a regional Pokédex (the view's way in; same object as `paceContentFor` of the game). */
+export const paceContentFromIds = (speciesIds: readonly SpeciesId[], mode: EraProgression): Content => paceOf(depthContentFromIds(speciesIds, mode));
 /** Stock contents plus the derived v25 regional contents (saves re-derive them from the setup). */
 export const isStockContent = (content: Content): boolean => STOCK_CONTENTS.includes(content) || derivedContents.has(content);
 /** A technology of this content (throws for ids the content does not define, e.g. a v22 id in an older game). */
@@ -303,15 +328,16 @@ export function techOf(content: Content, id: TechId): TechDefinition {
   return tech;
 }
 export function contentFor(setup: ContentSetup): Content {
-  return setup.expansionVersion !== 1 ? CONTENT : (setup.gameplayVersion ?? 0) >= 26 ? depthContentFor(setup) : (setup.gameplayVersion ?? 0) >= 25 ? regionalContentFor(setup) : (setup.gameplayVersion ?? 0) >= 24 ? WORLD24_CONTENT : (setup.gameplayVersion ?? 0) >= 23 ? IMPROVEMENT_CONTENT : (setup.gameplayVersion ?? 0) >= 22 ? WORLD_CONTENT : (setup.gameplayVersion ?? 0) >= 21 ? OPENING_CONTENT : (setup.gameplayVersion ?? 0) >= 20 ? BATTLE_CONTENT : (setup.gameplayVersion ?? 0) >= 14 ? ROSTER_CONTENT : EXPANSION_CONTENT;
+  return setup.expansionVersion !== 1 ? CONTENT : (setup.gameplayVersion ?? 0) >= 27 ? paceContentFor(setup) : (setup.gameplayVersion ?? 0) >= 26 ? depthContentFor(setup) : (setup.gameplayVersion ?? 0) >= 25 ? regionalContentFor(setup) : (setup.gameplayVersion ?? 0) >= 24 ? WORLD24_CONTENT : (setup.gameplayVersion ?? 0) >= 23 ? IMPROVEMENT_CONTENT : (setup.gameplayVersion ?? 0) >= 22 ? WORLD_CONTENT : (setup.gameplayVersion ?? 0) >= 21 ? OPENING_CONTENT : (setup.gameplayVersion ?? 0) >= 20 ? BATTLE_CONTENT : (setup.gameplayVersion ?? 0) >= 14 ? ROSTER_CONTENT : EXPANSION_CONTENT;
 }
 /** Same choice from a player's view (views carry `expansion` and `gameplayVersion` but not the setup; v25 views carry the regional Pokédex). */
 export function contentForView(view: { expansion?: unknown; gameplayVersion?: number; eraProgression?: EraProgression; regionalDex?: readonly SpeciesId[] }): Content {
+  if (view.expansion && view.regionalDex && view.eraProgression && (view.gameplayVersion ?? 0) >= 27) return paceContentFromIds(view.regionalDex, view.eraProgression);
   if (view.expansion && view.regionalDex && view.eraProgression && (view.gameplayVersion ?? 0) >= 26) return depthContentFromIds(view.regionalDex, view.eraProgression);
   if (view.expansion && view.regionalDex && view.eraProgression && (view.gameplayVersion ?? 0) >= 25) return regionalContentFromIds(view.regionalDex, view.eraProgression);
   return view.expansion ? contentFor({ expansionVersion: 1, gameplayVersion: view.gameplayVersion }) : CONTENT;
 }
-export const STOCK_CONTENTS: readonly Content[] = [CONTENT, EXPANSION_CONTENT, ROSTER_CONTENT, BATTLE_CONTENT, OPENING_CONTENT, WORLD_CONTENT, IMPROVEMENT_CONTENT, WORLD24_CONTENT, REGIONAL_CONTENT, DEPTH_CONTENT];
+export const STOCK_CONTENTS: readonly Content[] = [CONTENT, EXPANSION_CONTENT, ROSTER_CONTENT, BATTLE_CONTENT, OPENING_CONTENT, WORLD_CONTENT, IMPROVEMENT_CONTENT, WORLD24_CONTENT, REGIONAL_CONTENT, DEPTH_CONTENT, PACE_CONTENT];
 export function unitDefinition(unit: UnitIdentity, content: Content = CONTENT): UnitDefinition {
   const base = content.units[unit.kind === 'pokemon' ? unit.speciesId : unit.role];
   return unit.kind === 'pokemon' && unit.uniqueLeader ? { ...base, name: `${base.name}·${unit.uniqueLeader}`, vision: base.vision + 1 } : base;

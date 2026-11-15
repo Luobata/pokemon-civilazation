@@ -11,6 +11,7 @@ import { hexDistance } from './hex.ts';
 import { isMapUnit } from './model.ts';
 import type { EventPayload, GameState, PlayerView } from './model.ts';
 import { taughtMoveType } from './gold-sinks.ts';
+import { contestEntryCityIds, resolveCircuitPrizes, seasonScoreBonus } from './contest-circuit.ts';
 
 export type ContestCategory = 'cool' | 'beauty' | 'cute' | 'smart' | 'tough';
 export const CONTEST_CATEGORIES: readonly ContestCategory[] = ['cool', 'beauty', 'cute', 'smart', 'tough'];
@@ -71,7 +72,8 @@ export function validateContestSeasonAction(state: GameState, actorId: number, a
   const unit = state.units[action.unitId];
   if (!unit || unit.ownerId !== actorId || !isMapUnit(unit) || unit.kind !== 'pokemon') return 'unit-unavailable';
   if (!unit.actionLeft) return 'no-action';
-  const halls = liveHalls(state, actorId);
+  // v27 ⑦: the circuit opens every own city (the halls before v27).
+  const halls = contestEntryCityIds(liveHalls(state, actorId), Object.values(state.cities).filter(city => city.ownerId === actorId).map(city => city.id).sort((a, b) => a - b), content);
   if (!halls.some(cityId => hexDistance(state.cities[cityId].position, unit.position, state.map) <= 1)) return 'season-hall';
   return null;
 }
@@ -82,7 +84,7 @@ export function applyContestSeasonAction(state: GameState, actorId: number, acti
   if (!isMapUnit(unit) || unit.kind !== 'pokemon') throw new Error('Expected a deployed Pokémon');
   const season = window(content, state.round, state.setup.roundLimit ?? 100)!;
   const score = contestScore(content, unit.speciesId, unit.xp, taughtMoveType(state, unit.id), liveHalls(state, actorId).length, seasonCategory(state.setup.seed, season.index))
-    + stableSeed(state.setup.seed, season.index, actorId, 'contest-tiebreak') % 10;
+    + stableSeed(state.setup.seed, season.index, actorId, 'contest-tiebreak') % 10 + seasonScoreBonus(state, actorId, content);
   ledger.entries[actorId] = { unitId: unit.id, speciesId: unit.speciesId, score };
   unit.actionLeft = 0;
   return [{ type: 'ContestSeasonEntered', public: true, playerId: actorId, unitId: unit.id, speciesId: unit.speciesId }];
@@ -105,7 +107,9 @@ export function resolveContestSeasonRound(state: GameState, content: Content): E
   if (placings.length) ledger.ribbons[placings[0].playerId] = (ledger.ribbons[placings[0].playerId] ?? 0) + 1;
   ledger.entries = {}; ledger.held++;
   ledger.last = { season: season.index + 1, round: state.round, category, placings };
-  return [{ type: 'ContestSeasonJudged', public: true, season: season.index + 1, category, placings: placings.map(item => ({ ...item })) }];
+  return [{ type: 'ContestSeasonJudged', public: true, season: season.index + 1, category, placings: placings.map(item => ({ ...item })) },
+    // v27 ⑦: placing prizes ([] before v27).
+    ...resolveCircuitPrizes(state, placings, content)];
 }
 export function observeContestSeasons(state: GameState, playerId: number, content: Content): ContestSeasonView | undefined {
   const ledger = state.expansion?.contestSeasons;
@@ -128,7 +132,8 @@ export function viewContestEntryBlocker(view: PlayerView, unitId: number, conten
   const unit = view.units.find(item => item.id === unitId && item.ownerId === view.playerId);
   if (!unit || unit.kind !== 'pokemon') return 'unit-unavailable';
   if (!unit.actionLeft) return 'no-action';
-  const halls = view.economy.cities.filter(city => contests.own.halls.includes(city.id));
+  const entry = contestEntryCityIds(contests.own.halls, view.economy.cities.map(city => city.id), content);
+  const halls = view.economy.cities.filter(city => entry.includes(city.id));
   return halls.some(city => hexDistance(city.position, unit.position, view.map) <= 1) ? null : 'season-hall';
 }
 export const CONTEST_SEASON_REASONS: Record<string, string> = {

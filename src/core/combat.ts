@@ -32,6 +32,7 @@ import { cityCounterTerrain, cityStrikeTerrain, isEmbarked, unitStrikeTerrain } 
 import { isRivalUnit, rivalSpirit } from './rivals.ts';
 import { stateProtectedCivilian } from './stacking.ts';
 import { isRaidUnit } from './raids.ts';
+import { maxRaidHit } from './max-raids.ts';
 
 type Rejection = Extract<StepResult, { ok: false }>['reason'];
 const hasTech = (state: GameState, owner: number | null, tech: TechId) => owner !== null && state.players[owner].research.unlockedIds.includes(tech);
@@ -103,7 +104,7 @@ function unitStrike(state: GameState, attacker: MapUnit, defender: MapUnit, coun
   const era = combatContext(state);
   const fromBiome = state.map.tiles[hexToIndex(attacker.position, state.map)!], toBiome = state.map.tiles[hexToIndex(defender.position, state.map)!];
   // v20: combat strength — the same labelled factors the preview shows.
-  const hit = content.combat === 'strength' ? strengthDamage(unitStrengthBreakdown(attacker, defender, fromBiome, toBiome, hasTech(state, attacker.ownerId, 'typeResearch'), content,
+  const rawHit = content.combat === 'strength' ? strengthDamage(unitStrengthBreakdown(attacker, defender, fromBiome, toBiome, hasTech(state, attacker.ownerId, 'typeResearch'), content,
     strikeFactors({ leader: counter ? 1000 : leaderAttackMultiplier(state, attacker.ownerId, leaderEffects(attacker.ownerId === null ? undefined : state.players[attacker.ownerId].leaderId).activeAttackMultiplier),
       enraged: attacker.enraged, flank: counter ? 0 : flankBonus(state.setup, attacker, defender, Object.values(state.units).filter(isMapUnit), state.map),
       misty: mistyWaterMultiplier(state, attacker.ownerId, attacker, content), home: homeDefenseMultiplier(usesEssences(state), defender, toBiome, content),
@@ -121,6 +122,8 @@ function unitStrike(state: GameState, attacker: MapUnit, defender: MapUnit, coun
       * (counter ? 1000 : zealotMultiplier(state, attacker.ownerId, attacker.position)) / 1000,
       promotionStrikeMultiplier(state, attacker.id, defender.id, counter)), classStrikeMultiplier(state, attacker, defender, content)),
     teraTypes(era, defender.id));
+  // v27 ⑤ (pace-v27 §6): Max shields on a raid boss (the raw hit before v27).
+  const hit = maxRaidHit(state, attacker, defender, rawHit, content);
   if (!counter) consumeZMove(state, attacker.id);
   attacker.enraged = false;
   defender.hp = Math.max(0, defender.hp - hit);

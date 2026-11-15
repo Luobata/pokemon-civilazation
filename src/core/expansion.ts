@@ -15,6 +15,7 @@ import { applyGoldSinkAction, initializeGoldSinks, isGoldSinkAction, resolveGold
 import { applyContestSeasonAction, initializeContestSeasons, isContestSeasonAction, resolveContestSeasonRound, validateContestSeasonAction } from './contest-seasons.ts';
 import { applyRivalDuelAction, isRivalDuelAction, validateRivalDuelAction } from './rival-duels.ts';
 import { initializeRaids, recordRaids, resolveRaidRound } from './raids.ts';
+import { applyMaxRaidAction, isMaxRaidAction, validateMaxRaidAction } from './max-raids.ts';
 import { recordLegendRace } from './legend-race.ts';
 import { recordOpeningGift } from './opening-gift.ts';
 import { initializeVictoryWatch, resolveVictoryWatchRound } from './victory-watch.ts';
@@ -79,6 +80,8 @@ export function validateExpansionAction(state: GameState, actorId: number, actio
     if (isRivalDuelAction(clean)) return validateRivalDuelAction(state, actorId, clean, content) === null;
     if (isGoldSinkAction(clean)) return validateGoldSinkAction(state, actorId, clean, content) === null;
     if (isContestSeasonAction(clean)) return validateContestSeasonAction(state, actorId, clean, content) === null;
+    // v27 ⑤: refused unless the content has Max raids.
+    if (isMaxRaidAction(clean)) return validateMaxRaidAction(state, actorId, clean, content) === null;
     if (isCityNetworkAction(clean)) return validateCityNetworkAction(state, actorId, clean) === null;
     if (isPromotionAction(clean)) return validatePromotionAction(state, actorId, clean) === null;
     if (isImprovementAction(clean)) return validateImprovementAction(state, actorId, clean, content) === null;
@@ -102,6 +105,7 @@ export function applyExpansionAction(state: GameState, actorId: number, action: 
   if (isRivalDuelAction(action)) return applyRivalDuelAction(state, actorId, action, content);
   if (isGoldSinkAction(action)) return applyGoldSinkAction(state, actorId, action, content);
   if (isContestSeasonAction(action)) return applyContestSeasonAction(state, actorId, action, content);
+  if (isMaxRaidAction(action)) return applyMaxRaidAction(state, actorId, action, content);
   if (isCityNetworkAction(action)) return applyCityNetworkAction(state, actorId, action);
   if (isPromotionAction(action)) return applyPromotionAction(state, actorId, action);
   if (isImprovementAction(action)) return applyImprovementAction(state, actorId, action, content);
