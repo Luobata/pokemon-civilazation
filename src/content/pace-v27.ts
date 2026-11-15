@@ -71,7 +71,7 @@ export const ECONOMY_TUNING: EconomyTuning = {
 
 // ---------- Events lane (⑤ ⑦) ----------
 export type EventsTuning = {
-  /** ⑤ §6.1 shields: `shieldBase + ⌈living / 2⌉` at the start, `shieldPhaseTwo` again in phase two; damage through shields (permille). */
+  /** ⑤ §6.1 shields: `shieldBase + ⌈living / 2⌉` at the start (spec 2, sweep-tuned to 1), `shieldPhaseTwo` again in phase two; damage through shields (permille). */
   shieldBase: number; shieldPhaseTwo: number; shieldDamagePermille: number;
   /** ⑤ §6.1 phase two below this HP percent; the Max wave's range in phase two. */
   phaseTwoPercent: number; phaseTwoRange: number;
@@ -85,7 +85,7 @@ export type EventsTuning = {
   circuitGold: [number, number]; circuitEntrantXp: number;
 };
 export const EVENTS_TUNING: EventsTuning = {
-  shieldBase: 2, shieldPhaseTwo: 2, shieldDamagePermille: 250,
+  shieldBase: 1, shieldPhaseTwo: 2, shieldDamagePermille: 250,
   phaseTwoPercent: 50, phaseTwoRange: 2,
   breakerShields: 2, dealerPermille: 1250, supportHeal: 10,
   shieldPoints: 15, dynamaxRange: 2,

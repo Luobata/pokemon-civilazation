@@ -16,8 +16,10 @@ function raidTeam(view: PlayerView): { den: Hex; team: Pokemon[] } | null {
   if (!active || active.tileIndex === null) return null;
   // At war only while no enemy Pokémon is in sight within 5 tiles of an own city (the spec's "not fighting a neighbour").
   const enemies = new Set(view.diplomacy.filter(pair => pair.status === 'war' && (pair.a === view.playerId || pair.b === view.playerId)).map(pair => pair.a === view.playerId ? pair.b : pair.a));
-  if (view.units.some(unit => unit.ownerId !== null && enemies.has(unit.ownerId) && view.economy.cities.some(city => hexDistance(city.position, unit.position, view.map) <= 5))) return null;
   const den = indexToHex(active.tileIndex, view.map), content = contentForView(view);
+  // v27 ⑤: only an enemy within 3 of an own city keeps the team home (5 before v27).
+  const homeFront = content.maxRaids ? 3 : 5;
+  if (view.units.some(unit => unit.ownerId !== null && enemies.has(unit.ownerId) && view.economy.cities.some(city => hexDistance(city.position, unit.position, view.map) <= homeFront))) return null;
   if (content.maxRaids) return maxRaidTeam(view, den, content);
   const team = view.units.filter((unit): unit is Pokemon => unit.ownerId === view.playerId && unit.kind === 'pokemon'
     && unit.hp * 2 >= content.species[unit.speciesId].maxHp && hexDistance(unit.position, den, view.map) <= RAID_REACH)
@@ -25,7 +27,8 @@ function raidTeam(view: PlayerView): { den: Hex; team: Pokemon[] } | null {
   return team.length >= 2 ? { den, team } : null;
 }
 /**
- * v27 ⑤ (pace-v27 §6.3): the team by role — the nearest breaker, then damage dealers, one support when there is a scout — from healthy
+ * v27 ⑤ (pace-v27 §6.3): the team by role — the nearest breaker, then damage dealers, one support when there is a scout (a fourth member
+ * when the three are fighters) — from healthy
  * Pokémon within `MAX_RAID_REACH`, kept out of a garrison: an own city keeps one Pokémon in or next to it. It goes (alone too) only if its
  * estimated contribution over the rounds left would be at least 10% of the ledger (`raidPreview` numbers, view-only).
  */
@@ -46,6 +49,9 @@ function maxRaidTeam(view: PlayerView, den: Hex, content: Content): { den: Hex; 
   for (const unit of pool.filter(unit => role(unit) === 'dealer')) if (team.length < RAID_TEAM - 1) take(unit);
   take(pool.find(unit => role(unit) === 'support'));
   for (const unit of pool) take(unit);
+  // A support rides along as a fourth member when the three are fighters.
+  const support = pool.find(unit => role(unit) === 'support' && !team.includes(unit));
+  if (support) team.push(support);
   if (!team.length) return null;
   // The preview gate: the team's estimated contribution over the rounds left against the ledger so far.
   const ledger = open?.max?.contribution ?? {}, total = Object.values(ledger).reduce((sum, value) => sum + value, 0), mine = ledger[view.playerId] ?? 0;

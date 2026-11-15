@@ -39,3 +39,9 @@
 button.raid-dynamax-ready { box-shadow: 0 0 0 2px #F0507A; animation: raid-ready 1.2s ease-in-out infinite; }
 @keyframes raid-ready { 50% { box-shadow: 0 0 0 4px #F0507A88; } }
 @media (prefers-reduced-motion: reduce) { button.raid-dynamax-ready { animation: none; } }
+/* The meters column: the HP bar keeps its height (a column flex item must not grow from a zero basis). */
+.max-raid-meters .hp-bar { flex: none; width: 100%; max-width: 220px; }
+/* The raid card carries a fourth control (极巨化): its action row wraps inside the card instead of squeezing the label. */
+.next-card[data-card="raid"] .next-foot { flex-wrap: wrap; }
+.next-card[data-card="raid"] .next-actions { flex-wrap: wrap; justify-content: flex-end; min-width: 0; }
+.next-card[data-card="raid"] .next-actions button { white-space: nowrap; }

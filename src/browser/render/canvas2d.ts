@@ -473,13 +473,13 @@ function maxAura(d: Draw, p: Point, phase: 1 | 2) {
   context.beginPath(); context.ellipse(p.x, p.y + size * .3, size * .52, size * .2, 0, 0, Math.PI * 2);
   context.fillStyle = '#5A0F2266'; context.fill();
   for (const [index, scale] of [1, .82, .64].entries()) {
-    context.globalAlpha = .16 + index * .1;
+    context.globalAlpha = .3 + index * .12;
     context.beginPath(); context.ellipse(p.x, p.y - size * .05, size * .5 * scale, size * .58 * scale, 0, 0, Math.PI * 2);
     context.fillStyle = index === 2 && phase === 2 ? MAX_PHASE_TWO : index === 0 ? MAX_RED : MAX_PINK; context.fill();
   }
   context.globalAlpha = 1;
   context.beginPath(); context.ellipse(p.x, p.y - size * .05, size * .5, size * .58, 0, 0, Math.PI * 2);
-  context.strokeStyle = phase === 2 ? MAX_PHASE_TWO : MAX_PINK; context.lineWidth = 2; context.stroke();
+  context.strokeStyle = phase === 2 ? MAX_PHASE_TWO : MAX_PINK; context.lineWidth = 3; context.stroke();
   context.restore();
 }
 /** A row of pixel-hexagon shield pips over the boss's head (standing ones filled, broken ones as dark outlines). */

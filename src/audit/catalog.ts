@@ -1032,7 +1032,7 @@ export const AUDIT_SYSTEMS: readonly AuditSystem[] = [
   }),
   system({
     id: 's-max-raids', name: '极巨团体战（v27）', status: 'implemented',
-    summary: 'gameplay v27 ⑤（pace-v27 §6，5A）：首领带 2 + ⌈存活文明数 / 2⌉ 格极巨护盾（伤害 ×25%，每次命中打掉 1 格，破盾手或效果拔群 2 格）；HP ≤ 50% 进入第二阶段（护盾回到 2 格、极巨波 2 格）；每文明每次团体战免费极巨化一只（RaidDynamax）；职能按兵种；贡献 = 伤害 + 15 × 破盾 + 回复；第一必得，其余 ≥ 10% 各一次捕捉机会；奖励预览。',
+    summary: 'gameplay v27 ⑤（pace-v27 §6，5A）：首领带 1 + ⌈存活文明数 / 2⌉ 格极巨护盾（规格 2，扫描调到 1）（伤害 ×25%，每次命中打掉 1 格，破盾手或效果拔群 2 格）；HP ≤ 50% 进入第二阶段（护盾回到 2 格、极巨波 2 格）；每文明每次团体战免费极巨化一只（RaidDynamax）；职能按兵种；贡献 = 伤害 + 15 × 破盾 + 回复；第一必得，其余 ≥ 10% 各一次捕捉机会；奖励预览。',
     rules: ['护盾结算是一个纯函数（shieldStrike），权威（combat.ts unitStrike → maxRaidHit）、攻击预览（preview.ts）和奖励预览共用；全部整数（千分比）。',
       '护盾格数与阶段只给探索过巢穴的文明；贡献账本公开；自己的极巨化是否用过只给自己。',
       '捕捉机会按文明编号从小到大从 state.rng 各抽一次，事件 RaidCaptureRolled { playerId, chance, success } 公开记录；成功得到这条进化线的一阶。',

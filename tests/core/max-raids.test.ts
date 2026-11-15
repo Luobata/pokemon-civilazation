@@ -63,10 +63,10 @@ describe('shield arithmetic (pure, shared by authority and preview)', () => {
     expect(shieldStrike(boss, 'support', true, 40, T)).toEqual({ damage: 10, broken: 2, phaseTwo: false });
     expect(shieldStrike({ ...boss, shields: 1 }, 'breaker', false, 40, T).broken).toBe(1);
   });
-  test('shields down: damage dealers ×1.25, the others unchanged; phase one stops at the 50% line and starts phase two', () => {
+  test('shields down: damage dealers ×1.25, the others unchanged; reaching the 50% line starts phase two (the damage is kept)', () => {
     expect(shieldStrike({ ...boss, shields: 0 }, 'dealer', false, 40, T).damage).toBe(50);
     expect(shieldStrike({ ...boss, shields: 0 }, 'breaker', false, 40, T).damage).toBe(40);
-    expect(shieldStrike({ ...boss, shields: 0, hp: 70 }, 'breaker', false, 40, T)).toEqual({ damage: 10, broken: 0, phaseTwo: true });
+    expect(shieldStrike({ ...boss, shields: 0, hp: 70 }, 'breaker', false, 40, T)).toEqual({ damage: 40, broken: 0, phaseTwo: true });
     expect(shieldStrike({ ...boss, shields: 0, phase: 2, hp: 30 }, 'dealer', false, 40, T)).toEqual({ damage: 30, broken: 0, phaseTwo: false });
   });
   test('roles by class; contribution = damage + 15 × shields + healing', () => {
@@ -78,10 +78,10 @@ describe('shield arithmetic (pure, shared by authority and preview)', () => {
 });
 
 describe('v27 Max raid in a game', () => {
-  test('the boss starts with 2 + ⌈living / 2⌉ shields in phase one; v26 has no Max ledger; the view hides shields from non-explorers', () => {
-    const { raid, state, content } = openRaid(27);
-    expect(raid.max).toEqual({ shields: 3, shieldMax: 3, phase: 1, broken: {}, healed: {}, dynamax: {} });
-    expect(observe(state, 0, content).expansion!.raids!.active!.max).toMatchObject({ shields: 3, shieldMax: 3, phase: 1, dynamaxUsed: false });
+  test('the boss starts with shieldBase + ⌈living / 2⌉ shields in phase one; v26 has no Max ledger; the view hides shields from non-explorers', () => {
+    const { raid, state, content } = openRaid(27), shields = EVENTS_TUNING.shieldBase + 1;
+    expect(raid.max).toEqual({ shields, shieldMax: shields, phase: 1, broken: {}, healed: {}, dynamax: {} });
+    expect(observe(state, 0, content).expansion!.raids!.active!.max).toMatchObject({ shields, shieldMax: shields, phase: 1, dynamaxUsed: false });
     expect(openRaid(26).raid.max).toBeUndefined();
     expect(observe(openRaid(26).state, 0, contentFor(setup(26))).expansion!.raids!.active!.max).toBeUndefined();
     const hidden = openRaid(27, 2, false);
@@ -101,18 +101,18 @@ describe('v27 Max raid in a game', () => {
     expect(dealt).toBeGreaterThanOrEqual(preview.damage.min);
     expect(dealt).toBeLessThanOrEqual(preview.damage.max);
     const after = next.state.expansion!.raids!.active!;
-    expect(after.max!.shields).toBe(1);
+    expect(after.max!.shields).toBe(Math.max(0, EVENTS_TUNING.shieldBase + 1 - 2));
     expect(after.max!.broken[0]).toBe(2);
     expect(next.events.map(event => event.payload.type)).toContain('RaidShieldsBroken');
     const view = observe(next.state, 0, content);
     expect(view.expansion!.raids!.active!.max!.contribution[0]).toBe((after.damage[0] ?? 0) + 2 * EVENTS_TUNING.shieldPoints);
     const card = depthWorldCards(view, content).find(item => item.id === 'raid')!;
     expect(card.title).toContain('极巨团体战');
-    expect(card.status).toContain('护盾 1/3');
+    expect(card.status).toContain(`护盾 ${after.max!.shields}/${EVENTS_TUNING.shieldBase + 1}`);
     expect(card.tip).toContain('奖励预览');
-    expect(maxRaidPanelMarkup(view, (label: string) => `<button>${label}</button>`, content)).toContain('极巨护盾 1/3');
+    expect(maxRaidPanelMarkup(view, (label: string) => `<button>${label}</button>`, content)).toContain(`极巨护盾 ${after.max!.shields}/${EVENTS_TUNING.shieldBase + 1}`);
     const scene = buildScene({ view, camera: { x: 0, y: 0, zoom: 1 } } as never);
-    expect(scene.units.find(item => item.unit.id === raid.unitId)?.max).toEqual({ shields: 1, shieldMax: 3, phase: 1 });
+    expect(scene.units.find(item => item.unit.id === raid.unitId)?.max).toEqual({ shields: after.max!.shields, shieldMax: EVENTS_TUNING.shieldBase + 1, phase: 1 });
   });
   test('RaidDynamax: once per civilization per raid, within 2 tiles, free, until the raid ends', () => {
     const { state, content, raid, boss } = openRaid(27);

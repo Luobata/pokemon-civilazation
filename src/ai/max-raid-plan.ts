@@ -1,8 +1,8 @@
 // Gameplay v27 ⑤ AI (docs/design/pace-v27.md §6.3), view-only:
 // - the den Dynamax: the highest-stage damage dealer within 2 tiles of the boss (else the highest-stage Pokémon there) uses it at once;
-// - attacks on a Max boss are military work (300 + the hit, so a unit beside the den strikes instead of wandering off, below a defence
-//   against enemies), with the role bonus: while shields stand breakers and super-effective hits +40, once they are down damage dealers
-//   +40; only while the raid team may go (no enemy at war near own cities, an estimated share of at least 10%).
+// - attacks on a Max boss are military work (300 + the hit while the raid team may go, else 150, so a unit beside the den strikes instead
+//   of wandering off but a defence against enemies still comes first), with the role bonus: while shields stand breakers and
+//   super-effective hits +40, once they are down damage dealers +40.
 // Team building and the walk to the den are in src/ai/raid-plan.ts. Nothing here runs before v27.
 import type { Content } from '../content/units.ts';
 import type { AttackPreview } from '../core/preview.ts';
@@ -27,10 +27,10 @@ export function planMaxRaidAction(view: PlayerView, content: Content): Command['
 /** Military score of an attack on the Max boss (null = not a Max boss, or the attack does nothing). */
 export function maxRaidAttackScore(view: PlayerView, unit: MapUnit, target: MapUnit, preview: AttackPreview, content: Content): number | null {
   const active = view.expansion?.raids?.active;
-  if (!content.maxRaids || !active?.max || active.unitId !== target.id || unit.kind !== 'pokemon' || !preview.ok || raidAttackBonus(view, target) <= 0) return null;
+  if (!content.maxRaids || !active?.max || active.unitId !== target.id || unit.kind !== 'pokemon' || !preview.ok) return null;
   const shields = active.max.shields ?? 0, role = raidRole(content.species[unit.speciesId].role);
   const broken = preview.maxRaid?.shields ?? 0;
   if (preview.damage.min <= 0 && broken <= 0) return null;
   const bonus = shields > 0 ? (role === 'breaker' || broken >= eventsTuning(content).breakerShields ? 40 : 0) : role === 'dealer' ? 40 : 0;
-  return 300 + preview.damage.min + eventsTuning(content).shieldPoints * broken - preview.counter.damage + bonus;
+  return (raidAttackBonus(view, target) > 0 ? 300 : 150) + preview.damage.min + eventsTuning(content).shieldPoints * broken - preview.counter.damage + bonus;
 }

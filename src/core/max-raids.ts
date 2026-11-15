@@ -1,5 +1,5 @@
-// Gameplay v27 ⑤ (docs/design/pace-v27.md §6, option 5A): Max raids — Max shields (damage through them ×25%, a hit breaks 1, a breaker's
-// or a super-effective hit 2), two phases (≤ 50% HP: shields return, the Max wave reaches 2 tiles), one free den Dynamax per civilization
+// Gameplay v27 ⑤ (docs/design/pace-v27.md §6, option 5A): Max raids — Max shields (`shieldBase` + ⌈living / 2⌉; damage through them
+// ×25%, a hit breaks 1, a breaker's or a super-effective hit 2), two phases (≤ 50% HP: shields return, the Max wave reaches 2 tiles), one free den Dynamax per civilization
 // (RaidDynamax), roles by class, contribution = damage + 15 × shields + support healing, catch chances for every share ≥ 10%, the reward
 // preview. The ledger rides on the raid boss (`RaidBoss.max`, absent before v27); the shield arithmetic is one pure function shared by the
 // authority (`maxRaidHit` in combat.ts unitStrike) and the views (`viewMaxRaidDamage` in preview.ts, `raidPreview`). All integers.
@@ -37,7 +37,7 @@ export type MaxRaidEvent =
   | { type: 'RaidShieldsBroken'; playerId: number; unitId: number | null; broken: number; shields: number; phase: 1 | 2; phaseTwo: boolean }
   | { type: 'RaidCaptureRolled'; public: true; playerId: number; speciesId: SpeciesId; chance: number; success: boolean; unitId: number | null };
 
-/** A new boss's ledger: `shieldBase + ⌈living / 2⌉` shields. */
+/** A new boss's ledger: `shieldBase + ⌈living / 2⌉` shields (sweep-tuned base 1: 3 shields with 4 civilizations). */
 export function initialMaxLedger(living: number, content: Content): MaxRaidLedger {
   const tuning = eventsTuning(content), shields = tuning.shieldBase + Math.ceil(living / 2);
   return { shields, shieldMax: shields, phase: 1, broken: {}, healed: {}, dynamax: {} };
@@ -54,8 +54,8 @@ export function raidContribution(damage: Readonly<Record<number, number>>, ledge
 export type ShieldStrike = { damage: number; broken: number; phaseTwo: boolean };
 /**
  * One strike on a Max boss (pure; authority and preview): through the shields the hit counts `shieldDamagePermille`, and it breaks 1
- * shield (2 for a breaker or a super-effective hit); with the shields down a damage dealer hits ×`dealerPermille`. In phase one HP stops
- * at the phase line, where phase two begins (the shields return).
+ * shield (2 for a breaker or a super-effective hit); with the shields down a damage dealer hits ×`dealerPermille`. The phase-one strike
+ * that takes HP to the phase line (or below) starts phase two, where the shields return; its damage is kept.
  */
 export function shieldStrike(boss: { shields: number; phase: 1 | 2; hp: number; maxHp: number }, role: RaidRole, superEffective: boolean, hit: number, tuning: EventsTuning): ShieldStrike {
   let damage: number, broken = 0;
@@ -65,7 +65,7 @@ export function shieldStrike(boss: { shields: number; phase: 1 | 2; hp: number; 
   } else damage = role === 'dealer' ? Math.floor(hit * tuning.dealerPermille / 1000) : hit;
   damage = Math.max(0, Math.min(boss.hp, damage));
   const line = Math.floor(boss.maxHp * tuning.phaseTwoPercent / 100);
-  if (boss.phase === 1 && boss.hp - damage <= line) return { damage: Math.max(0, boss.hp - line), broken, phaseTwo: true };
+  if (boss.phase === 1 && boss.hp - damage <= line) return { damage, broken, phaseTwo: true };
   return { damage, broken, phaseTwo: false };
 }
 const typesOf = (content: Content, speciesId: SpeciesId): TypeId[] => {

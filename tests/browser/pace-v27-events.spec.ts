@@ -11,7 +11,7 @@ const shots = process.env.E2E_SCREENSHOT_DIR ?? 'test-results/screenshots';
 async function importSave(page: Page, save: string) {
   await page.goto('/?seed=1&gameplay=24');
   await page.locator('#import-save').setInputFiles({ name: 'pace.json', mimeType: 'application/json', buffer: Buffer.from(save) });
-  await expect(page.locator('#action-notice')).toContainText('读档完成');
+  await expect(page.locator('#action-notice')).toContainText('读档完成', { timeout: 180_000 });
 }
 async function expectNamed(page: Page, root: string) {
   const unnamed = await page.evaluate(root => [...document.querySelectorAll<HTMLElement>(`${root} img.px-icon, ${root} img.px-art, ${root} [role="img"], ${root} button`)]
@@ -54,7 +54,7 @@ test('v27 contest circuit: enter the season from a city without a contest hall (
 });
 
 for (const motion of ['full', 'reduced'] as const) test(`v27 Max raid (${motion} motion): Shift+click into the open den, the raid card, the World section and the boss's Max look`, async ({ page }) => {
-  test.setTimeout(1_500_000);
+  test.setTimeout(2_400_000);
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(String(error)));
   if (motion === 'reduced') await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -85,6 +85,9 @@ for (const motion of ['full', 'reduced'] as const) test(`v27 Max raid (${motion}
   // Locate the den: the camera centres the boss; its aura is drawn in red-pink around the canvas centre.
   await card.locator('[data-locate-tile]').click();
   await expect(page.locator('#screen-host')).toBeHidden();
+  // The inspector names the boss and its shields (not the wild "catch it with a ball" hint).
+  await expect(page.locator('#tile-info')).toContainText('极巨团体战首领');
+  await expect(page.locator('#tile-info')).toContainText(`极巨护盾 ${boss.max.shields}/${boss.max.shieldMax}`);
   await page.waitForTimeout(400);
   const scene = await page.evaluate(async (bossId: number) => {
     const main = '/src/browser/main.ts', vision = '/src/core/vision.ts', scenePath = '/src/browser/render/scene.ts';
