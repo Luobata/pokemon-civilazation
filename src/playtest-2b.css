@@ -3,3 +3,33 @@
 .unit-action-tip small { white-space: pre-line; }
 .next-actions .goto-btn { border-color: #4F8F6F; background: #1F3029; }
 .next-actions .goto-btn:hover:not(:disabled) { background: #2C4438; }
+
+/* Research queue: numbered badges on the tree's nodes and the queue strip under the current research. */
+.tech-node .node-queue-badge { position: absolute; top: -9px; left: -9px; z-index: 2; display: grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px;
+  border: 2px solid #10191B; border-radius: 999px; background: #F2C14E; color: #10191B; font: 800 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace; pointer-events: none; }
+.research-box .research-queue { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; min-height: 30px; }
+.research-queue > small { color: var(--ink-muted); }
+.research-queue ol { display: flex; flex-wrap: wrap; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.research-queue .queue-chip { position: relative; display: inline-grid; place-items: center; min-width: 34px; min-height: 30px; padding: 2px 4px; border-color: #8A7340; background: #2E2A1E; }
+.research-queue .queue-chip b { position: absolute; right: -5px; bottom: -5px; display: grid; place-items: center; min-width: 16px; height: 16px; border-radius: 999px; background: #F2C14E; color: #10191B; font-size: 11px; }
+.research-queue .queue-empty { color: var(--ink-muted); font-size: 12px; }
+.research-queue #research-queue-clear { min-height: 26px; padding: 2px 8px; font-size: 11px; }
+.tech-detail [data-queue-add], .tech-detail [data-queue-remove] { display: inline-flex; align-items: center; gap: 4px; margin-top: 6px; }
+
+/* Gold sinks in the unit panel and in 物资采购: icon buttons, the price and the reason in the hover card. */
+.unit-gold-sinks .section-label, .city-supply-sinks .section-label { display: flex; align-items: center; gap: 4px; }
+.sink-row { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.sink-row .sink-icon-btn { display: inline-flex; align-items: center; gap: 2px; min-height: 28px; padding: 2px 6px; }
+.sink-row .sink-icon-btn small { color: var(--ink-secondary); font-size: 11px; }
+.sink-row .sink-known { display: inline-flex; align-items: center; gap: 2px; padding: 2px 4px; border: 1px dashed #56675A; border-radius: 6px; }
+.city-supply-sinks .supply-units { display: grid; gap: 6px; margin: 6px 0 0; padding: 0; list-style: none; }
+.city-supply-sinks .supply-units li { display: flex; align-items: center; gap: 6px; }
+
+/* Idle city quick fill. */
+.production-current .quick-fill { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 4px 0 8px; }
+.quick-fill .quick-fill-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 2px 8px 2px 4px; border-color: #4F8F6F; }
+.quick-fill .quick-fill-btn .production-icon { width: 28px; height: 28px; }
+.quick-fill .quick-fill-btn small { color: var(--ink-muted); }
+
+/* Tile coordinates (column, row) in the inspector head. */
+.subpanel-head .tile-coords { color: var(--ink-muted); font-variant-numeric: tabular-nums; }

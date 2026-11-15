@@ -1,17 +1,20 @@
-// Playtest 2026-11b batches C and D (presentation only): the rival's foggy arrival (N2), the duel conditions (O2), raid reach
-// (batch D adds the research queue and the conference reminder). Everything reads the PlayerView (plus the client's own memory of the warning), so
+// Playtest 2026-11b batches C and D (presentation only): the rival's foggy arrival (N2), the duel conditions (O2), raid reach, the
+// research queue, the conference reminder (O3). Everything reads the PlayerView (plus the client's own memory of the warning), so
 // the hidden live position of a rival never reaches the marks, cards or buttons.
 import { expect, test } from 'vitest';
 import { GameSession } from '../../src/app/session.ts';
 import { LEADER_IDS } from '../../src/content/leaders.ts';
 import { contentFor } from '../../src/content/units.ts';
+import type { TechId } from '../../src/content/economy.ts';
 import { hexDistance, hexToIndex, indexToHex, offsetToHex } from '../../src/core/hex.ts';
 import type { GameSetup, MapUnit, PlayerView } from '../../src/core/model.ts';
 import { observe } from '../../src/core/vision.ts';
 import { RivalMemory, duelBarState, duelConditions, rivalMemory, rivalTrail, rivalTrailEntities } from '../../src/browser/rival-tracker.ts';
+import { ResearchQueue, conferenceDue } from '../../src/browser/client-plans.ts';
 import { worldCards } from '../../src/browser/world-cards.ts';
 import { depthWorldCards } from '../../src/browser/late-game-ui.ts';
 import { buildScene } from '../../src/browser/render/scene.ts';
+import { turnReminders, turnStep } from '../../src/browser/turn-button.ts';
 import { approachTile } from '../../src/browser/world-goto.ts';
 
 // The second playtest's opening (verify-rival.ts): seed 21, 小刚 + 小火龙; the rival's first visit arrives in fog on round 8 at (33, 17).
@@ -80,6 +83,39 @@ test('N2: a rival arriving in fog keeps its "已到达" mark on the warned tile,
   expect(rivalTrail(views[9]!, fresh)!.target).toBeNull();
   memory.clear();
 }, 300_000);
+
+test('research queue: a locked tech queues its missing prerequisites first; removing one drops what needs it', () => {
+  const session = new GameSession(setup), view = session.getView(), content = contentFor(setup), queue = new ResearchQueue();
+  const techs = Object.keys(content.techs) as TechId[];
+  const locked = techs.find(id => (content.techs[id]!.requires ?? []).some(requirement => (content.techs[requirement]!.requires ?? []).length))!;
+  queue.add(view, locked, content);
+  const list = queue.list();
+  expect(list.at(-1)).toBe(locked);
+  for (const [index, id] of list.entries()) for (const requirement of content.techs[id]!.requires ?? []) expect(list.indexOf(requirement)).toBeLessThan(index);
+  expect(queue.next(view, content)).toBe(list.find(id => (content.techs[id]!.requires ?? []).length === 0));
+  queue.remove(list[0], content);
+  expect(queue.list()).not.toContain(locked);
+  queue.clear();
+  expect(queue.list()).toEqual([]);
+});
+
+test('O3: an eligible, unregistered player in the 5 rounds before a season gets a to-do, and the end-turn button routes there once a round', () => {
+  const session = new GameSession(setup), view = session.getView(), content = contentFor(setup);
+  const championship = view.expansion!.civilization.championship;
+  championship.nextRound = view.round + 3;
+  const starter = view.units.find(unit => unit.ownerId === 0 && unit.kind === 'pokemon')!;
+  view.units.push(...[1, 2, 3, 4, 5].map(k => ({ ...starter, id: 9000 + k })));
+  expect(conferenceDue(view)).toBe(3);
+  view.economy.player.research.techId = 'domestication' as TechId;
+  const reminders = turnReminders(view, content);
+  expect(reminders.map(item => item.target)).toContain('conference');
+  // Earlier steps (a dedication, research, a charter) still come first; the conference goes before idle cities and units.
+  const step = turnStep(view, reminders.filter(item => item.target.startsWith('#') === false), { unitId: null, cityId: null }, new Set());
+  expect(step.kind).toBe('conference');
+  expect(turnStep(view, reminders, { unitId: null, cityId: null }, new Set(), { conference: true }).kind).not.toBe('conference');
+  championship.nextRound = view.round + 6;
+  expect(conferenceDue(view)).toBeNull();
+});
 
 test('raids: a known den shows who gets there and when, with a go-to; an unexplored one says so without a distance', () => {
   const session = new GameSession(setup), view = session.getView(), content = contentFor(setup);

@@ -13,6 +13,7 @@ import { movementBudget, usesMovementPoints } from '../core/movement.ts';
 import type { SpeciesId } from '../content/species.ts';
 import { EVOLUTION_BLOCKER_TEXT } from '../core/roster.ts';
 import { evolutionPanelMarkup } from './evolution-panel.ts';
+import { bindGoldSinkButtons, unitGoldSinkMarkup } from './late-game-ui.ts';
 import { promotionMarkup } from './promotion-panel.ts';
 import { promotionMovement } from '../core/promotions.ts';
 import { ERA_ABILITIES, ERA_ABILITY_RULES } from '../content/era-abilities.ts';
@@ -199,6 +200,7 @@ export function renderUnitPanel(view: PlayerView, selected: number | null, mode:
     ${view.expansion?.essences ? `<p class="unit-note" id="essence-note">属性精华：${identityEssences(unit, CONTENT).map(id => ESSENCES[id].name).join('、')} · 在${identityEssences(unit, CONTENT).map(id => BIOME_LABEL[ESSENCES[id].biome]).join('、')}防守时${CONTENT.combat === 'strength' ? '战斗力 +3' : '受伤 −10%'}</p>` : ''}
     ${usesTactics(view) ? `<p class="unit-note" id="zoc-note">${exertsZoc(unit, CONTENT) ? '控制区：相邻敌军移动到此即停下。' : ''}${ignoresZoc(unit, CONTENT) ? '可无视敌方控制区。' : '进入敌方近战/快速单位相邻格会停下。'}${CONTENT.combat === 'strength' ? '夹击：相邻目标的友军 1 / 2 / 3 只，战斗力 +2 / +5 / +7。' : '夹击：每只相邻目标的友军 +10% 伤害（最多 +30%）。'}</p>` : ''}
     ${promotionMarkup(view, unit.id, busy)}
+    ${unitGoldSinkMarkup(view, unit.id, busy)}
     ${eraMarkup}
     ${improvementMarkup}${pillageMarkup}
     ${!inBar && evolutionNote ? `<p class="unit-note" id="evolution-blocker">进化→${CONTENT.species[evolution!.speciesId].name}：${EVOLUTION_BLOCKER_TEXT[evolutionNote]}。</p>` : ''}
@@ -209,6 +211,7 @@ export function renderUnitPanel(view: PlayerView, selected: number | null, mode:
   root.querySelector('#attack-unit')?.addEventListener('click', () => callbacks.mode(mode === 'attack' ? null : 'attack'));
   root.querySelector('#capture-unit')?.addEventListener('click', () => callbacks.mode(mode === 'capture' ? null : 'capture'));
   root.querySelector('#evolve-unit')?.addEventListener('click', () => callbacks.evolve(CONTENT.roster && evolution ? evolution.speciesId : undefined));
+  if (callbacks.issue) bindGoldSinkButtons(root, callbacks.issue);
   for (const button of root.querySelectorAll<HTMLButtonElement>('[data-evolve]')) button.addEventListener('click', () => callbacks.evolve(button.dataset.evolve as SpeciesId));
   for (const button of root.querySelectorAll<HTMLButtonElement>('[data-evolve-stone]')) button.addEventListener('click', () => {
     const [intoSpeciesId, stoneId] = button.dataset.evolveStone!.split(':');

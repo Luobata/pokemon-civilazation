@@ -19,6 +19,7 @@ import { escapeAttr, statChip, uiIcon } from './ui-icons.ts';
 import type { UiIconName } from './ui-icons.ts';
 import { TECH_ICONS, UNLOCK_KIND_NAMES, unlockChip, unlockPicture } from './unlock-icons.ts';
 import { bindTip, hideTip } from './ui-tip.ts';
+import { researchQueue } from './client-plans.ts';
 
 const COLUMN_NAMES = ['启程', '探索', '发展', '联盟', '精英', '传说'];
 type NodeState = 'done' | 'active' | 'available' | 'locked';
@@ -64,9 +65,10 @@ function nodeMarkup(context: TreeContext, id: TechId, row: number): string {
   const discoveries = context.view.expansion?.discoveries, found = discoveries?.includes(id);
   const percent = state === 'done' ? 100 : Math.min(100, Math.round(research.progressByTech[id] * 100 / tech.cost));
   const chips = techUnlocks(id, context.content, context.view.gameplayVersion).map(item => unlockChip(item, id, 22)).join('');
-  const line = TECH_LINES[tech.line ?? 'capture'], badge = STATE_ICON[state];
+  const line = TECH_LINES[tech.line ?? 'capture'], badge = STATE_ICON[state], queued = researchQueue.position(id);
   return `<button type="button" class="tech-node ${state}${selected === id ? ' selected' : ''}" data-tree-node="${id}" style="grid-column:${tech.tier};grid-row:${row + 1};--line:${line.color}"
-      aria-pressed="${selected === id}" aria-label="${tech.name} · ${stateLabel(context, id)}${state === 'available' && !context.disabled ? ' · 点击开始研究' : ''}">
+      aria-pressed="${selected === id}" aria-label="${tech.name} · ${stateLabel(context, id)}${queued ? ` · 研究队列第 ${queued} 项` : ''}${state === 'available' && !context.disabled ? ' · 点击开始研究' : ''}${state !== 'done' && !context.disabled ? ' · Shift+点击加入研究队列' : ''}">
+      ${queued ? `<span class="node-queue-badge" aria-hidden="true">${queued}</span>` : ''}
       <span class="node-icon">${uiIcon(TECH_ICONS[id], { size: 36 })}${badge ? `<span class="node-state-badge">${uiIcon(badge, { size: 16, label: STATE_NAME[state] })}</span>` : ''}</span>
       <span class="node-main"><strong>${tech.name}</strong>
         <span class="node-meta">${statChip('research', tech.cost, '科研', 'node-cost')}${state === 'done' ? '' : statChip('turns', `≈${roundsLeft(context, id)}`, '约轮数', 'node-rounds')}</span></span>
@@ -102,6 +104,10 @@ function detailMarkup(context: TreeContext, id: TechId): string {
   const action = state === 'available' ? `<button type="button" class="primary" data-tech="${id}" ${context.disabled ? 'disabled' : ''}>研究此项</button>`
     : state === 'locked' ? `<p class="tech-locked-reason" id="tech-locked-reason">需要先完成：${missing.map(item => def(content, item).name).join('、')}</p>`
     : state === 'active' ? '<p class="tech-state">正在研究</p>' : '<p class="tech-state">已完成</p>';
+  const queued = researchQueue.position(id);
+  const queueButton = state === 'done' || state === 'active' ? '' : queued
+    ? `<button type="button" data-queue-remove="${id}" ${context.disabled ? 'disabled' : ''} title="从研究队列移除（依赖它的队列项一起移除）">${uiIcon('turns', { size: 16 })}移出队列（第 ${queued} 项）</button>`
+    : `<button type="button" data-queue-add="${id}" ${context.disabled ? 'disabled' : ''} title="加入研究队列：当前研究完成后，下个回合开始时自动开始${missing.length ? '；缺少的前置科技会先排进队列' : ''}（也可 Shift+点击节点）">${uiIcon('turns', { size: 16 })}加入研究队列</button>`;
   const line = TECH_LINES[tech.line ?? 'capture'], have = state === 'done' ? tech.cost : research.progressByTech[id];
   return `<header><span class="detail-icon ${state}" style="--line:${line.color}">${uiIcon(TECH_ICONS[id], { size: 48 })}</span><div><strong>${tech.name}</strong><span class="line-chip" style="--line:${line.color}">${line.name}</span></div></header>
     <p class="tech-stats">${statChip('research', `${have}/${tech.cost}`, '科研')}${state === 'done' ? '' : statChip('turns', `≈${roundsLeft(context, id)}`, `按每轮 ${context.perRound} 科研约轮数`)}<span class="tech-column-chip">第 ${tech.tier} 列「${COLUMN_NAMES[tech.tier - 1]}」</span></p>
@@ -109,7 +115,24 @@ function detailMarkup(context: TreeContext, id: TechId): string {
     <h4>前置科技（全部完成）</h4>${requires ? `<ul class="tech-requires">${requires}</ul>` : '<p class="tech-state">无前置，开局即可研究</p>'}
     <h4>解锁</h4><ul class="tech-unlocks">${unlocks}</ul>
     ${leadsTo ? `<h4>通往</h4><p class="tech-leads">${leadsTo}</p>` : ''}
-    ${eureka}${action}`;
+    ${eureka}${action}${queueButton}`;
+}
+
+/** Playtest 2026-11b: the queue strip under the current research (numbered icons, the full names in hover cards). */
+function queueMarkup(context: TreeContext): string {
+  const queue = researchQueue.list();
+  return `<div class="research-queue" aria-label="研究队列"><small>研究队列</small>${queue.length ? `<ol>${queue.map((id, index) => `<li><button type="button" class="queue-chip" data-queue-remove="${id}" ${context.disabled ? 'disabled' : ''} aria-label="研究队列第 ${index + 1} 项：${def(context.content, id).name}（点击移出）" title="第 ${index + 1} 项：${def(context.content, id).name} · 点击移出">${uiIcon(TECH_ICONS[id], { size: 22 })}<b aria-hidden="true">${index + 1}</b></button></li>`).join('')}</ol><button type="button" id="research-queue-clear" ${context.disabled ? 'disabled' : ''} title="清空研究队列">清空</button>`
+    : '<span class="queue-empty">空 · 在科技详情里「加入研究队列」，或 Shift+点击节点</span>'}</div>`;
+}
+/** Queue changes: start the first queued tech when nothing is being researched, else redraw the tree. */
+function queueChanged(root: HTMLElement, context: TreeContext): void {
+  const next = researchQueue.next(context.view, context.content);
+  if (next && !context.disabled) { context.issue({ type: 'SetResearch', techId: next }); return; }
+  renderTechTree(root, context.view, context.content, context.issue, context.disabled);
+}
+function bindQueue(scope: HTMLElement, root: HTMLElement, context: TreeContext): void {
+  for (const button of scope.querySelectorAll<HTMLButtonElement>('[data-queue-add]')) button.addEventListener('click', () => { researchQueue.add(context.view, button.dataset.queueAdd as TechId, context.content); queueChanged(root, context); });
+  for (const button of scope.querySelectorAll<HTMLButtonElement>('[data-queue-remove]')) button.addEventListener('click', () => { researchQueue.remove(button.dataset.queueRemove as TechId, context.content); queueChanged(root, context); });
 }
 
 function highlight(root: HTMLElement, content: Content, id: TechId | null): void {
@@ -158,6 +181,7 @@ function select(root: HTMLElement, context: TreeContext, id: TechId): void {
   const detail = root.querySelector<HTMLElement>('#tech-detail')!;
   detail.innerHTML = detailMarkup(context, id);
   detail.querySelector<HTMLButtonElement>('[data-tech]')?.addEventListener('click', () => context.issue({ type: 'SetResearch', techId: id }));
+  bindQueue(detail, root, context);
   highlight(root, context.content, id);
 }
 
@@ -166,6 +190,7 @@ export function renderTechTree(root: HTMLElement, view: PlayerView, content: Con
   const player = view.economy.player, research = player.research;
   const perRound = view.economy.cities.reduce((sum, city) => sum + city.yields.research, 0);
   const context: TreeContext = { view, content, issue, disabled, perRound };
+  researchQueue.prune(view);
   hideTip();
   const all = ids(content);
   if (selected === null || !Object.hasOwn(content.techs, selected)) selected = research.techId ?? all.find(id => stateOf(context, id) === 'available') ?? all[0];
@@ -182,8 +207,9 @@ export function renderTechTree(root: HTMLElement, view: PlayerView, content: Con
         <div class="research-controls"><label>研究课题<select id="research-topic" ${disabled ? 'disabled' : ''}><option value="">选择课题</option>${topics.map(id => `<option value="${id}" ${id === current ? 'selected' : ''}>第${def(content, id).tier}列 ${def(content, id).name} ${research.progressByTech[id]}/${def(content, id).cost}${found?.includes(id) ? ' ★' : ''}</option>`).join('')}</select></label>
         <button id="set-research" ${disabled || !topics.length ? 'disabled' : ''}>选择研究</button><small id="research-empty" class="research-empty" role="note" hidden></small></div></div>
       ${current ? `<div class="research-progress" aria-hidden="true"><span style="width:${percent}%"></span></div>` : ''}
+      ${queueMarkup(context)}
     </section>
-    <p class="tech-tree-help">科技有<strong>指定前置</strong>：连线左端的科技全部完成后才能研究。<strong>点一项可研究的科技即开始研究</strong>（已有进度保留）；悬停或选中一项会高亮它的前置链。滚轮、触控板或 ←/→ 键左右浏览。</p>
+    <p class="tech-tree-help">科技有<strong>指定前置</strong>：连线左端的科技全部完成后才能研究。<strong>点一项可研究的科技即开始研究</strong>（已有进度保留）；<strong>Shift+点击</strong>任意未完成的科技把它（和缺少的前置）排进研究队列；悬停或选中一项会高亮它的前置链。滚轮、触控板或 ←/→ 键左右浏览。</p>
     <ul class="tech-line-legend" aria-label="科技路线">${TECH_LINE_IDS.map(line => `<li style="--line:${TECH_LINES[line].color}">${TECH_LINES[line].name}</li>`).join('')}</ul>
     <ul class="tech-icon-legend" aria-label="图例">${(['done', 'active', 'available', 'locked'] as const).map(state => `<li class="legend-state ${state}"><span class="legend-frame">${STATE_ICON[state] ? uiIcon(STATE_ICON[state]!, { size: 14 }) : ''}</span>${STATE_NAME[state]}</li>`).join('')}
       ${found ? `<li class="legend-gap">${uiIcon('pokedex', { size: 16 })}图鉴发现</li>` : ''}<li>${uiIcon('research', { size: 16 })}科研</li><li>${uiIcon('turns', { size: 16 })}轮数</li>
@@ -213,7 +239,8 @@ export function renderTechTree(root: HTMLElement, view: PlayerView, content: Con
   for (const node of root.querySelectorAll<HTMLButtonElement>('[data-tree-node]')) {
     const id = node.dataset.treeNode as TechId;
     // U1: clicking a researchable node starts it (Civilization-style); any other node only opens its details.
-    node.addEventListener('click', () => {
+    node.addEventListener('click', event => {
+      if (event.shiftKey && !disabled && stateOf(context, id) !== 'done') { selected = id; researchQueue.add(view, id, content); queueChanged(root, context); return; }
       select(root, context, id);
       if (!disabled && stateOf(context, id) === 'available') issue({ type: 'SetResearch', techId: id });
     });
@@ -240,6 +267,8 @@ export function renderTechTree(root: HTMLElement, view: PlayerView, content: Con
     scroll.scrollTo({ left: pan === 'first' ? 0 : pan === 'last' ? scroll.scrollWidth : scroll.scrollLeft + (pan === 'left' ? -1 : 1) * Math.max(200, scroll.clientWidth * 0.6) });
   });
   scroll.scrollLeft = previousScroll;
+  bindQueue(root.querySelector<HTMLElement>('.research-queue')!, root, context);
+  root.querySelector('#research-queue-clear')?.addEventListener('click', () => { researchQueue.clear(); renderTechTree(root, view, content, issue, disabled); });
   const edges = all.flatMap(id => (def(content, id).requires ?? []).map(from => ({ from, to: id, className: research.unlockedIds.includes(from) ? 'done' : '' })));
   const draw = () => { drawTreeLinks(tree, root.querySelector<SVGSVGElement>('.tech-links')!, 'data-tree-node', edges); highlight(root, content, selected); };
   observer?.disconnect();

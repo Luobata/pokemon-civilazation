@@ -1,5 +1,5 @@
 import { classTrainingBlocker, usesUnitClasses, viewBadges } from '../core/unit-classes.ts';
-import { bindGoldSinkButtons, cityGoldSinkMarkup } from './late-game-ui.ts';
+import { bindGoldSinkButtons, cityGoldSinkMarkup, citySupplyMarkup } from './late-game-ui.ts';
 import { CLASS_IDS, CLASS_NAMES } from '../content/unit-classes.ts';
 import { usesBuilders, usesImprovementsV23 } from '../core/improvements.ts';
 import { BUILDER_RULES, ROLE_POKEMON } from '../content/roles.ts';
@@ -31,6 +31,7 @@ import { pokemonSpritePath } from './sprites.ts';
 import { cityDistrictMarkup, districtTypeCards } from './district-panel.ts';
 import type { DistrictId } from '../content/districts.ts';
 import { civHint } from './civ-hint.ts';
+import { tileCoords } from './tile-coords.ts';
 import { statChip, uiIcon } from './ui-icons.ts';
 import type { UiIconName } from './ui-icons.ts';
 
@@ -126,6 +127,28 @@ function withEscort(item: LegacyProductionItem, root: HTMLElement, view: PlayerV
   const takes = item.kind === 'logistics' && (item.defId === 'settler' || (item.defId === 'trader' && !usesBuilders(view)) || (item.defId === 'builder' && usesImprovementsV23(view)));
   return takes && escort ? { ...item, escortId: escort as SpeciesId } : item;
 }
+/** Playtest 2026-11b: up to two quick-fill suggestions for an idle city, from the options the list offers (so the authority accepts them). */
+type QuickFill = { item: LegacyProductionItem; name: string; rounds: number | null; why: string };
+function suggestProduction(view: PlayerView, city: PlayerView['economy']['cities'][number], options: readonly LegacyProductionItem[], rounds: (item: LegacyProductionItem) => number | null): QuickFill[] {
+  const content = contentForView(view), picks: QuickFill[] = [];
+  const name = (item: LegacyProductionItem) => item.kind === 'building' ? content.buildings[item.defId].name : item.kind === 'legend' ? legendTitle(item.defId) : content.units[item.defId].name;
+  const fastest = (list: LegacyProductionItem[]) => [...list].sort((a, b) => (rounds(a) ?? 99) - (rounds(b) ?? 99) || (a.defId < b.defId ? -1 : 1))[0];
+  const settlers = view.units.filter(unit => unit.ownerId === view.playerId && unit.kind === 'logistics' && unit.role !== 'builder' && unit.role !== 'trader').length
+    + view.economy.cities.reduce((sum, other) => sum + other.queue.filter(order => order.item.kind === 'logistics' && order.item.defId === 'settler').length, 0);
+  const settler = options.find(item => item.kind === 'logistics' && item.defId === 'settler');
+  if (settler && view.economy.cities.length < 4 && !settlers && city.population >= 2) picks.push({ item: settler, name: name(settler), rounds: rounds(settler), why: '城市还少：开拓队去推荐城址建新城。' });
+  const building = fastest(options.filter(item => item.kind === 'building'));
+  if (building) picks.push({ item: building, name: name(building), rounds: rounds(building), why: '最快建成的建筑，长期产出。' });
+  const strength = (item: LegacyProductionItem) => item.kind === 'pokemon' ? content.species[item.defId].attack + content.species[item.defId].defense : -1;
+  const pokemon = [...options.filter(item => item.kind === 'pokemon')].sort((a, b) => strength(b) - strength(a) || (a.defId < b.defId ? -1 : 1))[0];
+  if (pokemon?.kind === 'pokemon' && picks.length < 2) picks.push({ item: pokemon, name: name(pokemon), rounds: rounds(pokemon), why: `可训练的最强宝可梦（攻 ${content.species[pokemon.defId].attack} · 防 ${content.species[pokemon.defId].defense}）。` });
+  if (!picks.length && options[0]) picks.push({ item: options[0], name: name(options[0]), rounds: rounds(options[0]), why: '现在能生产的项目。' });
+  return picks.slice(0, 2);
+}
+function quickFillMarkup(picks: readonly QuickFill[], disabled: boolean): string {
+  return picks.length ? `<div class="quick-fill" role="group" aria-label="一键建议">${uiIcon('clipboard', { size: 16, label: '建议' })}${picks.map(pick =>
+    `<button type="button" class="quick-fill-btn" data-quick-fill="${pick.item.kind}:${pick.item.defId}" title="${pick.why} 加入队列 · ${roundsText(pick.rounds)}" aria-label="建议：${pick.name}，${roundsText(pick.rounds)}。${pick.why}"${disabled ? ' disabled' : ''}>${productionIcon(pick.item)}<span>${pick.name}</span><small>${roundsText(pick.rounds)}</small></button>`).join('')}</div>` : '';
+}
 export function renderEconomyPanel(view: PlayerView, selectedCity: number | null,
   issue: (action: Command['action']) => void, disabled = false,
   onDistrictPlacement?: (cityId: number, kind: DistrictId) => void): void {
@@ -163,6 +186,8 @@ export function renderEconomyPanel(view: PlayerView, selectedCity: number | null
   // v22 starts with every building locked behind a tech: open the first tab that has something to produce.
   if (!kindChosen && !allOptions.some(item => item.kind === productionKind)) productionKind = (['building', 'pokemon', 'logistics'] as const).find(kind => allOptions.some(item => item.kind === kind)) ?? productionKind;
   const options = allOptions.filter(item => item.kind === productionKind);
+  // Playtest 2026-11b: an idle city's quick fill (UI only: the same SetProductionQueue the list issues).
+  const quickFill = city.queue.length ? [] : suggestProduction(view, city, allOptions, item => roundsFor(costOf(item), rate));
   const remaining = Math.max(0, growthThreshold(city) - city.food), net = city.yields.food - 2 * city.population;
   const growthText = net > 0 ? `${Math.max(1, Math.ceil(remaining / net))} 轮后人口 +1` : net < 0 ? '食物不足，人口会减少' : '暂无增长';
   const tileIds = [...new Set([...city.availableTileIds, ...city.workedTileIds])].sort((a, b) => a - b);
@@ -219,12 +244,12 @@ export function renderEconomyPanel(view: PlayerView, selectedCity: number | null
         const improvement = view.expansion?.improvements?.tiles.find(tile => tile.tileIndex === id);
         const tile = readYield(id);
         const yieldText = tile ? [tile.yields.food, tile.yields.production, tile.yields.gold, tile.yields.research].join('/') : '—';
-        return `<tr><td>${id} ${biome ? BIOME_DISPLAY[biome].label : '未知地形'}${improvement ? ` · ${IMPROVEMENTS[improvement.kind].name}` : ''}</td><td>${yieldText}</td><td><input aria-label="工作地块 ${id}" type="checkbox" data-work="${id}" ${worked ? 'checked' : ''} ${!worked && city.workedTileIds.length >= city.population ? 'disabled' : ''}></td><td><input aria-label="锁定地块 ${id}" type="checkbox" data-lock="${id}" ${locked ? 'checked' : ''} ${worked ? '' : 'disabled'}></td></tr>`;
+        return `<tr><td>${tileCoords(id, view.map)} ${biome ? BIOME_DISPLAY[biome].label : '未知地形'}${improvement ? ` · ${IMPROVEMENTS[improvement.kind].name}` : ''}</td><td>${yieldText}</td><td><input aria-label="工作地块 ${tileCoords(id, view.map)}" type="checkbox" data-work="${id}" ${worked ? 'checked' : ''} ${!worked && city.workedTileIds.length >= city.population ? 'disabled' : ''}></td><td><input aria-label="锁定地块 ${tileCoords(id, view.map)}" type="checkbox" data-lock="${id}" ${locked ? 'checked' : ''} ${worked ? '' : 'disabled'}></td></tr>`;
       }).join('')}</tbody></table></div></section>
       <section class="production-section" ${citySection !== 'production' ? 'hidden' : ''}>
       <div class="production-current" aria-label="当前生产与队列"><p class="section-label queue-heading"><span>生产队列 ${city.queue.length}/5</span><span>每轮 ${rate} 生产${hallShare ? `（另 ${hallShare} 投入华丽大赛馆）` : ''}</span></p>
       <ol id="production-queue">${queueMarkup}</ol>${cityGoldSinkMarkup(view, city.id, disabled)}
-      ${city.queue.length ? '' : '<p class="empty-note">队列为空。点击下方项目开始生产。</p>'}
+      ${city.queue.length ? '' : `<p class="empty-note">队列为空。点击下方项目开始生产${quickFill.length ? '，或一键用建议填上' : ''}。</p>${quickFillMarkup(quickFill, disabled || queueFull)}`}
       ${city.pendingDeployments.length ? `<p id="pending-deployments">待出场 ${city.pendingDeployments.length}：${city.pendingDeployments.map(p => itemName(p.item)).join('、')}</p>` : ''}</div>
       <div class="production-tabs" role="group" aria-label="生产类别">${(Object.keys(productionLabels) as ProductionItem['kind'][]).filter(kind => (kind !== 'district' || view.expansion?.districts) && (kind !== 'legend' || view.expansion?.legends)).map(kind => `<button data-production-kind="${kind}" aria-pressed="${kind === productionKind}" ${disabled ? 'disabled' : ''}>${productionLabels[kind]}</button>`).join('')}</div>
       ${productionKind === 'district' ? districtTypeCards(view, city.id, disabled) : `${productionKind === 'logistics' && view.expansion?.cityNetwork ? escortSelectMarkup(view, CONTENT) : ''}
@@ -234,7 +259,7 @@ export function renderEconomyPanel(view: PlayerView, selectedCity: number | null
       ${productionKind === 'legend' ? legendProductionMarkup(view, city) : ''}
       ${cityDistrictMarkup(view, city.id)}</section></div>
     <section ${citySection !== 'supplies' ? 'hidden' : ''}><div class="ball-shop"><label>球种<select id="ball-kind"><option value="pokeBall">精灵球 ${ballPrice(CONTENT.balls.pokeBall.goldCost, policy.ballDiscount)}金</option><option value="greatBall">超级球 ${ballPrice(CONTENT.balls.greatBall.goldCost, policy.ballDiscount)}金</option></select></label>
-    <label>数量<input id="ball-quantity" type="number" min="1" value="1"></label><button id="buy-ball">购买球</button></div><p id="shop-requirement" class="production-help"></p></section>
+    <label>数量<input id="ball-quantity" type="number" min="1" value="1"></label><button id="buy-ball">购买球</button></div><p id="shop-requirement" class="production-help"></p>${citySupplyMarkup(view, city.id, disabled)}</section>
     <section class="city-details" ${citySection !== 'details' ? 'hidden' : ''}>
     <p id="resources"><span>金币 <strong>${player.gold}</strong></span><span>精灵球 <strong>${player.ballInventory.pokeBall}</strong></span><span>超级球 <strong>${player.ballInventory.greatBall}</strong></span><span>储备科研 <strong>${player.research.reserve}</strong></span></p>
     <p id="city-growth"><strong>食物消耗 ${city.population * 2} → 盈余 ${net >= 0 ? '+' : ''}${net}</strong><br>库存 ${city.food}/${growthThreshold(city)} · ${growthText}</p>
@@ -294,6 +319,10 @@ export function renderEconomyPanel(view: PlayerView, selectedCity: number | null
     const item = options.find(option => `${option.kind}:${option.defId}` === button.dataset.productionOption);
     if (item) issue({ type: 'SetProductionQueue', cityId: city.id,
       orders: [...city.queue.map(order => ({ orderId: order.id, item: order.item })), { item: withEscort(item, root, view) }] });
+  });
+  for (const button of root.querySelectorAll<HTMLButtonElement>('[data-quick-fill]')) button.addEventListener('click', () => {
+    const item = quickFill.find(entry => `${entry.item.kind}:${entry.item.defId}` === button.dataset.quickFill)?.item;
+    if (item) issue({ type: 'SetProductionQueue', cityId: city.id, orders: [{ item }] });
   });
   for (const button of root.querySelectorAll<HTMLButtonElement>('[data-up], [data-down], [data-remove]')) button.addEventListener('click', () => {
     const orders = [...city.queue];

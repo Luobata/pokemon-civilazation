@@ -2,6 +2,7 @@ import type { Command, PlayerView } from '../core/model.ts';
 import { targetPreviews } from './target-preview.ts';
 import type { TargetPreview } from './target-preview.ts';
 import { describeTile } from './tile-info.ts';
+import { tileCoords, tileCoordsLabel } from './tile-coords.ts';
 import type { TileEntity } from './tile-info.ts';
 
 const esc = (text: string | number) => String(text).replace(/[&<>"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[char]!);
@@ -16,6 +17,10 @@ export type TilePanelOptions = {
   onAction(action: Command['action']): void;
   disabled: boolean;
 };
+/** Playtest 2026-11b U-f: the tile as players read it on the map — column and row — not the internal index. */
+function tileCoordsMarkup(index: number, view: PlayerView): string {
+  return `<span class="tile-coords" role="img" title="地图坐标（列, 行）：${tileCoordsLabel(index, view.map)}" aria-label="坐标：${tileCoordsLabel(index, view.map)}">${tileCoords(index, view.map)}</span>`;
+}
 /** Click inspector for any tile: what it is, who owns it, what stands on it and what you can do. */
 export function renderTilePanel(view: PlayerView, index: number | null, options: TilePanelOptions): void {
   const root = document.querySelector<HTMLElement>('#tile-info');
@@ -23,7 +28,7 @@ export function renderTilePanel(view: PlayerView, index: number | null, options:
   if (index === null) { root.innerHTML = ''; root.hidden = true; return; }
   root.hidden = false;
   const info = describeTile(view, index);
-  const head = `<div class="subpanel-head"><strong>${info.terrain ? `${esc(info.terrain.name)}${info.visible ? '' : ' · 记忆地形'}` : '未探索区域'}</strong><span>地块 ${index}</span></div>`;
+  const head = `<div class="subpanel-head"><strong>${info.terrain ? `${esc(info.terrain.name)}${info.visible ? '' : ' · 记忆地形'}` : '未探索区域'}</strong>${tileCoordsMarkup(index, view)}</div>`;
   if (!info.terrain) {
     root.innerHTML = `${head}${info.entities.map(item => `<article class="tile-entity tone-${item.tone}" data-entity="${item.kind}"><header><span class="tile-kind">${KIND_LABEL[item.kind]}</span><strong>${esc(item.title)}</strong></header>
       <p class="tile-sub">${esc(item.subtitle)}</p>${item.lines.map(line => `<p>${esc(line)}</p>`).join('')}${item.hint ? `<p class="tile-hint">${esc(item.hint)}</p>` : ''}</article>`).join('')}<p class="tile-note">还没有单位到过这里。派侦察型宝可梦探索，就能看到地形和资源。</p>`;

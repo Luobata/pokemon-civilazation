@@ -6,6 +6,7 @@ import type { Command, PlayerView } from '../core/model.ts';
 import { DISCOVERIES, DISCOVERY_PERCENT } from '../content/discoveries.ts';
 import { TECH_TIERS, techUnlocks, techsInTier } from './tech-info.ts';
 import { renderTechTree } from './tech-tree-panel.ts';
+import { researchQueue } from './client-plans.ts';
 import { civHint } from './civ-hint.ts';
 import { statChip, uiIcon } from './ui-icons.ts';
 import { TECH_ICONS, unlockPicture } from './unlock-icons.ts';
@@ -29,7 +30,8 @@ export function renderResearchPanel(view: PlayerView, issue: (action: Command['a
   const player = view.economy.player, research = player.research;
   const found = view.expansion?.discoveries;
   const perRound = view.economy.cities.reduce((sum, city) => sum + city.yields.research, 0);
-  const signature = JSON.stringify([research, disabled, found, CONTENT.techTree ? perRound : 0]);
+  researchQueue.prune(view);
+  const signature = JSON.stringify([research, disabled, found, CONTENT.techTree ? perRound : 0, researchQueue.list()]);
   if (signature === rendered) return;
   rendered = signature;
   const root = document.querySelector<HTMLElement>('#research-panel')!;
