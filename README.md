@@ -51,6 +51,8 @@ npm run dev
 
 后台支持条件预检查、执行正式命令、AI 单步、撤销、重置和导出审计记录。操作在独立沙盒中执行，不自动写回原对局。[使用说明与推进顺序](docs/tech/system-audit.md)。
 
+测试：`npx vitest run`（规则与界面纯函数）、`npx playwright test`（浏览器用例，跑开发服务器）、`npm run test:e2e:prod`（少量冒烟用例，跑 `vite build` + `vite preview` 的生产构建，端口 `E2E_PROD_PORT`，默认 4243）。生产构建的样式顺序与开发服务器不同，弹窗、选择框这类浮层的位置要在生产构建上再验一次；这组用例单独成脚本，免得每次跑浏览器用例都先构建一遍。
+
 领袖受控对局模拟：`npm run sim:leaders -- --seeds 10 --round-limit 100 --out /tmp/pokemon-leaders.json`。[120 局实测报告与样本边界](docs/design/leader-balance-report.md)。
 
 ## 胜利条件
