@@ -6,9 +6,9 @@ import { TYPE_NAMES } from '../content/type-names.ts';
 import type { GuideSection } from './sections.ts';
 
 const ROLE_NAMES = { melee: '近战', siege: '攻城', naval: '水面', ranged: '远程', scout: '侦察', fast: '快速', air: '飞行' } as const;
-const archetypes = `<table><thead><tr><th>头像</th><th>职业</th><th>偏好属性</th><th>偏好兵种</th><th>名字（每局取一个）</th></tr></thead><tbody>${TRAINER_ARCHETYPES.map(archetype =>
+const archetypes = `<div class="table-wrap"><table><thead><tr><th>头像</th><th>职业</th><th>偏好属性</th><th>偏好兵种</th><th>名字（每局取一个）</th></tr></thead><tbody>${TRAINER_ARCHETYPES.map(archetype =>
   `<tr><td><img src="/trainers/${archetype.id}.svg" alt="${archetype.title}" width="48" height="48" style="image-rendering:pixelated"></td><td>${archetype.title}<br><small>${archetype.personality}</small></td>`
-  + `<td>${archetype.types.map(type => TYPE_NAMES[type]).join('、')}</td><td>${archetype.roles.map(role => ROLE_NAMES[role]).join('、')}</td><td>${archetype.names.join('、')}</td></tr>`).join('')}</tbody></table>`;
+  + `<td>${archetype.types.map(type => TYPE_NAMES[type]).join('、')}</td><td>${archetype.roles.map(role => ROLE_NAMES[role]).join('、')}</td><td>${archetype.names.join('、')}</td></tr>`).join('')}</tbody></table></div>`;
 
 export const LEAGUE_TRAINER_SECTIONS: readonly GuideSection[] = [
   { id: 'league-trainers', group: '宝可梦与战斗', title: '联盟训练家：名册、招牌宝可梦与宿敌', badge: 'v27', html: `
