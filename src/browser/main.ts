@@ -65,7 +65,10 @@ import type { DistrictId } from '../content/districts.ts';
 import { reachablePaths } from '../core/movement.ts';
 import type { PlayerView, VisibleEvent } from '../core/model.ts';
 import { BIOME_DISPLAY, FACTION_LEGEND } from './canvas.ts';
-import { createMapRenderer, Timeline } from './render/index.ts';
+import { FACTIONS, RENDER_MODE_KEY, applyRenderMode, createMapRenderer, requestedRenderMode, Timeline } from './render/index.ts';
+import { createMinimap } from './render/minimap.ts';
+import { applyTheme, requestedTheme, saveTheme, storedTheme } from './theme.ts';
+import type { RenderMode } from './render/index.ts';
 import type { DebugOverlay, RenderStats, Track } from './render/index.ts';
 import type { UnitMarkIdentity } from './render/scene.ts';
 import type { Hex } from '../core/hex.ts';
@@ -79,7 +82,7 @@ import { describeTile, tileSummary } from './tile-info.ts';
 import { renderTilePanel } from './tile-panel.ts';
 import { ERA_AGES } from '../content/era-honors.ts';
 import { previewSummary, targetPreviews } from './target-preview.ts';
-import { HEX_RADIUS, fitCamera, hexToWorld, mapSpan, tileToScreen, toWorld, worldToHex, zoomAt } from './camera.ts';
+import { HEX_RADIUS, fitCamera, hexToWorld, mapSpan, toWorld, zoomAt } from './camera.ts';
 import { combatCard, renderCombatCard } from './combat-preview.ts';
 import { battleLook } from './battle-presentation.ts';
 import { TYPE_COLORS } from '../content/type-colors.ts';
@@ -152,6 +155,9 @@ export const developerAdapter = {
   exportLog: () => driver.exportLog(),
   save: () => driver.save(),
   getFrameMetrics: () => ({ ...frameMetrics() }),
+  /** ui-25d: the tile index the map would pick at a canvas point (CSS px), with the active projection. */
+  pickTile: (x: number, y: number) => pickIndex({ x, y }, session.getView()),
+  renderMode: () => renderer.mode,
   /** Last map frame's layer-cache stats and shake offset, and the recently presented events (animated or skipped). */
   getPresentation: () => ({ render: lastRenderStats && { ...lastRenderStats, shake: { ...lastRenderStats.shake } }, events: presentationLog.map(item => ({ ...item })),
     frame: { effects: lastAnimation.effects.map(item => ({ ...item })), poses: lastAnimation.poses.map(item => ({ ...item })),
@@ -176,7 +182,20 @@ let selectedBall: BallId = 'pokeBall';
 const timeline = new Timeline();
 const presenting = new Map<string, VisibleEvent['payload']>();
 let trackSerial = 0;
-const renderer = createMapRenderer(canvas);
+// ui-25d: the map projection (`?render=25d` or the menu setting; flat stays the default until the 2.5D map is accepted).
+const storedRenderMode = (() => { try { return localStorage.getItem(RENDER_MODE_KEY); } catch { return null; } })();
+// ui-painted: the 绘卷 theme (`?theme=painted` or 菜单 → 画风) brings its own map backend and HUD styles.
+let theme = requestedTheme(location.search, storedTheme());
+applyTheme(theme);
+const initialRenderMode: RenderMode = theme === 'painted' ? 'painted' : requestedRenderMode(location.search, storedRenderMode);
+applyRenderMode(initialRenderMode);
+const renderer = createMapRenderer(canvas, { mode: initialRenderMode });
+// ui-25d §10: the minimap (2.5D only; click or drag to move the camera there).
+const minimap = createMinimap(document.querySelector<HTMLElement>('.stage')!, FACTIONS, world => {
+  deferredFocus = null; camera.x = canvas.clientWidth / 2 - world.x * camera.zoom; camera.y = canvas.clientHeight / 2 - world.y * camera.zoom; requestFrame();
+});
+/** The tile index under a canvas point (2.5D picking accounts for elevation and cliffs). */
+const pickIndex = (point: Point, view: PlayerView) => hexToIndex(renderer.pick(point, camera), view.map);
 let frameRequested = false;
 let notice = '';
 let presentationIndex = 0;
@@ -212,7 +231,7 @@ function eventTiles(payload: VisibleEvent['payload'], view: PlayerView): Hex[] {
 function onScreen(tiles: readonly Hex[], view: PlayerView): boolean {
   const width = canvas.clientWidth, height = canvas.clientHeight, margin = HEX_RADIUS * camera.zoom;
   return tiles.some(hex => {
-    const p = tileToScreen(hex, camera, view.map, width);
+    const p = renderer.anchor(hex, camera, view.map, width);
     return p.x >= -margin && p.x <= width + margin && p.y >= -margin && p.y <= height + margin;
   });
 }
@@ -331,7 +350,7 @@ function wonderTrack(payload: Extract<VisibleEvent['payload'], { type: 'LegendWo
   if (!motion && !visible) return null;
   let move: { from: Camera; to: Camera } | undefined;
   if (motion && !visible) {
-    const width = canvas.clientWidth, height = canvas.clientHeight, p = tileToScreen(city.position, camera, view.map, width), zoom = Math.max(camera.zoom, 1.2);
+    const width = canvas.clientWidth, height = canvas.clientHeight, p = renderer.anchor(city.position, camera, view.map, width), zoom = Math.max(camera.zoom, 1.2);
     // The copy of the city nearest the view (wrapping maps), centred at the new zoom.
     const world = { x: (p.x - camera.x) / camera.zoom, y: (p.y - camera.y) / camera.zoom };
     move = { from: { ...camera }, to: { x: width / 2 - world.x * zoom, y: height / 2 - world.y * zoom, zoom } };
@@ -570,7 +589,7 @@ function selectedSites(view: PlayerView): CitySite[] {
 const sitePins = document.querySelector<HTMLElement>('#site-pins')!;
 function updateSitePins(view: PlayerView) {
   const width = canvas.clientWidth, height = canvas.clientHeight;
-  renderSitePins(sitePins, selectedSites(view).map(site => ({ site, point: tileToScreen(site.position, camera, view.map, width) })), { width, height },
+  renderSitePins(sitePins, selectedSites(view).map(site => ({ site, point: renderer.anchor(site.position, camera, view.map, width) })), { width, height },
     index => { if (selected !== null) setGoTo(selected, index, true); });
 }
 /** Sets (or, on the unit's own tile, clears) a go-to order and makes this round's first step at once. */
@@ -911,7 +930,7 @@ function advanceToNextUnit(action: Command['action']) {
 /** P0-4: the floating combat preview beside the chosen attack target (follows the camera; hidden otherwise). */
 function updateCombatCard(view: PlayerView) {
   const card = actionMode === 'attack' && pendingTarget && selected !== null ? combatCard(view, selected, pendingTarget) : null;
-  const anchor = card && pendingTarget ? tileToScreen(indexToHex(pendingTarget.index, view.map), camera, view.map, canvas.clientWidth) : null;
+  const anchor = card && pendingTarget ? renderer.anchor(indexToHex(pendingTarget.index, view.map), camera, view.map, canvas.clientWidth) : null;
   renderCombatCard(card, anchor, HEX_RADIUS * camera.zoom, busy() || view.outcome !== null || hasPendingPeace(view), {
     confirm: confirmAction,
     cancel: cancelTarget,
@@ -1068,6 +1087,7 @@ function frame(now: number) {
   });
   updateCombatCard(view);
   updateSitePins(view);
+  minimap.update(renderer.mode === '25d' ? view : null, camera, { width: canvas.clientWidth, height: canvas.clientHeight });
   frameDurations.push(performance.now() - drawStarted);
   if (frameDurations.length > 240) frameDurations.shift();
   if (import.meta.env.DEV) {
@@ -1122,7 +1142,9 @@ function focusHex(position: { q: number; r: number }) {
   deferredFocus = null;
   keyboardIndex = hexToIndex(position, session.getView().map);
   camera.zoom = Math.max(camera.zoom, 1.5);
+  // ui-25d: centre on the lifted top face (the lift is 0 on the flat map).
   const point = hexToWorld(position);
+  point.y -= renderer.lift(position);
   camera.x = canvas.clientWidth / 2 - point.x * camera.zoom;
   camera.y = canvas.clientHeight / 2 - point.y * camera.zoom;
 }
@@ -1133,6 +1155,7 @@ function focusHex(position: { q: number; r: number }) {
 function locateTile(index: number) {
   const view = session.getView(), position = indexToHex(index, view.map);
   const centre = toWorld({ x: canvas.clientWidth / 2, y: canvas.clientHeight / 2 }, camera), point = hexToWorld(position);
+  point.y -= renderer.lift(position);
   if (view.map.wrap) point.x += Math.round((centre.x - point.x) / mapSpan(view.map)) * mapSpan(view.map);
   closeScreen();
   deferredFocus = null;
@@ -1321,7 +1344,7 @@ function hideTooltip() { tooltip.hidden = true; tooltipKey = null; }
 function updateTooltip(event: PointerEvent) {
   if (event.pointerType !== 'mouse' || drag?.moved || !session) { hideTooltip(); return; }
   const point = localPoint(event), view = session.getView();
-  const index = hexToIndex(worldToHex(toWorld(point, camera)), view.map);
+  const index = pickIndex(point, view);
   if (index === null) { hideTooltip(); return; }
   if (`${index}:${selected}:${goToMode}` !== tooltipKey) {
     const preview = previewSummary(targetPreviews(view, selected, index));
@@ -1337,11 +1360,11 @@ canvas.addEventListener('pointerleave', hideTooltip);
 canvas.addEventListener('pointermove', event => {
   updateTooltip(event);
   if (!drag && goToMode) {
-    const index = hexToIndex(worldToHex(toWorld(localPoint(event), camera)), session.getView().map);
+    const index = pickIndex(localPoint(event), session.getView());
     if (index !== goToHover) { goToHover = index; requestFrame(); }
   }
   if (!drag && districtPlacement) {
-    const index = hexToIndex(worldToHex(toWorld(localPoint(event), camera)), session.getView().map);
+    const index = pickIndex(localPoint(event), session.getView());
     if (index !== null && index !== districtPlacement.tileIndex) { districtPlacement.tileIndex = index; controls(); requestFrame(); }
   }
   if (!drag) return;
@@ -1357,8 +1380,7 @@ canvas.addEventListener('pointercancel', () => { drag = null; });
 canvas.addEventListener('pointerup', event => {
   const click = drag && !drag.moved; drag = null; tooltipKey = null;
   if (!click || busy()) return;
-  const hex = worldToHex(toWorld(localPoint(event), camera));
-  activateIndex(hexToIndex(hex, session.getView().map));
+  activateIndex(pickIndex(localPoint(event), session.getView()));
 });
 canvas.addEventListener('wheel', event => {
   event.preventDefault(); deferredFocus = null; zoomAt(camera, localPoint(event), Math.exp(-event.deltaY * .001)); requestFrame();
@@ -1366,8 +1388,7 @@ canvas.addEventListener('wheel', event => {
 canvas.addEventListener('contextmenu', event => {
   event.preventDefault();
   if (busy() || selected === null) return;
-  const view = session.getView(), hex = worldToHex(toWorld(localPoint(event), camera));
-  const index = hexToIndex(hex, view.map);
+  const view = session.getView(), index = pickIndex(localPoint(event), view);
   // The pointer may be over a copy across the v22 seam: commands always carry the canonical tile.
   if (index === null) return;
   if (reachablePaths(view, selected)[index]) issue({ type: 'Move', unitId: selected, to: indexToHex(index, view.map) });
@@ -1499,6 +1520,36 @@ installUnitActionBar();
 installTrainerCards(() => session ? session.getView() : null);
 // ---------- audio (original Web Audio music and effects; starts on the first gesture) ----------
 document.querySelector<HTMLElement>('#audio-settings-root')!.innerHTML = audioSettingsMarkup();
+// ui-25d: map projection setting in the game menu (saved in this browser; `?render=` still overrides on load).
+{
+  const root = document.querySelector<HTMLElement>('#audio-settings-root')!;
+  root.insertAdjacentHTML('afterend', `<fieldset class="audio-settings render-settings" id="render-settings"><legend>地图视角</legend>
+    <label class="audio-mute"><input type="radio" name="render-mode" value="25d"${initialRenderMode === '25d' ? ' checked' : ''} />2.5D 立体</label>
+    <label class="audio-mute"><input type="radio" name="render-mode" value="flat"${initialRenderMode === 'flat' ? ' checked' : ''} />平面</label></fieldset>`);
+  document.querySelector('#render-settings')!.addEventListener('change', event => {
+    const mode = (event.target as HTMLInputElement).value === '25d' ? '25d' : 'flat';
+    try { localStorage.setItem(RENDER_MODE_KEY, mode); } catch { /* private mode: the choice lasts for this page */ }
+    renderer.setMode(mode);
+    if (session) fit();
+  });
+}
+// ui-painted: 画风 setting (saved in this browser; `?theme=` still overrides on load). 像素 keeps the 地图视角 choice.
+{
+  const renderSettings = document.querySelector<HTMLFieldSetElement>('#render-settings')!;
+  renderSettings.insertAdjacentHTML('beforebegin', `<fieldset class="audio-settings theme-settings" id="theme-settings"><legend>画风</legend>
+    <label class="audio-mute"><input type="radio" name="theme" value="painted"${theme === 'painted' ? ' checked' : ''} />绘卷（插画）</label>
+    <label class="audio-mute"><input type="radio" name="theme" value="pixel"${theme === 'pixel' ? ' checked' : ''} />像素</label></fieldset>`);
+  renderSettings.disabled = theme === 'painted';
+  document.querySelector('#theme-settings')!.addEventListener('change', event => {
+    theme = (event.target as HTMLInputElement).value === 'painted' ? 'painted' : 'pixel';
+    saveTheme(theme); applyTheme(theme);
+    renderSettings.disabled = theme === 'painted';
+    const pixelMode = requestedRenderMode(location.search.replace(/[?&]theme=[^&]*/, ''), (() => { try { return localStorage.getItem(RENDER_MODE_KEY); } catch { return null; } })());
+    for (const input of renderSettings.querySelectorAll<HTMLInputElement>('input')) input.checked = theme === 'pixel' && input.value === pixelMode;
+    renderer.setMode(theme === 'painted' ? 'painted' : pixelMode);
+    if (session) { fit(); controls(); }
+  });
+}
 bindAudioSettings(document.querySelector<HTMLElement>('#audio-settings-root')!);
 for (const type of ['pointerdown', 'keydown'] as const) window.addEventListener(type, () => { audio.unlock(); syncMusic(); }, { passive: true });
 // Every button clicks, except 下一回合: it plays the end-turn cue when the turn ends (or a click when it only points at a pending unit or city).

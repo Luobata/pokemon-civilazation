@@ -40,7 +40,8 @@ test('measure Canvas2D draw time in four reachable late-game scenes including 10
     const measured = await page.evaluate(async combat => {
       const mainPath = '/src/browser/main.ts', renderPath = '/src/browser/render/index.ts', benchmarkPath = '/src/browser/render/benchmark.ts';
       const { camera, developerAdapter } = await import(mainPath);
-      const { createMapRenderer } = await import(renderPath);
+      const { createMapRenderer, applyRenderMode } = await import(renderPath);
+      const cameraPath = '/src/browser/camera.ts', { fitCamera } = await import(cameraPath);
       const { combatBenchmarkFrames, eventBenchmarkFrames } = await import(benchmarkPath);
       const canvas = document.querySelector<HTMLCanvasElement>('#map')!;
       const view = developerAdapter.getDebugView();
@@ -51,11 +52,11 @@ test('measure Canvas2D draw time in four reachable late-game scenes including 10
       };
       type Frames = ReturnType<typeof combatBenchmarkFrames>;
       /** 20 warm-up + 240 measured frames; `pan` moves the camera one pixel per frame (cache miss every frame); `frames`: combat effects per frame. */
-      const measure = (cacheLayers: boolean, pan: boolean, input = view, frames?: Frames) => {
-        const renderer = createMapRenderer(canvas, { cacheLayers }), durations: number[] = [];
+      const measure = (cacheLayers: boolean, pan: boolean, input = view, frames?: Frames, mode: 'flat' | '25d' = 'flat', from = camera) => {
+        const renderer = createMapRenderer(canvas, { cacheLayers, mode }), durations: number[] = [];
         for (let frame = 0; frame < 260; frame++) {
           const started = performance.now();
-          renderer.render({ view: input, camera: pan ? { ...camera, x: camera.x + frame } : camera, animation: frames?.[frame % frames.length] });
+          renderer.render({ view: input, camera: pan ? { ...from, x: from.x + frame } : from, animation: frames?.[frame % frames.length] });
           if (frame >= 20) durations.push(performance.now() - started);
         }
         return stats(durations);
@@ -79,12 +80,21 @@ test('measure Canvas2D draw time in four reachable late-game scenes including 10
         eventEffects = { effectsPerFrame: Math.max(...frames.map((frame: { effects: unknown[] }) => frame.effects.length)),
           wrappedDirect: measure(false, false, wrapped, frames), wrappedCachedStill: measure(true, false, wrapped, frames) };
       }
+      // ui-25d prototype: the same scene drawn in 2.5D (world tilt set for the measurement only, then restored).
+      let projection25d;
+      if (combat) {
+        applyRenderMode('25d');
+        const fitted = fitCamera(view.map, canvas.clientWidth, canvas.clientHeight);
+        projection25d = { direct: measure(false, false, view, undefined, '25d', fitted), cachedStill: measure(true, false, view, undefined, '25d', fitted),
+          cachedPan: measure(true, true, view, undefined, '25d', fitted) };
+        applyRenderMode('flat');
+      }
       return {
         mapTiles: view.map.tiles.length,
         visibleUnits: view.units.length,
         // Top-level figures stay comparable with earlier reports: every layer drawn directly.
         ...uncached,
-        cachedStill, cachedPan, ...(combatEffects ? { combatEffects } : {}), ...(eventEffects ? { eventEffects } : {}),
+        cachedStill, cachedPan, ...(combatEffects ? { combatEffects } : {}), ...(projection25d ? { projection25d } : {}), ...(eventEffects ? { eventEffects } : {}),
         dpr: window.devicePixelRatio,
         viewport: { width: window.innerWidth, height: window.innerHeight },
         userAgent: navigator.userAgent,

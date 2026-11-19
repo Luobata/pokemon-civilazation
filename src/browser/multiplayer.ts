@@ -9,7 +9,8 @@ import { reachablePaths } from '../core/movement.ts';
 import type { Command, PlayerView } from '../core/model.ts';
 import type { BallId } from '../content/economy.ts';
 import { FACTION_LEGEND } from './canvas.ts';
-import { createMapRenderer } from './render/index.ts';
+import { RENDER_MODE_KEY, applyRenderMode, createMapRenderer, requestedRenderMode } from './render/index.ts';
+import { applyTheme, requestedTheme, storedTheme } from './theme.ts';
 import { renderDiplomacyPanel, hasPendingPeace } from './diplomacy-panel.ts';
 import { renderEconomyPanel } from './economy-panel.ts';
 import { renderExpansionPanel } from './expansion-panel.ts';
@@ -19,14 +20,20 @@ import { actionTargets } from './action-targets.ts';
 import { districtSites, previewDistrict } from '../core/districts.ts';
 import { constructionNotice, districtPreviewMarkup } from './district-panel.ts';
 import type { DistrictId } from '../content/districts.ts';
-import { fitCamera, hexToWorld, mapSpan, toWorld, worldToHex, zoomAt } from './camera.ts';
+import { fitCamera, hexToWorld, mapSpan, toWorld, zoomAt } from './camera.ts';
 import type { Camera, Point } from './camera.ts';
 import { loadPokemonSprites } from './sprites.ts';
 import { NetworkClient, NetworkError } from '../network/client.ts';
 import type { RoomCreateResponse } from '../network/contract.ts';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#map')!;
-const renderer = createMapRenderer(canvas);
+// ui-25d: the same map projection setting as the single-player page (`?render=` or the saved 地图视角 choice).
+// ui-painted: the 绘卷 theme setting applies here too (`?theme=` or the saved 画风 choice).
+const theme = requestedTheme(location.search, storedTheme());
+applyTheme(theme);
+const renderMode = theme === 'painted' ? 'painted' : requestedRenderMode(location.search, (() => { try { return localStorage.getItem(RENDER_MODE_KEY); } catch { return null; } })());
+applyRenderMode(renderMode);
+const renderer = createMapRenderer(canvas, { mode: renderMode });
 const status = document.querySelector<HTMLElement>('#connection-status')!;
 const hud = document.querySelector<HTMLElement>('#hud')!;
 const selectionInfo = document.querySelector<HTMLElement>('#selection-info')!;
@@ -50,6 +57,7 @@ document.addEventListener('click', event => {
   if (unit) selectedUnit = unit.id;
   const canvasElement = document.querySelector<HTMLCanvasElement>('#map')!;
   const centre = toWorld({ x: canvasElement.clientWidth / 2, y: canvasElement.clientHeight / 2 }, camera), point = hexToWorld(position);
+  point.y -= renderer.lift(position);
   if (current.map.wrap) point.x += Math.round((centre.x - point.x) / mapSpan(current.map)) * mapSpan(current.map);
   camera.zoom = Math.max(camera.zoom, 1.5);
   camera.x = canvasElement.clientWidth / 2 - point.x * camera.zoom;
@@ -492,7 +500,7 @@ canvas.addEventListener('pointerdown', event => {
 });
 canvas.addEventListener('pointermove', event => {
   if (!drag && districtPlacement && view) {
-    const index = hexToIndex(worldToHex(toWorld(localPoint(event), camera)), view.map);
+    const index = hexToIndex(renderer.pick(localPoint(event), camera), view.map);
     if (index !== null && index !== districtPlacement.tileIndex) { districtPlacement.tileIndex = index; render(); }
   }
   if (!drag) return;
@@ -506,7 +514,7 @@ canvas.addEventListener('pointerup', event => {
   drag = null;
   const currentView = view;
   if (!click || !currentView) return;
-  const index = hexToIndex(worldToHex(toWorld(localPoint(event), camera)), currentView.map);
+  const index = hexToIndex(renderer.pick(localPoint(event), camera), currentView.map);
   if (index === null) return;
   if (districtPlacement) { districtPlacement.tileIndex = index; render(); return; }
   const construction = constructionNotice(currentView, index);

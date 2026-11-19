@@ -6,10 +6,21 @@ export const HEX_RADIUS = 22;
 const PIXEL_PLANE = { width: 0 };
 export type Point = { x: number; y: number };
 export type Camera = Point & { zoom: number };
+/**
+ * ui-25d: vertical squash of world space (1 = flat top-down map; the 2.5D renderer uses 0.75). Every world point (tile
+ * centres, animation positions, camera fitting) goes through `hexToWorld`, so one factor keeps them all consistent.
+ */
+let tilt = 1;
+export function setMapTilt(value: number): void { tilt = value > 0 && value <= 1 ? value : 1; }
+export function mapTilt(): number { return tilt; }
+const flatWorld = (hex: Hex): Point => ({ x: Math.sqrt(3) * HEX_RADIUS * (hex.q + hex.r / 2), y: HEX_RADIUS * 1.5 * hex.r });
 export function hexToWorld(hex: Hex): Point {
-  return { x: Math.sqrt(3) * HEX_RADIUS * (hex.q + hex.r / 2), y: HEX_RADIUS * 1.5 * hex.r };
+  const point = flatWorld(hex);
+  return tilt === 1 ? point : { x: point.x, y: point.y * tilt };
 }
-export function worldToHex(point: Point): Hex {
+export function worldToHex(world: Point): Hex {
+  // Hex cells are the nearest-centre regions of the unsquashed plane: undo the tilt first.
+  const point = tilt === 1 ? world : { x: world.x, y: world.y / tilt };
   const r = point.y / (HEX_RADIUS * 1.5);
   const q = point.x / (Math.sqrt(3) * HEX_RADIUS) - r / 2;
   let rq = Math.round(q), rr = Math.round(r);
@@ -20,7 +31,7 @@ export function worldToHex(point: Point): Hex {
   const rounded = { q: rq, r: rr };
   // Resolve exact edges/vertices by r then q, independent of cube-round ties.
   return [rounded, ...neighbors(rounded, PIXEL_PLANE)].sort((a, b) => {
-    const pa = hexToWorld(a), pb = hexToWorld(b);
+    const pa = flatWorld(a), pb = flatWorld(b);
     const difference = (pa.x - point.x) ** 2 + (pa.y - point.y) ** 2
       - (pb.x - point.x) ** 2 - (pb.y - point.y) ** 2;
     return Math.abs(difference) < 1e-7 ? a.r - b.r || a.q - b.q : difference;
@@ -58,10 +69,10 @@ export function toWorld(point: Point, camera: Camera): Point {
 }
 export function fitCamera(size: GridSize, width: number, height: number): Camera {
   const mapWidth = Math.sqrt(3) * HEX_RADIUS * (size.width + 0.5);
-  const mapHeight = HEX_RADIUS * (1.5 * (size.height - 1) + 2);
+  const mapHeight = HEX_RADIUS * (1.5 * (size.height - 1) + 2) * tilt;
   const zoom = Math.min((width - 36) / mapWidth, (height - 36) / mapHeight);
   return { zoom, x: (width - mapWidth * zoom) / 2 + Math.sqrt(3) * HEX_RADIUS / 2 * zoom,
-    y: (height - mapHeight * zoom) / 2 + HEX_RADIUS * zoom };
+    y: (height - mapHeight * zoom) / 2 + HEX_RADIUS * tilt * zoom };
 }
 export function zoomAt(camera: Camera, point: Point, factor: number): void {
   const anchor = toWorld(point, camera);

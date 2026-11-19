@@ -5,7 +5,7 @@ import { DISTRICTS } from '../../content/districts.ts';
 import { speciesDisplay } from '../../content/species.ts';
 import { hexToIndex } from '../../core/hex.ts';
 import type { Hex } from '../../core/hex.ts';
-import { HEX_RADIUS, copyShifts, mapSpan, toScreen } from '../camera.ts';
+import { HEX_RADIUS, copyShifts, mapSpan, mapTilt, toScreen, toWorld, worldToHex } from '../camera.ts';
 import type { Camera, Point } from '../camera.ts';
 import { buildingSprite, drawPokemonSilhouette, drawPokemonSprite, drawSpritePath } from '../sprites.ts';
 import { ROLE_POKEMON } from '../../content/roles.ts';
@@ -17,6 +17,11 @@ import type { IconName } from '../map-icons.ts';
 import type { MapScene, SceneCity, SceneWeather, UnitMarkIdentity } from './scene.ts';
 import { EMPTY_FRAME, EVOLUTION_REVEAL_AT, SWEEP_MS, SWEEP_RING_MS } from './animation.ts';
 import type { AnimationFrame, MapEffect, NumberTone, UnitPose } from './animation.ts';
+import { liftAtWorld, pickHex, sceneLifts } from './projection.ts';
+import type { RenderMode } from './projection.ts';
+import { drawBase25d, drawFog25d } from './terrain25d.ts';
+import { createChunkCache } from './chunks25d.ts';
+import { drawTown25d, drawTownLights, unitPlinth } from './town25d.ts';
 
 export const FACTIONS = ['#3BA68A', '#D3655C', '#9B83D0', '#D59A45'];
 export const DISTRICT_COLORS: Record<keyof typeof DISTRICTS, string> = {
@@ -37,13 +42,15 @@ export type LayerStat = 'hit' | 'miss' | 'direct' | 'off';
 export type RenderStats = { base: LayerStat; fog: LayerStat | 'none'; shake: Point };
 
 /** Per-frame drawing state shared by the layer functions. */
-type Draw = {
+export type Draw = {
   context: CanvasRenderingContext2D; width: number; height: number; radius: number;
   centers: Point[]; onscreen(p: Point): boolean; scene: MapScene;
   /** v22 wrapping maps: screen-x offset of the map copy being drawn, and the width of one copy (0 on flat maps). */
   shift: number; span: number;
   /** Particles still allowed this frame, shared by every map copy (PARTICLE_CAP per frame). */
   budget: { particles: number };
+  /** ui-25d: vertical squash of ground shapes (1 on the flat map) and the screen-px lift under a world point (0 on the flat map). */
+  squash: number; liftAt(world: Point): number;
 };
 /** Upper bound on combat particles drawn in one frame, all map copies together. */
 export const PARTICLE_CAP = 180;
@@ -57,7 +64,7 @@ function polygon(d: Draw, p: Point) {
   const { context, radius } = d;
   context.beginPath();
   for (let corner = 0; corner < 6; corner++) {
-    const x = p.x + radius * corners[corner].x, y = p.y + radius * corners[corner].y;
+    const x = p.x + radius * corners[corner].x, y = p.y + radius * corners[corner].y * d.squash;
     if (corner === 0) context.moveTo(x, y); else context.lineTo(x, y);
   }
   context.closePath();
@@ -133,8 +140,8 @@ function edgeLine(d: Draw, index: number, direction: number) {
   const [a, b] = edgeCorners[direction], { context, centers, radius } = d;
   const startAngle = (a * 60 - 30) * Math.PI / 180, endAngle = (b * 60 - 30) * Math.PI / 180;
   context.beginPath();
-  context.moveTo(centers[index].x + radius * Math.cos(startAngle), centers[index].y + radius * Math.sin(startAngle));
-  context.lineTo(centers[index].x + radius * Math.cos(endAngle), centers[index].y + radius * Math.sin(endAngle));
+  context.moveTo(centers[index].x + radius * Math.cos(startAngle), centers[index].y + radius * Math.sin(startAngle) * d.squash);
+  context.lineTo(centers[index].x + radius * Math.cos(endAngle), centers[index].y + radius * Math.sin(endAngle) * d.squash);
 }
 
 // ---------- Layers ----------
@@ -169,7 +176,7 @@ function drawBase(d: Draw) {
 }
 
 /** Improvements, faith marks, resource badges, districts and construction marks. */
-function drawFeatures(d: Draw) {
+export function drawFeatures(d: Draw) {
   const { context, centers, radius, scene } = d;
   for (const item of scene.improvements) {
     if (!d.onscreen(centers[item.index])) continue;
@@ -260,7 +267,7 @@ function drawFeatures(d: Draw) {
 const citySize = (radius: number) => Math.max(28, Math.min(42, radius * 1.65));
 /** City tiles: selection outline, plaza, built buildings and the town sprite. */
 /** v17 trade routes: a dashed gold line between the two cities. */
-function drawTradeRoutes(d: Draw) {
+export function drawTradeRoutes(d: Draw) {
   const { context, centers, radius, scene } = d;
   context.save(); context.setLineDash([radius * .35, radius * .25]); context.lineCap = 'round';
   for (const route of scene.tradeRoutes) {
@@ -284,6 +291,7 @@ function drawCities(d: Draw) {
       polygon(d, p); context.strokeStyle = '#10191B'; context.lineWidth = 6; context.stroke();
       polygon(d, p); context.strokeStyle = '#F2C14E'; context.lineWidth = 3; context.stroke();
     }
+    if (d.squash < 1) { drawTown25d(context, p, radius, d.squash, ownerColor(city.ownerId), city.population, city.capital, city.wonders ?? 0); continue; }
     // City centre plaza in the owner's colour, then the buildings this city has actually built
     // (own cities only: foreign building lists are not part of the PlayerView).
     polygon(d, p); context.fillStyle = `${ownerColor(city.ownerId)}2E`; context.fill();
@@ -344,7 +352,8 @@ function drawYields(d: Draw) {
     const yieldSize = Math.max(7, Math.min(16, radius * .4));
     for (const row of scene.yields) {
       if (!d.onscreen(centers[row.index]) || (!all && !row.inFocus)) continue;
-      drawYieldRow(context, row.yields, centers[row.index].x, centers[row.index].y + radius * .6, yieldSize, row.workable ? 1 : .4);
+      // ui-25d: the row sits on the front of the squashed top face.
+      drawYieldRow(context, row.yields, centers[row.index].x, centers[row.index].y + radius * (d.squash < 1 ? .5 : .6), yieldSize * (d.squash < 1 ? .9 : 1), row.workable ? 1 : .4);
     }
   }
   for (const index of scene.workedTiles) {
@@ -355,7 +364,7 @@ function drawYields(d: Draw) {
 }
 
 /** Weather tints its radius; night dims the whole map. V11: fields fading in or out are drawn at the frame's opacity. */
-function drawWeather(d: Draw, frame: AnimationFrame) {
+export function drawWeather(d: Draw, frame: AnimationFrame) {
   const { context, centers, radius, scene } = d;
   const fades = frame.weather;
   const field = (item: SceneWeather, alpha: number) => {
@@ -396,15 +405,18 @@ function unitMark(d: Draw, unit: UnitMarkIdentity, point: Point, actionLeft?: nu
   if (!d.onscreen(point)) return;
   const { context } = d;
   const size = Math.max(26, Math.min(54, d.radius * 1.75)) * scale;
-  context.beginPath();
-  context.ellipse(point.x, point.y + size * .32, size * .37, size * .15, 0, 0, Math.PI * 2);
-  context.fillStyle = '#071114A6'; context.fill();
-  const marker = size * .58;
-  factionRect(d, unit.ownerId, { x: point.x, y: point.y + size * .2 }, marker, marker / 2);
-  context.strokeStyle = '#132625'; context.lineWidth = 3; context.stroke();
-  context.beginPath();
-  context.arc(point.x, point.y + size * .2, marker * .43, 0, Math.PI * 2);
-  context.strokeStyle = actionLeft === 0 ? '#81908A' : '#F2E7C9'; context.lineWidth = 1.2; context.stroke();
+  if (d.squash < 1) unitPlinth(context, { x: point.x, y: point.y + size * .3 }, size, d.squash, unit.ownerId, ownerColor(unit.ownerId), actionLeft === 0);
+  else {
+    context.beginPath();
+    context.ellipse(point.x, point.y + size * .32, size * .37, size * .15, 0, 0, Math.PI * 2);
+    context.fillStyle = '#071114A6'; context.fill();
+    const marker = size * .58;
+    factionRect(d, unit.ownerId, { x: point.x, y: point.y + size * .2 }, marker, marker / 2);
+    context.strokeStyle = '#132625'; context.lineWidth = 3; context.stroke();
+    context.beginPath();
+    context.arc(point.x, point.y + size * .2, marker * .43, 0, Math.PI * 2);
+    context.strokeStyle = actionLeft === 0 ? '#81908A' : '#F2E7C9'; context.lineWidth = 1.2; context.stroke();
+  }
   if (unit.kind === 'pokemon') {
     if (!drawPokemonSprite(context, unit.speciesId, Math.round(point.x - size * .54), Math.round(point.y - size * .62), Math.round(size * 1.08))) centeredText(d, speciesDisplay(unit.speciesId).abbreviation, point, '#FFF3D4', size * .42);
   } else {
@@ -534,7 +546,9 @@ function drawUnits(d: Draw, frame: AnimationFrame, camera: Camera) {
   for (const item of scene.units) if (!posed.has(item.unit.id)) {
     if (item.hostile && d.onscreen(centers[item.index])) {
       const p = centers[item.index], size = Math.max(26, Math.min(54, radius * 1.75));
-      context.beginPath(); context.ellipse(p.x, p.y + size * .2, size * .5, size * .42, 0, 0, Math.PI * 2);
+      context.beginPath();
+      if (d.squash < 1) context.ellipse(p.x, p.y + size * .3, size * .42, size * .42 * d.squash * .55, 0, 0, Math.PI * 2);
+      else context.ellipse(p.x, p.y + size * .2, size * .5, size * .42, 0, 0, Math.PI * 2);
       context.strokeStyle = '#10191B'; context.lineWidth = 5; context.stroke();
       context.strokeStyle = '#E5554A'; context.lineWidth = 2.5; context.stroke();
     }
@@ -561,7 +575,7 @@ function drawUnits(d: Draw, frame: AnimationFrame, camera: Camera) {
     if (item.hp) unitHpBar(d, p, item.hp, item.max);
   }
   for (const pose of frame.poses) {
-    const p = toScreen(pose.position, camera), point = { x: p.x + d.shift, y: p.y };
+    const p = toScreen(pose.position, camera), point = { x: p.x + d.shift, y: p.y - d.liftAt(pose.position) };
     if (pose.evolution) { evolvingUnit(d, pose, point); continue; }
     if (pose.alpha !== undefined || pose.grey) {
       // A knocked-down unit's afterimage: one small greyscale sprite, fading (the filter covers a single unit mark).
@@ -688,7 +702,9 @@ function cityBanner(d: Draw, city: SceneCity, p: Point, size: number) {
   }
 }
 function drawBanners(d: Draw) {
-  for (const city of d.scene.cities) if (d.onscreen(d.centers[city.index])) cityBanner(d, city, d.centers[city.index], citySize(d.radius));
+  // ui-25d: the town stands taller than the flat sprite, so the banner floats a little higher.
+  const size = citySize(d.radius) * (d.squash < 1 ? 1.3 : 1);
+  for (const city of d.scene.cities) if (d.onscreen(d.centers[city.index])) cityBanner(d, city, d.centers[city.index], size);
 }
 
 /** Move range, attack/capture targets and district placement sites. */
@@ -746,7 +762,7 @@ function drawInteraction(d: Draw) {
  * the target. Steps across the v22 seam take the short way (the copy of the next tile nearest the previous one). Static: no
  * animation, so reduced motion needs nothing more.
  */
-function drawGoTo(d: Draw) {
+export function drawGoTo(d: Draw) {
   const { context, centers, radius, scene } = d, route = scene.goTo;
   if (!route || route.path.length < 2) return;
   const points: Point[] = [centers[route.path[0]]];
@@ -817,10 +833,10 @@ function drawSelection(d: Draw, frame: AnimationFrame) {
   const { context, centers, radius, scene } = d;
   if (scene.selectedUnit !== null && !frame.poses.length) {
     const p = centers[scene.selectedUnit];
-    context.beginPath(); context.arc(p.x, p.y, radius * .76, 0, Math.PI * 2);
-    context.strokeStyle = '#1D2B26'; context.lineWidth = 4; context.stroke();
-    context.beginPath(); context.arc(p.x, p.y, radius * .76, 0, Math.PI * 2);
-    context.strokeStyle = '#F0B73F'; context.lineWidth = 2.5; context.stroke();
+    // ui-25d: the ring lies on the ground under the token (squashed), not around the standing sprite.
+    const ring = () => { context.beginPath(); context.ellipse(p.x, p.y, radius * .76, radius * .76 * d.squash, 0, 0, Math.PI * 2); };
+    ring(); context.strokeStyle = '#1D2B26'; context.lineWidth = 4; context.stroke();
+    ring(); context.strokeStyle = '#F0B73F'; context.lineWidth = 2.5; context.stroke();
   }
   if (scene.inspected !== null && d.onscreen(centers[scene.inspected])) {
     // Inspected tile: bright double outline with a soft fill, visible on every terrain.
@@ -837,7 +853,7 @@ function drawSelection(d: Draw, frame: AnimationFrame) {
   }
 }
 
-function drawDebug(d: Draw) {
+export function drawDebug(d: Draw) {
   const { context, centers, radius, scene } = d;
   for (const cell of scene.debug.vision) {
     if (!d.onscreen(centers[cell.index])) continue;
@@ -860,8 +876,9 @@ const easeOut = (t: number) => 1 - (1 - t) * (1 - t);
 function drawProjectile(d: Draw, effect: Extract<MapEffect, { kind: 'projectile' }>, camera: Camera) {
   const { context, radius } = d;
   const at = (t: number): Point => {
-    const s = toScreen({ x: effect.from.x + (effect.to.x - effect.from.x) * t, y: effect.from.y + (effect.to.y - effect.from.y) * t - Math.sin(Math.PI * t) * HEX_RADIUS * .45 }, camera);
-    return { x: s.x + d.shift, y: s.y };
+    const ground = { x: effect.from.x + (effect.to.x - effect.from.x) * t, y: effect.from.y + (effect.to.y - effect.from.y) * t };
+    const s = toScreen({ x: ground.x, y: ground.y - Math.sin(Math.PI * t) * HEX_RADIUS * .45 }, camera);
+    return { x: s.x + d.shift, y: s.y - d.liftAt(ground) };
   };
   const t = Math.max(0, Math.min(1, effect.progress)), head = at(t);
   if (!d.onscreen(head)) return;
@@ -956,7 +973,7 @@ function drawPulse(d: Draw, p: Point, effect: Extract<MapEffect, { kind: 'pulse'
     context.globalAlpha = 1 - local;
     context.beginPath();
     for (let corner = 0; corner < 6; corner++) {
-      const x = p.x + radius * grow * corners[corner].x, y = p.y + radius * grow * corners[corner].y;
+      const x = p.x + radius * grow * corners[corner].x, y = p.y + radius * grow * corners[corner].y * d.squash;
       if (corner === 0) context.moveTo(x, y); else context.lineTo(x, y);
     }
     context.closePath();
@@ -999,8 +1016,9 @@ function drawPulse(d: Draw, p: Point, effect: Extract<MapEffect, { kind: 'pulse'
 function drawRoute(d: Draw, effect: Extract<MapEffect, { kind: 'route' }>, camera: Camera) {
   const { context, radius } = d, t = effect.progress;
   const at = (s: number): Point => {
-    const q = toScreen({ x: effect.from.x + (effect.to.x - effect.from.x) * s, y: effect.from.y + (effect.to.y - effect.from.y) * s }, camera);
-    return { x: q.x + d.shift, y: q.y };
+    const ground = { x: effect.from.x + (effect.to.x - effect.from.x) * s, y: effect.from.y + (effect.to.y - effect.from.y) * s };
+    const q = toScreen(ground, camera);
+    return { x: q.x + d.shift, y: q.y - d.liftAt(ground) };
   };
   const head = at(Math.min(1, t * 1.25)), tail = at(Math.max(0, t * 1.25 - .3));
   if (!d.onscreen(head) && !d.onscreen(tail)) return;
@@ -1102,7 +1120,7 @@ function drawPillar(d: Draw, p: Point, effect: Extract<MapEffect, { kind: 'pilla
   context.restore();
 }
 
-function drawEffects(d: Draw, frame: AnimationFrame, indexOf: (hex: Hex) => number | null, camera: Camera) {
+export function drawEffects(d: Draw, frame: AnimationFrame, indexOf: (hex: Hex) => number | null, camera: Camera) {
   const { context, centers, radius } = d;
   // Territory sweeps first, under every other effect.
   for (const effect of frame.effects) if (effect.kind === 'sweep') drawSweep(d, effect, indexOf);
@@ -1155,12 +1173,16 @@ export type MapRenderer = {
   render(scene: MapScene, camera: Camera, frame?: AnimationFrame): RenderStats;
   /** Drops cached layers (e.g. after sprites finish loading). */
   invalidate(): void;
+  /** ui-25d: the tile under a screen point (pixel-plane hex; fold with hexToIndex). Flat: worldToHex(toWorld(point)). */
+  pick(point: Point, camera: Camera): Hex;
+  /** ui-25d: a tile's lift in world px as last drawn (0 on the flat map or before the first frame). */
+  lift(hex: Hex): number;
 };
 
-type LayerCache = { key: string; canvas: HTMLCanvasElement };
+export type LayerCache = { key: string; canvas: HTMLCanvasElement };
 
 /** Cached device-pixel layer; `paint` draws it in CSS pixels with the DPR transform applied. */
-function cachedLayer(cache: LayerCache | null, key: string, deviceWidth: number, deviceHeight: number, dpr: number,
+export function cachedLayer(cache: LayerCache | null, key: string, deviceWidth: number, deviceHeight: number, dpr: number,
   paint: (context: CanvasRenderingContext2D) => void): { cache: LayerCache } {
   const canvas = cache?.canvas ?? document.createElement('canvas');
   if (canvas.width !== deviceWidth) canvas.width = deviceWidth;
@@ -1177,13 +1199,26 @@ function cachedLayer(cache: LayerCache | null, key: string, deviceWidth: number,
 export type RendererOptions = {
   /** Cache the terrain/border and fog layers. Off draws every layer directly (reference output). */
   cacheLayers?: boolean;
+  /** ui-25d: '25d' draws tiles as lifted columns with billboards (needs `applyRenderMode('25d')`); default 'flat'. */
+  mode?: RenderMode;
 };
 
 export function createCanvas2DRenderer(canvas: HTMLCanvasElement, options: RendererOptions = {}): MapRenderer {
-  const caching = options.cacheLayers ?? true;
+  const caching = options.cacheLayers ?? true, tilted = options.mode === '25d';
   let base: LayerCache | null = null, fog: LayerCache | null = null, generation = 0, lastView = '';
+  let picking: { scene: MapScene; lifts: Float32Array } | null = null;
+  // ui-25d: the terrain is cached as world-space chunks (reused while panning) instead of one screen-sized image.
+  const chunks = createChunkCache();
   return {
-    invalidate() { generation++; },
+    invalidate() { generation++; chunks.clear(); },
+    pick(point, camera) {
+      if (!tilted || !picking) return worldToHex(toWorld(point, camera));
+      return pickHex(point, camera, picking.scene, picking.lifts);
+    },
+    lift(hex) {
+      const index = tilted && picking ? hexToIndex(hex, picking.scene) : null;
+      return index === null ? 0 : picking!.lifts[index];
+    },
     render(scene, camera, frame = EMPTY_FRAME) {
       const context = canvas.getContext('2d');
       if (!context) throw new Error('当前浏览器不支持 Canvas 2D。');
@@ -1200,7 +1235,13 @@ export function createCanvas2DRenderer(canvas: HTMLCanvasElement, options: Rende
       context.setTransform(dpr, 0, 0, dpr, shakeX, shakeY);
       context.imageSmoothingEnabled = false;
       const radius = HEX_RADIUS * camera.zoom;
-      const centers = scene.tiles.map(tile => toScreen(tile.world, camera));
+      const squash = tilted ? mapTilt() : 1, lifts = tilted ? sceneLifts(scene.tiles, scene.terrain, scene) : null;
+      if (lifts) picking = { scene, lifts };
+      const liftAt = (world: Point) => lifts ? liftAtWorld(world, scene, lifts) * camera.zoom : 0;
+      const centers = scene.tiles.map((tile, index) => {
+        const p = toScreen(tile.world, camera);
+        return lifts ? { x: p.x, y: p.y - lifts[index] * camera.zoom } : p;
+      });
       const onscreen = (p: Point) => p.x >= -radius && p.x <= width + radius && p.y >= -radius && p.y <= height + radius;
       // v22 wrap: every layer is drawn once per visible copy of the map (layer by layer, so a unit or banner near
       // the seam still sits above the neighbouring copy's terrain). Flat maps have the single copy at shift 0.
@@ -1209,17 +1250,20 @@ export function createCanvas2DRenderer(canvas: HTMLCanvasElement, options: Rende
         shift, centers: shift === 0 ? centers : centers.map(p => ({ x: p.x + shift, y: p.y })) }));
       const budget = { particles: PARTICLE_CAP };
       const draws = (target: CanvasRenderingContext2D): Draw[] => copies.map(copy => ({
-        context: target, width, height, radius, centers: copy.centers, onscreen, scene, shift: copy.shift, span, budget }));
+        context: target, width, height, radius, centers: copy.centers, onscreen, scene, shift: copy.shift, span, budget, squash, liftAt }));
       const every = (paint: (draw: Draw) => void) => (target: CanvasRenderingContext2D) => { for (const item of draws(target)) paint(item); };
       const all = draws(context);
       const indexOf = (hex: Hex) => hexToIndex(hex, scene);
-      const view = `${generation}|${deviceWidth}x${deviceHeight}@${dpr}|${camera.x},${camera.y},${camera.zoom}`;
+      const view = `${generation}|${tilted ? `25d${squash}` : 'flat'}|${deviceWidth}x${deviceHeight}@${dpr}|${camera.x},${camera.y},${camera.zoom}`;
 
       // Only (re)build caches once the camera has held still for a frame.
       const settled = view === lastView;
       lastView = view;
-      const layer = (cache: LayerCache | null, key: string, paint: (draw: Draw) => void): { cache: LayerCache | null; stat: LayerStat } => {
-        const painter = every(paint);
+      // ui-25d layers paint every wrapped copy in one pass (rows interleaved across copies, so nearer columns cover farther ones).
+      const tilt25 = (paint: typeof drawBase25d) => (target: CanvasRenderingContext2D) => paint({ context: target, scene, lifts: lifts!, radius, zoom: camera.zoom, squash,
+        copies: copies.map(copy => copy.centers), width, height, ownerColor });
+      const layer = (cache: LayerCache | null, key: string, paint: ((draw: Draw) => void) | ((target: CanvasRenderingContext2D) => void), whole = false): { cache: LayerCache | null; stat: LayerStat } => {
+        const painter = whole ? paint as (target: CanvasRenderingContext2D) => void : every(paint as (draw: Draw) => void);
         if (!caching) { painter(context); return { cache, stat: 'off' }; }
         if (cache?.key === key) { blit(context, cache.canvas, dpr, shakeX, shakeY); return { cache, stat: 'hit' }; }
         if (!settled) { painter(context); return { cache, stat: 'direct' }; }
@@ -1228,7 +1272,14 @@ export function createCanvas2DRenderer(canvas: HTMLCanvasElement, options: Rende
         return { cache: built.cache, stat: 'miss' };
       };
       const baseKey = `${view}|${scene.tiles.map(tile => tile.biome ?? '-').join(',')}|${scene.terrain ? `${scene.terrain.hills.length}.${scene.terrain.rivers.length}.${scene.terrain.landmarks.length}` : ''}|${scene.territoryEdges.map(edge => `${edge.index}.${edge.direction}.${edge.ownerId}`).join(',')}`;
-      const baseLayer = layer(base, baseKey, drawBase);
+      let baseLayer: { cache: LayerCache | null; stat: LayerStat };
+      if (tilted && caching) {
+        const terrainKey = baseKey.slice(view.length);
+        const stat = chunks.draw({ context, scene, lifts: lifts!, camera, squash, dpr, shifts: copies.map(copy => copy.shift), width, height, shakeX, shakeY,
+          key: `${generation}|${terrainKey}`, settled, ownerColor });
+        if (stat === 'direct') tilt25(drawBase25d)(context);
+        baseLayer = { cache: null, stat };
+      } else baseLayer = tilted ? layer(base, baseKey, tilt25(drawBase25d), true) : layer(base, baseKey, drawBase);
       base = baseLayer.cache;
 
       for (const item of all) drawFeatures(item);
@@ -1237,12 +1288,20 @@ export function createCanvas2DRenderer(canvas: HTMLCanvasElement, options: Rende
       for (const item of all) drawYields(item);
       for (const item of all) drawWeather(item, frame);
       drawNight(all[0], frame);
+      if (tilted) {
+        // ui-25d: warm window lights on the towns, over the night overlay.
+        const level = Math.max(0, Math.min(1, frame.night ?? (scene.night ? 1 : 0)));
+        if (level > 0) for (const item of all) for (const city of scene.cities) {
+          const p = item.centers[city.index];
+          if (onscreen(p)) drawTownLights(context, p, radius, ownerColor(city.ownerId), city.population, city.capital, city.wonders ?? 0, level);
+        }
+      }
       for (const item of all) drawUnits(item, frame, camera);
       for (const item of all) drawBanners(item);
       for (const item of all) drawInteraction(item);
       let fogStat: RenderStats['fog'] = 'none';
       if (scene.fog.length) {
-        const fogLayer = layer(fog, `${view}|${scene.fog.join(',')}`, drawFog);
+        const fogLayer = tilted ? layer(fog, `${view}|${scene.fog.join(',')}`, tilt25(drawFog25d), true) : layer(fog, `${view}|${scene.fog.join(',')}`, drawFog);
         fog = fogLayer.cache; fogStat = fogLayer.stat;
       }
       for (const item of all) drawGoTo(item);
@@ -1255,7 +1314,7 @@ export function createCanvas2DRenderer(canvas: HTMLCanvasElement, options: Rende
 }
 
 /** Copies a cached device-pixel layer; `dx`/`dy` is the frame's shake in device pixels. */
-function blit(context: CanvasRenderingContext2D, layer: HTMLCanvasElement, dpr: number, dx: number, dy: number) {
+export function blit(context: CanvasRenderingContext2D, layer: HTMLCanvasElement, dpr: number, dx: number, dy: number) {
   context.setTransform(1, 0, 0, 1, 0, 0);
   context.drawImage(layer, dx, dy);
   context.setTransform(dpr, 0, 0, dpr, dx, dy);
