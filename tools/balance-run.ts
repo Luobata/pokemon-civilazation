@@ -18,7 +18,7 @@ import { cityYield } from '../src/core/city.ts';
 import { scorePlayer } from '../src/core/victory.ts';
 import { canonicalSerialize } from '../src/core/snapshot.ts';
 import type { JsonValue } from '../src/core/snapshot.ts';
-import type { AiPersonality, GameState } from '../src/core/model.ts';
+import type { AiPersonality, GameEvent, GameState } from '../src/core/model.ts';
 import { isMapUnit } from '../src/core/model.ts';
 import { isEmbarked } from '../src/core/terrain.ts';
 import { stableSeed } from '../src/core/civilization-systems.ts';
@@ -208,8 +208,67 @@ export type World26Record = { gymChallenges: number[]; gymWins: number[]; guardi
   duels: { spar: number; serious: number; won: number }[]; conferenceRival: (string | null)[]; seasons: number; seasonsWonByCivs: number;
   /** v27 ⑥: every conference season — the champion's entrant id, the entrant ids and names (league trainers, rivals, civilizations). */
   league?: { season: number; round: number; champion: string; entrantIds: string[]; entrants: string[] }[] };
+/**
+ * Gameplay v27 only (pace-v27 §9 "另报告"; absent before, so older records are unchanged), read from accepted steps: per seat the city
+ * projects completed by id; gold sinks by kind (and the rushes that bought a project); production at round ends by round band, with the
+ * part in cities whose queue was empty (wasted); every raid (round, defeated, the civilizations with a contribution, catches, Dynamax);
+ * every contest season (entrants, civilizations alive); the first war declaration round.
+ */
+export type Pace27Record = { projects: Record<string, number>[]; sinks: Record<string, { count: number; gold: number }>; projectRushes: { count: number; gold: number };
+  production: { band: string; civRounds: number; total: number; wasted: number; idleCities: number; cities: number }[];
+  raids: { round: number; defeated: boolean; civs: number[]; catches: number; catchRolls: number; dynamax: number }[];
+  seasons: { season: number; round: number; entrants: number; alive: number }[]; firstWarRound: number | null };
 export type BalanceGameRecord = { schemaVersion: 1; case: BalanceCase; result: LeaderGameResult; samples: RoundSample[]; curves: CurvePoint[]; world24?: World24Record;
-  roster25?: Roster25Record; world26?: World26Record };
+  roster25?: Roster25Record; world26?: World26Record; pace27?: Pace27Record };
+const PRODUCTION_BANDS: readonly [string, number, number][] = [['40-59', 40, 59], ['60-89', 60, 89], ['90-119', 90, 119], ['120-149', 120, 149], ['150+', 150, Infinity]];
+/** The v27 record's step observer (read-only; null before v27). */
+export function createPace27Observer(content: Content) {
+  if (!content.cityProjects) return null;
+  const projects = new Map<number, Record<string, number>>(), sinks: Pace27Record['sinks'] = {}, projectRushes = { count: 0, gold: 0 };
+  const production = PRODUCTION_BANDS.map(([band]) => ({ band, civRounds: 0, total: 0, wasted: 0, idleCities: 0, cities: 0 }));
+  const raids: Pace27Record['raids'] = [], seasons: Pace27Record['seasons'] = [];
+  let raid: Pace27Record['raids'][number] | null = null, firstWarRound: number | null = null;
+  const contributors = (ledger: Record<number, number> | undefined) => Object.entries(ledger ?? {}).filter(([, value]) => value > 0).map(([id]) => Number(id)).sort((a, b) => a - b);
+  return {
+    onStep(before: GameState, after: GameState, events: readonly GameEvent[]) {
+      for (const { payload } of events) {
+        if (payload.type === 'RoundEnded') {
+          const band = production[PRODUCTION_BANDS.findIndex(([, low, high]) => before.round >= low && before.round <= high)];
+          if (band) for (const player of Object.values(before.players)) {
+            if (player.eliminated) continue;
+            band.civRounds++;
+            for (const city of Object.values(before.cities)) if (city.ownerId === player.id) {
+              const value = cityYield(before, city, content).production;
+              band.total += value; band.cities++;
+              if (!city.queue.length) { band.wasted += value; band.idleCities++; }
+            }
+          }
+        } else if (payload.type === 'CityProjectCompleted') {
+          const row = projects.get(payload.playerId) ?? {};
+          row[payload.projectId] = (row[payload.projectId] ?? 0) + 1; projects.set(payload.playerId, row);
+        } else if (payload.type === 'GoldSinkUsed') {
+          const row = sinks[payload.kind] ??= { count: 0, gold: 0 };
+          row.count++; row.gold += payload.gold;
+          if (payload.cityId !== undefined && before.cities[payload.cityId]?.queue[0]?.item.kind === 'project') { projectRushes.count++; projectRushes.gold += payload.gold; }
+        } else if (payload.type === 'RaidAppeared') {
+          if (!raid) raid = { round: after.round, defeated: false, civs: [], catches: 0, catchRolls: 0, dynamax: 0 };
+        } else if (payload.type === 'RaidDynamaxed') {
+          if (raid) raid.dynamax++;
+        } else if (payload.type === 'RaidCaptureRolled') {
+          if (raid) { raid.catchRolls++; if (payload.success) raid.catches++; }
+        } else if (payload.type === 'RaidDefeated' || payload.type === 'RaidEnded') {
+          if (raid) { raid.defeated = payload.type === 'RaidDefeated'; raid.civs = contributors(payload.contribution ?? payload.damage); raids.push(raid); raid = null; }
+        } else if (payload.type === 'ContestSeasonJudged') {
+          seasons.push({ season: payload.season, round: before.round, entrants: payload.placings.length, alive: Object.values(after.players).filter(player => !player.eliminated).length });
+        }
+      }
+      if (firstWarRound === null && after.diplomacy.some(pair => pair.status === 'war')) firstWarRound = after.round;
+    },
+    record(seats: readonly number[]): Pace27Record {
+      return { projects: seats.map(seat => projects.get(seat) ?? {}), sinks, projectRushes, production, raids, seasons, firstWarRound };
+    },
+  };
+}
 export const CURVE_INTERVAL = 10;
 
 /** Read-only observer for `simulateLeaderCase`: samples every end of round, snapshots every 10 rounds (on a copy of the state). */
@@ -342,10 +401,12 @@ function overridesFor(job: BalanceJob): LeaderCaseOverrides {
 /** Plays one game and writes its record (no timing inside, so the file only depends on the case and the patch). */
 export function playJob(job: BalanceJob): { status: LeaderGameResult['status'] } {
   const overrides = overridesFor(job), observer = createObserver(overrides.content ?? contentFor(job.case.setup));
-  const result = simulateLeaderCase(job.case, observer.onState, overrides);
+  const pace = createPace27Observer(overrides.content ?? contentFor(job.case.setup));
+  const result = simulateLeaderCase(job.case, observer.onState, overrides, pace ? pace.onStep : undefined);
   const world24 = observer.world24(), roster25 = observer.roster25(), world26 = observer.world26();
+  const pace27 = pace?.record(Array.from({ length: job.case.setup.players.length }, (_, seat) => seat));
   const record: BalanceGameRecord = { schemaVersion: 1, case: job.case, result, samples: observer.samples, curves: observer.curves, ...(world24 ? { world24 } : {}),
-    ...(roster25 ? { roster25 } : {}), ...(world26 ? { world26 } : {}) };
+    ...(roster25 ? { roster25 } : {}), ...(world26 ? { world26 } : {}), ...(pace27 ? { pace27 } : {}) };
   writeFileSync(job.file, JSON.stringify(record) + '\n');
   return { status: result.status };
 }

@@ -272,7 +272,9 @@ function finalRanking(state: GameState, content: Content = CONTENT): Score[] {
 
 /** Optional rule/AI overrides for experiments (e.g. `parsePatch(patch, contentFor(match.setup))`); omitted = the stock rules. */
 export type LeaderCaseOverrides = { content?: Content; ai?: AiThresholds };
-export function simulateLeaderCase(match: LeaderBalanceCase, onState?: (state: GameState) => void, overrides: LeaderCaseOverrides = {}): LeaderGameResult {
+/** `onStep` (read-only, optional): every accepted step with the state before, after and its events (the balance-run v27 record uses it). */
+export function simulateLeaderCase(match: LeaderBalanceCase, onState?: (state: GameState) => void, overrides: LeaderCaseOverrides = {},
+  onStep?: (before: GameState, after: GameState, events: readonly GameEvent[]) => void): LeaderGameResult {
   const content = overrides.content ?? contentFor(match.setup), ai = overrides.ai ?? AI_THRESHOLDS;
   let state: GameState;
   try {
@@ -317,6 +319,7 @@ export function simulateLeaderCase(match: LeaderBalanceCase, onState?: (state: G
       if (result.ok) {
         collectTelemetry(telemetry, state, result.state, command, result.events, content);
         countDistricts(result.events);
+        onStep?.(state, result.state, result.events);
         state = result.state;
         continue;
       }
@@ -328,6 +331,7 @@ export function simulateLeaderCase(match: LeaderBalanceCase, onState?: (state: G
       if (!ended.ok) break;
       collectTelemetry(telemetry, state, ended.state, end, ended.events, content);
       countDistricts(ended.events);
+      onStep?.(state, ended.state, ended.events);
       state = ended.state;
     }
     onState?.(state);
