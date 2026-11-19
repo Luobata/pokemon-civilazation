@@ -36,7 +36,7 @@ export type PaintedBackend = {
 
 type Ctx = Draw & { dpr: number; typeOf(unit: UnitMarkIdentity): TypeId | null };
 /** Medallion radius (CSS px) for a tile radius. */
-const medallionRadius = (radius: number) => Math.max(11, Math.min(26, radius * .55));
+const medallionRadius = (radius: number) => Math.max(11, Math.min(25, radius * .5));
 /** The medallion centre sits a little above the tile centre; its pole stands on the front of the tile. */
 const medallionCentre = (p: Point, radius: number) => ({ x: p.x, y: p.y - radius * .28 });
 
@@ -155,7 +155,7 @@ function cityBanner(d: Ctx, city: SceneCity, p: Point) {
   g.font = `700 ${Math.round(h * .6)}px ${SERIF}`;
   const nameWidth = g.measureText(city.name).width, extra = (city.capital ? h * .8 : 0) + (city.wonders ? h * .8 : 0);
   const pop = city.population !== undefined ? h * .95 : 0, width = h * .9 + pop + nameWidth + extra + h * .7;
-  const left = p.x - width / 2 + h * .25, top = p.y - radius * 1.12 - h * .7;
+  const left = p.x - width / 2 + h * .25, top = p.y - radius - h * .5;
   // Tails behind the body.
   for (const side of [-1, 1]) {
     const x = side < 0 ? left - h * .15 : left + width - h * .25;
@@ -427,9 +427,9 @@ export function createPaintedRenderer(canvas: HTMLCanvasElement, options: Render
       for (const item of all) drawWeather(item, frame);
       const night = drawNight(all[0], frame);
       if (night > 0) for (const item of all) drawTownLights(item, night);
-      // Banners under the unit flags: a flag on the tile above a city stays fully readable.
-      for (const item of all) drawBanners(item);
       for (const item of all) drawUnits(item, frame, camera);
+      // City banners over the flags (city names stay readable); they sit low enough to cover only the rim of a flag above.
+      for (const item of all) drawBanners(item);
       for (const item of all) drawInteraction(item);
       for (const item of all) drawGoTo(item);
       for (const item of all) drawSelection(item, frame);
