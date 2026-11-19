@@ -1,7 +1,7 @@
 /* ui-25d round 2 (docs/design/ui-25d.md §10–§11): the 2.5D minimap and the HUD frames. */
 
 /* Minimap: left edge of the map, between the opening objectives and the bottom hint / legend row; under the combat card. */
-.minimap { position: absolute; left: 10px; bottom: 84px; z-index: 3; padding: 3px; border: 1px solid #070F12; border-radius: 3px; background: #0A1418;
+.minimap { position: absolute; left: 10px; bottom: 136px; z-index: 3; padding: 3px; border: 1px solid #070F12; border-radius: 3px; background: #0A1418;
   box-shadow: inset 1px 1px 0 #4E7068, inset -1px -1px 0 #0B171A, 0 2px 0 #040A0C, 0 6px 14px rgb(0 0 0 / 30%); cursor: crosshair; touch-action: none; }
 .minimap[hidden] { display: none; }
 .minimap canvas { display: block; image-rendering: pixelated; }

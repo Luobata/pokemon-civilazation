@@ -1,6 +1,6 @@
 // ui-25d §12: the 2.5D terrain is cached in world space as chunks (a few rows × columns each, ~600 device px), rendered once per
 // zoom and reused while the camera pans. Round 2: the visible chunks are composited into a screen-sized canvas, so a still frame
-// is one blit and a panning frame shifts that composite and paints chunks only into the strips that scrolled into view.
+// is one blit and a panning frame blits that composite shifted and paints chunks only into the strips that scrolled into view.
 // Chunks are blitted back row first (wrapped copies interleaved), so a nearer chunk's tall columns cover the farther chunk, as
 // in the direct drawing. Rebuilt lazily when the terrain key (biomes, features, borders), zoom, DPR or tilt changes.
 import { HEX_RADIUS } from '../camera.ts';
@@ -30,7 +30,7 @@ export type ChunkFrame = {
 export function createChunkCache() {
   let key = '', frameNumber = 0, fogFor: readonly number[] | null = null, fogKeys: string[] = [];
   let layout: { rows: number; cols: number; bounds: Bounds[]; zoomed: Point[] } | null = null;
-  let front: CanvasRenderingContext2D | null = null, back: CanvasRenderingContext2D | null = null, screenKey = '', screenX = 0, screenY = 0;
+  let front: CanvasRenderingContext2D | null = null, screenKey = '', screenX = 0, screenY = 0, lastX = NaN, lastY = NaN;
   const chunks = new Map<number, Chunk>();
   return {
     /** Draws the terrain from chunks; 'direct' when the zoom just changed and the camera is still moving (no chunks built). */
@@ -67,15 +67,15 @@ export function createChunkCache() {
       }
       let built = false;
       frameNumber++;
-      // Paints the chunks into a screen-sized canvas (device px, no shake), only inside `rects` when given.
-      const paint = (target: CanvasRenderingContext2D, rects: readonly Rect[] | null) => {
+      // Paints the chunks onto a screen-sized target (device px, moved by ox / oy), only inside `rects` when given.
+      const paint = (target: CanvasRenderingContext2D, rects: readonly Rect[] | null, ox = 0, oy = 0) => {
         target.save();
         target.setTransform(1, 0, 0, 1, 0, 0);
         if (rects) { target.beginPath(); for (const r of rects) target.rect(r.x, r.y, r.width, r.height); target.clip(); }
         for (let chunkRow = 0; chunkRow < down; chunkRow++) for (const shift of f.shifts) for (let chunkCol = 0; chunkCol < across; chunkCol++) {
           const id = chunkRow * across + chunkCol, box = bounds[id];
           if (!box) continue;
-          const x = Math.floor(box.minX * dpr) + Math.round((camera.x + shift) * dpr), y = Math.floor(box.minY * dpr) + Math.round(camera.y * dpr);
+          const x = Math.floor(box.minX * dpr) + Math.round((camera.x + shift) * dpr) + ox, y = Math.floor(box.minY * dpr) + Math.round(camera.y * dpr) + oy;
           const w = Math.ceil((box.maxX - box.minX) * dpr) + 2, h = Math.ceil((box.maxY - box.minY) * dpr) + 2;
           if (x > target.canvas.width || x + w < 0 || y > target.canvas.height || y + h < 0) continue;
           if (rects && !rects.some(r => x < r.x + r.width && r.x < x + w && y < r.y + r.height && r.y < y + h)) continue;
@@ -87,36 +87,33 @@ export function createChunkCache() {
             built = true;
           }
           chunk.used = frameNumber;
-          target.drawImage(chunk.canvas, chunk.ox + Math.round((camera.x + shift) * dpr), chunk.oy + Math.round(camera.y * dpr));
+          target.drawImage(chunk.canvas, chunk.ox + Math.round((camera.x + shift) * dpr) + ox, chunk.oy + Math.round(camera.y * dpr) + oy);
         }
         target.restore();
       };
-      // Screen composite: a still frame is one blit; a panning frame shifts the composite by the (integer) device-pixel step
-      // and paints chunks only into the strips that scrolled into view.
+      // Screen composite: a still frame is one blit. While the camera pans, the composite (built at an earlier camera) is blitted
+      // shifted by the integer device-pixel step and only the strips that scrolled into view are painted from chunks, straight
+      // onto the frame; it is rebuilt once the camera holds still, or when those strips pass 30 % of the screen.
       const deviceWidth = f.context.canvas.width, deviceHeight = f.context.canvas.height;
-      const sx = Math.round(camera.x * dpr), sy = Math.round(camera.y * dpr);
-      if (!front || !back || front.canvas.width !== deviceWidth || front.canvas.height !== deviceHeight) {
-        front = screenCanvas(deviceWidth, deviceHeight); back = screenCanvas(deviceWidth, deviceHeight); screenKey = '';
-      }
-      const dx = sx - screenX, dy = sy - screenY;
-      if (screenKey !== key || fogChanged || Math.abs(dx) >= deviceWidth || Math.abs(dy) >= deviceHeight) {
+      const sx = Math.round(camera.x * dpr), sy = Math.round(camera.y * dpr), held = sx === lastX && sy === lastY;
+      lastX = sx; lastY = sy;
+      if (!front || front.canvas.width !== deviceWidth || front.canvas.height !== deviceHeight) { front = screenCanvas(deviceWidth, deviceHeight); screenKey = ''; }
+      let dx = sx - screenX, dy = sy - screenY;
+      if (screenKey !== key || fogChanged || (dx || dy) && (held || Math.abs(dx) > deviceWidth * .3 || Math.abs(dy) > deviceHeight * .3)) {
         front.clearRect(0, 0, deviceWidth, deviceHeight);
         paint(front, null);
-        screenKey = key; built = true;
-      } else if (dx || dy) {
-        back.clearRect(0, 0, deviceWidth, deviceHeight);
-        back.drawImage(front.canvas, dx, dy);
-        const rects: Rect[] = [];
-        if (dx > 0) rects.push({ x: 0, y: 0, width: dx, height: deviceHeight }); else if (dx < 0) rects.push({ x: deviceWidth + dx, y: 0, width: -dx, height: deviceHeight });
-        if (dy > 0) rects.push({ x: 0, y: 0, width: deviceWidth, height: dy }); else if (dy < 0) rects.push({ x: 0, y: deviceHeight + dy, width: deviceWidth, height: -dy });
-        paint(back, rects);
-        [front, back] = [back, front];
+        screenKey = key; screenX = sx; screenY = sy; dx = 0; dy = 0; built = true;
       }
-      screenX = sx; screenY = sy;
       f.context.save();
       f.context.setTransform(1, 0, 0, 1, 0, 0);
-      f.context.drawImage(front.canvas, f.shakeX, f.shakeY);
+      f.context.drawImage(front.canvas, dx + f.shakeX, dy + f.shakeY);
       f.context.restore();
+      if (dx || dy) {
+        const rects: Rect[] = [], x0 = f.shakeX, y0 = f.shakeY;
+        if (dx > 0) rects.push({ x: x0, y: y0, width: dx, height: deviceHeight }); else if (dx < 0) rects.push({ x: x0 + deviceWidth + dx, y: y0, width: -dx, height: deviceHeight });
+        if (dy > 0) rects.push({ x: x0, y: y0, width: deviceWidth, height: dy }); else if (dy < 0) rects.push({ x: x0, y: y0 + deviceHeight + dy, width: deviceWidth, height: -dy });
+        paint(f.context, rects, f.shakeX, f.shakeY);
+      }
       if (chunks.size > CHUNK_CAP) {
         const old = [...chunks.entries()].sort((a, b) => a[1].used - b[1].used).slice(0, chunks.size - CHUNK_CAP);
         for (const [id] of old) chunks.delete(id);
