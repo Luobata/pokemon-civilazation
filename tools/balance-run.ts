@@ -255,7 +255,9 @@ export function createPace27Observer(content: Content) {
         } else if (payload.type === 'RaidDynamaxed') {
           if (raid) raid.dynamax++;
         } else if (payload.type === 'RaidCaptureRolled') {
-          if (raid) { raid.catchRolls++; if (payload.success) raid.catches++; }
+          // The rolls follow RaidDefeated in the same step, so they belong to the raid just closed.
+          const closed = raid ?? raids.at(-1);
+          if (closed) { closed.catchRolls++; if (payload.success) closed.catches++; }
         } else if (payload.type === 'RaidDefeated' || payload.type === 'RaidEnded') {
           if (raid) { raid.defeated = payload.type === 'RaidDefeated'; raid.civs = contributors(payload.contribution ?? payload.damage); raids.push(raid); raid = null; }
         } else if (payload.type === 'ContestSeasonJudged') {
