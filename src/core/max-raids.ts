@@ -100,11 +100,19 @@ export function viewMaxRaidDamage(view: PlayerView, attacker: MapUnit, defender:
   return { min: low.damage, max: high.damage, shields: high.broken, phaseTwo: high.phaseTwo };
 }
 
+/**
+ * Whether `playerId` knows where the den is: v26 — only once it explored the tile; v27 — always (the integration's fog follow-up: an
+ * announced den is public to every civilization, like a world event, so several can join; terrain and units still need vision).
+ */
+export function knowsDen(state: Pick<GameState, 'knowledge'>, playerId: number, tileIndex: number, content: Content): boolean {
+  return Boolean(content.maxRaids) || (state.knowledge[playerId]?.exploredTileIds.includes(tileIndex) ?? false);
+}
+
 // ---------- RaidDynamax ----------
 export function validateMaxRaidAction(state: GameState, actorId: number, action: MaxRaidAction, content: Content): string | null {
   const boss = activeMax(state), statuses = state.expansion?.eraAbilities;
   if (!content.maxRaids || !boss || !statuses || state.players[actorId]?.eliminated) return 'max-raids-unavailable';
-  if (!state.knowledge[actorId]?.exploredTileIds.includes(boss.tileIndex)) return 'max-raids-unavailable';
+  if (!knowsDen(state, actorId, boss.tileIndex, content)) return 'max-raids-unavailable';
   const unit = state.units[action.unitId], den = state.units[boss.unitId];
   if (!unit || unit.ownerId !== actorId || !isMapUnit(unit) || unit.kind !== 'pokemon' || !den || !isMapUnit(den)) return 'unit-unavailable';
   if (boss.max!.dynamax[actorId] !== undefined) return 'raid-dynamax-used';

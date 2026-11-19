@@ -78,15 +78,25 @@ describe('shield arithmetic (pure, shared by authority and preview)', () => {
 });
 
 describe('v27 Max raid in a game', () => {
-  test('the boss starts with shieldBase + ⌈living / 2⌉ shields in phase one; v26 has no Max ledger; the view hides shields from non-explorers', () => {
+  test('the boss starts with shieldBase + ⌈living / 2⌉ shields in phase one; v26 has no Max ledger; v27 dens are public to every civilization', () => {
     const { raid, state, content } = openRaid(27), shields = EVENTS_TUNING.shieldBase + 1;
     expect(raid.max).toEqual({ shields, shieldMax: shields, phase: 1, broken: {}, healed: {}, dynamax: {} });
     expect(observe(state, 0, content).expansion!.raids!.active!.max).toMatchObject({ shields, shieldMax: shields, phase: 1, dynamaxUsed: false });
     expect(openRaid(26).raid.max).toBeUndefined();
     expect(observe(openRaid(26).state, 0, contentFor(setup(26))).expansion!.raids!.active!.max).toBeUndefined();
+    // Integration fog follow-up: a v27 den is public like a world event — every civilization sees the site, the boss id and the shields
+    // without having explored the tile (the tile itself stays unexplored); v26 still hides the site from non-explorers.
     const hidden = openRaid(27, 2, false);
-    for (const id of [0, 1]) if (!hidden.state.knowledge[id].exploredTileIds.includes(hidden.raid.tileIndex)) {
-      expect(observe(hidden.state, id, hidden.content).expansion!.raids!.active!.max).toMatchObject({ shields: null, shieldMax: null, phase: null });
+    for (const id of [0, 1]) {
+      expect(hidden.state.knowledge[id].exploredTileIds.includes(hidden.raid.tileIndex)).toBe(false);
+      const view = observe(hidden.state, id, hidden.content);
+      expect(view.expansion!.raids!.active).toMatchObject({ tileIndex: hidden.raid.tileIndex, unitId: hidden.raid.unitId });
+      expect(view.expansion!.raids!.active!.max).toMatchObject({ shields, shieldMax: shields, phase: 1 });
+      expect(view.map.tiles[hidden.raid.tileIndex]).toBeNull();
+    }
+    const v26 = openRaid(26, 2, false);
+    for (const id of [0, 1]) if (!v26.state.knowledge[id].exploredTileIds.includes(v26.raid.tileIndex)) {
+      expect(observe(v26.state, id, v26.content).expansion!.raids!.active).toMatchObject({ tileIndex: null, unitId: null });
     }
   });
   test('an attack breaks shields and deals the previewed damage; the ledger and the preview card follow', () => {

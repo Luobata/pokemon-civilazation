@@ -1,7 +1,8 @@
 // Gameplay v26 D (docs/design/depth-v26.md §5.4.1): Max Raid dens — from round 90 every 20 rounds a regional stage-3 or rare species at a
 // public site, fought with ordinary attacks; the top damage dealer gets it. The boss is a wild unit that never moves (src/core/wild.ts
 // skips it), strikes every adjacent unit at the end of each round, cannot be caught, and leaves after `raidRounds` rounds. Sites and
-// species come from `stableSeed` (never `state.rng`); the ledger is public, the site only reaches civilizations that explored it.
+// species come from `stableSeed` (never `state.rng`); the ledger is public, the site only reaches civilizations that explored it (v26) or
+// every civilization once announced (v27, `knowsDen`).
 import { ERA_MILESTONES } from '../content/era-honors.ts';
 import { lateTuning } from '../content/depth-v26.ts';
 import type { SpeciesId } from '../content/species.ts';
@@ -18,7 +19,7 @@ import { placementBlocked, stateProtectedCivilian } from './stacking.ts';
 import { isLandmarkTile, isPeak } from './terrain.ts';
 import { createMapUnit, registerSpecies } from './unit.ts';
 import { randomBelow } from './rng.ts';
-import { initialMaxLedger, maxWaveRange, observeMaxRaid, raidCatchChance, raidCatchSpecies, raidContribution, raidSharers, resolveRaidSupport } from './max-raids.ts';
+import { initialMaxLedger, knowsDen, maxWaveRange, observeMaxRaid, raidCatchChance, raidCatchSpecies, raidContribution, raidSharers, resolveRaidSupport } from './max-raids.ts';
 import type { MaxRaidEvent, MaxRaidLedger, MaxRaidView } from './max-raids.ts';
 import { eventsTuning } from '../content/pace-v27.ts';
 
@@ -109,7 +110,7 @@ export function resolveRaidRound(state: GameState, content: Content): EventPaylo
   }
   // Announce the next den `raidAnnounce` rounds ahead (site and species fixed now), then open it on its round.
   const tuning = lateTuning(content), next = nextRaidRound(content, state.round + 1, state.setup.roundLimit ?? 100);
-  const explored = (playerId: number, tile: number) => state.knowledge[playerId]?.exploredTileIds.includes(tile) ?? false;
+  const explored = (playerId: number, tile: number) => knowsDen(state, playerId, tile, content);
   if (!raids.pending && next !== null && next - (state.round + 1) === Math.min(tuning.raidAnnounce, tuning.raidInterval - 1)) {
     const site = raidSite(state, raids.held, content);
     if (site) {
@@ -179,7 +180,7 @@ export function recordRaids(before: GameState, after: GameState, events: readonl
     }
   }
   const unit = after.units[boss.unitId];
-  const shieldEvents = boss.max ? shieldNews(before, after, boss) : [];
+  const shieldEvents = boss.max ? shieldNews(before, after, boss, content) : [];
   if (unit && isMapUnit(unit)) return shieldEvents;
   if (boss.max) return [...shieldEvents, ...awardMaxRaid(after, boss, content)];
   // Knocked out: the top damage dealer gets the species and +1 era score; every share of at least the minimum earns gold.
@@ -207,13 +208,13 @@ export function recordRaids(before: GameState, after: GameState, events: readonl
 }
 
 /** v27 ⑤: shields broken by this command (and the phase change), for every civilization that explored the den. */
-function shieldNews(before: GameState, after: GameState, boss: RaidBoss): EventPayload[] {
+function shieldNews(before: GameState, after: GameState, boss: RaidBoss, content: Content): EventPayload[] {
   const was = before.expansion?.raids?.active, ledger = boss.max!;
   if (!was?.max || was.unitId !== boss.unitId) return [];
   const broken = Object.values(ledger.broken).reduce((sum, value) => sum + value, 0) - Object.values(was.max.broken).reduce((sum, value) => sum + value, 0);
   const phaseTwo = was.max.phase === 1 && ledger.phase === 2;
   if (broken <= 0 && !phaseTwo) return [];
-  return alive(after).sort((a, b) => a - b).filter(id => after.knowledge[id]?.exploredTileIds.includes(boss.tileIndex))
+  return alive(after).sort((a, b) => a - b).filter(id => knowsDen(after, id, boss.tileIndex, content))
     .map(playerId => ({ type: 'RaidShieldsBroken' as const, playerId, unitId: boss.unitId, broken: Math.max(0, broken), shields: ledger.shields, phase: ledger.phase, phaseTwo }));
 }
 /**
@@ -259,8 +260,8 @@ export function observeRaids(state: GameState, playerId: number, content: Conten
   const raids = state.expansion?.raids;
   if (!raids) return undefined;
   const boss = raids.active;
-  const explored = boss ? state.knowledge[playerId]?.exploredTileIds.includes(boss.tileIndex) ?? false : false;
-  const den = raids.pending, knows = (tile: number) => state.knowledge[playerId]?.exploredTileIds.includes(tile) ?? false;
+  const knows = (tile: number) => knowsDen(state, playerId, tile, content);
+  const explored = boss ? knows(boss.tileIndex) : false, den = raids.pending;
   return { nextRound: boss ? null : den?.round ?? nextRaidRound(content, state.round + 1, state.setup.roundLimit ?? 100), held: raids.held,
     pending: den ? { tileIndex: knows(den.tileIndex) ? den.tileIndex : null, speciesId: den.speciesId, round: den.round } : null,
     active: boss ? { unitId: explored ? boss.unitId : null, tileIndex: explored ? boss.tileIndex : null, endsAtRound: boss.endsAtRound, damage: { ...boss.damage }, speciesId: boss.speciesId, maxHp: boss.maxHp,
