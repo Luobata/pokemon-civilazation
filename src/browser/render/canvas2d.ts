@@ -452,15 +452,77 @@ function rankMark(d: Draw, p: Point, rank: number, promotable: boolean) {
   }
 }
 
-/** A 3 px HP bar along the bottom of a damaged unit (same colours as the city banner bar). */
-function unitHpBar(d: Draw, point: Point, hp: { current: number; max: number }) {
+/** A 3 px HP bar along the bottom of a damaged unit (same colours as the city banner bar); a Max boss gets a wide one, purple in phase two. */
+function unitHpBar(d: Draw, point: Point, hp: { current: number; max: number }, max?: { phase: 1 | 2 }) {
   if (!d.onscreen(point)) return;
   const { context } = d;
   const size = Math.max(26, Math.min(54, d.radius * 1.75));
-  const width = Math.round(size * .62), height = 3, left = Math.round(point.x - width / 2), top = Math.round(point.y + size * .46);
+  const width = Math.round(size * (max ? 1.1 : .62)), height = max ? 4 : 3, left = Math.round(point.x - width / 2), top = Math.round(point.y + size * (max ? .5 : .46));
   context.fillStyle = '#10191BE6'; context.fillRect(left - 1, top - 1, width + 2, height + 2);
   context.fillStyle = '#3A2A28'; context.fillRect(left, top, width, height);
-  context.fillStyle = hpColor(hp.current, hp.max); context.fillRect(left, top, Math.max(1, Math.round(width * hp.current / hp.max)), height);
+  context.fillStyle = max ? (max.phase === 2 ? MAX_PHASE_TWO : MAX_PINK) : hpColor(hp.current, hp.max); context.fillRect(left, top, Math.max(1, Math.round(width * hp.current / hp.max)), height);
+}
+// ---------- v27 ⑤ Max raid boss ----------
+const MAX_PINK = '#F0507A', MAX_RED = '#E5304F', MAX_PHASE_TWO = '#A259E0', MAX_SHIELD = '#F0709A';
+export const MAX_SCALE = 1.5;
+/** The Dynamax aura under the boss: stacked translucent red-pink ellipses (no shadowBlur) and a dark red ground glow; purple-tinged in phase two. */
+function maxAura(d: Draw, p: Point, phase: 1 | 2) {
+  if (!d.onscreen(p)) return;
+  const { context, radius } = d, size = Math.max(26, Math.min(54, radius * 1.75)) * MAX_SCALE;
+  context.save();
+  context.beginPath(); context.ellipse(p.x, p.y + size * .3, size * .52, size * .2, 0, 0, Math.PI * 2);
+  context.fillStyle = '#5A0F2266'; context.fill();
+  for (const [index, scale] of [1, .82, .64].entries()) {
+    context.globalAlpha = .3 + index * .12;
+    context.beginPath(); context.ellipse(p.x, p.y - size * .05, size * .5 * scale, size * .58 * scale, 0, 0, Math.PI * 2);
+    context.fillStyle = index === 2 && phase === 2 ? MAX_PHASE_TWO : index === 0 ? MAX_RED : MAX_PINK; context.fill();
+  }
+  context.globalAlpha = 1;
+  context.beginPath(); context.ellipse(p.x, p.y - size * .05, size * .5, size * .58, 0, 0, Math.PI * 2);
+  context.strokeStyle = phase === 2 ? MAX_PHASE_TWO : MAX_PINK; context.lineWidth = 3; context.stroke();
+  context.restore();
+}
+/** A row of pixel-hexagon shield pips over the boss's head (standing ones filled, broken ones as dark outlines). */
+function maxShieldPips(d: Draw, p: Point, max: { shields: number; shieldMax: number }) {
+  if (!d.onscreen(p) || max.shieldMax <= 0) return;
+  const { context, radius } = d, size = Math.max(26, Math.min(54, radius * 1.75)) * MAX_SCALE;
+  const pip = Math.max(4, Math.round(radius * .17)), gap = Math.round(pip * .5), total = max.shieldMax * pip * 2 + (max.shieldMax - 1) * gap;
+  const y = Math.round(p.y - size * .66);
+  for (let index = 0; index < max.shieldMax; index++) {
+    const cx = Math.round(p.x - total / 2 + pip + index * (pip * 2 + gap));
+    context.beginPath();
+    for (let corner = 0; corner < 6; corner++) { const x = cx + pip * corners[corner].x, yy = y + pip * corners[corner].y; if (corner === 0) context.moveTo(x, yy); else context.lineTo(x, yy); }
+    context.closePath();
+    context.fillStyle = index < max.shields ? MAX_SHIELD : '#2A1A22'; context.fill();
+    context.strokeStyle = '#10191B'; context.lineWidth = 1.5; context.stroke();
+    if (index < max.shields) { context.fillStyle = '#FFF8E5'; context.fillRect(cx - Math.round(pip * .45), y - Math.round(pip * .45), Math.max(1, Math.round(pip * .35)), Math.max(1, Math.round(pip * .35))); }
+  }
+}
+/** Shields breaking: pink hexagon fragments flying out (pooled particles, shared budget) and a flash ring; only the ring without motion. */
+function drawShatter(d: Draw, p: Point, effect: Extract<MapEffect, { kind: 'shatter' }>) {
+  const { context, radius } = d, t = effect.progress, center = { x: p.x, y: p.y - radius * .2 };
+  context.save();
+  context.globalAlpha = 1 - t;
+  context.beginPath(); context.arc(center.x, center.y, radius * (.6 + .7 * easeOut(t)), 0, Math.PI * 2);
+  context.strokeStyle = MAX_SHIELD; context.lineWidth = Math.max(2, 5 * (1 - t)); context.stroke();
+  if (effect.motion) {
+    const count = Math.min(PARTICLES.length, 5 + effect.broken * 4);
+    for (let index = 0; index < count; index++) {
+      if (d.budget.particles <= 0) break;
+      d.budget.particles--;
+      const particle = PARTICLES[index], reach = radius * (.3 + 1.3 * particle.speed * easeOut(t)), size = Math.max(2, Math.round(radius * (particle.size + .05) * (1 - t * .5)));
+      context.fillStyle = particle.white ? '#FFF8E5' : index % 2 ? MAX_SHIELD : MAX_RED;
+      context.fillRect(Math.round(center.x + particle.dx * reach - size / 2), Math.round(center.y + particle.dy * reach + t * t * radius * .6 - size / 2), size, size);
+    }
+  }
+  if (effect.phaseTwo) {
+    // Phase two: a purple surge ring and the caption.
+    context.globalAlpha = fadeTail(t, .35);
+    context.beginPath(); context.arc(center.x, center.y, radius * (effect.motion ? .8 + 1.2 * easeOut(t) : 1.1), 0, Math.PI * 2);
+    context.strokeStyle = MAX_PHASE_TWO; context.lineWidth = Math.max(3, radius * .16); context.stroke();
+    outlinedText(d, '极巨护盾再展开', { x: p.x, y: p.y - radius * (1.5 + (effect.motion ? t * .3 : 0)) }, '#FFF8E5', Math.min(16, radius * .42));
+  }
+  context.restore();
 }
 
 /** Units at their tiles, except those an animation is currently posing elsewhere. */
@@ -478,13 +540,17 @@ function drawUnits(d: Draw, frame: AnimationFrame, camera: Camera) {
     }
     const shared = item.unit.kind !== 'pokemon' && pokemonTiles.has(item.index), base = centers[item.index];
     const p = shared ? { x: base.x + radius * .48, y: base.y + radius * .42 } : base;
+    // v27 ⑤: a Max raid boss stands in its aura at 1.5×, its shield pips above.
+    if (item.max) maxAura(d, p, item.max.phase);
+    const scale = shared ? .55 : item.max ? MAX_SCALE : 1;
     if (item.exhausted) {
       // v27 ②: an exhausted wild Pokémon is drawn grey, with the sweat-drop mark over its head.
       context.save(); context.filter = 'grayscale(1) brightness(.9)';
-      unitMark(d, item.unit, p, item.actionLeft, item.enraged, shared ? .55 : 1);
+      unitMark(d, item.unit, p, item.actionLeft, item.enraged, scale);
       context.restore();
       if (d.onscreen(p)) drawIcon(context, 'exhausted', p.x + radius * .45, p.y - radius * .7, Math.max(12, radius * .5));
-    } else unitMark(d, item.unit, p, item.actionLeft, item.enraged, shared ? .55 : 1);
+    } else unitMark(d, item.unit, p, item.actionLeft, item.enraged, scale);
+    if (item.max) maxShieldPips(d, p, item.max);
     if (item.status && d.onscreen(p)) {
       const q = { x: p.x - radius * .55, y: p.y - radius * .55 }, size = Math.max(8, radius * .28);
       context.beginPath(); context.arc(q.x, q.y, size, 0, Math.PI * 2); context.fillStyle = '#B15AD6'; context.fill();
@@ -492,7 +558,7 @@ function drawUnits(d: Draw, frame: AnimationFrame, camera: Camera) {
       centeredText(d, item.status, q, '#FFF8E5', size * 1.1);
     }
     if ((item.rank || item.promotable) && d.onscreen(p)) rankMark(d, p, item.rank ?? 0, item.promotable ?? false);
-    if (item.hp) unitHpBar(d, p, item.hp);
+    if (item.hp) unitHpBar(d, p, item.hp, item.max);
   }
   for (const pose of frame.poses) {
     const p = toScreen(pose.position, camera), point = { x: p.x + d.shift, y: p.y };
@@ -507,9 +573,11 @@ function drawUnits(d: Draw, frame: AnimationFrame, camera: Camera) {
       context.restore();
       continue;
     }
-    unitMark(d, pose.unit, point, undefined, false, pose.scale ?? 1);
-    const hp = scene.units.find(item => item.unit.id === pose.unit.id)?.hp;
-    if (hp) unitHpBar(d, point, hp);
+    const posedItem = scene.units.find(item => item.unit.id === pose.unit.id);
+    if (posedItem?.max) maxAura(d, point, posedItem.max.phase);
+    unitMark(d, pose.unit, point, undefined, false, pose.scale ?? (posedItem?.max ? MAX_SCALE : 1));
+    if (posedItem?.max) maxShieldPips(d, point, posedItem.max);
+    if (posedItem?.hp) unitHpBar(d, point, posedItem.hp, posedItem.max);
   }
 }
 
@@ -1057,6 +1125,7 @@ function drawEffects(d: Draw, frame: AnimationFrame, indexOf: (hex: Hex) => numb
     else if (effect.kind === 'form') drawForm(d, p, effect);
     else if (effect.kind === 'evolution') drawEvolution(d, p, effect);
     else if (effect.kind === 'pillar') drawPillar(d, p, effect);
+    else if (effect.kind === 'shatter') drawShatter(d, p, effect);
     else if (effect.kind === 'banner') drawFallingBanner(d, p, effect);
     else if (effect.kind === 'number') {
       // Pop (scale 1.4 → 1 in the first 15%; tags don't pop), float up, fade out over the last 40%.

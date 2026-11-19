@@ -138,8 +138,15 @@ export function describeTile(view: PlayerView, index: number): TileInfo {
     if (promotion) lines.push(promotion);
     let subtitle: string, hint: string | undefined;
     const rival = rivalUnitNote(view, unit.id);
+    const raid = view.expansion?.raids?.active?.unitId === unit.id ? view.expansion.raids.active : null;
     if (rival) {
       subtitle = rival.subtitle; hint = rival.hint; lines.push(rival.line);
+    } else if (raid) {
+      // v26 raid boss; v27 ⑤ adds its shields and phase.
+      subtitle = raid.max ? '极巨团体战首领' : '极巨巢穴首领';
+      if (raid.max?.shields !== null && raid.max?.shields !== undefined) lines.push(`极巨护盾 ${raid.max.shields}/${raid.max.shieldMax} · 第 ${raid.max.phase === 2 ? '二' : '一'}阶段`);
+      hint = raid.max ? '不能直接捕捉：贡献第一必得它，其他贡献 ≥ 10% 的文明各有一次捕捉机会。破盾手先打掉护盾，世界页看账本与奖励预览。'
+        : '不能捕捉：伤害第一的文明得到它。世界页看伤害账本。';
     } else if (unit.ownerId === null) {
       subtitle = rampaging.has(unit.id) ? `暴走宝可梦 · 来自巢穴${civAside('rampaging')}` : '野生宝可梦';
       hint = rampaging.has(unit.id) ? '会主动攻击任何文明附近的单位和城市。击倒或捕捉它。'

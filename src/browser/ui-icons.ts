@@ -253,6 +253,9 @@ const GLYPHS = {
   /** A Max Raid den: a red-violet glow over a dark den. */
   raid: glyph(['....RR....', '...RWWR...', '..RWRRWR..', '.RRRRRRRR.', 'RRMRRRRMRR', '.MMMMMMMM.', 'MMbbbbbbMM', 'bbbbbbbbbb'],
     { R: '#E0405A', M: '#9A3AC8', W: CREAM, b: '#5A3A2A' }),
+  /** v27 ⑤ a Max shield pip: a pink-red pixel hexagon (12×12 with its outline). */
+  shield: glyph(['...SSSS...', '..SWWSSS..', '.SWSSSSSS.', 'SWSSSSSSSs', 'SSSSSSSSSs', 'SSSSSSSSSs', 'SSSSSSSSss', '.SSSSSSss.', '..SSSsss..', '...ssss...'],
+    { S: '#F0709A', s: '#B8406A', W: CREAM }),
   /** A TM disc with its label hole. */
   tm: glyph(['...SSSS...', '.SSWWSSSS.', '.SWSSSSSSs', 'SSSSkkSSSs', 'SSSkTTkSss', 'SSSSkkSSss', '.SSSSSSss.', '.SSSSSsss.', '...ssss...'],
     { S: '#9AA7C8', s: '#6A7590', T: '#E3C34F', W: CREAM }),

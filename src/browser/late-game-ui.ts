@@ -2,7 +2,6 @@
 // legend race, near-victory warning, spare gold), the world-page section for TMs / special training / contest entries, the city
 // panel's rush buttons and the notifications. Presentation only: every number comes from the PlayerView through the same quote /
 // blocker functions the authority uses (gold-sinks.ts, contest-seasons.ts), so a button is enabled exactly when the command is valid.
-import { TYPE_ESSENCE } from '../content/essences.ts';
 import { lateTuning } from '../content/depth-v26.ts';
 import { LEGEND_WONDERS } from '../content/legend-wonders.ts';
 import { TYPE_NAMES } from '../content/type-names.ts';
@@ -11,12 +10,11 @@ import type { Content } from '../content/units.ts';
 import { contentForView, unitDefinition } from '../content/units.ts';
 import { CONTEST_CATEGORY_INFO, CONTEST_SEASON_REASONS, contestScore, viewContestEntryBlocker } from '../core/contest-seasons.ts';
 import type { ContestCategory } from '../core/contest-seasons.ts';
-import { GOLD_SINK_REASONS, viewGoldSinkQuote, viewTaughtMoveType } from '../core/gold-sinks.ts';
+import { GOLD_SINK_REASONS, viewGoldSinkQuote, viewTaughtMoveType, viewTmTypes } from '../core/gold-sinks.ts';
 import type { GoldSinkAction } from '../core/gold-sinks.ts';
 import { hexDistance, hexToIndex, indexToHex } from '../core/hex.ts';
 import { ballPrice, viewPolicyEffects } from '../core/policies.ts';
 import type { Command, MapUnit, PlayerView, VisibleEvent } from '../core/model.ts';
-import { viewBadges } from '../core/unit-classes.ts';
 import type { VictoryRoute } from '../core/victory-watch.ts';
 import { pokemonSpritePath } from './sprites.ts';
 import { artImage, escapeAttr, statChip, typeBadge, uiIcon } from './ui-icons.ts';
@@ -24,6 +22,8 @@ import type { UiIconName } from './ui-icons.ts';
 import type { WorldCard } from './world-cards.ts';
 import { civOrYou } from './civ-names.ts';
 import { approachText, approachTile } from './world-goto.ts';
+import { maxRaidCardParts } from './max-raid-ui.ts';
+import { circuitPrizeFor } from '../core/contest-circuit.ts';
 
 type Pokemon = Extract<MapUnit, { kind: 'pokemon' }>;
 const esc = escapeAttr;
@@ -41,6 +41,12 @@ function bestEntrant(view: PlayerView, content: Content): { unit: Pokemon; score
     .sort((a, b) => b.score - a.score || Number(viewContestEntryBlocker(view, a.unit.id, content) !== null) - Number(viewContestEntryBlocker(view, b.unit.id, content) !== null) || a.unit.id - b.unit.id)[0] ?? null;
 }
 
+/** v27 ⑦: the placing prizes of a category (the same table as the judging, contest-circuit.ts). */
+export function circuitPrizeLine(category: ContestCategory, content: Content): string {
+  const first = circuitPrizeFor(1, category, content), second = circuitPrizeFor(2, category, content), third = circuitPrizeFor(3, category, content), other = circuitPrizeFor(4, category, content);
+  return `第 1 名 ${TYPE_NAMES[first.tm!]}属性招式学习器 + 时代分 +${first.eraScore}；第 2 名 ${second.gold} 金；第 3 名 ${third.gold} 金；其余参赛宝可梦经验 +${other.xp}`;
+}
+
 // ---------- next-action cards (§6.1) ----------
 export function depthWorldCards(view: PlayerView, content: Content = contentForView(view)): WorldCard[] {
   const exp = view.expansion, cards: WorldCard[] = [], player = view.economy.player;
@@ -52,14 +58,19 @@ export function depthWorldCards(view: PlayerView, content: Content = contentForV
     const category = seasons.category ? CONTEST_CATEGORY_INFO[seasons.category] : null;
     // Playtest 2026-11b N7: an open season nobody can enter says why, and is not ranked as an urgent next step.
     const open = Boolean(seasons.category && !seasons.ownEntry);
-    const blocked = open && !entryUnit ? !exp.contests?.own.halls.length ? '你还没有华丽大赛馆：先在城市建大赛馆，再派宝可梦站在馆所在的城里或旁边参赛'
+    // v27 ⑦: any own city will do; the reason names the nearby-city rule.
+    const blocked = open && !entryUnit ? content.contestCircuit ? '附近城市里没有可出场的宝可梦：派一只宝可梦站在任意己方城市里或旁边'
+      : !exp.contests?.own.halls.length ? '你还没有华丽大赛馆：先在城市建大赛馆，再派宝可梦站在馆所在的城里或旁边参赛'
       : CONTEST_SEASON_REASONS[(best ? viewContestEntryBlocker(view, best.unit.id, content) : null) ?? 'season-hall'] ?? '现在没有能参赛的宝可梦' : null;
+    const prizes = content.contestCircuit && seasons.category ? circuitPrizeLine(seasons.category, content) : '';
     cards.push({ id: 'season', title: `华丽大赛季 第 ${seasons.season} 届`, art: { icon: seasons.category ? CATEGORY_ICONS[seasons.category] : 'ribbon' },
-      status: `${category ? category.name : '类别未公布'} · ${left <= 0 ? '本轮评审' : `${left} 轮后`}${seasons.ownEntry ? ' · 已参赛' : ''}${blocked ? ` · 不能参赛：${exp.contests?.own.halls.length ? '没有合适的宝可梦' : '没有大赛馆'}` : ''}`,
+      status: `${category ? category.name : '类别未公布'} · ${left <= 0 ? '本轮评审' : `${left} 轮后`}${seasons.ownEntry ? ' · 已参赛' : ''}${blocked ? ` · 不能参赛：${content.contestCircuit || exp.contests?.own.halls.length ? '没有合适的宝可梦' : '没有大赛馆'}` : ''}`,
       tip: `第 ${seasons.nextRound} 轮轮末评审；赛前 ${lateTuning(content).seasonAnnounce} 轮（第 ${seasons.announceRound} 轮）公布类别后开放报名。\n`
+        + (content.contestCircuit ? '巡回华丽大赛：任意己方城市里或旁边的宝可梦都能报名（不需要大赛馆，大赛馆仍然加分）。\n' : '')
         + (category ? `本届「${category.name}」加分属性：${category.types.map(type => TYPE_NAMES[type]).join('、')}。\n` : '')
         + `得分 = 20 × 匹配属性（最多 2，学习器也算）+ 10 × 阶段 + 历练 + 5 × 大赛馆（最多 4）+ 0–9 决胜。名次人气：+${lateTuning(content).seasonRewards.join(' / +')}，其余 +${lateTuning(content).seasonEntryAppeal}；冠军得缎带。`
         + (best ? `\n你的最佳人选：${unitDefinition(best.unit, content).name}（#${best.unit.id}）${best.score} 分。` : '')
+        + (prizes ? `\n奖品：${prizes}。` : '')
         + (blocked ? `\n不能参赛：${blocked}。` : '')
         + `\n缎带：${Object.entries(seasons.ribbons).map(([id, count]) => `${civ(view, Number(id))} ×${count}`).join('、') || '还没有'}。`,
       urgency: open && !blocked ? (left <= 2 ? 0 : 1) : 3, distance: null,
@@ -71,10 +82,15 @@ export function depthWorldCards(view: PlayerView, content: Content = contentForV
     const boss = raids.active, unit = boss.unitId === null ? undefined : view.units.find(item => item.id === boss.unitId), name = content.species[boss.speciesId]?.name ?? '';
     const total = Object.values(boss.damage).reduce((sum, value) => sum + value, 0);
     const reach = raidReach(view, boss.tileIndex, content);
-    cards.push({ id: 'raid', title: `极巨巢穴：${name}`, art: { sprite: pokemonSpritePath(boss.speciesId) },
-      status: `${unit ? `HP ${unit.hp}/${boss.maxHp}` : `HP ${boss.maxHp}`} · 第 ${boss.endsAtRound} 轮后离开 · ${reach.status}`, ...reach.goTo,
-      tip: `本地区的${name}出现在${boss.tileIndex === null ? '远方（你还没探索过那里）' : '地图上'}，不移动，每轮末攻击所有相邻单位，不能捕捉。\n用普通攻击打它：伤害第一的文明得到这只宝可梦（出现在离巢最近的己方城市旁）和时代分 +1；伤害 ≥ 10% 的文明各得金币（每 10% 份额 ${lateTuning(content).raidShareGold} 金，最多 ${lateTuning(content).raidMaxGold}）。\n伤害：${Object.entries(boss.damage).map(([id, value]) => `${civ(view, Number(id))} ${value}（${total ? Math.round(value * 100 / total) : 0}%）`).join('、') || '还没有人出手'}。\n${reach.tip}`,
-      urgency: 0, distance: boss.tileIndex === null ? null : hexDistanceToOwn(view, boss.tileIndex), ...(boss.tileIndex === null ? {} : { tileIndex: boss.tileIndex }) });
+    // v27 ⑤: shields, phase, the reward preview and the free Dynamax (null before v27).
+    const max = maxRaidCardParts(view, content);
+    const ledger = boss.max?.contribution ?? boss.damage, ledgerTotal = Object.values(ledger).reduce((sum, value) => sum + value, 0);
+    cards.push({ id: 'raid', title: `${max ? '极巨团体战' : '极巨巢穴'}：${name}`, art: { sprite: pokemonSpritePath(boss.speciesId) },
+      status: `${unit ? `HP ${unit.hp}/${boss.maxHp}` : `HP ${boss.maxHp}`}${max ? ` · ${max.status}` : ''} · 第 ${boss.endsAtRound} 轮后离开 · ${reach.status}`, ...reach.goTo,
+      tip: max ? `本地区的${name}出现在${boss.tileIndex === null ? '远方（你还没探索过那里）' : '地图上'}，不移动，每轮末用极巨波攻击周围的单位，不能直接捕捉。\n${max.tip}\n贡献：${Object.entries(ledger).map(([id, value]) => `${civ(view, Number(id))} ${value}（${ledgerTotal ? Math.round(value * 100 / ledgerTotal) : 0}%）`).join('、') || '还没有人出手'}。\n${reach.tip}`
+        : `本地区的${name}出现在${boss.tileIndex === null ? '远方（你还没探索过那里）' : '地图上'}，不移动，每轮末攻击所有相邻单位，不能捕捉。\n用普通攻击打它：伤害第一的文明得到这只宝可梦（出现在离巢最近的己方城市旁）和时代分 +1；伤害 ≥ 10% 的文明各得金币（每 10% 份额 ${lateTuning(content).raidShareGold} 金，最多 ${lateTuning(content).raidMaxGold}）。\n伤害：${Object.entries(boss.damage).map(([id, value]) => `${civ(view, Number(id))} ${value}（${total ? Math.round(value * 100 / total) : 0}%）`).join('、') || '还没有人出手'}。\n${reach.tip}`,
+      urgency: 0, distance: boss.tileIndex === null ? null : hexDistanceToOwn(view, boss.tileIndex), ...(boss.tileIndex === null ? {} : { tileIndex: boss.tileIndex }),
+      ...(max?.action ? { action: max.action } : {}) });
   } else if (raids?.pending) {
     const den = raids.pending, name = content.species[den.speciesId]?.name ?? '';
     const reach = raidReach(view, den.tileIndex, content);
@@ -144,7 +160,7 @@ export function depthPanelCards(view: PlayerView, button: (label: string, action
   card: (id: string, title: string, body: string) => string): string {
   const content = contentForView(view), sinks = view.expansion?.goldSinks;
   if (!sinks) return '';
-  const types = (Object.keys(TYPE_ESSENCE) as TypeId[]).filter(type => viewBadges(view).has(TYPE_ESSENCE[type]));
+  const types = viewTmTypes(view);
   const rows = ownPokemon(view).map(unit => {
     const species = content.species[unit.speciesId], tm = sinks.moves[unit.id];
     const train = { type: 'SpecialTraining', unitId: unit.id } as const, trainQuote = viewGoldSinkQuote(view, train, content);
@@ -167,7 +183,7 @@ export function depthPanelCards(view: PlayerView, button: (label: string, action
 export function goldSinkOptions(view: PlayerView, content: Content = contentForView(view)): { training: Pokemon[]; tms: { unit: Pokemon; types: TypeId[] }[]; balls: boolean } {
   const sinks = view.expansion?.goldSinks, player = view.economy.player;
   if (!sinks) return { training: [], tms: [], balls: false };
-  const badges = (Object.keys(TYPE_ESSENCE) as TypeId[]).filter(type => viewBadges(view).has(TYPE_ESSENCE[type]));
+  const badges = viewTmTypes(view);
   const own = ownPokemon(view);
   const training = own.filter(unit => viewGoldSinkQuote(view, { type: 'SpecialTraining', unitId: unit.id }, content).ok);
   const tms = own.map(unit => ({ unit, types: badges.filter(type => viewGoldSinkQuote(view, { type: 'TeachMove', unitId: unit.id, typeId: type }, content).ok) })).filter(item => item.types.length);
@@ -185,7 +201,7 @@ export function pokemonGoldSinkButtons(view: PlayerView, unit: Pokemon, disabled
   const train: GoldSinkAction = { type: 'SpecialTraining', unitId: unit.id }, quote = viewGoldSinkQuote(view, train, content);
   const sink = (action: GoldSinkAction, icon: string, label: string, ok: boolean, why: string) =>
     `<button type="button" class="gold-sink-btn sink-icon-btn" data-gold-sink="${esc(JSON.stringify(action))}" aria-label="${esc(`${label}：${why}`)}" title="${esc(`${label}：${why}`)}"${disabled || !ok ? ' disabled' : ''}>${icon}</button>`;
-  const types = (Object.keys(TYPE_ESSENCE) as TypeId[]).filter(type => viewBadges(view).has(TYPE_ESSENCE[type]) && type !== species.typeId && type !== species.secondaryTypeId && type !== tm);
+  const types = viewTmTypes(view).filter(type => type !== species.typeId && type !== species.secondaryTypeId && type !== tm);
   return `<span class="sink-row" role="group" aria-label="${esc(`${name}的特训与学习器`)}">${sink(train, `${uiIcon('training', { size: 18 })}<small>${quote.ok ? quote.gold : '—'}</small>`, `特训 ${name}`, quote.ok,
     quote.ok ? `${quote.gold} 金换 +${lateTuning(content).trainingXp} 经验（每只每 ${lateTuning(content).trainingCooldown} 轮 1 次）` : quoteText(quote))}`
     + types.map(type => {
@@ -275,9 +291,27 @@ export function depthToast(payload: VisibleEvent['payload'], view: PlayerView): 
         target: world, action: '查看', key: 'raid', strategic: true };
     case 'RaidDefeated':
       return { tone: payload.playerId === me ? 'wonder' : 'info', icon: '✸', title: payload.playerId === me ? `你赢得了极巨团体战：${content.species[payload.speciesId]?.name ?? ''}加入队伍！` : `${civ(view, payload.playerId)}赢得了极巨团体战`,
-        detail: payload.gold[me] ? `你的伤害份额奖励 ${payload.gold[me]} 金。` : '', target: payload.playerId === me && payload.unitId !== null ? { kind: 'unit', unitId: payload.unitId } : world, key: 'raid', strategic: payload.playerId === me };
+        detail: payload.gold[me] ? `你的${payload.contribution ? '贡献' : '伤害'}份额奖励 ${payload.gold[me]} 金。` : '', target: payload.playerId === me && payload.unitId !== null ? { kind: 'unit', unitId: payload.unitId } : world, key: 'raid', strategic: payload.playerId === me };
     case 'RaidEnded':
-      return { tone: 'info', icon: '✸', title: `极巨巢穴的${content.species[payload.speciesId]?.name ?? ''}离开了`, detail: '没有被打倒。', target: null, key: 'raid' };
+      return { tone: 'info', icon: '✸', title: `极巨巢穴的${content.species[payload.speciesId]?.name ?? ''}离开了`, detail: `没有被打倒。${payload.gold?.[me] ? `你的参与奖 ${payload.gold[me]} 金。` : ''}`, target: null, key: 'raid' };
+    // v27 ⑤: the catch chances, the phase change, the den Dynamax.
+    case 'RaidCaptureRolled': {
+      const name = content.species[payload.speciesId]?.name ?? '';
+      if (payload.playerId !== me) return null;
+      return payload.success ? { tone: 'wonder', icon: '◓', title: `团体战捕捉成功：${name}加入队伍！`, detail: `捕捉率 ${payload.chance}%。`, target: payload.unitId !== null ? { kind: 'unit', unitId: payload.unitId } : world, key: 'raid-catch', strategic: true }
+        : { tone: 'info', icon: '◓', title: `团体战捕捉失败：${name}逃走了`, detail: `捕捉率 ${payload.chance}%。`, target: null, key: 'raid-catch' };
+    }
+    case 'RaidShieldsBroken':
+      return payload.phaseTwo ? { tone: 'war', icon: '✸', title: '极巨首领进入第二阶段', detail: `护盾回到 ${payload.shields} 格；轮末的极巨波打 2 格内所有单位。`, target: world, key: 'raid-phase' } : null;
+    case 'RaidDynamaxed':
+      return payload.playerId === me ? { tone: 'growth', icon: '✸', title: '团体战极巨化', detail: `到第 ${payload.untilRound} 轮：伤害 +30%、受到伤害 −30%。`, target: { kind: 'unit', unitId: payload.unitId }, key: 'raid-dynamax' } : null;
+    // v27 ⑦: placing prizes.
+    case 'ContestCircuitPrizes': {
+      const own = payload.prizes.find(item => item.playerId === me);
+      if (!own) return null;
+      const parts = [own.tm ? `${TYPE_NAMES[own.tm]}属性招式学习器（免费，不需要徽章）` : '', own.eraScore ? `时代分 +${own.eraScore}` : '', own.gold ? `${own.gold} 金` : '', own.xp ? `${content.species[own.speciesId]?.name ?? ''}经验 +${own.xp}` : ''].filter(Boolean);
+      return parts.length ? { tone: own.place === 1 ? 'wonder' : 'growth', icon: '✿', title: `华丽大赛季奖品：第 ${own.place} 名`, detail: `${parts.join('、')}。`, target: world, key: 'contest-prize' } : null;
+    }
     case 'VictoryWatchAlarm':
       return payload.playerId === me ? { tone: 'growth', icon: '!', title: `你的${ROUTE_NAMES[payload.route]}胜利已达 ${payload.percent}%`, detail: '所有文明都收到了这条预警。', target: world }
         : { tone: 'war', icon: '!', title: `接近胜利：${civ(view, payload.playerId)}的${ROUTE_NAMES[payload.route]}已达 ${payload.percent}%`, detail: ALARM_HINTS[payload.route], target: world, action: '查看', persistent: true, key: `alarm:${payload.playerId}:${payload.route}`, strategic: true };

@@ -49,7 +49,7 @@ import { legendRaceSwitch } from './legend-race-plan.ts';
 import { escortedSettler, stackEscorts } from './escort-plan.ts';
 import { planRivalDuel } from './rival-duel-plan.ts';
 import { raidAttackBonus, raidMoveTargets } from './raid-plan.ts';
-import { planMaxRaidAction } from './max-raid-plan.ts';
+import { maxRaidAttackScore, planMaxRaidAction } from './max-raid-plan.ts';
 import { cityProjectCandidates } from './project-plan.ts';
 import { exhaustAttackBonus } from './encounter-plan.ts';
 import { isExhausted, viewFirstBallUsed } from '../core/wild-encounters.ts';
@@ -375,6 +375,9 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
             + exhaustAttackBonus(view, target, preview.damage.min, content), unit.id, target.id);
         if (rival && rivalTeam.has(unit.id) && preview.ok && preview.damage.min > 0) add({ type: 'Attack', unitId: unit.id, target: { kind: 'unit', id: target.id } }, rivalGoal,
           400 + preview.damage.min - preview.counter.damage, unit.id, target.id);
+        // v27 ⑤: a Max raid boss is military work for every personality (null before v27).
+        const maxRaid = maxRaidAttackScore(view, unit, target, preview, content);
+        if (maxRaid !== null) add({ type: 'Attack', unitId: unit.id, target: { kind: 'unit', id: target.id } }, 'military', maxRaid, unit.id, target.id);
       }
       // v23: pillage an enemy improvement the unit already stands on (attacks score higher and win).
       const pillage = viewPillage(view, unit.id);
@@ -432,7 +435,7 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
       const hall = contestTargets.get(unit.id);
       if (hall && travelCloser(view, unit, to, hall)) add(action, 'economy', 95 - travelDistance(view, unit, to, hall), unit.id, index);
       const raid = raidTargets.get(unit.id);
-      if (raid && travelCloser(view, unit, to, raid)) add(action, 'military', 80 - travelDistance(view, unit, to, raid), unit.id, index);
+      if (raid && travelCloser(view, unit, to, raid)) add(action, 'military', (content.maxRaids ? 160 : 80) - travelDistance(view, unit, to, raid), unit.id, index);
       if (seek && far(to, seek) < far(unit.position, seek)) {
         add(action, 'military', 100 - far(to, seek), unit.id, index);
       }

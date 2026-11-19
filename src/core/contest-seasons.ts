@@ -12,6 +12,7 @@ import { isMapUnit } from './model.ts';
 import type { EventPayload, GameState, PlayerView } from './model.ts';
 import { taughtMoveType } from './gold-sinks.ts';
 import { contestEntryCityIds, resolveCircuitPrizes, seasonScoreBonus } from './contest-circuit.ts';
+import type { ContestCircuitEvent } from './contest-circuit.ts';
 
 export type ContestCategory = 'cool' | 'beauty' | 'cute' | 'smart' | 'tough';
 export const CONTEST_CATEGORIES: readonly ContestCategory[] = ['cool', 'beauty', 'cute', 'smart', 'tough'];
@@ -33,7 +34,8 @@ export type ContestSeasonView = { nextRound: number | null; season: number; cate
   ribbons: Record<number, number>; ownEntry: ContestEntry | null; entrants: number[]; last: ContestSeasonResult | null };
 export type ContestSeasonEvent =
   | { type: 'ContestSeasonEntered'; public: true; playerId: number; unitId: number; speciesId: SpeciesId }
-  | { type: 'ContestSeasonJudged'; public: true; season: number; category: ContestCategory; placings: ContestPlacing[] };
+  | { type: 'ContestSeasonJudged'; public: true; season: number; category: ContestCategory; placings: ContestPlacing[] }
+  | ContestCircuitEvent;
 export const isContestSeasonAction = (action: { type: unknown }): action is ContestSeasonAction => action.type === 'EnterContest';
 
 /** Season rounds of a game (45, 60 … within the round limit). */
@@ -74,7 +76,7 @@ export function validateContestSeasonAction(state: GameState, actorId: number, a
   if (!unit.actionLeft) return 'no-action';
   // v27 ⑦: the circuit opens every own city (the halls before v27).
   const halls = contestEntryCityIds(liveHalls(state, actorId), Object.values(state.cities).filter(city => city.ownerId === actorId).map(city => city.id).sort((a, b) => a - b), content);
-  if (!halls.some(cityId => hexDistance(state.cities[cityId].position, unit.position, state.map) <= 1)) return 'season-hall';
+  if (!halls.some(cityId => hexDistance(state.cities[cityId].position, unit.position, state.map) <= 1)) return content.contestCircuit ? 'season-city' : 'season-hall';
   return null;
 }
 export function applyContestSeasonAction(state: GameState, actorId: number, action: ContestSeasonAction, content: Content): EventPayload[] {
@@ -105,11 +107,12 @@ export function resolveContestSeasonRound(state: GameState, content: Content): E
     appeal: tuning.seasonRewards[index] ?? tuning.seasonEntryAppeal }));
   for (const placing of placings) contests[placing.playerId].appeal += placing.appeal;
   if (placings.length) ledger.ribbons[placings[0].playerId] = (ledger.ribbons[placings[0].playerId] ?? 0) + 1;
+  const entries = ledger.entries;
   ledger.entries = {}; ledger.held++;
   ledger.last = { season: season.index + 1, round: state.round, category, placings };
   return [{ type: 'ContestSeasonJudged', public: true, season: season.index + 1, category, placings: placings.map(item => ({ ...item })) },
     // v27 ⑦: placing prizes ([] before v27).
-    ...resolveCircuitPrizes(state, placings, content)];
+    ...resolveCircuitPrizes(state, placings, entries, { number: season.index + 1, category }, content)];
 }
 export function observeContestSeasons(state: GameState, playerId: number, content: Content): ContestSeasonView | undefined {
   const ledger = state.expansion?.contestSeasons;
@@ -134,9 +137,10 @@ export function viewContestEntryBlocker(view: PlayerView, unitId: number, conten
   if (!unit.actionLeft) return 'no-action';
   const entry = contestEntryCityIds(contests.own.halls, view.economy.cities.map(city => city.id), content);
   const halls = view.economy.cities.filter(city => entry.includes(city.id));
-  return halls.some(city => hexDistance(city.position, unit.position, view.map) <= 1) ? null : 'season-hall';
+  return halls.some(city => hexDistance(city.position, unit.position, view.map) <= 1) ? null : content.contestCircuit ? 'season-city' : 'season-hall';
 }
 export const CONTEST_SEASON_REASONS: Record<string, string> = {
   'contest-seasons-unavailable': '现在不能参赛', 'season-closed': '本届大赛还没开始报名（赛前 5 轮公布类别后开放）', 'season-entered': '本届已经派出参赛者',
   'unit-unavailable': '没有这只宝可梦', 'no-action': '它本轮已经行动过', 'season-hall': '要站在有大赛馆的己方城市里或旁边',
+  'season-city': '要站在任意己方城市里或旁边',
 };

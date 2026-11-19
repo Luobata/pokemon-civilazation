@@ -6,7 +6,7 @@ import { TYPE_COLORS } from '../content/type-colors.ts';
 import { indexToHex } from '../core/hex.ts';
 import type { Hex } from '../core/hex.ts';
 import type { PlayerView, VisibleEvent } from '../core/model.ts';
-import { formTrack, pulseTrack, routeTrack } from './render/animation.ts';
+import { formTrack, pulseTrack, routeTrack, shatterTrack } from './render/animation.ts';
 import type { FormKind, Track } from './render/animation.ts';
 import { DISTRICT_COLORS, ownerColor } from './render/canvas2d.ts';
 
@@ -24,7 +24,8 @@ export function bigEventTiles(payload: Payload, view: PlayerView): Hex[] {
   switch (payload.type) {
     case 'CityFounded': return [payload.position];
     case 'DistrictCompleted': return [indexToHex(payload.tileIndex, view.map)];
-    case 'UnitPromoted': case 'WorldStoneEvolution': case 'EraAbilityUsed': return known(unitAt(view, payload.unitId));
+    case 'UnitPromoted': case 'WorldStoneEvolution': case 'EraAbilityUsed': case 'RaidDynamaxed': return known(unitAt(view, payload.unitId));
+    case 'RaidShieldsBroken': return payload.unitId === null ? [] : known(unitAt(view, payload.unitId));
     case 'TradeRouteEstablished': return known(cityAt(view, payload.fromCityId), cityAt(view, payload.toCityId));
     case 'WildSpawned': case 'WorldNestSpawned': case 'WorldRampageStruckCity': return [payload.position];
     default: return [];
@@ -52,6 +53,12 @@ export function bigEventTrack(payload: Payload, view: PlayerView, key: string, o
       const color = payload.ability === 'tera' && payload.typeId ? TYPE_COLORS[payload.typeId] : FORM_COLORS[payload.ability];
       return formTrack(key, unit, payload.ability, color, options);
     }
+    // v27 ⑤: the free den Dynamax plays the Dynamax form change; shields breaking shatter on the boss.
+    case 'RaidDynamaxed': {
+      const unit = view.units.find(item => item.id === payload.unitId);
+      return unit ? formTrack(key, unit, 'dynamax', FORM_COLORS.dynamax, options) : null;
+    }
+    case 'RaidShieldsBroken': return payload.unitId !== null && unitAt(view, payload.unitId) ? shatterTrack(key, payload.unitId, payload.broken, payload.phaseTwo, options.motion) : null;
     default: return null;
   }
 }

@@ -36,6 +36,7 @@ import { unitDefinition, contentForView } from '../content/units.ts';
 import type { BallId } from '../content/economy.ts';
 import type { Command, CombatTarget, PlayerView } from '../core/model.ts';
 import { previewAttack, previewCapture } from '../core/preview.ts';
+import { MAX_RAID_REASONS, viewRaidDynamaxBlocker } from '../core/max-raids.ts';
 import { pokemonSpritePath } from './sprites.ts';
 import { WORLD_DEFINITIONS } from '../content/world-systems.ts';
 import { civHint } from './civ-hint.ts';
@@ -180,6 +181,9 @@ export function renderUnitPanel(view: PlayerView, selected: number | null, mode:
     if (era.unlocked.includes('zMove')) eraButton(status.zPrimed ? 'Z 招式待发' : `Z 招式 · ${ERA_ABILITY_RULES.zCost} ${name}${view.round < era.own.zReadyAtRound ? ` · 第 ${era.own.zReadyAtRound} 轮` : ''}`, { type: 'PrimeZMove', unitId: unit.id }, !status.zPrimed && view.round >= era.own.zReadyAtRound && has(ERA_ABILITY_RULES.zCost), ERA_ABILITIES.zMove.description);
     if (era.unlocked.includes('dynamax')) eraButton((status.dynamaxUntilRound ?? 0) >= view.round ? `极巨化至第 ${status.dynamaxUntilRound} 轮` : `极巨化 · ${ERA_ABILITY_RULES.dynamaxCost} ${name}${view.round < era.own.dynamaxReadyAtRound ? ` · 第 ${era.own.dynamaxReadyAtRound} 轮` : ''}`, { type: 'Dynamax', unitId: unit.id }, (status.dynamaxUntilRound ?? 0) < view.round && view.round >= era.own.dynamaxReadyAtRound && has(ERA_ABILITY_RULES.dynamaxCost), ERA_ABILITIES.dynamax.description);
   }
+  // v27 ⑤: the free den Dynamax (once per civilization per raid); it pulses while it can be used.
+  const raidBlocker = era && view.expansion?.raids?.active?.max ? viewRaidDynamaxBlocker(view, unit.id, CONTENT) : 'max-raids-unavailable';
+  if (raidBlocker !== 'max-raids-unavailable' && raidBlocker !== 'raid-dynamax-active') eraButtons.push(`<button type="button" class="${raidBlocker === null ? 'raid-dynamax-ready' : ''}" data-era-action='${JSON.stringify({ type: 'RaidDynamax', unitId: unit.id })}' title="${raidBlocker === null ? '团体战极巨化：免费，伤害 +30%、受到伤害 −30%，到团体战结束；每次团体战每文明一只' : MAX_RAID_REASONS[raidBlocker]}" ${busy || raidBlocker !== null ? 'disabled' : ''}>${uiIcon('raid', { size: 16 })}团体战极巨化</button>`);
   const teraOptions = era && stock && era.unlocked.includes('tera') && !status.tera && era.own.teraUnitId === null
     ? (Object.keys(TYPE_ESSENCE) as TypeId[]).filter(type => stock[TYPE_ESSENCE[type]] >= ERA_ABILITY_RULES.teraCost) : [];
   const eraMarkup = era ? `<section class="era-ability-box" id="era-ability-box"><p class="section-label">世代能力 · 第 ${era.generation} 世代${era.night ? ' · 夜晚' : ' · 白天'}</p>

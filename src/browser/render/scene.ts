@@ -72,10 +72,12 @@ export type SceneUnit = { key: string; unit: UnitMarkIdentity; index: number; wo
   hostile: boolean;
   /** v13: number of promotion traits (public), and whether an own unit can be promoted now. */
   rank?: number; promotable?: boolean;
-  /** Only while the unit is damaged (current < max); units in the scene are the visible ones. */
+  /** Only while the unit is damaged (current < max); units in the scene are the visible ones. Always on a Max raid boss. */
   hp?: { current: number; max: number };
   /** v27 ②: an exhausted wild Pokémon (public unit state): drawn grey with the `exhausted` mark. */
-  exhausted?: true };
+  exhausted?: true;
+  /** v27 ⑤: a Max raid boss (red-pink aura, 1.5× size, shield pips; `phase` 2 turns its HP bar purple). Absent before v27. */
+  max?: { shields: number; shieldMax: number; phase: 1 | 2 } };
 export type SceneGoTo = { path: readonly number[]; stops: readonly { index: number; turn: number }[]; preview: boolean };
 export type SceneYield = { index: number; yields: Yield; workable: boolean; inFocus: boolean };
 export type SceneWeather = { key: string; color: string; mark: string; tiles: number[]; center: number | null };
@@ -245,7 +247,9 @@ export function buildScene(input: MapRenderInput): MapScene {
   const atWar = new Set(view.diplomacy.filter(pair => pair.status === 'war' && (pair.a === view.playerId || pair.b === view.playerId))
     .map(pair => pair.a === view.playerId ? pair.b : pair.a));
   const content = contentForView(view);
+  const raid = view.expansion?.raids?.active, maxRaid = raid?.max && raid.max.shields !== null && raid.max.shieldMax !== null && raid.max.phase !== null ? raid.max : null;
   const units: SceneUnit[] = view.units.map(unit => {
+    const boss = maxRaid && raid!.unitId === unit.id ? { shields: maxRaid.shields!, shieldMax: maxRaid.shieldMax!, phase: maxRaid.phase! } : null;
     const index = indexOf(unit.position)!, status = era?.units[unit.id], maxHp = maxUnitHp(unit, content);
     const label = !status ? undefined : status.mega ? 'M' : (status.dynamaxUntilRound ?? 0) >= view.round ? '极' : status.tera ? '晶' : status.zPrimed ? 'Z' : undefined;
     const promotion = view.expansion?.promotions?.units[unit.id];
@@ -256,7 +260,8 @@ export function buildScene(input: MapRenderInput): MapScene {
       ...(promotion?.traits.length ? { rank: promotion.traits.length } : {}),
       ...(unit.ownerId === view.playerId && pendingPromotions(promotion) ? { promotable: true } : {}),
       ...(unit.hp < maxHp ? { hp: { current: Math.max(0, unit.hp), max: maxHp } } : {}),
-      ...(content.wildEncounters && unit.ownerId === null && isExhausted(unit, view.round) ? { exhausted: true as const } : {}) };
+      ...(content.wildEncounters && unit.ownerId === null && isExhausted(unit, view.round) ? { exhausted: true as const } : {}),
+      ...(boss ? { max: boss, hp: { current: Math.max(0, unit.hp), max: raid!.maxHp } } : {}) };
   });
 
   const mode = input.actionMode ?? null;

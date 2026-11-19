@@ -3,6 +3,8 @@
 //   while a rival's appeal is at 60% of its contest target (or a near-victory warning is out on its contest route) the hall cap is one
 //   higher and a show is held whenever the cooldown ends.
 // - Seasons: once the category is announced, the best-scoring Pokémon within reach walks to a hall (`contestMoveTargets`) and enters.
+//   v27 ⑦ (pace-v27 §8.3): any own city will do (a hall city first at equal distance); at war only a Pokémon at least 4 tiles from
+//   every visible enemy Pokémon goes.
 import { CONTEST_RULES, contestMinimum } from '../core/contests.ts';
 import { contestScore, viewContestEntryBlocker } from '../core/contest-seasons.ts';
 import { viewTaughtMoveType } from '../core/gold-sinks.ts';
@@ -32,12 +34,26 @@ const scoreOf = (view: PlayerView, unit: Pokemon, content: Content) => {
 };
 /** The entrant for the announced season: the best score among own Pokémon within 8 tiles of a hall (lowest id on ties). */
 function entrant(view: PlayerView, content: Content): { unit: Pokemon; hall: Hex } | null {
+  if (content.contestCircuit) return circuitEntrant(view, content);
   const seasons = view.expansion?.contestSeasons, contests = view.expansion?.contests;
   if (!content.contestSeasons || !seasons?.category || seasons.ownEntry || !contests?.own.halls.length || seasons.nextRound === null || view.round > seasons.nextRound) return null;
   const halls = view.economy.cities.filter(city => contests.own.halls.includes(city.id));
   if (!halls.length) return null;
   const nearest = (unit: Pokemon) => [...halls].sort((a, b) => hexDistance(a.position, unit.position, view.map) - hexDistance(b.position, unit.position, view.map) || a.id - b.id)[0];
   const unit = view.units.filter((item): item is Pokemon => item.ownerId === view.playerId && item.kind === 'pokemon' && hexDistance(nearest(item).position, item.position, view.map) <= 8)
+    .sort((a, b) => scoreOf(view, b, content) - scoreOf(view, a, content) || a.id - b.id)[0];
+  return unit ? { unit, hall: nearest(unit).position } : null;
+}
+function circuitEntrant(view: PlayerView, content: Content): { unit: Pokemon; hall: Hex } | null {
+  const seasons = view.expansion?.contestSeasons, contests = view.expansion?.contests;
+  if (!seasons?.category || seasons.ownEntry || !contests || seasons.nextRound === null || view.round > seasons.nextRound || !view.economy.cities.length) return null;
+  const enemies = new Set(view.diplomacy.filter(pair => pair.status === 'war' && (pair.a === view.playerId || pair.b === view.playerId)).map(pair => pair.a === view.playerId ? pair.b : pair.a));
+  const front = view.units.filter(unit => unit.ownerId !== null && enemies.has(unit.ownerId));
+  const hall = (id: number) => Number(!contests.own.halls.includes(id));
+  const nearest = (unit: Pokemon) => [...view.economy.cities].sort((a, b) => hexDistance(a.position, unit.position, view.map) - hexDistance(b.position, unit.position, view.map)
+    || hall(a.id) - hall(b.id) || a.id - b.id)[0];
+  const unit = view.units.filter((item): item is Pokemon => item.ownerId === view.playerId && item.kind === 'pokemon' && hexDistance(nearest(item).position, item.position, view.map) <= 8
+    && front.every(enemy => hexDistance(enemy.position, item.position, view.map) >= 4))
     .sort((a, b) => scoreOf(view, b, content) - scoreOf(view, a, content) || a.id - b.id)[0];
   return unit ? { unit, hall: nearest(unit).position } : null;
 }
