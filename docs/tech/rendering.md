@@ -75,6 +75,18 @@
 
 `tests/browser/performance.spec.ts` 每次全量 e2e 都会记录这三组数据。
 
+## 2.5D 投影（原型，ui-25d）
+
+设计见 `docs/design/ui-25d.md`。`?render=25d` 或 菜单 → 地图视角 打开，默认仍是平面。
+
+- `camera.ts` 的 `setMapTilt`：2.5D 时世界 y 乘 0.75（`hexToWorld` / `worldToHex` / `fitCamera` 一处处理），动画、相机、弹道的世界坐标都自动跟着压扁；平面时系数为 1，与以前逐位相同。场景的世界中心缓存以系数为键。
+- `render/projection.ts`（纯函数，Node 测试 `tests/core/projection-25d.test.ts`）：模式解析（URL > `localStorage` 的 `pokeciv.renderMode` > 平面）、高度表 `sceneLifts`、拾取 `pickHex`（前后排候选，按柱体 = 顶面 + 西南 / 东南崖壁命中）、动画高度插值 `liftAtWorld`。
+- `render/terrain25d.ts`：地块柱体（顶面贴图、两面崖壁、影子、海岸泡沫、边缘高光、河流和瀑布、竖立物件、地标石碑）按行从后往前画，所有环绕副本按行交错；同一行同一样式的路径合并成一个 `Path2D` 一次填充。`drawFog25d` 把顶面 + 崖壁的迷雾合成一条路径。
+- `render/chunks25d.ts`：2.5D 的 base 层不再缓存成屏幕大小的一张图，而是按世界空间切块（约 600 设备像素一块），每个缩放级别渲染一次，平移时只拷贝块。键 = 地形输入（生物群系、特征、领土边界、generation）+ 缩放 + DPR + 俯角；缩放刚变化且相机还在动时直接绘制。
+- `render/town25d.ts`：城镇（房子数随人口增长、首都塔楼、奇观金塔、夜间窗灯）和单位的棋子底座。
+- `canvas2d.ts` 只加了钩子：`Draw.squash`（地面上的六边形 / 边 / 选中圈压扁）、`Draw.liftAt`（动画中的单位、弹道、商路光点的高度），城市和单位底座在 2.5D 时换成 `town25d.ts` 的画法；`renderer.pick(point, camera)` 是新的屏幕 → 格子入口（平面时等于 `worldToHex(toWorld(...))`），`main.ts` 的点击、右键、悬停、前往、设施区选址都改用它。
+- 尚未跟随高度的：`tileToScreen`（覆盖层锚点、聚焦运镜、战斗卡锚点），最多偏下“高度 × 缩放”。
+
 ## 测试
 
 - `tests/core/render-scene.test.ts`（Node）：在真实的 50 轮 v10 对局里，每个玩家的场景中，单位只出现在当前可见格，其他标记只出现在已知格，单位集合与 PlayerView 完全一致；产出图层开关；Timeline 的插值、并行、按 key 替换、持续轨道和跳过。

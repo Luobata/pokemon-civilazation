@@ -21,7 +21,7 @@ import type { Hex } from '../../core/hex.ts';
 import type { PlayerView } from '../../core/model.ts';
 import { maxCityHp, workRadius } from '../../core/city.ts';
 import { maxUnitHp } from '../../core/unit.ts';
-import { hexToWorld } from '../camera.ts';
+import { hexToWorld, mapTilt } from '../camera.ts';
 import type { Point } from '../camera.ts';
 import { tileYieldReader } from '../tile-yields.ts';
 import type { SceneTerrain } from './terrain-features.ts';
@@ -116,7 +116,7 @@ export type MapScene = {
 
 const worldCache = new Map<string, Point[]>();
 function worldCenters(map: PlayerView['map']): Point[] {
-  const key = `${map.width}:${map.height}`;
+  const key = `${map.width}:${map.height}:${mapTilt()}`;
   let centers = worldCache.get(key);
   if (!centers) {
     if (worldCache.size >= 3) worldCache.delete(worldCache.keys().next().value!);

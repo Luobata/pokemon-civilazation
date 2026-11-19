@@ -1,0 +1,94 @@
+// ui-25d §12: the 2.5D terrain is cached in world space as chunks (a few rows × columns each, ~600 device px), rendered once per
+// zoom and reused while the camera pans: a panning frame is a handful of drawImage calls instead of a full terrain redraw.
+// Chunks are blitted back row first (wrapped copies interleaved), so a nearer chunk's tall columns cover the farther chunk, as
+// in the direct drawing. Rebuilt lazily when the terrain key (biomes, features, borders), zoom, DPR or tilt changes.
+import { HEX_RADIUS } from '../camera.ts';
+import type { Camera, Point } from '../camera.ts';
+import type { MapScene } from './scene.ts';
+import { drawBase25d } from './terrain25d.ts';
+
+type Bounds = { minX: number; minY: number; maxX: number; maxY: number };
+type Chunk = { canvas: HTMLCanvasElement; ox: number; oy: number; used: number };
+/** Chunks kept at most (least recently used ones are dropped). */
+const CHUNK_CAP = 96;
+
+export type ChunkFrame = {
+  context: CanvasRenderingContext2D; scene: MapScene; lifts: Float32Array; camera: Camera; squash: number; dpr: number;
+  /** Screen-x shift of each wrapped copy (CSS px). */
+  shifts: readonly number[];
+  width: number; height: number; shakeX: number; shakeY: number;
+  /** Terrain inputs (biomes, features, territory edges) and the cache generation; zoom, DPR and tilt are added here. */
+  key: string;
+  /** The camera held still since the last frame (chunks for a new zoom are only built then). */
+  settled: boolean;
+  ownerColor(ownerId: number | null): string;
+};
+
+export function createChunkCache() {
+  let key = '', frameNumber = 0;
+  let layout: { rows: number; cols: number; bounds: Bounds[]; zoomed: Point[] } | null = null;
+  const chunks = new Map<number, Chunk>();
+  return {
+    /** Draws the terrain from chunks; 'direct' when the zoom just changed and the camera is still moving (no chunks built). */
+    draw(f: ChunkFrame): 'hit' | 'miss' | 'direct' {
+      const { scene, camera, dpr } = f, zoom = camera.zoom, radius = HEX_RADIUS * zoom;
+      const full = `${f.key}|${zoom}|${dpr}|${f.squash}`;
+      if (full !== key) {
+        if (!f.settled && key) return 'direct';
+        key = full; chunks.clear();
+        // World positions at this zoom (lifted), relative to the camera origin: screen = zoomed + camera + shift.
+        const zoomed = scene.tiles.map((tile, index) => ({ x: tile.world.x * zoom, y: tile.world.y * zoom - f.lifts[index] * zoom }));
+        const tileWidth = Math.sqrt(3) * radius * dpr, rowHeight = 1.5 * radius * f.squash * dpr;
+        const cols = Math.max(2, Math.min(16, Math.floor(640 / tileWidth))), rows = Math.max(2, Math.min(16, Math.floor(480 / rowHeight)));
+        const across = Math.ceil(scene.width / cols), bounds: Bounds[] = [];
+        for (let index = 0; index < zoomed.length; index++) {
+          const row = Math.floor(index / scene.width), col = index % scene.width, id = Math.floor(row / rows) * across + Math.floor(col / cols), p = zoomed[index];
+          const box = bounds[id] ??= { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+          // Room for props and landmark stones above a tile, and for its cliffs down to the unexplored floor below it.
+          box.minX = Math.min(box.minX, p.x - radius * 1.3); box.maxX = Math.max(box.maxX, p.x + radius * 1.3);
+          box.minY = Math.min(box.minY, p.y - radius * 2.5); box.maxY = Math.max(box.maxY, p.y + radius * 2.7);
+        }
+        layout = { rows, cols, bounds, zoomed };
+      }
+      const { rows, cols, bounds, zoomed } = layout!, across = Math.ceil(scene.width / cols), down = Math.ceil(scene.height / rows);
+      let built = false;
+      frameNumber++;
+      f.context.save();
+      f.context.setTransform(1, 0, 0, 1, 0, 0);
+      for (let chunkRow = 0; chunkRow < down; chunkRow++) for (const shift of f.shifts) for (let chunkCol = 0; chunkCol < across; chunkCol++) {
+        const id = chunkRow * across + chunkCol, box = bounds[id];
+        if (!box) continue;
+        const left = box.minX + camera.x + shift, top = box.minY + camera.y;
+        if (left > f.width || left + box.maxX - box.minX < 0 || top > f.height || top + box.maxY - box.minY < 0) continue;
+        let chunk = chunks.get(id);
+        if (!chunk) {
+          chunk = build(f, zoomed, box, [chunkRow * rows, Math.min(scene.height, (chunkRow + 1) * rows)], [chunkCol * cols, Math.min(scene.width, (chunkCol + 1) * cols)]);
+          chunks.set(id, chunk);
+          built = true;
+        }
+        chunk.used = frameNumber;
+        f.context.drawImage(chunk.canvas, chunk.ox + Math.round((camera.x + shift) * dpr) + f.shakeX, chunk.oy + Math.round(camera.y * dpr) + f.shakeY);
+      }
+      f.context.restore();
+      if (chunks.size > CHUNK_CAP) {
+        const old = [...chunks.entries()].sort((a, b) => a[1].used - b[1].used).slice(0, chunks.size - CHUNK_CAP);
+        for (const [id] of old) chunks.delete(id);
+      }
+      return built ? 'miss' : 'hit';
+    },
+    clear() { key = ''; chunks.clear(); layout = null; },
+  };
+}
+
+function build(f: ChunkFrame, zoomed: readonly Point[], box: Bounds, rows: readonly [number, number], cols: readonly [number, number]): Chunk {
+  const { dpr } = f, ox = Math.floor(box.minX * dpr), oy = Math.floor(box.minY * dpr);
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.ceil(box.maxX * dpr) - ox + 1; canvas.height = Math.ceil(box.maxY * dpr) - oy + 1;
+  const context = canvas.getContext('2d')!;
+  context.imageSmoothingEnabled = false;
+  context.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const local = zoomed.map(p => ({ x: p.x - ox / dpr, y: p.y - oy / dpr }));
+  drawBase25d({ context, scene: f.scene, lifts: f.lifts, radius: HEX_RADIUS * f.camera.zoom, zoom: f.camera.zoom, squash: f.squash,
+    copies: [local], width: canvas.width / dpr, height: canvas.height / dpr, ownerColor: f.ownerColor, rows, cols });
+  return { canvas, ox, oy, used: 0 };
+}
