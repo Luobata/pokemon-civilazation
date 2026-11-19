@@ -783,6 +783,21 @@ export function inspectSystem(systemId: string, state: GameState): AuditSystemIn
     return { metrics: [metric('当前规则', '后期事件 v26'), metric('已出现的极巨巢穴', raids.held), metric('当前巢穴', raids.active ? `${raids.active.speciesId} · 第 ${raids.active.endsAtRound} 轮离开` : '无')],
       data: { raids, victoryWatch: state.expansion?.victoryWatch ?? {} } };
   }
+  if (system.id === 's-city-projects') {
+    const on = (state.setup.gameplayVersion ?? 0) >= 27, projects = state.expansion?.cityProjects;
+    if (!on) return { metrics: [metric('当前规则', '未启用（需 v27）')], data: {} };
+    return { metrics: [metric('当前规则', '城市计划 v27'),
+      ...Object.entries(projects?.done ?? {}).map(([id, row]) => metric(`玩家 ${id} 完成`, Object.entries(row).map(([kind, count]) => `${kind} ${count}`).join(' · ') || '0')),
+      metric('排队中的计划', Object.values(state.cities).filter(city => city.queue.some(order => order.item.kind === 'project')).length)], data: { cityProjects: projects ?? {} } };
+  }
+  if (system.id === 's-legend-favor') {
+    const on = (state.setup.gameplayVersion ?? 0) >= 27, legends = state.expansion?.legends;
+    if (!on || !legends) return { metrics: [metric('当前规则', '未启用（需 v27 与传说奇观）')], data: {} };
+    const owned = (id: number) => Object.values(legends.wonders).filter(record => record && state.cities[record.cityId]?.ownerId === id).length;
+    return { metrics: [metric('当前规则', '传说的青睐 v27'), ...state.turnOrder.map(id => metric(`玩家 ${id} 拥有传说`, `${owned(id)} · 下一座 +${15 * owned(id)}%`)),
+      metric('传说踪迹', Object.entries(state.expansion?.cityProjects?.legendTrail ?? {}).map(([city, amount]) => `城市 ${city}：${amount}`).join(' · ') || '无')],
+      data: { wonders: legends.wonders, legendTrail: state.expansion?.cityProjects?.legendTrail ?? {} } };
+  }
   if (system.id === 's-stacking') {
     const on = (state.setup.gameplayVersion ?? 0) >= 26;
     if (!on) return { metrics: [metric('当前规则', '未启用（需 v26）')], data: {} };

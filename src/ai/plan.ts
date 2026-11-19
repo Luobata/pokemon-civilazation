@@ -253,7 +253,8 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
     const work = [...new Set([...city.lockedTileIds, ...city.availableTileIds])].slice(0, city.population).sort((a, b) => a - b);
     if (work.length > city.workedTileIds.length) add({ type: 'AssignWork', cityId: city.id, workedTileIds: work, lockedTileIds: [...city.lockedTileIds] }, 'economy', 500, city.id);
     if (city.queue.length || city.pendingDeployments.length) continue;
-    const queue = (item: ProductionItem, goal: Goal, benefit: number, targetId = 0) => add({ type: 'SetProductionQueue', cityId: city.id, orders: [{ item }] }, goal, benefit, city.id, targetId);
+    let offered = 0;
+    const queue = (item: ProductionItem, goal: Goal, benefit: number, targetId = 0) => { offered++; add({ type: 'SetProductionQueue', cityId: city.id, orders: [{ item }] }, goal, benefit, city.id, targetId); };
     // v24 AI: no legendary wonder or district (long builds) before the third city, so a settler never waits behind one.
     if (wonderCity === city.id && wonder && !openingRush) queue({ kind: 'legend', defId: wonder }, 'economy', 260, LEGEND_WONDERS[wonder].dex);
     const district = openingRush ? undefined : districtCandidates(view, city.id, content)[0];
@@ -269,8 +270,6 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
       queue({ kind: 'building', defId: id }, 'economy', (y.food + y.production * 2 + y.gold * 2 + y.research * 2) * 100 - building.cost
         + (id === 'trainingGround' && bondThreatened.has(city.id) ? 1000 : 0), i);
     }
-    // v27 ③: city projects for an idle city ([] before v27).
-    for (const [i, candidate] of cityProjectCandidates(view, city.id, content).entries()) queue(candidate.item, 'economy', candidate.benefit, i);
     if (combat.length < Math.max(4, cities.length * 2) && (income > upkeep || player.gold >= 80)) {
       const badges = viewBadges(view);
       for (const [i, id] of trainableSpeciesIds(player, view.gameplayVersion, content, view.eraProgression).entries()) {
@@ -284,6 +283,8 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
           + roleTrainingBonus(view, id, content, preparingSiege) + typeCounterBonus(view, id, content) + classTrainingBonus(view, id, content) + rivalTrainingBonus(view, id, content), i);
       }
     }
+    // v27 ③: a city project for a city that would otherwise idle ([] before v27).
+    if (!offered) for (const [i, candidate] of cityProjectCandidates(view, city.id, content).entries()) queue(candidate.item, 'economy', candidate.benefit, i);
   }
   const wild = view.units.filter(unit => unit.ownerId === null && unit.kind === 'pokemon');
   if (cities.length && wild.some(target => canCaptureByPersonality(view, target, query) && combat.some(unit => hexDistance(unit.position, target.position, view.map) <= 2))

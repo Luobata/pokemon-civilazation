@@ -1049,6 +1049,22 @@ export const AUDIT_SYSTEMS: readonly AuditSystem[] = [
     sources: ['src/core/stacking.ts', 'src/ai/escort-plan.ts', 'src/core/opening-gift.ts', 'src/core/evolution-goals.ts'],
     actionTypes: ['Move', 'Attack', 'FoundCity', 'Evolve'],
   }),
+  system({
+    id: 's-city-projects', name: '城市计划（v27）', status: 'implemented',
+    summary: 'gameplay v27 ③（pace-v27 §4，3A）：5 种可重复的城市计划——培育屋孵蛋（花园）、道馆特训（宝可梦中心或道馆区）、图鉴调查报告（研究所区）、华丽大赛彩排（华丽大赛馆）、宝可梦嘉年华（任意城市）。成本 = 基础 × (100 + 20 × 本文明同种已完成数) / 100；可用加急采购买（4 金 / 生产）；每城队列最多 1 个。AI 只在城市没有其他可排项时按需要排计划。',
+    rules: ['cityProjectBlocker 是权威、城市面板与 AI 共用的一条判定；成本是 productionCost（带 stateProjectsDone / viewProjectsDone）。', '孵蛋物种 = 已登记一阶物种里本文明拥有最少的（同数按 id），不消耗 state.rng，不计新图鉴记录。', '彩排加分经 seasonScoreBonus 交给华丽大赛季（每届一次）；嘉年华每 10 轮最多 1 时代分（里程碑 festival）。', '账本 expansion.cityProjects 在第一次完成时创建；视图只给自己的完成次数；完成事件只发给城主。v≤26 拒绝 project 生产项。'],
+    checks: ['tests/core/city-projects.test.ts：成本公式、要求与每城 1 个、加急价格（权威 = 视图）、5 种效果、孵蛋确定性、彩排一次、迷雾、AI 无被拒命令。', 'tests/browser/pace-v27-economy.spec.ts：计划分页、悬停说明、一键建议、加急。', 'district-smoke 24 / 25 / 26 逐字节不变。'],
+    sources: ['src/core/city-projects.ts', 'src/ai/project-plan.ts', 'src/browser/city-projects-ui.ts', 'src/content/pace-v27.ts', 'docs/design/pace-v27.md'],
+    actionTypes: ['SetProductionQueue', 'RushProduction', 'EndTurn'],
+  }),
+  system({
+    id: 's-legend-favor', name: '传说的青睐（v27）', status: 'implemented',
+    summary: 'gameplay v27 ④（pace-v27 §5，4A）：传说奇观成本 = 原价 × (100 + 15 × 本文明现在拥有的传说数) / 100，每轮重算（在建时进度不丢）；竞争失败照旧退一半金币，另把 25% 的进度作为“传说踪迹”留给这座城的下一座传说。AI 拥有 4 座以上时只开工 12 轮内能建成的传说。',
+    rules: ['legendFavorCost（权威）与 viewLegendCost（界面、AI）同一公式；拥有数按奇观所在城市的当前主人。', '对手的竞赛档位按建造者自己的成本计算，不泄露拥有数。', '踪迹存在 expansion.cityProjects.legendTrail；新排的传说开工时带上，已排着的立即加上。'],
+    checks: ['tests/core/legend-favor.test.ts：公式、随城易主、在建时变价、踪迹、v26 不变。'],
+    sources: ['src/core/legend-favor.ts', 'src/core/legends.ts', 'src/core/legend-race.ts', 'src/ai/legend-plan.ts', 'src/browser/city-projects-ui.ts'],
+    actionTypes: ['SetProductionQueue', 'EndTurn'],
+  }),
 ];
 
 export const AUDIT_SYSTEM_BY_ID: ReadonlyMap<string, AuditSystem> = new Map(AUDIT_SYSTEMS.map(item => [item.id, item]));

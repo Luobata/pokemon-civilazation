@@ -1,3 +1,5 @@
+import { CITY_PROJECT_INFO } from '../content/pace-v27.ts';
+import { cityProjectResultText } from './city-projects-ui.ts';
 import { IMPROVEMENTS } from '../content/improvements.ts';
 import { pillageRewardLabel } from '../core/pillage.ts';
 import { hexDistance, hexToIndex } from '../core/hex.ts';
@@ -85,6 +87,10 @@ export function toastFor(payload: VisibleEvent['payload'], view: PlayerView, mem
       if (payload.playerId !== me) return null;
       return toast('production', '🏛', `城市 ${payload.cityId} 建成：${content.buildings[payload.definitionId].name}`, idle(payload.cityId) ? '生产队列空了，选择下一项。' : '队列继续生产下一项。',
         { kind: 'city', cityId: payload.cityId }, idle(payload.cityId) ? '选择生产' : '查看城市', produced(payload.cityId));
+    case 'CityProjectCompleted':
+      if (payload.playerId !== me) return null;
+      return toast('production', '★', `城市 ${payload.cityId} 完成计划：${CITY_PROJECT_INFO[payload.projectId].name}（第 ${payload.nth} 次）`, `${cityProjectResultText(payload, content)}${idle(payload.cityId) ? ' 生产队列空了，选择下一项。' : ''}`,
+        { kind: 'city', cityId: payload.cityId }, idle(payload.cityId) ? '选择生产' : '查看城市', produced(payload.cityId));
     case 'DistrictCompleted':
       if (payload.playerId !== me) return null;
       return toast('production', '▣', `城市 ${payload.cityId} 建成设施区：${DISTRICTS[payload.kind].name}`, idle(payload.cityId) ? '生产队列空了，选择下一项。' : '队列继续生产下一项。',
@@ -131,7 +137,7 @@ export function toastFor(payload: VisibleEvent['payload'], view: PlayerView, mem
         : toast('wonder', '♛', `${civName(view, payload.playerId)}建成了「${LEGEND_WONDERS[payload.legendId].wonderName}」`, `${LEGEND_WONDERS[payload.legendId].name} 的奇观已被他人建成。`, { kind: 'screen', screen: 'legends' }, '查看传说');
     case 'LegendWonderLost':
       if (payload.playerId !== me) return null;
-      return strategic(toast('war', '✕', `「${LEGEND_WONDERS[payload.legendId].wonderName}」被别人抢先建成`, `城市 ${payload.cityId} 的工程作废，退还 ${payload.refund} 金。`, { kind: 'city', cityId: payload.cityId }, '选择生产',
+      return strategic(toast('war', '✕', `「${LEGEND_WONDERS[payload.legendId].wonderName}」被别人抢先建成`, `城市 ${payload.cityId} 的工程作废，退还 ${payload.refund} 金。${payload.trail ? `传说踪迹：这座城的下一座传说自带 ${payload.trail} 生产。` : ''}`, { kind: 'city', cityId: payload.cityId }, '选择生产',
         idle(payload.cityId) ? produced(payload.cityId) : decision()));
     case 'DiplomacyChanged': {
       const relation = payload.relation;

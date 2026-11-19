@@ -1,3 +1,4 @@
+import { CITY_PROJECT_IDS } from '../content/pace-v27.ts';
 import { LEGEND_WONDERS } from '../content/legend-wonders.ts';
 import { DISTRICTS } from '../content/districts.ts';
 import { expansionActionType, parseExpansionAction } from '../core/expansion-commands.ts';
@@ -25,6 +26,7 @@ function production(value: unknown, content: Content): boolean {
     : value.item.kind === 'pokemon' ? member(value.item.defId, content.species)
     : value.item.kind === 'district' ? member(value.item.defId, DISTRICTS) && integer(value.item.tileIndex)
     : value.item.kind === 'legend' ? member(value.item.defId, LEGEND_WONDERS)
+    : value.item.kind === 'project' ? (CITY_PROJECT_IDS as readonly unknown[]).includes(value.item.defId)
     : value.item.kind === 'logistics' && (value.item.defId === 'settler' || value.item.defId === 'trader' || value.item.defId === 'builder') && (value.item.escortId === undefined || member(value.item.escortId, content.species));
 }
 

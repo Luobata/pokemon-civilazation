@@ -1,6 +1,7 @@
 import type { WildEncounterEvent } from './wild-encounters.ts';
 import type { LegendWonderId } from '../content/legend-wonders.ts';
 import type { DistrictId } from '../content/districts.ts';
+import type { CityProjectId } from '../content/pace-v27.ts';
 import type { ObservedDistrict } from './districts.ts';
 import type { EraProgression, GameplayVersion } from '../content/eras.ts';
 import type { ExpansionAction, ExpansionEvent, ExpansionState, ExpansionView } from './expansion-model.ts';
@@ -52,9 +53,11 @@ export function isMapUnit(unit: UnitState): unit is MapUnit { return unit.locati
 export type ProductionItem = { kind: 'building'; defId: BuildingId }
   | { kind: 'pokemon'; defId: SpeciesId } | { kind: 'logistics'; defId: 'settler' | 'trader' | 'builder'; escortId?: SpeciesId } | { kind: 'district'; defId: DistrictId; tileIndex: number }
   /** Gameplay v15: a legendary wonder. */
-  | { kind: 'legend'; defId: LegendWonderId };
+  | { kind: 'legend'; defId: LegendWonderId }
+  /** Gameplay v27 ③ (pace-v27 §4): a repeatable city project. */
+  | { kind: 'project'; defId: CityProjectId };
 export type ProductionOrder = { id: number; progress: number; item: ProductionItem };
-export type PendingDeployment = { enteredAtRound: number; sourceOrderId: number; item: Exclude<ProductionItem, { kind: 'building' | 'district' | 'legend' }> };
+export type PendingDeployment = { enteredAtRound: number; sourceOrderId: number; item: Exclude<ProductionItem, { kind: 'building' | 'district' | 'legend' | 'project' }> };
 export type CitySummary = { id: number; ownerId: number | null; position: Hex; headquartersOf?: number | null };
 export type CityState = CitySummary & {
   hp: number; population: number; food: number; buildingIds: BuildingId[];

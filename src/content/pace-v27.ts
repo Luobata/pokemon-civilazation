@@ -68,6 +68,21 @@ export const ECONOMY_TUNING: EconomyTuning = {
   festivalSatisfaction: 10, festivalEraInterval: 10,
   legendFavorPercent: 15, legendTrailPercent: 25,
 };
+/** ③ §4.1: the five projects' names and what each needs (the requirement text shown on the card when it is missing). */
+export const CITY_PROJECT_INFO: Record<CityProjectId, { name: string; needs: string }> = {
+  hatchEgg: { name: '培育屋孵蛋', needs: '花园' },
+  gymDrill: { name: '道馆特训', needs: '宝可梦中心或道馆区' },
+  fieldReport: { name: '图鉴调查报告', needs: '研究所区' },
+  contestRehearsal: { name: '华丽大赛彩排', needs: '华丽大赛馆' },
+  festival: { name: '宝可梦嘉年华', needs: '任意城市' },
+};
+/** ③ §4.1: production cost of a project after `done` completions of the same project by the civilization: base × (100 + step × done) / 100, floored. */
+export function cityProjectCost(content: { pace27?: Pace27Tuning } | undefined, id: CityProjectId, done: number): number {
+  const tuning = economyTuning(content);
+  return Math.floor(tuning.projectCost[id] * (100 + tuning.projectStepPercent * done) / 100);
+}
+/** ④ §5.1: a legend's cost percent when the civilization already owns `owned` legends (100 + favour × owned). */
+export const legendFavorCostPercent = (content: { pace27?: Pace27Tuning } | undefined, owned: number): number => 100 + economyTuning(content).legendFavorPercent * owned;
 
 // ---------- Events lane (⑤ ⑦) ----------
 export type EventsTuning = {

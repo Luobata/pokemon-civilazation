@@ -1,3 +1,5 @@
+import { CITY_PROJECT_INFO } from '../content/pace-v27.ts';
+import { cityProjectResultText } from './city-projects-ui.ts';
 import { OBJECTIVES, OBJECTIVE_IDS } from '../content/opening.ts';
 import type { ObjectiveId } from '../content/opening.ts';
 import { discoveryText } from '../content/discoveries.ts';
@@ -402,7 +404,8 @@ function activityText(payload: VisibleEvent['payload']) {
     case 'UnitPromoted': { const unit = session.getView().units.find(item => item.id === payload.unitId); return `${unit && unit.kind === 'pokemon' ? EXPANSION_CONTENT.species[unit.speciesId].name : '宝可梦'}晋升：获得特性「${PROMOTION_TRAITS[payload.trait].name}」（第 ${payload.rank} 次）`; }
     case 'LegendClueFound': return payload.playerId === session.getView().playerId ? `发现传说线索：${legendTitle(payload.legendId)}（剧情第一章，打开「传说」查看）` : '';
     case 'LegendWonderCompleted': return payload.playerId === session.getView().playerId ? `★ 建成传说奇观：${legendTitle(payload.legendId)}` : `文明 ${payload.playerId + 1} 建成了传说奇观：${legendTitle(payload.legendId)}`;
-    case 'LegendWonderLost': return payload.playerId === session.getView().playerId ? `${legendTitle(payload.legendId)} 已被他人建成，城市 ${payload.cityId} 的工程作废，退还 ${payload.refund} 金` : '';
+    case 'LegendWonderLost': return payload.playerId === session.getView().playerId ? `${legendTitle(payload.legendId)} 已被他人建成，城市 ${payload.cityId} 的工程作废，退还 ${payload.refund} 金${payload.trail ? `，传说踪迹 ${payload.trail} 生产留给下一座传说` : ''}` : '';
+    case 'CityProjectCompleted': return payload.playerId === session.getView().playerId ? `城市 ${payload.cityId} 完成计划「${CITY_PROJECT_INFO[payload.projectId].name}」（第 ${payload.nth} 次）：${cityProjectResultText(payload, contentForView(session.getView()))}` : '';
     case 'EraAgeBegan': return payload.playerId === session.getView().playerId ? `进入${payload.heroic ? '英雄时代' : ERA_AGES[payload.age].name}（上个世代 ${payload.previousScore} 分 / ${payload.previousRounds} 轮）${payload.dedicationPicks ? `，选择 ${payload.dedicationPicks} 张时代献礼` : ''}` : '';
     case 'DedicationChosen': return `时代献礼：${payload.dedicationIds.map(id => DEDICATIONS[id].name).join('、')}`;
     case 'GovernmentChanged': return `采用体制「${GOVERNMENTS[payload.governmentId].name}」${payload.goldCost ? `（${payload.goldCost} 金）` : ''}${payload.droppedPolicies.length ? `，取下方针：${payload.droppedPolicies.map(id => POLICIES[id].name).join('、')}` : ''}`;
@@ -468,7 +471,7 @@ export function soundsFor(payload: VisibleEvent['payload'], view: PlayerView, an
     case 'Captured': return payload.playerId !== me ? [] : [payload.success ? 'capture' : 'captureFail'];
     case 'Evolved': case 'WorldStoneEvolution': return own(payload.playerId, 'evolve');
     case 'CityFounded': return own(payload.playerId, 'cityFounded');
-    case 'BuildingCompleted': case 'DistrictCompleted': case 'UnitTrained': return own(payload.playerId, 'production');
+    case 'BuildingCompleted': case 'DistrictCompleted': case 'UnitTrained': case 'CityProjectCompleted': return own(payload.playerId, 'production');
     case 'TechCompleted': case 'DiscoveryMade': return own(payload.playerId, 'research');
     case 'TradeRouteEstablished': return own(payload.playerId, 'tradeRoute');
     case 'ObjectiveCompleted': case 'ItemBallClaimed': return own(payload.playerId, 'notify');

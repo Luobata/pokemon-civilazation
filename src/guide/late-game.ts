@@ -13,7 +13,7 @@ export const LATE_GAME_SECTIONS: readonly GuideSection[] = [
   { id: 'gold-sinks', group: '文明发展', title: '金币出口：加急、宝可梦中心、特训、学习器', badge: 'v26 新增', html: `
     <p>后期金币不再只是堆着。四种花法都只动你自己的国库和单位，按钮旁直接写价格；不能用时悬停说明原因。</p>
     <ul>
-      <li><strong>加急采购</strong>（城市面板生产队列下方）：当前生产项剩余的生产 × ${L.rushBuildingGold} 金（建筑）/ × ${L.rushUnitGold} 金（宝可梦、职能单位），本轮末与正常生产同时完成，本轮的生产照常流到下一项。传说奇观、设施区不能买；每城每轮 1 次。</li>
+      <li><strong>加急采购</strong>（城市面板生产队列下方）：当前生产项剩余的生产 × ${L.rushBuildingGold} 金（建筑）/ × ${L.rushUnitGold} 金（宝可梦、职能单位），本轮末与正常生产同时完成，本轮的生产照常流到下一项。传说奇观、设施区不能买（v27 的城市计划可以买，单价同建筑）；每城每轮 1 次。</li>
       <li><strong>宝可梦中心</strong>（城市面板）：休养中的宝可梦立刻在城旁归队，每剩 1 轮休养 ${L.recoveryGold} 金（最多 ${L.recoveryMaxGold} 金），HP 同正常归队（25%），本轮不能再行动。</li>
       <li><strong>特训</strong>（世界页「训练与学习器」）：站在有宝可梦中心的己方城市里或旁边，${L.trainingGold} 金换 ${L.trainingXp} 经验，花掉行动；每只每 ${L.trainingCooldown} 轮 1 次。</li>
       <li><strong>招式学习器</strong>：给一只宝可梦加 1 个只在对战层（道馆、大会、劲敌对决）和华丽大赛季里用的属性。属性要属于你持有徽章的精华；一、二阶 ${L.tmGold} 金，三阶 ${L.tmFinalGold} 金，可以花全价替换。<strong>每赢一枚巡回徽章送 1 张该道馆属性的学习器</strong>（免费）。</li>

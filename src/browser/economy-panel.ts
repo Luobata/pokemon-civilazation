@@ -33,6 +33,12 @@ import type { DistrictId } from '../content/districts.ts';
 import { civHint } from './civ-hint.ts';
 import { tileCoords } from './tile-coords.ts';
 import { statChip, uiIcon } from './ui-icons.ts';
+import { PROJECT_HELP, PROJECT_ICONS, projectCardsMarkup, projectEffectText } from './city-projects-ui.ts';
+import { CITY_PROJECT_IDS, CITY_PROJECT_INFO } from '../content/pace-v27.ts';
+import { cityProjectBlocker, viewCityProjectInput, viewProjectsDone } from '../core/city-projects.ts';
+import { cityProjectCandidates } from '../ai/project-plan.ts';
+import { installDataTips } from './ui-tip.ts';
+import { viewLegendCost } from '../core/legend-favor.ts';
 import type { UiIconName } from './ui-icons.ts';
 
 let rendered = '';
@@ -46,7 +52,7 @@ type CitySection = 'production' | 'citizens' | 'supplies' | 'research' | 'detail
 let citySection: CitySection = 'production';
 /** City tabs; 详情 holds the secondary panels (network, essences and gym, bond, buildings) so production fits the first screen. */
 const CITY_SECTIONS = [['production', '生产'], ['citizens', '人口与地块'], ['supplies', '物资采购'], ['research', '研究'], ['details', '详情']] as const;
-const productionLabels = { building: '建造建筑', pokemon: '训练宝可梦', logistics: '训练开拓队', district: '设施区', legend: '传说奇观' } as const;
+const productionLabels = { building: '建造建筑', pokemon: '训练宝可梦', logistics: '训练开拓队', district: '设施区', legend: '传说奇观', project: '城市计划' } as const;
 const buildingActions: Record<BuildingId, { label: string; section: CitySection; kind?: LegacyProductionItem['kind'] }> = {
   headquarters: { label: '训练开拓队', section: 'production', kind: 'logistics' },
   trainingGround: { label: '训练宝可梦', section: 'production', kind: 'pokemon' },
@@ -68,6 +74,7 @@ const YIELD_LABEL = { food: '食物', production: '生产', gold: '金币', rese
 /** Pixel icon for a production item: building art, the Pokémon / role / legend sprite, or the district's mark. */
 function productionIcon(item: ProductionItem): string {
   if (item.kind === 'district') return uiIcon(item.defId as UiIconName, { size: 36, className: 'production-icon district-icon' });
+  if (item.kind === 'project') return uiIcon(PROJECT_ICONS[item.defId], { size: 36, className: 'production-icon project-icon' });
   const src = item.kind === 'building' ? buildingArtPath(item.defId) : item.kind === 'pokemon' ? pokemonSpritePath(item.defId)
     : item.kind === 'legend' ? legendSprite(item.defId) : ROLE_POKEMON[item.defId].sprite;
   return `<img class="production-icon${item.kind === 'building' ? ' is-building' : ''}" src="${src}" width="40" height="40" alt="" aria-hidden="true">`;
@@ -131,7 +138,7 @@ function withEscort(item: LegacyProductionItem, root: HTMLElement, view: PlayerV
 type QuickFill = { item: LegacyProductionItem; name: string; rounds: number | null; why: string };
 function suggestProduction(view: PlayerView, city: PlayerView['economy']['cities'][number], options: readonly LegacyProductionItem[], rounds: (item: LegacyProductionItem) => number | null): QuickFill[] {
   const content = contentForView(view), picks: QuickFill[] = [];
-  const name = (item: LegacyProductionItem) => item.kind === 'building' ? content.buildings[item.defId].name : item.kind === 'legend' ? legendTitle(item.defId) : content.units[item.defId].name;
+  const name = (item: LegacyProductionItem) => item.kind === 'building' ? content.buildings[item.defId].name : item.kind === 'legend' ? legendTitle(item.defId) : item.kind === 'project' ? CITY_PROJECT_INFO[item.defId].name : content.units[item.defId].name;
   const fastest = (list: LegacyProductionItem[]) => [...list].sort((a, b) => (rounds(a) ?? 99) - (rounds(b) ?? 99) || (a.defId < b.defId ? -1 : 1))[0];
   const settlers = view.units.filter(unit => unit.ownerId === view.playerId && unit.kind === 'logistics' && unit.role !== 'builder' && unit.role !== 'trader').length
     + view.economy.cities.reduce((sum, other) => sum + other.queue.filter(order => order.item.kind === 'logistics' && order.item.defId === 'settler').length, 0);
@@ -139,6 +146,10 @@ function suggestProduction(view: PlayerView, city: PlayerView['economy']['cities
   if (settler && view.economy.cities.length < 4 && !settlers && city.population >= 2) picks.push({ item: settler, name: name(settler), rounds: rounds(settler), why: '城市还少：开拓队去推荐城址建新城。' });
   const building = fastest(options.filter(item => item.kind === 'building'));
   if (building) picks.push({ item: building, name: name(building), rounds: rounds(building), why: '最快建成的建筑，长期产出。' });
+  // v27 ③: the project the AI would queue here (the same need order), offered before a Pokémon (an idle city's production has somewhere to go).
+  const project = cityProjectCandidates(view, city.id, content)[0]?.item;
+  if (project?.kind === 'project' && picks.length < 2 && options.some(item => item.kind === 'project' && item.defId === project.defId))
+    picks.push({ item: project, name: name(project), rounds: rounds(project), why: `城市计划：${projectEffectText(view, project.defId, content)}。` });
   const strength = (item: LegacyProductionItem) => item.kind === 'pokemon' ? content.species[item.defId].attack + content.species[item.defId].defense : -1;
   const pokemon = [...options.filter(item => item.kind === 'pokemon')].sort((a, b) => strength(b) - strength(a) || (a.defId < b.defId ? -1 : 1))[0];
   if (pokemon?.kind === 'pokemon' && picks.length < 2) picks.push({ item: pokemon, name: name(pokemon), rounds: rounds(pokemon), why: `可训练的最强宝可梦（攻 ${content.species[pokemon.defId].attack} · 防 ${content.species[pokemon.defId].defense}）。` });
@@ -158,14 +169,17 @@ export function renderEconomyPanel(view: PlayerView, selectedCity: number | null
   if (signature === rendered) return;
   rendered = signature;
   const root = document.querySelector<HTMLElement>('#economy')!;
+  installDataTips();
   const { player, cities } = view.economy;
   const policy = viewPolicyEffects(view);
   const city = cities.find(city => city.id === selectedCity);
   root.hidden = !city;
   if (!city) { root.innerHTML = ''; return; }
-  const itemName = (item: ProductionItem): string => item.kind === 'logistics' && item.escortId ? `${CONTENT.units[item.defId].name}（随行 ${CONTENT.species[item.escortId].name}）` : item.kind === 'legend' ? `${legendTitle(item.defId)}（传说奇观）` : item.kind === 'district' ? `${DISTRICTS[item.defId].name}（设施区）` : item.kind === 'building' ? CONTENT.buildings[item.defId].name : CONTENT.units[item.defId].name;
+  const itemName = (item: ProductionItem): string => item.kind === 'project' ? `${CITY_PROJECT_INFO[item.defId].name}（城市计划）` : item.kind === 'logistics' && item.escortId ? `${CONTENT.units[item.defId].name}（随行 ${CONTENT.species[item.escortId].name}）` : item.kind === 'legend' ? `${legendTitle(item.defId)}（传说奇观）` : item.kind === 'district' ? `${DISTRICTS[item.defId].name}（设施区）` : item.kind === 'building' ? CONTENT.buildings[item.defId].name : CONTENT.units[item.defId].name;
   const readYield = tileYieldReader(view);
-  const costOf = (item: ProductionItem) => productionCost(item, CONTENT, policy.trainingDiscountPercent, leaderEffects(player.leaderId).settlerDiscountPercent);
+  // v27: projects at the civilization's current count, legends at the favoured cost (both the stock cost before v27).
+  const costOf = (item: ProductionItem) => item.kind === 'legend' ? viewLegendCost(view, item.defId, CONTENT)
+    : productionCost(item, CONTENT, policy.trainingDiscountPercent, leaderEffects(player.leaderId).settlerDiscountPercent, viewProjectsDone(view));
   const hallShare = view.expansion?.contests?.own.building[city.id] !== undefined ? Math.max(1, Math.floor(city.yields.production / 2)) : 0;
   const rate = city.yields.production - hallShare;
   const allOptions: LegacyProductionItem[] = [
@@ -182,6 +196,8 @@ export function renderEconomyPanel(view: PlayerView, selectedCity: number | null
     ...(view.expansion?.cityNetwork && city.buildingIds.includes(CITY_NETWORK_RULES.trader.building) ? [{ kind: 'logistics' as const, defId: 'trader' as const }] : []),
     ...(usesBuilders(view) ? [{ kind: 'logistics' as const, defId: 'builder' as const }] : []),
     ...buildableLegends(view, city).map(defId => ({ kind: 'legend' as const, defId })),
+    // v27 ③: the projects this city may queue now (absent before v27).
+    ...CITY_PROJECT_IDS.filter(defId => cityProjectBlocker(viewCityProjectInput(view, city, CONTENT), defId) === null).map(defId => ({ kind: 'project' as const, defId })),
   ];
   // v22 starts with every building locked behind a tech: open the first tab that has something to produce.
   if (!kindChosen && !allOptions.some(item => item.kind === productionKind)) productionKind = (['building', 'pokemon', 'logistics'] as const).find(kind => allOptions.some(item => item.kind === kind)) ?? productionKind;
@@ -212,6 +228,7 @@ export function renderEconomyPanel(view: PlayerView, selectedCity: number | null
   const optionEffect = (item: LegacyProductionItem): string => {
     if (item.kind === 'building') return buildingEffectChips(item.defId);
     if (item.kind === 'legend') return `${legendEffectText(item.defId)} · 全世界唯一`;
+    if (item.kind === 'project') return projectEffectText(view, item.defId, CONTENT);
     if (item.kind === 'logistics') return item.defId === 'builder' ? `${ROLE_POKEMON.builder.job} ${BUILDER_RULES.charges} 处` : item.defId === 'trader' ? ROLE_POKEMON.trader.job : `${ROLE_POKEMON.settler.job} · 移动 ${CONTENT.units.settler.move} · 无维护费`;
     const species = CONTENT.species[item.defId];
     return `${statChip('attack', species.attack, CONTENT.combat === 'strength' ? '战斗力 攻击' : '攻击')}${statChip('defense', species.defense, '防御')}${statChip('gold', `−${species.upkeep}`, '维护 金/轮')}${districtXp ? statChip('star', `+${districtXp}`, '设施区出场经验') : ''}`;
@@ -228,7 +245,7 @@ export function renderEconomyPanel(view: PlayerView, selectedCity: number | null
     const cost = costOf(order.item);
     return `<li class="${i === 0 ? 'is-current' : ''}">${productionIcon(order.item)}<div class="queue-body"><div class="queue-name"><span title="${itemName(order.item)}">${itemName(order.item)}</span><span>${order.progress}/${cost}</span></div><div class="queue-progress"><span style="width:${Math.min(100, order.progress * 100 / cost)}%"></span></div></div><span class="queue-eta" title="${i === 0 ? '当前生产' : '排队中'} · 预计完成">${roundsText(queueEtas[i])}</span><div class="queue-actions"><button data-up="${i}" aria-label="上移" title="上移" ${i ? '' : 'disabled'}>▲</button><button data-down="${i}" aria-label="下移" title="下移" ${i < city.queue.length - 1 ? '' : 'disabled'}>▼</button><button data-remove="${i}" aria-label="取消" title="取消">✕</button></div></li>`;
   }).join('');
-  const productionHelp = productionKind === 'legend' ? '传说奇观全世界只有一座：先建成的文明得到它，别人在建的同名奇观作废并按一半退还金币。奇观跟着城市走。' : productionKind === 'district' ? '选择设施区类型，再在地图上选格预览；确认后才会加入队列。' : productionKind === 'logistics' ? (view.expansion?.cityNetwork ? `${usesBuilders(view) ? `工匠（${ROLE_POKEMON.builder.species}）修建地块改良，每个能建 ${BUILDER_RULES.charges} 处。` : ''}开拓队（${ROLE_POKEMON.settler.species}）建新城；随行宝可梦的属性决定新城的开局特长（只对开拓队有效）。商队需要本城有友好商店，走到另一座己方城市旁边即可开通商路（目的城 食物 +2、生产 +1，出发城 金币 +3）。${city.buildingIds.includes(CITY_NETWORK_RULES.trader.building) ? '' : '本城还没有友好商店，不能训练商队。'}` : '训练完成后，开拓队出现在城市周围。选中它，前往新的土地建城。') : productionKind === 'pokemon' ? '训练已经登记的宝可梦。完成后在城市周围出场。' : '建筑留在这座城市内，建成后自动提供产出或训练效果。';
+  const productionHelp = productionKind === 'project' ? PROJECT_HELP : productionKind === 'legend' ? '传说奇观全世界只有一座：先建成的文明得到它，别人在建的同名奇观作废并按一半退还金币。奇观跟着城市走。' : productionKind === 'district' ? '选择设施区类型，再在地图上选格预览；确认后才会加入队列。' : productionKind === 'logistics' ? (view.expansion?.cityNetwork ? `${usesBuilders(view) ? `工匠（${ROLE_POKEMON.builder.species}）修建地块改良，每个能建 ${BUILDER_RULES.charges} 处。` : ''}开拓队（${ROLE_POKEMON.settler.species}）建新城；随行宝可梦的属性决定新城的开局特长（只对开拓队有效）。商队需要本城有友好商店，走到另一座己方城市旁边即可开通商路（目的城 食物 +2、生产 +1，出发城 金币 +3）。${city.buildingIds.includes(CITY_NETWORK_RULES.trader.building) ? '' : '本城还没有友好商店，不能训练商队。'}` : '训练完成后，开拓队出现在城市周围。选中它，前往新的土地建城。') : productionKind === 'pokemon' ? '训练已经登记的宝可梦。完成后在城市周围出场。' : '建筑留在这座城市内，建成后自动提供产出或训练效果。';
   const yieldCell = (key: keyof typeof YIELD_LABEL) => `<div class="yield-item ${key}">${uiIcon(key, { size: 18, label: YIELD_LABEL[key] })}<small aria-hidden="true">${YIELD_LABEL[key]}</small><strong>${city.yields[key]}</strong></div>`;
   root.innerHTML = `<div class="economy-head"><div id="city-summary" class="city-summary"><h2 class="economy-title">城市 ${city.id}<span class="civ-badge">文明 ${view.playerId + 1}</span>${isHq ? '<span class="civ-badge hq-badge">联盟总部</span>' : ''}</h2>
     <p class="city-meta">人口 <b>${city.population}</b> · HP ${city.hp}/${maxCityHp(city, CONTENT)} · 观测者 ${city.population - city.workedTileIds.length} · <span id="city-growth-turns" class="${net > 0 ? '' : 'stalled'}">${growthText}</span>${bondAlert}</p></div>
@@ -251,8 +268,8 @@ export function renderEconomyPanel(view: PlayerView, selectedCity: number | null
       <ol id="production-queue">${queueMarkup}</ol>${cityGoldSinkMarkup(view, city.id, disabled)}
       ${city.queue.length ? '' : `<p class="empty-note">队列为空。点击下方项目开始生产${quickFill.length ? '，或一键用建议填上' : ''}。</p>${quickFillMarkup(quickFill, disabled || queueFull)}`}
       ${city.pendingDeployments.length ? `<p id="pending-deployments">待出场 ${city.pendingDeployments.length}：${city.pendingDeployments.map(p => itemName(p.item)).join('、')}</p>` : ''}</div>
-      <div class="production-tabs" role="group" aria-label="生产类别">${(Object.keys(productionLabels) as ProductionItem['kind'][]).filter(kind => (kind !== 'district' || view.expansion?.districts) && (kind !== 'legend' || view.expansion?.legends)).map(kind => `<button data-production-kind="${kind}" aria-pressed="${kind === productionKind}" ${disabled ? 'disabled' : ''}>${productionLabels[kind]}</button>`).join('')}</div>
-      ${productionKind === 'district' ? districtTypeCards(view, city.id, disabled) : `${productionKind === 'logistics' && view.expansion?.cityNetwork ? escortSelectMarkup(view, CONTENT) : ''}
+      <div class="production-tabs" role="group" aria-label="生产类别">${(Object.keys(productionLabels) as ProductionItem['kind'][]).filter(kind => (kind !== 'district' || view.expansion?.districts) && (kind !== 'legend' || view.expansion?.legends) && (kind !== 'project' || CONTENT.cityProjects)).map(kind => `<button data-production-kind="${kind}" aria-pressed="${kind === productionKind}" ${disabled ? 'disabled' : ''}>${productionLabels[kind]}</button>`).join('')}</div>
+      ${productionKind === 'district' ? districtTypeCards(view, city.id, disabled) : productionKind === 'project' ? projectCardsMarkup(view, city, CONTENT, rate, disabled) : `${productionKind === 'logistics' && view.expansion?.cityNetwork ? escortSelectMarkup(view, CONTENT) : ''}
       ${options.length ? `<ul id="production-list" class="production-list" aria-label="可生产项目 · 点击加入队列">${optionRows}</ul>${queueFull ? '<p class="empty-note">队列已满（5/5）。完成或取消一项后才能继续加入。</p>' : ''}` : productionKind === 'legend' ? '' : '<p class="empty-note">当前没有可建项目。研究新科技可解锁更多建筑。</p>'}
       ${productionKind === 'pokemon' ? lockedSpeciesMarkup(view, CONTENT) : ''}`}
       <p class="production-help">${productionHelp}</p>

@@ -7,14 +7,21 @@ import type { Hex } from '../core/hex.ts';
 import { viewLegendBlocker } from '../core/legends.ts';
 import type { PlayerView } from '../core/model.ts';
 import { legendRaceVeto } from './legend-race-plan.ts';
+import { contentForView } from '../content/units.ts';
+import { viewLegendCost, viewOwnedLegends } from '../core/legend-favor.ts';
 
+/** v27 ④ (pace-v27 §5.3): from this many owned legends on, a legend is only started when the city finishes it within `FAVOR_ROUNDS`
+ *  at the favoured cost (otherwise the city's production goes to city projects). */
+const FAVOR_OWNED = 4, FAVOR_ROUNDS = 12;
 export function planLegendWonder(view: PlayerView, threatened: ReadonlySet<number>): { cityId: number | null; legendId: LegendWonderId | null } {
   const legends = view.expansion?.legends;
   if (!legends || legends.building.length) return { cityId: null, legendId: null };
+  const content = contentForView(view), favour = Boolean(content.legendFavor) && viewOwnedLegends(view) >= FAVOR_OWNED;
   const cities = [...view.economy.cities].filter(city => !threatened.has(city.id)).sort((a, b) => b.yields.production - a.yields.production || a.id - b.id);
   for (const city of cities) {
+    const quick = (id: LegendWonderId) => !favour || (city.yields.production > 0 && Math.ceil(viewLegendCost(view, id, content) / city.yields.production) <= FAVOR_ROUNDS);
     // v26 D: the legend race may veto a legend another civilization is about to finish (never before v26).
-    const legendId = LEGEND_WONDER_IDS.find(id => viewLegendBlocker(view, city, id) === null && !legendRaceVeto(view, id));
+    const legendId = LEGEND_WONDER_IDS.find(id => viewLegendBlocker(view, city, id) === null && !legendRaceVeto(view, id) && quick(id));
     if (legendId) return { cityId: city.id, legendId };
   }
   return { cityId: null, legendId: null };

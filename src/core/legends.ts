@@ -19,6 +19,8 @@ import type { CityState, EventPayload, GameState, PlayerView } from './model.ts'
 import { ownedRareBerries } from './rare-berries.ts';
 import { playerGeneration } from './roster.ts';
 import type { LegendRaceEntry } from './legend-race.ts';
+import { legendFavorCost, recordLegendTrail } from './legend-favor.ts';
+import { takeLegendTrail } from './city-projects.ts';
 
 export type LegendWonderRecord = { cityId: number; builderId: number; round: number };
 export type LegendState = {
@@ -43,7 +45,8 @@ export type LegendView = {
 export type LegendEvent =
   | { type: 'LegendClueFound'; playerId: number; legendId: LegendWonderId }
   | { type: 'LegendWonderCompleted'; playerId: number; legendId: LegendWonderId; public: true }
-  | { type: 'LegendWonderLost'; playerId: number; legendId: LegendWonderId; cityId: number; refund: number };
+  /** `trail` (v27 ④ only): production carried to the city's next legend. */
+  | { type: 'LegendWonderLost'; playerId: number; legendId: LegendWonderId; cityId: number; refund: number; trail?: number };
 
 export const usesLegends = (state: Pick<GameState, 'setup' | 'expansion'>) =>
   state.expansion !== undefined && state.setup.eraProgression !== undefined && gameplayAtLeast(state.setup, 15);
@@ -110,19 +113,25 @@ export function legendWonderBlocker(state: GameState, city: CityState, id: Legen
   return null;
 }
 
-/** Completes a wonder order: records it, then cancels the same wonder everywhere else with a half refund. */
-export function completeLegendWonder(state: GameState, city: CityState & { ownerId: number }, id: LegendWonderId): EventPayload[] {
+/** Completes a wonder order: records it, then cancels the same wonder everywhere else with a half refund. v27 ④: the lost progress also
+ *  leaves a legend trail (src/core/legend-favor.ts) — to the city's next queued legend at once, else to the next one it starts. */
+export function completeLegendWonder(state: GameState, city: CityState & { ownerId: number }, id: LegendWonderId, content: Content = contentFor(state.setup)): EventPayload[] {
   const ledger = state.expansion!.legends!;
   ledger.wonders[id] = { cityId: city.id, builderId: city.ownerId, round: state.round };
   const events: EventPayload[] = [{ type: 'LegendWonderCompleted', playerId: city.ownerId, legendId: id, public: true }];
   for (const other of Object.values(state.cities).sort((a, b) => a.id - b.id)) {
     if (other.ownerId === null) continue;
+    let trail = 0;
     for (const order of other.queue.filter(item => item.item.kind === 'legend' && item.item.defId === id)) {
       const refund = Math.floor(order.progress * LEGEND_RULES.lostRefundPermille / 1000);
       state.players[other.ownerId].gold += refund;
-      events.push({ type: 'LegendWonderLost', playerId: other.ownerId, legendId: id, cityId: other.id, refund });
+      const carried = recordLegendTrail(state, other.id, order.progress, content);
+      trail += carried;
+      events.push({ type: 'LegendWonderLost', playerId: other.ownerId, legendId: id, cityId: other.id, refund, ...(carried ? { trail: carried } : {}) });
     }
     other.queue = other.queue.filter(item => !(item.item.kind === 'legend' && item.item.defId === id));
+    const next = trail ? other.queue.find(item => item.item.kind === 'legend') : undefined;
+    if (next) next.progress += takeLegendTrail(state, other.id);
   }
   return events;
 }
@@ -226,7 +235,7 @@ export function recordLegends(after: GameState, events: readonly EventPayload[],
   return output;
 }
 
-export function observeLegends(state: GameState, playerId: number, visible: ReadonlySet<number>): LegendView | undefined {
+export function observeLegends(state: GameState, playerId: number, visible: ReadonlySet<number>, content: Content = contentFor(state.setup)): LegendView | undefined {
   const ledger = state.expansion?.legends;
   if (!ledger) return undefined;
   const explored = new Set(state.knowledge[playerId]?.exploredTileIds ?? []);
@@ -237,7 +246,7 @@ export function observeLegends(state: GameState, playerId: number, visible: Read
     return { legendId, ownerId, ...(ownerId === playerId ? { cityId: record.cityId } : {}), round: record.round };
   }).sort((a, b) => LEGEND_WONDERS[a.legendId].dex - LEGEND_WONDERS[b.legendId].dex);
   const building = Object.values(state.cities).filter(city => city.ownerId === playerId).sort((a, b) => a.id - b.id)
-    .flatMap(city => city.queue.flatMap(order => order.item.kind === 'legend' ? [{ legendId: order.item.defId, cityId: city.id, progress: order.progress, cost: legendCost(order.item.defId) }] : []));
+    .flatMap(city => city.queue.flatMap(order => order.item.kind === 'legend' ? [{ legendId: order.item.defId, cityId: city.id, progress: order.progress, cost: legendFavorCost(state, playerId, order.item, legendCost(order.item.defId), content) }] : []));
   return { sites, clues: [...(ledger.clues[playerId] ?? [])], wonders, building,
     generation: playerGeneration(state.players[playerId], state.setup.eraProgression), maxGeneration: modeMaxGeneration(state) };
 }

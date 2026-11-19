@@ -6,6 +6,7 @@ import { OVERVIEW_SECTIONS, SYSTEM_SECTIONS } from './systems.ts';
 import { civ6Section } from './civ6.ts';
 import { LATE_GAME_SECTIONS } from './late-game.ts';
 import { PACE_V27_SECTIONS } from './pace-v27.ts';
+import { PACE_ECONOMY_SECTIONS } from './pace-economy.ts';
 
 export type GuideSection = { id: string; group: string; title: string; badge?: string; html: string };
 
@@ -406,6 +407,8 @@ const CHAPTERS: readonly GuideSection[] = [
   ...LATE_GAME_SECTIONS,
   // v27 opening (src/guide/pace-v27.ts).
   ...PACE_V27_SECTIONS,
+  // v27 economy lane (src/guide/pace-economy.ts).
+  ...PACE_ECONOMY_SECTIONS,
   ...SYSTEM_SECTIONS,
 ];
 
