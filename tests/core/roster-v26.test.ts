@@ -87,7 +87,7 @@ test('evolution chains: early lines at 60 / 150 XP without training, the others 
 });
 
 test('v<=25 contents are unchanged: no new species, no new evolutions, the same pool sizes and recruit first choices', () => {
-  // v27 (PACE_CONTENT) is built on the v26 roster, so it carries the v26 species too.
+  // v27 (PACE_CONTENT) is the v26 content plus the pace overlay, so it carries the v26 species too.
   for (const content of STOCK_CONTENTS.filter(content => content !== DEPTH_CONTENT && content !== PACE_CONTENT)) {
     for (const id of NEW_IDS) expect(content.species[id], `${content.version} ${id}`).toBeUndefined();
     if (content.species.caterpie) expect(content.species.caterpie.evolution).toBeNull();

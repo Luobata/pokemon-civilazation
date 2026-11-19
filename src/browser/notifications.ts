@@ -249,6 +249,9 @@ export function toastFor(payload: VisibleEvent['payload'], view: PlayerView, mem
     }
     case 'RivalConferenceBeaten':
       return strategic(toast('wonder', '★', `宿命的对决：在联盟大会上击败了劲敌${view.expansion?.rivals?.name ?? ''}！`, `金币 +${payload.gold}，时代分 +${payload.eraScore}。`, null, undefined, decision()));
+    // v27 ⑥: the own league nemesis beaten at the conference.
+    case 'LeagueNemesisBeaten':
+      return payload.playerId === view.playerId ? strategic(toast('wonder', '★', `击败了宿敌${payload.name}！`, `“你配得上这场胜利。”时代分 +${payload.eraScore}。`, null, undefined, decision())) : null;
     case 'RivalDeparted':
       return toast('info', '…', `劲敌${view.expansion?.rivals?.name ?? ''}离开了`, `“${rivalSays(payload.encounter, 'leave')}”`, null);
     case 'BattleResolved': return battleToast(payload, view, memory);

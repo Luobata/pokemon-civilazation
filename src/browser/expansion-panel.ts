@@ -36,6 +36,7 @@ import '../world-ui.css';
 import '../late-game.css';
 import { installDataTips } from './ui-tip.ts';
 import { openLineupPicker } from './lineup-picker.ts';
+import { leagueRosterMarkup, trainerChip, trainerDisplayName, viewLeagueRoster, viewLeagueTrainer, viewNemesis } from './trainer-card.ts';
 import type { PickerKind } from './lineup-picker.ts';
 import { civFlag, civName } from './civ-names.ts';
 
@@ -168,9 +169,11 @@ export function renderExpansionPanel(view: PlayerView, selectedUnitId: number | 
     + (CONTENT.teamBattles
       // v26: pick the six and their order (re-registering changes the order); the NPC teams are announced five rounds ahead.
       ? `<button type="button" data-lineup="championship:"${disabled || !peaceful || own.length < 6 ? ' disabled' : ''}>${civ.championship.registration ? '调整报名与出场顺序' : '报名 · 选择六只与出场顺序'}</button>`
-        + (civ.championship.lineup?.length ? `<p>本届公布的联盟训练家：${civ.championship.lineup.map(npc => `${escape(npc.name)}（${npc.roster.map(member => CONTENT.species[member.speciesId]?.name ?? member.speciesId).join('、')}）`).join('；')}</p>` : '')
+        // v27 ⑥: the league roster strip and the announced trainers as portrait chips, the viewer's nemesis first.
+        + leagueLineupMarkup(view)
+        + (civ.championship.lineup?.length && !viewLeagueRoster(view).length ? `<p>本届公布的联盟训练家：${civ.championship.lineup.map(npc => `${escape(npc.name)}（${npc.roster.map(member => CONTENT.species[member.speciesId]?.name ?? member.speciesId).join('、')}）`).join('；')}</p>` : '')
       : button('报名当前六只宝可梦', { type: 'RegisterChampionshipTeam', unitIds: own.slice(0, 6).map(unit => unit.id) }, peaceful && own.length >= 6 && !civ.championship.registration))
-    + `<p>阵容：${own.slice(0, 6).map(unit => `#${unit.id} ${unit.kind === 'pokemon' ? CONTENT.species[unit.speciesId].name : ''}`).join('、')}</p><p>最近冠军：${civ.championship.history.map(season => `第${season.season}届 ${season.championPlayerId === null ? 'NPC' : `文明${season.championPlayerId + 1}`}`).join('；') || '尚未举办'}</p>`);
+    + `<p>阵容：${own.slice(0, 6).map(unit => `#${unit.id} ${unit.kind === 'pokemon' ? CONTENT.species[unit.speciesId].name : ''}`).join('、')}</p><p>最近冠军：${civ.championship.history.map(season => `第${season.season}届 ${season.championPlayerId === null ? (viewLeagueTrainer(view, season.championEntrantId) ? escape(trainerDisplayName(viewLeagueTrainer(view, season.championEntrantId)!)) : 'NPC') : `文明${season.championPlayerId + 1}`}`).join('；') || '尚未举办'}</p>`);
   html += card('s28-deep-diplomacy', '联盟、贸易与信任', '<p>和平时期可提议结盟与贸易。贸易每五轮给双方 4 金币并增进信任；背叛需 20 金币，信任降至 -50 并进入冷却。</p>'
     + civ.relations.filter(relation => !view.civilizations.find(civ => civ.id === relation.targetPlayerId)?.eliminated).map(relation => {
       const targetPlayerId = relation.targetPlayerId;
@@ -211,4 +214,21 @@ export function renderExpansionPanel(view: PlayerView, selectedUnitId: number | 
       issue({ type: 'FoundFaith', legend: root.querySelector<HTMLSelectElement>('#faith-legend')!.value as LegendId, tenets });
     });
   }
+}
+
+/** v27 ⑥ (pace-v27 §7.4): the world page's league roster — all trainers (met ones in colour, the nemesis marked) and this season's
+ *  announced trainers, the viewer's nemesis listed first. Empty before v27. */
+function leagueLineupMarkup(view: PlayerView): string {
+  if (!viewLeagueRoster(view).length) return '';
+  const nemesis = viewNemesis(view), species = contentForView(view).species;
+  const lineup = [...(view.expansion?.civilization?.championship.lineup ?? [])]
+    .sort((a, b) => Number(b.entrantId === nemesis?.entrantId) - Number(a.entrantId === nemesis?.entrantId));
+  const announced = lineup.map(npc => {
+    const trainer = viewLeagueTrainer(view, npc.entrantId);
+    const team = npc.roster.map(member => species[member.speciesId]?.name ?? member.speciesId).join('、');
+    return trainer ? `<li>${trainerChip(view, trainer, 24, `<b>${escape(trainerDisplayName(trainer))}</b>`)}${trainer.id === nemesis?.id ? '<em class="tc-nemesis">宿敌</em>' : ''}<small>${escape(team)}</small></li>`
+      : `<li><b>${escape(npc.name)}</b><small>${escape(team)}</small></li>`;
+  }).join('');
+  return `<div class="league-world" id="league-world"><p>联盟名册${nemesis ? ` · 宿敌：${escape(trainerDisplayName(nemesis))}（击败宿敌：时代分 +1）` : ''}</p>${leagueRosterMarkup(view)}`
+    + (announced ? `<p>本届公布的联盟训练家${nemesis && lineup[0]?.entrantId === nemesis.entrantId ? '（宿敌排在第一位）' : ''}：</p><ul class="league-announced">${announced}</ul>` : '') + '</div>';
 }

@@ -4,7 +4,7 @@ import { pickBuilderEscort, pickEscort, traderPlan, wantsTrader } from './networ
 import { viewPillage } from '../core/pillage.ts';
 import { itemBallTargets, legendTraceTargets, planLegendWonder } from './legend-plan.ts';
 import { LEGEND_WONDERS } from '../content/legend-wonders.ts';
-import { classTrainingBonus, rosterEvolution, typeCounterBonus } from './roster-plan.ts';
+import { classTrainingBonus, nemesisTrainingBonus, rosterEvolution, typeCounterBonus } from './roster-plan.ts';
 import { districtCandidates } from './district-plan.ts';
 import { planCivilizationAction } from '../core/civilization-systems.ts';
 import { CIVILIZATION_CONTENT } from '../content/civilization-systems.ts';
@@ -280,7 +280,7 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
         if (v24Ai && !neighbors(city.position, view.map).some(hex => { const tile = hexToIndex(hex, view.map); return tile !== null && canEnterTile({ kind: 'pokemon', speciesId: id }, view.map, tile, content); })) continue;
         queue({ kind: 'pokemon', defId: id }, 'military', species.attack + species.defense - species.trainCost
           + (preparingSiege && species.role === 'siege' && strategy.siegeTrainingBonus !== null ? ai[strategy.siegeTrainingBonus] : 0)
-          + roleTrainingBonus(view, id, content, preparingSiege) + typeCounterBonus(view, id, content) + classTrainingBonus(view, id, content) + rivalTrainingBonus(view, id, content), i);
+          + roleTrainingBonus(view, id, content, preparingSiege) + typeCounterBonus(view, id, content) + classTrainingBonus(view, id, content) + rivalTrainingBonus(view, id, content) + nemesisTrainingBonus(view, id, content), i);
       }
     }
     // v27 ③: a city project for a city that would otherwise idle ([] before v27).

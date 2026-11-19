@@ -76,6 +76,8 @@ function milestones(before: GameState, after: GameState, events: readonly EventP
       case 'RivalConferenceBeaten': for (let point = 0; point < event.eraScore; point++) found.push([event.playerId, 'rivalDefeated']); break;
       // v27 ③: a festival's era point (the event does not exist before v27).
       case 'CityProjectCompleted': if (event.effects.eraScore) found.push([event.playerId, 'festival']); break;
+      // v27 ⑥: the league nemesis beaten at the conference (+1, once per season).
+      case 'LeagueNemesisBeaten': for (let point = 0; point < event.eraScore; point++) found.push([event.playerId, 'rivalDefeated']); break;
       case 'BattleResolved':
         if (event.capturedCity && event.target.kind === 'city') { const id = owner(event.target.id); if (id !== null) found.push([id, 'cityCaptured']); }
         break;

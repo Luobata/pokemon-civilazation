@@ -37,6 +37,7 @@ import { renderEconomyPanel } from './economy-panel.ts';
 import { AUDIT_SNAPSHOT_KEY } from '../audit/sandbox.ts';
 import { renderUnitPanel } from './unit-panel.ts';
 import { installUnitActionBar, renderUnitActionBar } from './unit-action-bar.ts';
+import { installTrainerCards } from './trainer-card.ts';
 import { renderSelectionPanel } from './selection-panel.ts';
 import { renderResearchPanel } from './research-panel.ts';
 import { renderLeaderPanel, renderLeaderSetup, selectedLeaderId } from './leader-panel.ts';
@@ -1494,6 +1495,8 @@ if (!import.meta.env.DEV) {
 new ResizeObserver(() => { if (session) requestFrame(); }).observe(canvas);
 installScreens();
 installUnitActionBar();
+// v27 ⑥: league trainer chips open their profile card on hover / focus (the bracket, the result card, the lineup picker, the world page).
+installTrainerCards(() => session ? session.getView() : null);
 // ---------- audio (original Web Audio music and effects; starts on the first gesture) ----------
 document.querySelector<HTMLElement>('#audio-settings-root')!.innerHTML = audioSettingsMarkup();
 bindAudioSettings(document.querySelector<HTMLElement>('#audio-settings-root')!);

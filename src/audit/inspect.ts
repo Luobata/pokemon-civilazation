@@ -1,4 +1,6 @@
 import { gameVersions } from '../core/versions.ts';
+import { leagueNemesis, leagueRecords, leagueRoster } from '../core/league-roster.ts';
+import { trainersTuning } from '../content/pace-v27.ts';
 import { tasksDone } from '../core/research-tasks.ts';
 import { cityDistrictEffects, districtProjects } from '../core/districts.ts';
 import { slotCounts } from '../core/policies.ts';
@@ -732,6 +734,16 @@ export function inspectSystem(systemId: string, state: GameState): AuditSystemIn
     return { metrics: [metric('当前规则', '劲敌对决 v26'), metric('气势偏移', (content.world24?.rivalStrengthOffsets ?? []).join(' / ')),
       ...Object.entries(rivals.byPlayer).map(([id, ledger]) => metric(`玩家 ${id} 对决`, ledger.duels ? `切磋 ${ledger.duels.spar} · 真剑 ${ledger.duels.serious} · 胜 ${ledger.duels.won}` : '无'))],
       data: { byPlayer: Object.fromEntries(Object.entries(rivals.byPlayer).map(([id, ledger]) => [id, { duels: ledger.duels ?? null, conference: ledger.conference ?? null, outcomes: ledger.outcomes }])) } };
+  }
+  if (system.id === 's-league-trainers') {
+    const content = contentOf(state), civ = state.expansion?.civilization;
+    if (!content.leagueTrainers || !civ) return { metrics: [metric('当前规则', '未启用（需 v27，之前每届重抽）')], data: {} };
+    const roster = leagueRoster(state.setup.seed, content), records = leagueRecords(civ.championship.history);
+    return { metrics: [metric('当前规则', '联盟训练家 v27'), metric('名册', roster.map(trainer => `${trainer.title} ${trainer.name}`).join('、')),
+      metric('训练家基础战力', trainersTuning(content).npcBasePower), metric('联盟大会已举办', civ.championship.history.length),
+      ...Object.keys(state.players).map(Number).map(id => metric(`玩家 ${id} 宿敌`, leagueNemesis(civ.championship.history, id)?.entrantId ?? '无'))],
+      data: { roster: roster.map(trainer => ({ id: trainer.id, name: trainer.name, primaryType: trainer.primaryType, secondaryType: trainer.secondaryType,
+        signature: trainer.signature, members: trainer.members, record: records.get(trainer.entrantId) ?? null })) } };
   }
   if (system.id === 's-team-battles') {
     const content = contentOf(state);

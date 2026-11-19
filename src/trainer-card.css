@@ -1,0 +1,44 @@
+/* v27 ⑥ (pace-v27 §7.4): league trainer portraits, chips, the profile hover card and the roster strip (src/browser/trainer-card.ts). */
+.trainer-portrait { image-rendering: pixelated; border-radius: 3px; box-shadow: 0 0 0 1px #9AA6A0; background: #26343A; }
+.trainer-chip { display: inline-flex; align-items: center; gap: 4px; min-width: 0; border-radius: 4px; cursor: help; }
+.trainer-chip:focus-visible { outline: 2px solid var(--accent, #72C99E); outline-offset: 1px; }
+.trainer-chip.nemesis .trainer-portrait { box-shadow: 0 0 0 2px #D9495B; }
+
+.trainer-card { position: fixed; z-index: 80; box-sizing: border-box; width: 276px; padding: 10px 12px; border: 2px solid #3E5450; border-radius: 8px;
+  background: #142226; box-shadow: 4px 4px 0 rgb(4 12 15 / 60%); color: var(--ink, #EAF2EC); font-size: 12px; pointer-events: none; }
+.trainer-card[hidden] { display: none; }
+.trainer-card p { margin: 6px 0 0; }
+.trainer-card .tc-head { display: flex; gap: 10px; align-items: center; }
+.trainer-card .tc-head > div { display: grid; gap: 3px; min-width: 0; }
+.trainer-card .tc-name { font-size: 15px; color: #FFE7A8; }
+.trainer-card .tc-title { display: inline-flex; align-items: center; gap: 4px; color: var(--ink-secondary, #B8C8C0); }
+.trainer-card .tc-nemesis { color: #FF8C99; font-weight: 700; }
+.trainer-card .tc-types { display: inline-flex; gap: 4px; }
+.trainer-card .tc-personality { color: var(--ink-secondary, #B8C8C0); line-height: 1.45; }
+.trainer-card .tc-ace { display: flex; align-items: center; gap: 4px; }
+.trainer-card .tc-ace .px-art { image-rendering: pixelated; }
+.trainer-card .tc-record { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.trainer-card .tc-record small { color: var(--ink-muted, #8FA39A); }
+.trainer-card .tc-line { color: #CFEFF7; font-style: italic; }
+
+.league-roster-strip { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0; padding: 0; list-style: none; }
+.league-roster-strip li { position: relative; display: grid; justify-items: center; gap: 2px; width: 52px; font-size: 11px; }
+.league-roster-strip li.unmet .trainer-portrait { filter: brightness(0) opacity(.55); }
+.league-roster-strip li.unmet small { color: var(--ink-muted, #8FA39A); }
+.league-roster-strip li .px-icon { position: absolute; top: -4px; right: 0; }
+
+/* The lineup picker's opponent column and the result card. */
+.lp-foes .lp-trainer { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; }
+.lp-foes .lp-trainer > div { display: grid; gap: 2px; min-width: 0; }
+.lp-foes .lp-trainer small { color: var(--ink-secondary, #B8C8C0); }
+.lp-foes li.ace { outline: 2px solid var(--gold, #F2C14E); outline-offset: -2px; border-radius: 4px; }
+.lp-tabs .trainer-portrait { vertical-align: middle; margin-right: 3px; }
+.lp-tabs button.nemesis { box-shadow: inset 0 -2px 0 #D9495B; }
+.lb .lb-flag.trainer { flex: 0 0 18px; width: 18px; height: 18px; border: 0; background: none; }
+.league-card .league-trainers { margin: 8px 0; }
+.league-card .league-trainers h4 { margin: 0 0 4px; }
+/* The world page: the announced trainers of the coming season (the nemesis first). */
+.league-world .league-announced { display: grid; gap: 4px; margin: 4px 0 8px; padding: 0; list-style: none; }
+.league-world .league-announced li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.league-world .league-announced small { color: var(--ink-secondary, #B8C8C0); }
+.league-world .tc-nemesis { padding: 0 4px; border-radius: 3px; background: #5A2430; color: #FFC2CA; font-size: 11px; font-style: normal; font-weight: 700; }

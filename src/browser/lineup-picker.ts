@@ -27,6 +27,8 @@ import { statChip, typeBadge, uiIcon } from './ui-icons.ts';
 import { gymBlockerText, gymTitle } from './gym-panel.ts';
 import { matchupGridMarkup } from './matchup-grid.ts';
 import '../lineup.css';
+import { trainerChip, trainerDisplayName, trainerPortrait, viewLeagueTrainer, viewNemesis } from './trainer-card.ts';
+import type { LeagueTrainer } from '../core/league-roster.ts';
 
 export type PickerKind = 'gym' | 'guardian' | 'elite' | 'championship' | 'rival';
 /** `key`: the gym id or the sanctuary id (unused for the Elite Four and the conference). */
@@ -36,6 +38,16 @@ const esc = (value: unknown) => String(value).replace(/[&<>"']/g, c => ({ '&': '
 export function pickerSpec(view: PlayerView, target: PickerTarget, content: Content = contentForView(view)): LineupSpec | null {
   return target.kind === 'gym' ? viewGymSpec(view, Number(target.key), content) : target.kind === 'guardian' ? viewGuardianSpec(view, target.key, content)
     : target.kind === 'elite' ? viewEliteFourSpec(view, content) : target.kind === 'rival' ? rivalDuelSpec(view, content) : viewChampionshipSpec(view, content);
+}
+/** v27 ⑥: the roster trainer behind each conference opponent tab (null for rivals and before v27). */
+function opponentTrainers(view: PlayerView, target: PickerTarget): (LeagueTrainer | null)[] {
+  if (target.kind !== 'championship') return [];
+  return (view.expansion?.civilization?.championship.lineup ?? []).map(npc => viewLeagueTrainer(view, npc.entrantId));
+}
+/** v27 ⑥: the conference tab that opens first — the viewer's nemesis when it comes to this season (§7.1 “listed first”). */
+function firstOpponent(view: PlayerView, target: PickerTarget): number {
+  const nemesis = viewNemesis(view);
+  return Math.max(0, nemesis ? opponentTrainers(view, target).findIndex(trainer => trainer?.id === nemesis.id) : 0);
 }
 export function pickerAction(target: PickerTarget, unitIds: number[], stake: RivalDuelStake = 'serious'): Command['action'] {
   if (target.kind === 'rival') return { type: 'ChallengeRival', unitIds, stake };
@@ -141,14 +153,21 @@ export function lineupPickerMarkup(view: PlayerView, target: PickerTarget, order
   const pool = all.filter(fighter => !order.includes(fighter.unitId!) && (!siteOnly || spec.onSite.includes(fighter.unitId!))).map(fighter => `<li><button type="button" class="lp-candidate" data-add="${fighter.unitId}" aria-label="加入队伍：${esc(content.species[fighter.speciesId]?.name)}">${fighterChip(fighter, content, spec.onSite.includes(fighter.unitId!) ? '<small class="lp-site">在场地上</small>' : '')}</button></li>`).join('');
   const rows = lineup.map((fighter, index) => `<li class="lp-row" draggable="true" tabindex="0" data-index="${index}" data-unit="${fighter.unitId}" aria-label="第 ${index + 1} 位：${esc(content.species[fighter.speciesId]?.name)}（[ ] 调整顺序）">`
     + `<span class="lp-slot">${index + 1}</span>${fighterChip(fighter, content)}<span class="lp-moves"><button type="button" data-up="${index}" aria-label="上移" ${index === 0 ? 'disabled' : ''}>↑</button><button type="button" data-down="${index}" aria-label="下移" ${index === lineup.length - 1 ? 'disabled' : ''}>↓</button><button type="button" data-remove="${fighter.unitId}" aria-label="移出队伍">×</button></span></li>`).join('');
-  const tabs = spec.opponents.length > 1 ? `<p class="lp-tabs" role="tablist">${spec.opponents.map((_, index) => `<button type="button" role="tab" data-opponent="${index}" aria-selected="${index === opponent}">${esc(spec.names[index] ?? `第 ${index + 1} 队`)}</button>`).join('')}</p>` : '';
-  const leader = target.kind === 'gym' ? (() => { const gym = view.expansion?.gymCircuit?.gyms.find(item => item.id === Number(target.key)); return gym ? `${GYM_LEADERS[gym.leader].name} · ${TYPE_NAMES[gym.typeId]}属性 · ${foes.length} 只${STAGE_NAMES[content.species[foes[0]?.speciesId]?.stage ?? 1] ?? ''}` : ''; })() : spec.names[opponent] ?? '';
+  const trainers = opponentTrainers(view, target), nemesis = viewNemesis(view), shown = trainers[Math.min(opponent, spec.opponents.length - 1)] ?? null;
+  const tabs = spec.opponents.length > 1 ? `<p class="lp-tabs" role="tablist">${spec.opponents.map((_, index) => {
+    const trainer = trainers[index], rival = trainer && trainer.id === nemesis?.id;
+    return `<button type="button" role="tab" data-opponent="${index}" aria-selected="${index === opponent}"${rival ? ' class="nemesis" title="你的宿敌"' : ''}>${trainer ? trainerPortrait(trainer, 16) : ''}${esc(spec.names[index] ?? `第 ${index + 1} 队`)}${rival ? uiIcon('rival', { size: 12, label: '宿敌' }) : ''}</button>`;
+  }).join('')}</p>` : '';
+  // v27 ⑥: the trainer behind the shown team — portrait (hover: profile card), title, theme types, the signature marked with a star.
+  const trainerHead = shown ? `<div class="lp-trainer" id="lineup-trainer">${trainerChip(view, shown, 40)}<div><b>${esc(trainerDisplayName(shown))}${shown.id === nemesis?.id ? ' · 宿敌' : ''}</b><small>${typeBadge(shown.primaryType, 14, `主属性：${TYPE_NAMES[shown.primaryType]}`)}${typeBadge(shown.secondaryType, 14, `副属性：${TYPE_NAMES[shown.secondaryType]}`)} ${foes.length} 只 · 招牌最后出场</small></div></div>` : '';
+  const ace = shown ? foes.length - 1 : -1;
+  const leader = target.kind === 'gym' ? (() => { const gym = view.expansion?.gymCircuit?.gyms.find(item => item.id === Number(target.key)); return gym ? `${GYM_LEADERS[gym.leader].name} · ${TYPE_NAMES[gym.typeId]}属性 · ${foes.length} 只${STAGE_NAMES[content.species[foes[0]?.speciesId]?.stage ?? 1] ?? ''}` : ''; })() : shown ? '' : spec.names[opponent] ?? '';
   const size = spec.size.min === spec.size.max ? `正好 ${spec.size.min} 只` : `${spec.size.min}–${spec.size.max} 只`;
   return `<header><p class="eyebrow">${esc(title(view, target))}</p><button type="button" class="cp-close" id="lineup-close" aria-label="取消（Esc）">×</button></header>
     <p class="lp-rules">单打接力：按顺序一只对一只，倒下由下一只补上；先手看兵种（快速 4 · 侦察 / 飞行 3 · 远程 2 · 近战 / 水面 1 · 攻城 0）；每次出手自动用对当前对手最有效的属性；被对手 ×2 克制而自己打不动时，每方每场自动换一次人。带 ${size}。</p>
     <div class="lp-columns"><section class="lp-pool"><h3>可出战</h3>${siteOnly ? `<p class="lp-site-note" id="lineup-site-note">${uiIcon('badge', { size: 14, label: '道馆' })}馆主只派 1 只：只有<b>站在道馆格上</b>的宝可梦能出战${offSite ? `（2 格内另有 ${offSite} 只，要先走上道馆）` : ''}。</p>` : ''}<ul>${pool || '<li class="lp-empty">没有其他可出战的宝可梦</li>'}</ul></section>
     <section class="lp-lineup"><h3>出场顺序</h3><ol id="lineup-order">${rows || '<li class="lp-empty">点左边的宝可梦加入队伍</li>'}</ol></section>
-    <section class="lp-foes"><h3>对手${leader ? ` · ${esc(leader)}` : ''}</h3>${tabs}<ul>${foes.map(foe => `<li>${fighterChip(foe, content)}</li>`).join('') || '<li class="lp-empty">对手名单赛前 5 轮公布</li>'}</ul></section></div>
+    <section class="lp-foes"><h3>对手${leader ? ` · ${esc(leader)}` : ''}</h3>${tabs}${trainerHead}<ul>${foes.map((foe, index) => index === ace ? `<li class="ace" data-ace="1">${fighterChip(foe, content, uiIcon('star', { size: 14, label: '招牌宝可梦' }))}</li>` : `<li>${fighterChip(foe, content)}</li>`).join('') || '<li class="lp-empty">对手名单赛前 5 轮公布</li>'}</ul></section></div>
     ${matchupGridMarkup(lineup, foes, '属性克制：你的出场顺序对这支对手', 'lineup-grid', true)}
     <div class="lp-estimate"><b id="lineup-estimate">${estimate === null ? '—' : `${estimate}%`}</b>${estimate === null ? '' : bar(estimate)}<small>估计胜率（16 次固定估算，取整到 5%；真实对战的随机在结算时才抽）</small></div>
     ${estimate === null ? '' : `<p class="lp-why" id="lineup-why">${uiIcon('clipboard', { size: 14, label: '胜率原因' })}${esc(estimateReason(lineup, foes))}${spec.opponents.length > 1 ? `<small>（对 ${esc(spec.names[Math.min(opponent, spec.opponents.length - 1)] ?? '这一队')}）</small>` : ''}</p>`}
@@ -241,7 +260,7 @@ export function openLineupPicker(view: PlayerView, target: PickerTarget, confirm
   if (!spec) return;
   lastView = view;
   // U-d / BA5: a duel starts on the friendly stake (切磋); 真剑 is the player's explicit choice.
-  state = { target, order: initialOrder(view, target, spec), opponent: 0, stake: 'spar', confirm };
+  state = { target, order: initialOrder(view, target, spec), opponent: firstOpponent(view, target), stake: 'spar', confirm };
   render();
   host?.querySelector<HTMLElement>('#lineup-confirm:not([disabled]), #lineup-suggest')?.focus();
 }

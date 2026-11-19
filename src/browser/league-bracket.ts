@@ -1,6 +1,6 @@
 // depth-v26 §6.2 (presentation only): the league conference bracket — two preliminaries, two semi-finals (the two
 // strongest teams enter there), the final and the champion. Each slot is the team's flag (civilization colour, or an
-// original trainer icon for league trainers), its lead Pokémon's sprite and its HP left after the match; the lines light
+// original trainer icon for league trainers; v27: the trainer's portrait), its lead Pokémon's sprite and its HP left after the match; the lines light
 // up along the champion's path (gold) and the viewer's (accent). Every match can open its replay (`data-league-replay`).
 // Self-contained markup + CSS so other pages (the world page) can reuse it; reads only the public season record.
 import type { ChampionshipEntrant, ChampionshipMatch, ChampionshipSeason } from '../core/civilization-systems.ts';
@@ -12,6 +12,7 @@ import { FACTIONS } from './render/canvas2d.ts';
 import { pokemonSpritePath } from './sprites.ts';
 import { artImage, escapeAttr, statChip, uiIcon } from './ui-icons.ts';
 import '../league-bracket.css';
+import { trainerChip, viewLeagueTrainer } from './trainer-card.ts';
 
 type Label = ChampionshipMatch['label'];
 const BOX = { width: 174, height: 76 }, COLUMN = 190;
@@ -29,7 +30,10 @@ const FEEDS: Partial<Record<Label, { to: Label; slot: 0 | 1 }>> = {
 };
 
 export type EntrantNamer = (entrant: Pick<ChampionshipEntrant, 'playerId' | 'entrantId'>) => string;
-function flag(entrant: ChampionshipEntrant, name: string): string {
+function flag(view: PlayerView, entrant: ChampionshipEntrant, name: string): string {
+  // v27 ⑥: a roster trainer shows its portrait (hover / focus: the profile card).
+  const trainer = entrant.playerId === null ? viewLeagueTrainer(view, entrant.entrantId) : null;
+  if (trainer) return `<span class="lb-flag trainer">${trainerChip(view, trainer, 18)}</span>`;
   if (entrant.playerId === null) return `<span class="lb-flag npc">${uiIcon('trainer', { size: 16, label: name })}</span>`;
   return `<span class="lb-flag" style="--flag:${FACTIONS[entrant.playerId] ?? '#5F6E66'}" role="img" aria-label="${escapeAttr(name)}" title="${escapeAttr(name)}"><b aria-hidden="true">${entrant.playerId + 1}</b></span>`;
 }
@@ -38,7 +42,7 @@ function slot(view: PlayerView, season: ChampionshipSeason, match: ChampionshipM
   const won = match.winnerEntrantId === entrant.entrantId, lead = entrant.roster[0]!;
   const team = entrant.roster.map(item => content.species[item.speciesId]?.name ?? item.speciesId).join('、');
   return `<li class="league-team lb-slot${won ? ' won' : ' lost'}${entrant.playerId === view.playerId ? ' mine' : ''}${entrant.entrantId === season.championEntrantId ? ' champion' : ''}" data-entrant="${entrant.entrantId}" title="${escapeAttr(`${name}：${team}`)}">
-    ${flag(entrant, name)}${artImage(pokemonSpritePath(lead.speciesId), { size: 26, label: `${name}的首发：${content.species[lead.speciesId]?.name ?? lead.speciesId}` })}
+    ${flag(view, entrant, name)}${artImage(pokemonSpritePath(lead.speciesId), { size: 26, label: `${name}的首发：${content.species[lead.speciesId]?.name ?? lead.speciesId}` })}
     <span class="league-team-name"><b>${escapeAttr(name)}</b></span>${statChip('heart', match.scores[side], '赛后剩余 HP 合计', 'league-score')}${won ? uiIcon('check', { size: 12, label: '胜' }) : ''}</li>`;
 }
 function box(view: PlayerView, season: ChampionshipSeason, match: ChampionshipMatch, names: EntrantNamer, replay: boolean): string {
@@ -65,7 +69,7 @@ export function leagueBracketMarkup(view: PlayerView, season: ChampionshipSeason
     <p class="lb-col-head" style="left:0">预选赛</p><p class="lb-col-head" style="left:${COLUMN}px">半决赛 <small>战力前二直通</small></p><p class="lb-col-head" style="left:${COLUMN * 2}px">决赛</p><p class="lb-col-head" style="left:${CHAMPION.x}px">冠军</p>
     <ol class="lb-matches">${(['preliminary-2', 'preliminary-1', 'semifinal-1', 'semifinal-2', 'final'] as const).flatMap(label => byLabel.has(label) ? [box(view, season, byLabel.get(label)!, names, options.replay ?? false)] : []).join('')}</ol>
     <section class="lb-champion${champion.entrantId === mine ? ' mine' : ''}" style="left:${CHAMPION.x}px;top:${CHAMPION.y}px;width:${CHAMPION.width}px" aria-label="${escapeAttr(`冠军：${name}`)}">
-      ${uiIcon('trophy', { size: 34, label: '冠军奖杯' })}${flag(champion, name)}<b>${escapeAttr(name)}</b>
+      ${uiIcon('trophy', { size: 34, label: '冠军奖杯' })}${flag(view, champion, name)}<b>${escapeAttr(name)}</b>
       <span class="league-team-sprites">${champion.roster.slice(0, 6).map(item => artImage(pokemonSpritePath(item.speciesId), { size: 20, label: content.species[item.speciesId]?.name ?? item.speciesId })).join('')}</span></section>
   </div></div>`;
 }

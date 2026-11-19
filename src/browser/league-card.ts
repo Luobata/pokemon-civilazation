@@ -14,6 +14,7 @@ import type { BattleReplay } from './battle-replay.ts';
 import '../league.css';
 import { traceStrikes } from '../core/team-battle.ts';
 import { civName } from './civ-names.ts';
+import { leagueRosterMarkup, trainerChip, viewLeagueRoster, trainerDisplayName, viewLeagueTrainer, viewNemesis } from './trainer-card.ts';
 
 /** Rounds before a season at which the countdown notice appears. */
 export const LEAGUE_COUNTDOWN = [5, 1] as const;
@@ -31,6 +32,9 @@ export function entrantName(view: PlayerView, entrant: Pick<ChampionshipEntrant,
   if (entrant.playerId === view.playerId) return '你的队伍';
   if (entrant.playerId !== null) return civName(view, entrant.playerId);
   if (entrant.entrantId.startsWith('rival-')) return `劲敌${entrant.name ?? ''}`;
+  // v27 ⑥: a roster trainer goes by title and name.
+  const trainer = viewLeagueTrainer(view, entrant.entrantId);
+  if (trainer) return trainerDisplayName(trainer);
   return entrant.name ? `训练家 ${entrant.name}` : `联盟训练家 ${entrant.entrantId.split('-').at(-1)}`;
 }
 const ownEntrant = (view: PlayerView, season: ChampionshipSeason) => season.entrants.find(entrant => entrant.playerId === view.playerId) ?? null;
@@ -90,6 +94,18 @@ function damageTable(view: PlayerView, season: ChampionshipSeason, entrant: Cham
       ${statChip('swords', dealt, '造成伤害')}${statChip('damaged', taken, '承受伤害')}${statChip('heart', `${combatant.hp}/${combatant.maxHp}`, '赛后 HP')}</li>`;
   }).join('')}</ul>`;
 }
+/** v27 ⑥: the champion's portrait when a roster trainer won. */
+function championTrainer(view: PlayerView, champion: ChampionshipEntrant): string {
+  const trainer = viewLeagueTrainer(view, champion.entrantId);
+  return trainer ? trainerChip(view, trainer, 40) : '';
+}
+/** v27 ⑥: the league roster (met trainers in colour) and the viewer's nemesis. */
+function trainersMarkup(view: PlayerView): string {
+  const strip = leagueRosterMarkup(view);
+  if (!strip) return '';
+  const nemesis = viewNemesis(view);
+  return `<section class="league-trainers" id="league-trainers"><h4>联盟名册 · ${viewLeagueRoster(view).length} 位训练家${nemesis ? ` · 宿敌：${escapeAttr(trainerDisplayName(nemesis))}（击败宿敌：时代分 +1）` : ''}</h4>${strip}</section>`;
+}
 let shownSeason: number | null = null;
 /** The card of one season (the latest by default); `history` chips switch between seasons. */
 export function leagueResultMarkup(view: PlayerView, seasonNumber: number | null = shownSeason): string {
@@ -102,11 +118,12 @@ export function leagueResultMarkup(view: PlayerView, seasonNumber: number | null
   return `<article class="league-card" id="league-result-card" data-season="${season.season}" aria-label="第 ${season.season} 届联盟大会结果">
     <header class="league-head">${uiIcon('trophy', { size: 40, label: '联盟大会' })}<div><strong>第 ${season.season} 届联盟大会</strong><small>第 ${season.round} 轮 · 六队淘汰赛 · 战力前二直通半决赛</small></div>
       <span class="league-own ${own ?? 'absent'}" id="league-own">${own ? `${uiIcon(own === 'champion' ? 'trophy' : 'badge', { size: 20, label: '你的名次' })}你的队伍：${PLACEMENT_NAMES[own]}` : `${uiIcon('lock', { size: 18, label: '未参赛' })}本届未参赛`}</span></header>
-    <section class="league-champion" aria-label="冠军">${uiIcon('crown', { size: 28, label: '冠军' })}<b>${escapeAttr(entrantName(view, champion))}</b>
+    <section class="league-champion" aria-label="冠军">${uiIcon('crown', { size: 28, label: '冠军' })}${championTrainer(view, champion)}<b>${escapeAttr(entrantName(view, champion))}</b>
       <span class="league-team-sprites">${champion.roster.map(combatant => sprite(view, combatant.speciesId, 40)).join('')}</span>${statChip('swords', champion.power, '队伍战力')}</section>
     <p class="league-seeds">${uiIcon('play', { size: 12 })}点任意一场的 ▶ 观看对战回放 · 半决赛直通：${seeds.map(seed => escapeAttr(entrantName(view, seed))).join('、')}</p>
     ${leagueBracketMarkup(view, season, entrant => entrantName(view, entrant), { replay: true })}
     <section class="league-roster"><h4>${mine ? '你的队伍 · 每只宝可梦的战绩' : `冠军队伍 · 每只宝可梦的战绩`}</h4>${damageTable(view, season, mine ?? champion)}</section>
+    ${trainersMarkup(view)}
     ${history.length > 1 ? `<nav class="league-history" aria-label="历届联盟大会">${history.map(item => `<button type="button" data-league-season="${item.season}" aria-pressed="${item.season === season.season}" title="第 ${item.season} 届：${escapeAttr(entrantName(view, item.entrants.find(entrant => entrant.entrantId === item.championEntrantId)!))}夺冠">${uiIcon('trophy', { size: 14 })}${item.season}</button>`).join('')}</nav>` : ''}
   </article>`;
 }

@@ -273,6 +273,8 @@ const GLYPHS = {
   contestCute: glyph(['.PP..PP.', 'PWPPPPPP', 'PPPPPPPP', '.PPPPPP.', '..PPPP..', '...PP...'], { P: '#F0A0C8', W: CREAM }),
   contestSmart: glyph(['GGGG..GGGG', 'GWWG..GWWG', 'GWWGGGGWWG', 'GWWG..GWWG', 'GGGG..GGGG'], { G: '#4FB998', W: '#CFEFF7' }),
   contestTough: glyph(['.YYYYYY.', 'YYYYYYYY', 'Y.Y.Y.YY', 'YYYYYYYY', 'YYYYYYYY', '.YYYYYY.', '..YYYY..'], { Y: '#C9A04A' }),
+  /** v27 ⑥: a league trainer's signature (ace) Pokémon — a five-point star. */
+  star: glyph(['....YY....', '....YY....', '...YWYY...', 'YYYYWYYYYY', '.YYYYYYYy.', '..YYYYYy..', '..YYYYYy..', '.YYy..YYy.', '.Yy....Yy.'], { Y: '#F7D25C', y: '#C8952C', W: CREAM }),
 } satisfies Record<string, Grid>;
 /** The terrain-condition icon of a biome (evolution conditions, arena captions). */
 export const BIOME_ICONS = { grassland: 'grassTuft', forest: 'tree', mountain: 'peak', ocean: 'coast', desert: 'dune', snow: 'snowflake', volcano: 'volcanoCone' } as const;
