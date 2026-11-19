@@ -1,4 +1,4 @@
-/* ui-25d round 2 (docs/design/ui-25d.md §10–§11): the 2.5D minimap. */
+/* ui-25d round 2 (docs/design/ui-25d.md §10–§11): the 2.5D minimap and the HUD frames. */
 
 /* Minimap: left edge of the map, between the opening objectives and the bottom hint / legend row; under the combat card. */
 .minimap { position: absolute; left: 10px; bottom: 84px; z-index: 3; padding: 3px; border: 1px solid #070F12; border-radius: 3px; background: #0A1418;
@@ -6,3 +6,125 @@
 .minimap[hidden] { display: none; }
 .minimap canvas { display: block; image-rendering: pixelated; }
 @media (max-height: 760px), (max-width: 1100px) { .minimap { display: none; } }
+
+/*
+ * HUD frames (§11): original hard-edged pixel framing for the HUD panels — a 1 px dark outline, a 1 px bevel inside it (lit
+ * top / left, shaded bottom / right), a hard 2 px drop, small pixel-rounded corners and a coloured title edge. Only colours,
+ * gradients and 0-blur inset / offset shadows change (no `filter`, no new border widths), so no panel moves or resizes.
+ * Selectors start with `html` so they win over the base sheets in any bundle order (dev and production).
+ */
+:root {
+  --px-outline: #070F12;
+  --px-hi: #4E7068;
+  --px-hi-soft: rgb(255 255 255 / 5%);
+  --px-lo: #0B171A;
+  --px-face-top: #1B2F34;
+  --px-face-bottom: #14252A;
+  --px-drop: #040A0C;
+  --px-bevel: inset 1px 1px 0 var(--px-hi), inset -1px -1px 0 var(--px-lo), inset 2px 2px 0 var(--px-hi-soft);
+  --px-radius: 4px;
+  --type-accent: var(--accent);
+}
+
+/* ---------- Shared panel frame ---------- */
+html :is(.panel, #economy, #unit-panel, .subpanel) {
+  border-color: var(--px-outline);
+  border-radius: var(--px-radius);
+  background: linear-gradient(180deg, var(--px-face-top), var(--px-face-bottom) 140px);
+  box-shadow: var(--px-bevel), 0 2px 0 var(--px-drop), 0 8px 18px rgb(0 0 0 / 28%);
+}
+/* Floating map panels: the same frame on their translucent faces. */
+html :is(.stage .map-toolbar, .opening-goals, .map-legend, .hud-notices #selection, #controls) {
+  border-color: var(--px-outline);
+  border-radius: var(--px-radius);
+  box-shadow: var(--px-bevel), 0 2px 0 var(--px-drop), 0 6px 14px rgb(0 0 0 / 25%);
+}
+html .opening-goals { border-left: 3px solid #72C99E; }
+html .hud-notices #selection { border-left: 2px solid var(--accent); }
+
+/* Title rows: a 3 px accent edge on top, a hard double rule underneath. */
+html :is(.subpanel-head, .economy-head, .screen-head) {
+  border-bottom-color: var(--px-outline);
+  box-shadow: inset 0 3px 0 var(--head-accent, var(--gold)), inset 0 4px 0 rgb(255 255 255 / 6%), inset 0 -1px 0 #2B4642;
+}
+html .economy-head { --head-accent: var(--civ-1); background: linear-gradient(180deg, #24403B, #1A2F33); }
+html .subpanel-head { background: linear-gradient(180deg, #213A3A, #192D31); }
+
+/* ---------- Unit panel ---------- */
+html .unit-head {
+  border-bottom-color: var(--px-outline);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--type-accent) 16%, #213A39), #182C31);
+  box-shadow: inset 0 3px 0 var(--type-accent), inset 0 4px 0 rgb(255 255 255 / 10%), inset 0 -1px 0 #2B4642;
+}
+/* Portrait: a double pixel frame (dark outline, type-coloured inner line) with a light notch at the lower right, and a hard-edged
+   type-tinted ground pad under the sprite. */
+html .unit-portrait {
+  position: relative;
+  border-color: var(--px-outline);
+  border-radius: 3px;
+  background-color: #1C3431;
+  background-image:
+    radial-gradient(ellipse 34% 11% at 50% 82%, color-mix(in srgb, var(--type-accent) 38%, #10201E) 97%, transparent 100%),
+    linear-gradient(180deg, #2A4A44 0 58%, #213D38 58% 100%);
+  background-position: 0 0, 0 0;
+  background-size: auto, auto;
+  box-shadow: inset 0 0 0 2px var(--type-accent), inset 0 0 0 3px var(--px-outline), inset 4px 4px 0 0 rgb(255 255 255 / 7%), 0 2px 0 var(--px-drop);
+}
+html .unit-portrait::after { content: ""; position: absolute; right: 2px; bottom: 2px; width: 3px; height: 3px; background: #FFF6D8; box-shadow: -3px 0 0 rgb(255 246 216 / 45%), 0 -3px 0 rgb(255 246 216 / 45%); pointer-events: none; }
+html .unit-portrait img { position: relative; }
+/* Stat tiles: small bevelled slabs; the AP pill and the HP / EXP bars get the same hard edge. */
+html .unit-details > * {
+  border-color: var(--px-outline);
+  border-radius: 3px;
+  background: linear-gradient(180deg, #1E3438, #172A2E);
+  box-shadow: inset 1px 1px 0 #3E5C56, inset -1px -1px 0 var(--px-lo), 0 1px 0 var(--px-drop);
+}
+html .unit-ap { border-radius: 3px; box-shadow: inset 1px 1px 0 rgb(255 255 255 / 12%), 0 1px 0 var(--px-drop); }
+html .vital-bar { height: 5px; border: 1px solid var(--px-outline); border-radius: 0; box-shadow: inset 0 1px 0 #061012; }
+html .vital-bar > span { box-shadow: inset 0 1px 0 rgb(255 255 255 / 28%), inset 0 -1px 0 rgb(0 0 0 / 22%); }
+/* Type accent from the unit's first type badge (Pokémon); role units use gold. */
+html .unit-card:has(.unit-types > .type-badge:first-child[alt="草属性"]) { --type-accent: #7FCB5C; }
+html .unit-card:has(.unit-types > .type-badge:first-child[alt="火属性"]) { --type-accent: #F08A4B; }
+html .unit-card:has(.unit-types > .type-badge:first-child[alt="水属性"]) { --type-accent: #6FA5EE; }
+html .unit-card:has(.unit-types > .type-badge:first-child[alt="电属性"]) { --type-accent: #F5D04A; }
+html .unit-card:has(.unit-types > .type-badge:first-child[alt="一般属性"]) { --type-accent: #C6C2A8; }
+html .unit-card:has(.unit-types > .type-badge:first-child[alt="格斗属性"]) { --type-accent: #D2614E; }
+html .unit-card:has(.unit-types > .type-badge:first-child[alt="飞行属性"]) { --type-accent: #A99AF0; }
+html .unit-card:has(.unit-types > .type-badge:first-child[alt="岩石属性"]) { --type-accent: #C3AE5C; }
+html .unit-card:has(.unit-types > .type-badge:first-child[alt="超能属性"]) { --type-accent: #F47FA0; }
+html .unit-card:has(.unit-types > .type-badge:first-child[alt="幽灵属性"]) { --type-accent: #8C7CB8; }
+html .unit-card:has(.unit-types > .type-badge:first-child[alt="龙属性"]) { --type-accent: #8E6EF5; }
+html .unit-card:has(.unit-types > .type-badge:first-child[alt="地面属性"]) { --type-accent: #DDB868; }
+html .unit-card:has(.unit-types > .type-badge:first-child[alt="毒属性"]) { --type-accent: #B979C2; }
+html .unit-card:has(.unit-types > .type-badge:first-child[alt="虫属性"]) { --type-accent: #B3C341; }
+html .unit-card:has(.unit-types > .type-badge:first-child[alt="冰属性"]) { --type-accent: #9ADBD8; }
+html .unit-card:has(.unit-types > .type-badge:first-child[alt="钢属性"]) { --type-accent: #BFC3D6; }
+html .unit-card:has(.unit-types > .type-badge:first-child[alt="恶属性"]) { --type-accent: #8F7B6D; }
+html .unit-card:has(.unit-types > .type-badge:first-child[alt="妖精属性"]) { --type-accent: #F0A8C8; }
+html :is(.builder-card, .trader-card, .settler-card) { --type-accent: var(--gold); }
+
+/* ---------- City panel ---------- */
+html .economy-title { text-shadow: 0 1px 0 #061012; }
+html .economy-title .civ-badge { border-radius: 2px; box-shadow: inset 1px 1px 0 rgb(255 255 255 / 12%), 0 1px 0 var(--px-drop); }
+html #economy :is(.work-list, #recovering-units) { border-color: var(--px-outline); border-radius: 3px; box-shadow: inset 1px 1px 0 #061012, inset -1px -1px 0 #2B4642; }
+
+/* ---------- Top bar ---------- */
+html .topbar {
+  border-color: var(--px-outline);
+  border-radius: var(--px-radius);
+  box-shadow: var(--px-bevel), inset 0 -3px 0 #0F1D21, 0 2px 0 var(--px-drop), 0 8px 18px rgb(0 0 0 / 28%);
+}
+html .brand-mark { border-radius: 3px; }
+
+/* ---------- Buttons: pressable slabs (the face drops 1 px and the edge thins while pressed) ---------- */
+html :is(button.primary, #end-turn):not(:disabled):active { transform: translateY(1px); }
+html .stage #end-turn { box-shadow: inset 0 1px rgb(255 255 255 / 22%), inset 0 -3px 0 rgb(0 0 0 / 22%), 0 3px 0 #493717, 0 8px 20px rgb(0 0 0 / 40%); }
+html .stage #end-turn:not(:disabled):active { box-shadow: inset 0 1px rgb(255 255 255 / 22%), inset 0 -1px 0 rgb(0 0 0 / 22%), 0 1px 0 #493717, 0 6px 16px rgb(0 0 0 / 40%); }
+
+/* ---------- Screens and dialogs ---------- */
+html :is(.screen, dialog) {
+  border-color: var(--px-outline);
+  border-radius: var(--px-radius);
+  box-shadow: var(--px-bevel), 0 3px 0 var(--px-drop), 0 24px 56px rgb(0 0 0 / 50%);
+}
+html :is(.tech-card, .research-box) { border-radius: 3px; box-shadow: inset 1px 1px 0 rgb(255 255 255 / 5%), inset -1px -1px 0 var(--px-lo), 0 1px 0 var(--px-drop); }
