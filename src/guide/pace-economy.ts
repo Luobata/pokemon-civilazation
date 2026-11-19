@@ -13,8 +13,8 @@ const EFFECTS: Record<(typeof CITY_PROJECT_IDS)[number], string> = {
   contestRehearsal: `人气 +${E.rehearsalAppeal}；你的文明下一次华丽大赛季出战得分 +${E.rehearsalScore}（本届已经报名时算下一届；每届只算一次）。`,
   festival: `满意度 +${E.festivalSatisfaction}；时代分 +1（每 ${E.festivalEraInterval} 轮最多 1 分）。`,
 };
-const projectTable = `<table><thead><tr><th>计划</th><th>需要（本城）</th><th>第 1 / 2 / 5 / 10 次成本</th><th>完成时</th></tr></thead><tbody>${CITY_PROJECT_IDS.map(id =>
-  `<tr><td>${CITY_PROJECT_INFO[id].name}</td><td>${CITY_PROJECT_INFO[id].needs}</td><td>${[0, 1, 4, 9].map(done => cityProjectCost(PACE_CONTENT, id, done)).join(' / ')}</td><td>${EFFECTS[id]}</td></tr>`).join('')}</tbody></table>`;
+const projectTable = `<div class="table-wrap"><table><thead><tr><th>计划</th><th>需要（本城）</th><th>第 1 / 2 / 5 / 10 次成本</th><th>完成时</th></tr></thead><tbody>${CITY_PROJECT_IDS.map(id =>
+  `<tr><td>${CITY_PROJECT_INFO[id].name}</td><td>${CITY_PROJECT_INFO[id].needs}</td><td>${[0, 1, 4, 9].map(done => cityProjectCost(PACE_CONTENT, id, done)).join(' / ')}</td><td>${EFFECTS[id]}</td></tr>`).join('')}</tbody></table></div>`;
 
 export const PACE_ECONOMY_SECTIONS: readonly GuideSection[] = [
   { id: 'city-projects', group: '文明发展', title: '城市计划：闲置产能的去处', badge: 'v27 新增', html: `
