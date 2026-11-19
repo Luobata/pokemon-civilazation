@@ -69,17 +69,17 @@ test('v26 is unchanged: the settler is struck and knocked out', () => {
   expect(state.units[settler.id]).toBeUndefined();
 });
 
-test('faith compensation: 70% of the counted cities in v27 (integers), 60% before; the view mirrors the authority', () => {
+test('faith compensation: 65% of the counted cities in v27 (integers), 60% before; the view mirrors the authority', () => {
   const v26 = contentFor(setup(26)), v27 = contentFor(setup(27));
   expect([5, 6, 10, 13, 20].map(count => faithWinCount(count, v26))).toEqual([3, 4, 6, 8, 12]);
-  expect([5, 6, 10, 13, 20].map(count => faithWinCount(count, v27))).toEqual([4, 5, 7, 10, 14]);
+  expect([5, 6, 10, 13, 20].map(count => faithWinCount(count, v27))).toEqual([4, 4, 7, 9, 13]);
   for (const content of [v26, v27]) for (let count = 0; count <= 40; count++) {
     expect(viewFaithWinCount({ totalCities: count, ...faithWinShareView(content) })).toBe(faithWinCount(count, content));
   }
   expect(faithWinShareView(v26)).toEqual({ winShare: 0.6 });
-  expect(faithWinShareView(v27)).toEqual({ winShare: 0.7, winSharePercent: 70 });
+  expect(faithWinShareView(v27)).toEqual({ winShare: 0.65, winSharePercent: 65 });
   const state = createGame(setup(27));
-  expect(observe(state, 0, v27).expansion!.faith?.winSharePercent ?? 70).toBe(70);
+  expect(observe(state, 0, v27).expansion!.faith?.winSharePercent ?? 65).toBe(65);
 });
 
 test('AI city sites: v27 needs radius 2 explored (ring 3 may be unknown), v26 radius 3; the view-only fallback reads the view content', () => {

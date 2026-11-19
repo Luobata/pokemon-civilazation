@@ -1008,10 +1008,10 @@ export const AUDIT_SYSTEMS: readonly AuditSystem[] = [
     actionTypes: ["FoundFaith", "SpreadFaith", "MakeOffering", "EndTurn"],
   }),
   system({
-    id: 's-opening-safety', name: '开局安全：受惊撤退、近处城址、信仰 70%（v27）', status: 'implemented',
-    summary: 'gameplay v27 ①：会出手的野生宝可梦在轮末本该打职能单位（没有己方宝可梦同格）时，改为把它吓跑到相邻、离这只野生 2 格、能进入的空格（格号最小），这只野生本轮不再打别人；没有空格照旧打。AI 城址只要求半径 2 探索过（v26 为 3），第 3 圈的隐藏城市由权威拒绝（迷雾类）、AI 记住。信仰胜利要 70% 的城市（content.pace27.opening.faithWinSharePercent）。',
+    id: 's-opening-safety', name: '开局安全：受惊撤退、近处城址、信仰 65%（v27）', status: 'implemented',
+    summary: 'gameplay v27 ①：会出手的野生宝可梦在轮末本该打职能单位（没有己方宝可梦同格）时，改为把它吓跑到相邻、离这只野生 2 格、能进入的空格（格号最小），这只野生本轮不再打别人；没有空格照旧打。AI 城址只要求半径 2 探索过（v26 为 3），第 3 圈的隐藏城市由权威拒绝（迷雾类）、AI 记住。信仰胜利要 65% 的城市（content.pace27.opening.faithWinSharePercent）。',
     rules: ['撤退只用权威状态、按格号确定，不消耗随机数；事件为普通 Moved（谁看得见谁看到）加只发给主人的 CivilianFled。',
-      '只对野生：劲敌、文明、极巨巢穴首领不变；漫游型野生本来不打人。', '信仰门槛用整数 ⌈城数 × 70 / 100⌉；视图给 winSharePercent，界面与权威同一算式。'],
+      '只对野生：劲敌、文明、极巨巢穴首领不变；漫游型野生本来不打人。', '信仰门槛用整数 ⌈城数 × 65 / 100⌉；视图给 winSharePercent，界面与权威同一算式。'],
     checks: ['tests/core/opening-safety.test.ts（撤退格、无空格照打、v26 不变、信仰门槛 = 视图、AI 城址半径）；tests/browser/pace-v27-opening.spec.ts（结束回合后的撤退通知）。',
       'district-smoke 24 / 25 / 26 逐字节不变；v27 两次一致、0 异常；216 个门槛开局重放（docs/design/pace-v27.md §13.2）。'],
     sources: ['src/core/opening-safety.ts', 'src/core/wild.ts', 'src/ai/query.ts', 'src/core/faith-legends.ts', 'src/browser/encounter-ui.ts', 'src/content/pace-v27.ts', 'docs/design/pace-v27.md'],

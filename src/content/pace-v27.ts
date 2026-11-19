@@ -43,7 +43,7 @@ export type OpeningTuning = {
   aiExhaustAttackBonus: number;
 };
 export const OPENING_TUNING: OpeningTuning = {
-  faithWinSharePercent: 70, aiSiteRadius: 2,
+  faithWinSharePercent: 65, aiSiteRadius: 2,
   exhaustHpPercent: 40, exhaustRounds: 2, exhaustRecoverPercent: 41, exhaustCaptureBonus: 25, exhaustCaptureCap: 95,
   protectionLastRound: 30, protectionRounds: 1, protectionHpPercent: 50,
   encounterBeforeRound: 40, encounterXp: 15, encounterScience: 5,
@@ -116,7 +116,7 @@ export type TrainersTuning = {
    * `depth26.npcBasePower`; the season and slot steps stay v26's). Calibrated so the championship share stays near v26's. */
   npcBasePower: number;
 };
-export const TRAINERS_TUNING: TrainersTuning = { rosterSize: 8, stageWeights: [8, 10, 13], signaturePercent: 120, npcBasePower: 1050 };
+export const TRAINERS_TUNING: TrainersTuning = { rosterSize: 8, stageWeights: [8, 10, 13], signaturePercent: 120, npcBasePower: 1100 };
 
 export type Pace27Tuning = { opening: OpeningTuning; economy: EconomyTuning; events: EventsTuning; trainers: TrainersTuning };
 export const PACE27_TUNING: Pace27Tuning = { opening: OPENING_TUNING, economy: ECONOMY_TUNING, events: EVENTS_TUNING, trainers: TRAINERS_TUNING };
