@@ -1100,6 +1100,8 @@ export type MapRenderer = {
   invalidate(): void;
   /** ui-25d: the tile under a screen point (pixel-plane hex; fold with hexToIndex). Flat: worldToHex(toWorld(point)). */
   pick(point: Point, camera: Camera): Hex;
+  /** ui-25d: a tile's lift in world px as last drawn (0 on the flat map or before the first frame). */
+  lift(hex: Hex): number;
 };
 
 type LayerCache = { key: string; canvas: HTMLCanvasElement };
@@ -1137,6 +1139,10 @@ export function createCanvas2DRenderer(canvas: HTMLCanvasElement, options: Rende
     pick(point, camera) {
       if (!tilted || !picking) return worldToHex(toWorld(point, camera));
       return pickHex(point, camera, picking.scene, picking.lifts);
+    },
+    lift(hex) {
+      const index = tilted && picking ? hexToIndex(hex, picking.scene) : null;
+      return index === null ? 0 : picking!.lifts[index];
     },
     render(scene, camera, frame = EMPTY_FRAME) {
       const context = canvas.getContext('2d');

@@ -62,7 +62,8 @@ import type { DistrictId } from '../content/districts.ts';
 import { reachablePaths } from '../core/movement.ts';
 import type { PlayerView, VisibleEvent } from '../core/model.ts';
 import { BIOME_DISPLAY, FACTION_LEGEND } from './canvas.ts';
-import { RENDER_MODE_KEY, applyRenderMode, createMapRenderer, requestedRenderMode, Timeline } from './render/index.ts';
+import { FACTIONS, RENDER_MODE_KEY, applyRenderMode, createMapRenderer, requestedRenderMode, Timeline } from './render/index.ts';
+import { createMinimap } from './render/minimap.ts';
 import type { RenderMode } from './render/index.ts';
 import type { DebugOverlay, RenderStats, Track } from './render/index.ts';
 import type { UnitMarkIdentity } from './render/scene.ts';
@@ -77,7 +78,7 @@ import { describeTile, tileSummary } from './tile-info.ts';
 import { renderTilePanel } from './tile-panel.ts';
 import { ERA_AGES } from '../content/era-honors.ts';
 import { previewSummary, targetPreviews } from './target-preview.ts';
-import { HEX_RADIUS, fitCamera, hexToWorld, mapSpan, tileToScreen, toWorld, zoomAt } from './camera.ts';
+import { HEX_RADIUS, fitCamera, hexToWorld, mapSpan, toWorld, zoomAt } from './camera.ts';
 import { combatCard, renderCombatCard } from './combat-preview.ts';
 import { battleLook } from './battle-presentation.ts';
 import { TYPE_COLORS } from '../content/type-colors.ts';
@@ -182,6 +183,10 @@ const storedRenderMode = (() => { try { return localStorage.getItem(RENDER_MODE_
 const initialRenderMode: RenderMode = requestedRenderMode(location.search, storedRenderMode);
 applyRenderMode(initialRenderMode);
 const renderer = createMapRenderer(canvas, { mode: initialRenderMode });
+// ui-25d §10: the minimap (2.5D only; click or drag to move the camera there).
+const minimap = createMinimap(document.querySelector<HTMLElement>('.stage')!, FACTIONS, world => {
+  deferredFocus = null; camera.x = canvas.clientWidth / 2 - world.x * camera.zoom; camera.y = canvas.clientHeight / 2 - world.y * camera.zoom; requestFrame();
+});
 /** The tile index under a canvas point (2.5D picking accounts for elevation and cliffs). */
 const pickIndex = (point: Point, view: PlayerView) => hexToIndex(renderer.pick(point, camera), view.map);
 let frameRequested = false;
@@ -219,7 +224,7 @@ function eventTiles(payload: VisibleEvent['payload'], view: PlayerView): Hex[] {
 function onScreen(tiles: readonly Hex[], view: PlayerView): boolean {
   const width = canvas.clientWidth, height = canvas.clientHeight, margin = HEX_RADIUS * camera.zoom;
   return tiles.some(hex => {
-    const p = tileToScreen(hex, camera, view.map, width);
+    const p = renderer.anchor(hex, camera, view.map, width);
     return p.x >= -margin && p.x <= width + margin && p.y >= -margin && p.y <= height + margin;
   });
 }
@@ -338,7 +343,7 @@ function wonderTrack(payload: Extract<VisibleEvent['payload'], { type: 'LegendWo
   if (!motion && !visible) return null;
   let move: { from: Camera; to: Camera } | undefined;
   if (motion && !visible) {
-    const width = canvas.clientWidth, height = canvas.clientHeight, p = tileToScreen(city.position, camera, view.map, width), zoom = Math.max(camera.zoom, 1.2);
+    const width = canvas.clientWidth, height = canvas.clientHeight, p = renderer.anchor(city.position, camera, view.map, width), zoom = Math.max(camera.zoom, 1.2);
     // The copy of the city nearest the view (wrapping maps), centred at the new zoom.
     const world = { x: (p.x - camera.x) / camera.zoom, y: (p.y - camera.y) / camera.zoom };
     move = { from: { ...camera }, to: { x: width / 2 - world.x * zoom, y: height / 2 - world.y * zoom, zoom } };
@@ -576,7 +581,7 @@ function selectedSites(view: PlayerView): CitySite[] {
 const sitePins = document.querySelector<HTMLElement>('#site-pins')!;
 function updateSitePins(view: PlayerView) {
   const width = canvas.clientWidth, height = canvas.clientHeight;
-  renderSitePins(sitePins, selectedSites(view).map(site => ({ site, point: tileToScreen(site.position, camera, view.map, width) })), { width, height },
+  renderSitePins(sitePins, selectedSites(view).map(site => ({ site, point: renderer.anchor(site.position, camera, view.map, width) })), { width, height },
     index => { if (selected !== null) setGoTo(selected, index, true); });
 }
 /** Sets (or, on the unit's own tile, clears) a go-to order and makes this round's first step at once. */
@@ -917,7 +922,7 @@ function advanceToNextUnit(action: Command['action']) {
 /** P0-4: the floating combat preview beside the chosen attack target (follows the camera; hidden otherwise). */
 function updateCombatCard(view: PlayerView) {
   const card = actionMode === 'attack' && pendingTarget && selected !== null ? combatCard(view, selected, pendingTarget) : null;
-  const anchor = card && pendingTarget ? tileToScreen(indexToHex(pendingTarget.index, view.map), camera, view.map, canvas.clientWidth) : null;
+  const anchor = card && pendingTarget ? renderer.anchor(indexToHex(pendingTarget.index, view.map), camera, view.map, canvas.clientWidth) : null;
   renderCombatCard(card, anchor, HEX_RADIUS * camera.zoom, busy() || view.outcome !== null || hasPendingPeace(view), {
     confirm: confirmAction,
     cancel: cancelTarget,
@@ -1074,6 +1079,7 @@ function frame(now: number) {
   });
   updateCombatCard(view);
   updateSitePins(view);
+  minimap.update(renderer.mode === '25d' ? view : null, camera, { width: canvas.clientWidth, height: canvas.clientHeight });
   frameDurations.push(performance.now() - drawStarted);
   if (frameDurations.length > 240) frameDurations.shift();
   if (import.meta.env.DEV) {
@@ -1128,7 +1134,9 @@ function focusHex(position: { q: number; r: number }) {
   deferredFocus = null;
   keyboardIndex = hexToIndex(position, session.getView().map);
   camera.zoom = Math.max(camera.zoom, 1.5);
+  // ui-25d: centre on the lifted top face (the lift is 0 on the flat map).
   const point = hexToWorld(position);
+  point.y -= renderer.lift(position);
   camera.x = canvas.clientWidth / 2 - point.x * camera.zoom;
   camera.y = canvas.clientHeight / 2 - point.y * camera.zoom;
 }
@@ -1139,6 +1147,7 @@ function focusHex(position: { q: number; r: number }) {
 function locateTile(index: number) {
   const view = session.getView(), position = indexToHex(index, view.map);
   const centre = toWorld({ x: canvas.clientWidth / 2, y: canvas.clientHeight / 2 }, camera), point = hexToWorld(position);
+  point.y -= renderer.lift(position);
   if (view.map.wrap) point.x += Math.round((centre.x - point.x) / mapSpan(view.map)) * mapSpan(view.map);
   closeScreen();
   deferredFocus = null;

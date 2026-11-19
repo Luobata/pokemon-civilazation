@@ -1,6 +1,7 @@
 // Public entry for map rendering: build a scene from game + UI state, then draw it.
+import { tileToScreen } from '../camera.ts';
 import type { Camera, Point } from '../camera.ts';
-import type { Hex } from '../../core/hex.ts';
+import type { Hex, MapShape } from '../../core/hex.ts';
 import { applyRenderMode } from './projection.ts';
 import type { RenderMode } from './projection.ts';
 import { buildScene } from './scene.ts';
@@ -29,6 +30,13 @@ export function createMapRenderer(canvas: HTMLCanvasElement, options: RendererOp
     invalidate() { backend.invalidate(); },
     /** The tile under a screen point (pixel-plane hex: fold it with hexToIndex). */
     pick(point: Point, camera: Camera): Hex { return backend.pick(point, camera); },
+    /** A tile's lift in world px under the active projection (0 on the flat map): overlay anchors and camera focus use it. */
+    lift(hex: Hex): number { return backend.lift(hex); },
+    /** Screen anchor of a tile's (lifted) top face: `tileToScreen` moved up by the lift at this zoom. */
+    anchor(hex: Hex, camera: Camera, size: MapShape, viewportWidth: number): Point {
+      const p = tileToScreen(hex, camera, size, viewportWidth);
+      return { x: p.x, y: p.y - backend.lift(hex) * camera.zoom };
+    },
     get mode(): RenderMode { return mode; },
     /** Switches projection: sets the world tilt (camera.ts) and rebuilds the backend; callers refit the camera. */
     setMode(next: RenderMode) {

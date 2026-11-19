@@ -96,6 +96,55 @@ test('2.5D map: flag switches the projection, picking follows lifted tiles and c
   expect(errors).toEqual([]);
 });
 
+type Box = { x: number; y: number; width: number; height: number };
+const overlaps = (a: Box, b: Box) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+
+test('2.5D map: locate centres the lifted tile, the minimap stays clear of the HUD and moves the camera, multiplayer honours the setting', async ({ page }) => {
+  test.setTimeout(300_000);
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  const { save } = aiGameAt(5, 40);
+  await importSave(page, save, '25d');
+  // 定位 (World page buttons): the camera centres the tile's lifted top face, not its ground-level point.
+  const target = await page.evaluate(async () => {
+    const { session } = await import('/src/browser/main.ts' as string), { sceneLifts } = await import('/src/browser/render/projection.ts' as string), { buildScene } = await import('/src/browser/render/scene.ts' as string);
+    const view = session.getView(), scene = buildScene({ view }), lifts = sceneLifts(scene.tiles, scene.terrain, scene);
+    let best = 0;
+    for (let index = 0; index < lifts.length; index++) if (lifts[index] > lifts[best]) best = index;
+    return { index: best, lift: lifts[best] };
+  });
+  expect(target.lift).toBeGreaterThan(4);
+  await page.evaluate(index => { const button = document.createElement('button'); button.dataset.locateTile = String(index); document.body.append(button); button.click(); button.remove(); }, target.index);
+  await page.waitForTimeout(200);
+  const box = (await page.locator('#map').boundingBox())!, [centre] = await tileCentres(page, [target.index]);
+  expect(Math.abs(centre.x - box.width / 2)).toBeLessThan(2);
+  expect(Math.abs(centre.y - box.height / 2)).toBeLessThan(2);
+  // Minimap: shown in 2.5D, off the action bar, notification rail, objectives, notices and combat card.
+  const minimap = page.locator('.minimap');
+  await expect(minimap).toBeVisible();
+  const mini = (await minimap.boundingBox())!;
+  for (const selector of ['#unit-action-bar', '#toast-host', '#opening-goals', '.hud-notices', '.combat-card', '#map-legend', '.map-toolbar', '.turn-block', '#context-drawer']) {
+    const other = page.locator(selector).first();
+    if (await other.count() && await other.isVisible()) expect(overlaps(mini, (await other.boundingBox())!), `minimap overlaps ${selector}`).toBe(false);
+  }
+  // Clicking the minimap moves the camera there.
+  const before = await page.evaluate(async () => { const { camera } = await import('/src/browser/main.ts' as string); return { x: camera.x, y: camera.y }; });
+  await page.mouse.click(mini.x + mini.width * .8, mini.y + mini.height * .8);
+  const after = await page.evaluate(async () => { const { camera } = await import('/src/browser/main.ts' as string); return { x: camera.x, y: camera.y }; });
+  expect(Math.hypot(after.x - before.x, after.y - before.y)).toBeGreaterThan(20);
+  // The flat map has no minimap.
+  await page.evaluate(() => { const input = document.querySelector<HTMLInputElement>('#render-settings input[value="flat"]')!; input.checked = true; input.dispatchEvent(new Event('change', { bubbles: true })); });
+  await page.waitForTimeout(150);
+  await expect(minimap).toBeHidden();
+  // The multiplayer page reads the same setting (saved choice, then ?render=).
+  await page.evaluate(() => localStorage.setItem('pokeciv.renderMode', '25d'));
+  await page.goto('/multiplayer.html');
+  expect(await page.evaluate(async () => (await import('/src/browser/camera.ts' as string)).mapTilt())).toBe(.75);
+  await page.goto('/multiplayer.html?render=flat');
+  expect(await page.evaluate(async () => (await import('/src/browser/camera.ts' as string)).mapTilt())).toBe(1);
+  expect(errors).toEqual([]);
+});
+
 test('2.5D map: wrap seam draws both copies and picks across it', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));

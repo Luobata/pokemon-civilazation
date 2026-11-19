@@ -85,7 +85,9 @@
 - `render/chunks25d.ts`：2.5D 的 base 层不再缓存成屏幕大小的一张图，而是按世界空间切块（约 600 设备像素一块），每个缩放级别渲染一次，平移时只拷贝块。键 = 地形输入（生物群系、特征、领土边界、generation）+ 缩放 + DPR + 俯角；缩放刚变化且相机还在动时直接绘制。
 - `render/town25d.ts`：城镇（房子数随人口增长、首都塔楼、奇观金塔、夜间窗灯）和单位的棋子底座。
 - `canvas2d.ts` 只加了钩子：`Draw.squash`（地面上的六边形 / 边 / 选中圈压扁）、`Draw.liftAt`（动画中的单位、弹道、商路光点的高度），城市和单位底座在 2.5D 时换成 `town25d.ts` 的画法；`renderer.pick(point, camera)` 是新的屏幕 → 格子入口（平面时等于 `worldToHex(toWorld(...))`），`main.ts` 的点击、右键、悬停、前往、设施区选址都改用它。
-- 尚未跟随高度的：`tileToScreen`（覆盖层锚点、聚焦运镜、战斗卡锚点），最多偏下“高度 × 缩放”。
+- 第二轮：`sceneLifts(tiles, terrain, size)` 加内陆台地（按离已知水面的格数，`terraceLevels`）；`propScale` 让物件和城镇在默认缩放下大 1.25 倍；迷雾里的物件在地形块里画“已遮罩”副本（轮廓外部分），地形块按块记录迷雾签名。
+- 高度跟随：`renderer.lift(hex)`（世界像素，平面为 0）和 `renderer.anchor(hex, camera, map, width)`（= `tileToScreen` 上移高度 × 缩放）。`main.ts` 的战斗卡、推荐城址、屏幕内判断、奇观运镜、聚焦和“定位”都用它；`multiplayer.ts` 读同一设置并用 `renderer.pick`。
+- `render/minimap.ts`：2.5D 小地图（平面色块 + 阵营 + 城市 + 视口框），底图按命令号缓存，每帧一次 `drawImage`。
 
 ## 测试
 
