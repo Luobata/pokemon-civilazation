@@ -7,6 +7,7 @@ import { HEX_RADIUS } from '../camera.ts';
 import type { Camera, Point } from '../camera.ts';
 import type { MapScene } from './scene.ts';
 import { drawBase25d } from './terrain25d.ts';
+import type { Base25d } from './terrain25d.ts';
 
 type Bounds = { minX: number; minY: number; maxX: number; maxY: number };
 type Rect = { x: number; y: number; width: number; height: number };
@@ -25,6 +26,10 @@ export type ChunkFrame = {
   /** The camera held still since the last frame (chunks for a new zoom are only built then). */
   settled: boolean;
   ownerColor(ownerId: number | null): string;
+  /** ui-painted: the chunk painter (default: the 2.5D terrain). */
+  paint?: (args: Base25d) => void;
+  /** ui-painted: a chunk also paints this many rows / columns of neighbours, so their fogged tiles count in its fog signature. */
+  fogReach?: { rows: number; cols: number };
 };
 
 export function createChunkCache() {
@@ -60,7 +65,18 @@ export function createChunkCache() {
       if (scene.fog !== fogFor) {
         fogFor = scene.fog;
         const lists: number[][] = [];
-        for (const index of scene.fog) (lists[Math.floor(Math.floor(index / scene.width) / rows) * across + Math.floor(index % scene.width / cols)] ??= []).push(index);
+        const reach = f.fogReach;
+        for (const index of scene.fog) {
+          const row = Math.floor(index / scene.width), col = index % scene.width;
+          if (!reach) { (lists[Math.floor(row / rows) * across + Math.floor(col / cols)] ??= []).push(index); continue; }
+          // Every chunk whose ring of neighbours includes this tile (columns folded across the wrap).
+          const ids = new Set<number>();
+          for (let r = Math.max(0, row - reach.rows); r <= Math.min(scene.height - 1, row + reach.rows); r++) for (let c = col - reach.cols; c <= col + reach.cols; c++) {
+            if ((c < 0 || c >= scene.width) && !scene.wrap) continue;
+            ids.add(Math.floor(r / rows) * across + Math.floor(((c % scene.width) + scene.width) % scene.width / cols));
+          }
+          for (const id of ids) (lists[id] ??= []).push(index);
+        }
         const next = lists.map(list => list.join(','));
         fogChanged = next.length !== fogKeys.length || next.some((item, id) => item !== fogKeys[id]);
         fogKeys = next;
@@ -140,7 +156,7 @@ function build(f: ChunkFrame, zoomed: readonly Point[], box: Bounds, rows: reado
   context.imageSmoothingEnabled = false;
   context.setTransform(dpr, 0, 0, dpr, 0, 0);
   const local = zoomed.map(p => ({ x: p.x - ox / dpr, y: p.y - oy / dpr }));
-  drawBase25d({ context, scene: f.scene, lifts: f.lifts, radius: HEX_RADIUS * f.camera.zoom, zoom: f.camera.zoom, squash: f.squash,
+  (f.paint ?? drawBase25d)({ context, scene: f.scene, lifts: f.lifts, radius: HEX_RADIUS * f.camera.zoom, zoom: f.camera.zoom, squash: f.squash,
     copies: [local], width: canvas.width / dpr, height: canvas.height / dpr, ownerColor: f.ownerColor, rows, cols });
   return { canvas, ox, oy, used: 0, fog };
 }

@@ -73,7 +73,7 @@ function badge(shape: Shape, color: string, symbolRows: readonly string[], symbo
 }
 
 // ---------- Type symbols (8×8; '#' = cream) ----------
-const TYPE_SYMBOLS: Record<TypeId, readonly string[]> = {
+export const TYPE_SYMBOLS: Record<TypeId, readonly string[]> = {
   normal: ['..####..', '.######.', '##....##', '##....##', '##....##', '##....##', '.######.', '..####..'],
   fire: ['...#....', '...##...', '..###.#.', '..#####.', '.######.', '.###.###', '.##...##', '..##.##.'],
   water: ['...##...', '...##...', '..####..', '.######.', '.#.####.', '########', '.######.', '..####..'],

@@ -8,9 +8,12 @@ import { HEX_RADIUS, hexToWorld, mapTilt, setMapTilt, toScreen, toWorld, worldTo
 import type { Camera, Point } from '../camera.ts';
 import type { SceneTerrain } from './terrain-features.ts';
 
-export type RenderMode = 'flat' | '25d';
+/** `painted`: the 绘卷 theme's map (ui-painted), a gentler tilt with no elevation. */
+export type RenderMode = 'flat' | '25d' | 'painted';
 /** Vertical squash of the 2.5D map: a hex is drawn 3/4 as tall as it is in the flat map (a camera tilted ~41° from straight down). */
 export const TILT_25D = .75;
+/** ui-painted: the painted map's gentler tilt (~37° from straight down); tiles stay at ground level. */
+export const PAINTED_TILT = .8;
 export const RENDER_MODE_KEY = 'pokeciv.renderMode';
 
 /** `?render=25d` / `?render=flat` wins over the saved setting; the default stays flat until the 2.5D map is accepted. */
@@ -21,7 +24,7 @@ export function requestedRenderMode(search: string, stored: string | null): Rend
   return stored === '25d' ? '25d' : 'flat';
 }
 /** Sets the world tilt for a mode (the scene's world-centre cache is keyed by it). */
-export function applyRenderMode(mode: RenderMode): void { setMapTilt(mode === '25d' ? TILT_25D : 1); }
+export function applyRenderMode(mode: RenderMode): void { setMapTilt(mode === '25d' ? TILT_25D : mode === 'painted' ? PAINTED_TILT : 1); }
 
 /**
  * Elevation steps in world pixels (HEX_RADIUS = 22). Unexplored tiles sit lowest, so explored land rises out of the dark like a

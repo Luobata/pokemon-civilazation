@@ -42,7 +42,7 @@ export type LayerStat = 'hit' | 'miss' | 'direct' | 'off';
 export type RenderStats = { base: LayerStat; fog: LayerStat | 'none'; shake: Point };
 
 /** Per-frame drawing state shared by the layer functions. */
-type Draw = {
+export type Draw = {
   context: CanvasRenderingContext2D; width: number; height: number; radius: number;
   centers: Point[]; onscreen(p: Point): boolean; scene: MapScene;
   /** v22 wrapping maps: screen-x offset of the map copy being drawn, and the width of one copy (0 on flat maps). */
@@ -176,7 +176,7 @@ function drawBase(d: Draw) {
 }
 
 /** Improvements, faith marks, resource badges, districts and construction marks. */
-function drawFeatures(d: Draw) {
+export function drawFeatures(d: Draw) {
   const { context, centers, radius, scene } = d;
   for (const item of scene.improvements) {
     if (!d.onscreen(centers[item.index])) continue;
@@ -267,7 +267,7 @@ function drawFeatures(d: Draw) {
 const citySize = (radius: number) => Math.max(28, Math.min(42, radius * 1.65));
 /** City tiles: selection outline, plaza, built buildings and the town sprite. */
 /** v17 trade routes: a dashed gold line between the two cities. */
-function drawTradeRoutes(d: Draw) {
+export function drawTradeRoutes(d: Draw) {
   const { context, centers, radius, scene } = d;
   context.save(); context.setLineDash([radius * .35, radius * .25]); context.lineCap = 'round';
   for (const route of scene.tradeRoutes) {
@@ -364,7 +364,7 @@ function drawYields(d: Draw) {
 }
 
 /** Weather tints its radius; night dims the whole map. V11: fields fading in or out are drawn at the frame's opacity. */
-function drawWeather(d: Draw, frame: AnimationFrame) {
+export function drawWeather(d: Draw, frame: AnimationFrame) {
   const { context, centers, radius, scene } = d;
   const fades = frame.weather;
   const field = (item: SceneWeather, alpha: number) => {
@@ -688,7 +688,7 @@ function drawInteraction(d: Draw) {
  * the target. Steps across the v22 seam take the short way (the copy of the next tile nearest the previous one). Static: no
  * animation, so reduced motion needs nothing more.
  */
-function drawGoTo(d: Draw) {
+export function drawGoTo(d: Draw) {
   const { context, centers, radius, scene } = d, route = scene.goTo;
   if (!route || route.path.length < 2) return;
   const points: Point[] = [centers[route.path[0]]];
@@ -779,7 +779,7 @@ function drawSelection(d: Draw, frame: AnimationFrame) {
   }
 }
 
-function drawDebug(d: Draw) {
+export function drawDebug(d: Draw) {
   const { context, centers, radius, scene } = d;
   for (const cell of scene.debug.vision) {
     if (!d.onscreen(centers[cell.index])) continue;
@@ -1046,7 +1046,7 @@ function drawPillar(d: Draw, p: Point, effect: Extract<MapEffect, { kind: 'pilla
   context.restore();
 }
 
-function drawEffects(d: Draw, frame: AnimationFrame, indexOf: (hex: Hex) => number | null, camera: Camera) {
+export function drawEffects(d: Draw, frame: AnimationFrame, indexOf: (hex: Hex) => number | null, camera: Camera) {
   const { context, centers, radius } = d;
   // Territory sweeps first, under every other effect.
   for (const effect of frame.effects) if (effect.kind === 'sweep') drawSweep(d, effect, indexOf);
@@ -1104,10 +1104,10 @@ export type MapRenderer = {
   lift(hex: Hex): number;
 };
 
-type LayerCache = { key: string; canvas: HTMLCanvasElement };
+export type LayerCache = { key: string; canvas: HTMLCanvasElement };
 
 /** Cached device-pixel layer; `paint` draws it in CSS pixels with the DPR transform applied. */
-function cachedLayer(cache: LayerCache | null, key: string, deviceWidth: number, deviceHeight: number, dpr: number,
+export function cachedLayer(cache: LayerCache | null, key: string, deviceWidth: number, deviceHeight: number, dpr: number,
   paint: (context: CanvasRenderingContext2D) => void): { cache: LayerCache } {
   const canvas = cache?.canvas ?? document.createElement('canvas');
   if (canvas.width !== deviceWidth) canvas.width = deviceWidth;
@@ -1239,7 +1239,7 @@ export function createCanvas2DRenderer(canvas: HTMLCanvasElement, options: Rende
 }
 
 /** Copies a cached device-pixel layer; `dx`/`dy` is the frame's shake in device pixels. */
-function blit(context: CanvasRenderingContext2D, layer: HTMLCanvasElement, dpr: number, dx: number, dy: number) {
+export function blit(context: CanvasRenderingContext2D, layer: HTMLCanvasElement, dpr: number, dx: number, dy: number) {
   context.setTransform(1, 0, 0, 1, 0, 0);
   context.drawImage(layer, dx, dy);
   context.setTransform(dpr, 0, 0, dpr, dx, dy);
