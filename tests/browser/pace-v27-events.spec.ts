@@ -95,14 +95,31 @@ for (const motion of ['full', 'reduced'] as const) test(`v27 Max raid (${motion}
     return (await import(scenePath)).buildScene({ view }).units.find((item: { unit: { id: number } }) => item.unit.id === bossId)?.max ?? null;
   }, boss.unitId);
   expect(scene).toEqual({ shields: boss.max.shields, shieldMax: boss.max.shieldMax, phase: 1 });
-  const pink = await page.evaluate(() => {
+  const pinkAtCentre = () => page.evaluate(() => {
     const canvas = document.querySelector<HTMLCanvasElement>('#map')!, context = canvas.getContext('2d')!;
     const { width, height } = canvas, data = context.getImageData(Math.round(width / 2 - width * .06), Math.round(height / 2 - height * .08), Math.round(width * .12), Math.round(height * .16)).data;
     let count = 0;
     for (let index = 0; index < data.length; index += 4) if (data[index] > 170 && data[index + 1] < 120 && data[index + 2] > 70 && data[index + 2] < 190) count++;
     return count;
   });
-  expect(pink).toBeGreaterThan(20);
+  expect(await pinkAtCentre()).toBeGreaterThan(20);
   await page.screenshot({ path: `${shots}/pace-v27-raid-map${motion === 'reduced' ? '-reduced' : ''}.png` });
+  if (motion === 'full') {
+    // The aura and shield pips in the other map modes: 2.5D (the same unit pass on lifted tiles) and the painted theme (on the medallion).
+    const settle = async () => { await openScreen(page, 'world'); await card.locator('[data-locate-tile]').click(); await expect(page.locator('#screen-host')).toBeHidden(); await page.waitForTimeout(400); };
+    const pick = (selector: string) => page.evaluate(selector => { const input = document.querySelector<HTMLInputElement>(selector)!; input.checked = true; input.dispatchEvent(new Event('change', { bubbles: true })); }, selector);
+    await pick('#render-settings input[value="25d"]');
+    expect(await page.evaluate(async () => (await import('/src/browser/main.ts' as string)).developerAdapter.renderMode())).toBe('25d');
+    await settle();
+    expect(await pinkAtCentre()).toBeGreaterThan(20);
+    await page.screenshot({ path: `${shots}/pace-v27-raid-map-25d.png` });
+    await pick('#theme-settings input[value="painted"]');
+    expect(await page.evaluate(async () => (await import('/src/browser/main.ts' as string)).developerAdapter.renderMode())).toBe('painted');
+    await settle();
+    expect(await pinkAtCentre()).toBeGreaterThan(20);
+    await page.screenshot({ path: `${shots}/pace-v27-raid-map-painted.png` });
+    await pick('#theme-settings input[value="pixel"]');
+    await pick('#render-settings input[value="flat"]');
+  }
   expect(errors).toEqual([]);
 });

@@ -476,13 +476,16 @@ function unitHpBar(d: Draw, point: Point, hp: { current: number; max: number }, 
 }
 // ---------- v27 ⑤ Max raid boss ----------
 const MAX_PINK = '#F0507A', MAX_RED = '#E5304F', MAX_PHASE_TWO = '#A259E0', MAX_SHIELD = '#F0709A';
+/** The Max raid palette, shared with the painted backend (its medallion halo and shield pips). */
+export const MAX_COLORS = { pink: MAX_PINK, red: MAX_RED, phaseTwo: MAX_PHASE_TWO, shield: MAX_SHIELD } as const;
 export const MAX_SCALE = 1.5;
 /** The Dynamax aura under the boss: stacked translucent red-pink ellipses (no shadowBlur) and a dark red ground glow; purple-tinged in phase two. */
 function maxAura(d: Draw, p: Point, phase: 1 | 2) {
   if (!d.onscreen(p)) return;
   const { context, radius } = d, size = Math.max(26, Math.min(54, radius * 1.75)) * MAX_SCALE;
   context.save();
-  context.beginPath(); context.ellipse(p.x, p.y + size * .3, size * .52, size * .2, 0, 0, Math.PI * 2);
+  // The ground glow lies on the ground (squashed further on the 2.5D map, ui-25d).
+  context.beginPath(); context.ellipse(p.x, p.y + size * .3, size * .52, size * .2 * Math.min(1, d.squash / .7), 0, 0, Math.PI * 2);
   context.fillStyle = '#5A0F2266'; context.fill();
   for (const [index, scale] of [1, .82, .64].entries()) {
     context.globalAlpha = .3 + index * .12;

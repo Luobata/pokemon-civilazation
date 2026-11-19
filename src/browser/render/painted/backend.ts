@@ -14,7 +14,7 @@ import type { Camera, Point } from '../../camera.ts';
 import { drawPokemonSilhouette, drawPokemonSprite, drawSpritePath } from '../../sprites.ts';
 import { EMPTY_FRAME } from '../animation.ts';
 import type { AnimationFrame } from '../animation.ts';
-import { DISTRICT_COLORS, PARTICLE_CAP, YIELD_MIN_RADIUS, blit, cachedLayer, drawDebug, drawEffects, drawFeatures, drawGoTo, drawTradeRoutes, drawWeather, ownerColor } from '../canvas2d.ts';
+import { DISTRICT_COLORS, MAX_COLORS, PARTICLE_CAP, YIELD_MIN_RADIUS, blit, cachedLayer, drawDebug, drawEffects, drawFeatures, drawGoTo, drawTradeRoutes, drawWeather, ownerColor } from '../canvas2d.ts';
 import type { Draw, LayerCache, LayerStat, RenderStats, RendererOptions } from '../canvas2d.ts';
 import { createChunkCache } from '../chunks25d.ts';
 import type { MapScene, SceneCity, SceneUnit, UnitMarkIdentity } from '../scene.ts';
@@ -49,15 +49,46 @@ function disc(g: CanvasRenderingContext2D, x: number, y: number, r: number, fill
 }
 
 /** One unit as a medallion flag. `p` is the tile centre (or an animated position). */
-function medallion(d: Ctx, unit: UnitMarkIdentity, p: Point, o: { spent?: boolean; hostile?: boolean; enraged?: boolean; status?: string; rank?: number; promotable?: boolean; hp?: { current: number; max: number } } = {}, scale = 1) {
+type MedallionMarks = { spent?: boolean; hostile?: boolean; enraged?: boolean; status?: string; rank?: number; promotable?: boolean; hp?: { current: number; max: number };
+  /** v27 ⑤: a Max raid boss (halo behind the medallion, shield pips over it, HP arc in the phase colour). */
+  max?: SceneUnit['max']; /** v27 ②: an exhausted wild Pokémon (grey sprite, sweat-drop mark). */ exhausted?: boolean };
+/** v27 ⑤ on the medallion: a red-pink Dynamax halo (stacked translucent rings, no shadowBlur; purple-tinged in phase two). */
+function maxHalo(g: CanvasRenderingContext2D, c: Point, m: number, phase: 1 | 2) {
+  g.save();
+  for (const [index, scale] of [1.62, 1.42, 1.24].entries()) {
+    g.globalAlpha = .28 + index * .12;
+    g.beginPath(); g.arc(c.x, c.y, m * scale, 0, Math.PI * 2);
+    g.fillStyle = index === 2 && phase === 2 ? MAX_COLORS.phaseTwo : index === 0 ? MAX_COLORS.red : MAX_COLORS.pink; g.fill();
+  }
+  g.globalAlpha = 1;
+  g.beginPath(); g.arc(c.x, c.y, m * 1.62, 0, Math.PI * 2);
+  g.strokeStyle = phase === 2 ? MAX_COLORS.phaseTwo : MAX_COLORS.pink; g.lineWidth = Math.max(2, m * .12); g.stroke();
+  g.restore();
+}
+/** v27 ⑤ on the medallion: shield pips as small hexagon studs along the medallion's upper rim (standing filled, broken dark). */
+function maxPips(g: CanvasRenderingContext2D, c: Point, m: number, max: NonNullable<SceneUnit['max']>) {
+  if (max.shieldMax <= 0) return;
+  const pip = Math.max(3.5, m * .2), step = Math.min(.42, 1.6 / Math.max(1, max.shieldMax - 1)), r = m * 1.32;
+  for (let index = 0; index < max.shieldMax; index++) {
+    const angle = -Math.PI / 2 + (index - (max.shieldMax - 1) / 2) * step, x = c.x + Math.cos(angle) * r, y = c.y + Math.sin(angle) * r;
+    g.beginPath();
+    for (let side = 0; side < 6; side++) { const a = (side * 60 - 30) * Math.PI / 180; if (side) g.lineTo(x + Math.cos(a) * pip, y + Math.sin(a) * pip); else g.moveTo(x + Math.cos(a) * pip, y + Math.sin(a) * pip); }
+    g.closePath(); g.fillStyle = index < max.shields ? MAX_COLORS.shield : '#2A1A22'; g.fill();
+    g.strokeStyle = OUTLINE; g.lineWidth = Math.max(1, pip * .3); g.stroke();
+  }
+}
+function medallion(d: Ctx, unit: UnitMarkIdentity, p: Point, o: MedallionMarks = {}, scale = 1) {
   if (!d.onscreen(p)) return;
   const g = d.context, m = medallionRadius(d.radius) * scale, mb = bucket(m * d.dpr), k = m / mb, c = medallionCentre(p, d.radius * scale);
+  if (o.max) maxHalo(g, c, m, o.max.phase);
   const frame = medallionFrame({ ownerId: unit.ownerId, color: ownerColor(unit.ownerId), hostile: Boolean(o.hostile), spent: Boolean(o.spent) }, mb);
   g.drawImage(frame, c.x - MEDALLION.cx * m, c.y - MEDALLION.cy * m, frame.width * k, frame.height * k);
   const box = Math.round(m * 1.62), smoothing = g.imageSmoothingEnabled;
   g.imageSmoothingEnabled = false;
   if (unit.kind === 'pokemon') {
+    if (o.exhausted) { g.save(); g.filter = 'grayscale(1) brightness(.9)'; }
     if (!drawPokemonSprite(g, unit.speciesId, Math.round(c.x - box / 2), Math.round(c.y - box * .56), box)) disc(g, c.x, c.y, m * .5, '#B9A57E', '?');
+    if (o.exhausted) { g.restore(); drawIcon(g, 'exhausted', c.x + m * .78, c.y - m * .9, Math.max(11, m * .7)); }
   } else {
     const role = ROLE_POKEMON[unit.role];
     drawSpritePath(g, role.sprite, Math.round(c.x - box / 2), Math.round(c.y - box * .55), box);
@@ -89,9 +120,13 @@ function medallion(d: Ctx, unit: UnitMarkIdentity, p: Point, o: { spent?: boolea
     const r = m * 1.12, from = Math.PI * 5 / 6, sweep = Math.PI * 2 / 3, share = Math.max(0, Math.min(1, o.hp.current / o.hp.max));
     g.lineCap = 'round';
     g.beginPath(); g.arc(c.x, c.y, r, from, from - sweep, true); g.strokeStyle = 'rgba(20,14,8,.9)'; g.lineWidth = Math.max(4, m * .24); g.stroke();
-    g.beginPath(); g.arc(c.x, c.y, r, from, from - sweep * share, true); g.strokeStyle = share * 2 < 1 ? '#E0604F' : '#7FD08A'; g.lineWidth = Math.max(2, m * .13); g.stroke();
+    g.beginPath(); g.arc(c.x, c.y, r, from, from - sweep * share, true);
+    g.strokeStyle = o.max ? (o.max.phase === 2 ? MAX_COLORS.phaseTwo : MAX_COLORS.pink) : share * 2 < 1 ? '#E0604F' : '#7FD08A'; g.lineWidth = Math.max(2, m * .13); g.stroke();
   }
+  if (o.max) maxPips(g, c, m, o.max);
 }
+/** The boss medallion is larger (the flat map draws the boss at 1.5×). */
+const MAX_MEDALLION_SCALE = 1.35;
 
 function drawUnits(d: Ctx, frame: AnimationFrame, camera: Camera) {
   const { context: g, centers, radius, scene } = d, posed = new Set(frame.poses.map(pose => pose.unit.id));
@@ -99,21 +134,22 @@ function drawUnits(d: Ctx, frame: AnimationFrame, camera: Camera) {
   const drawItem = (item: SceneUnit) => {
     const shared = item.unit.kind !== 'pokemon' && pokemonTiles.has(item.index), base = centers[item.index];
     const p = shared ? { x: base.x + radius * .62, y: base.y + radius * .3 } : base;
-    medallion(d, item.unit, p, { spent: item.actionLeft === 0, hostile: item.hostile, enraged: item.enraged, status: item.status, rank: item.rank, promotable: item.promotable, hp: item.hp }, shared ? .6 : 1);
+    medallion(d, item.unit, p, { spent: item.actionLeft === 0, hostile: item.hostile, enraged: item.enraged, status: item.status, rank: item.rank, promotable: item.promotable, hp: item.hp,
+      max: item.max, exhausted: item.exhausted }, shared ? .6 : item.max ? MAX_MEDALLION_SCALE : 1);
   };
   // Back to front, so a nearer flag overlaps the one behind it.
   for (const item of [...scene.units].sort((a, b) => a.index - b.index)) if (!posed.has(item.unit.id)) drawItem(item);
   for (const pose of frame.poses) {
     const s = toScreen(pose.position, camera), point = { x: s.x + d.shift, y: s.y };
     if (!d.onscreen(point)) continue;
-    const hp = scene.units.find(item => item.unit.id === pose.unit.id)?.hp;
+    const posedItem = scene.units.find(item => item.unit.id === pose.unit.id), hp = posedItem?.hp;
     if (pose.alpha !== undefined || pose.grey) {
       g.save(); g.globalAlpha = Math.max(0, Math.min(1, pose.alpha ?? 1));
       if (pose.grey) g.filter = 'grayscale(1) brightness(.8)';
       medallion(d, pose.unit, point); g.restore();
       continue;
     }
-    medallion(d, pose.unit, point, { hp }, pose.scale ?? 1);
+    medallion(d, pose.unit, point, { hp, max: posedItem?.max }, pose.scale ?? (posedItem?.max ? MAX_MEDALLION_SCALE : 1));
     if (pose.evolution && pose.evolution.white > 0 && pose.unit.kind === 'pokemon') {
       const m = medallionRadius(radius) * (pose.scale ?? 1), c = medallionCentre(point, radius), box = Math.round(m * 1.62);
       g.save(); g.globalAlpha = Math.min(1, pose.evolution.white);
