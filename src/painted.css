@@ -1,0 +1,216 @@
+/*
+ * ui-painted (docs/design/ui-painted.md §3): the 绘卷 theme's HUD — walnut-and-brass explorer's kit around the painted map.
+ * Original motifs only: a double brass rule, small "capture-ball" corner roundels (a brass ring, an enamel upper half, a cream lower
+ * half and a centre boss), round enamel medallions for resources and launchers, serif headings from free fonts already on the
+ * system (Noto Serif SC / Source Han Serif SC / Songti; nothing is bundled). Everything is scoped under html.theme-painted and
+ * changes colours, frames, shadows and type only — no panel moves, so the action bar, notification rail, objective card and
+ * combat card keep their places. No `filter`, no animated shadows.
+ */
+html.theme-painted {
+  --app-bg: #1B130D;
+  --surface: #2A1E15;
+  --surface-raised: #36271B;
+  --surface-muted: #3B2C1F;
+  --ink: #F4E8CC;
+  --ink-secondary: #D2C09A;
+  --ink-muted: #A8946F;
+  --border: #6B4E28;
+  --border-strong: #9A7438;
+  --accent: #3FA796;
+  --accent-hover: #2F8C7D;
+  --accent-active: #24705F;
+  --accent-soft: #1F3B33;
+  --gold: #E8C26A;
+  --gold-soft: #4A3719;
+  --focus: #F6D676;
+  --fog-unexplored: #241A13;
+  --disabled-bg: #2E241B;
+  --disabled-ink: #8F7F64;
+  --brass: #D7AE58;
+  --brass-hi: #F6DE98;
+  --brass-lo: #7A5626;
+  --walnut-top: #33251A;
+  --walnut-bottom: #231910;
+  --leather: #3E2B1C;
+  --serif: "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", "SimSun", serif;
+  /* Corner roundel (original): brass ring, teal enamel top, cream bottom, dark band and boss. */
+  --roundel: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='7.2' fill='%237A5626'/%3E%3Ccircle cx='8' cy='8' r='6.2' fill='%23E2BE6E'/%3E%3Cpath d='M3 8a5 5 0 0 1 10 0Z' fill='%233FA796'/%3E%3Cpath d='M3 8a5 5 0 0 0 10 0Z' fill='%23F4E8CC'/%3E%3Crect x='2.6' y='7.3' width='10.8' height='1.4' fill='%232A1B0E'/%3E%3Ccircle cx='8' cy='8' r='1.9' fill='%232A1B0E'/%3E%3Ccircle cx='8' cy='8' r='1.1' fill='%23F6DE98'/%3E%3C/svg%3E");
+  --frame: 0 0 0 1px var(--brass-lo), 0 0 0 2px #120C07, inset 0 0 0 1px rgb(246 222 152 / 26%), inset 0 0 0 3px rgb(18 12 7 / 55%), inset 0 0 0 4px rgb(215 174 88 / 18%);
+  --drop: 0 10px 26px rgb(0 0 0 / 46%);
+  color: var(--ink);
+  background: var(--app-bg);
+}
+html.theme-painted body { background: radial-gradient(ellipse at 50% 0%, #2E2117, #160F0A 70%); }
+
+/* ---------- Map surround ---------- */
+html.theme-painted .map-frame, html.theme-painted #map { background: #231912; }
+html.theme-painted #map { image-rendering: auto; }
+html.theme-painted .context-drawer { border-left: 2px solid var(--brass-lo); background: linear-gradient(90deg, #1E150E, #251A12); box-shadow: inset 1px 0 0 rgb(246 222 152 / 18%); }
+
+/* ---------- Shared ornamental frame ---------- */
+html.theme-painted :is(.panel, #economy, #unit-panel, .subpanel) {
+  border: 1px solid #120C07;
+  border-radius: 6px;
+  background:
+    var(--roundel) left 5px bottom 5px / 12px no-repeat,
+    var(--roundel) right 5px bottom 5px / 12px no-repeat,
+    linear-gradient(180deg, var(--walnut-top), var(--walnut-bottom) 180px);
+  box-shadow: var(--frame), var(--drop);
+}
+html.theme-painted :is(.stage .map-toolbar, .opening-goals, .map-legend, .hud-notices #selection, #controls, .turn-block #turn-reminders > *, .unit-action-bar) {
+  border-color: #120C07;
+  border-radius: 6px;
+  background-color: rgb(38 27 18 / 94%);
+  box-shadow: 0 0 0 1px var(--brass-lo), inset 0 0 0 1px rgb(246 222 152 / 20%), 0 6px 16px rgb(0 0 0 / 40%);
+}
+html.theme-painted .opening-goals { border-left: 3px solid var(--brass); }
+html.theme-painted .stage .map-toolbar strong { font-family: var(--serif); font-weight: 700; color: var(--brass-hi); letter-spacing: .12em; }
+html.theme-painted .stage .map-toolbar strong::before { content: ""; display: inline-block; width: 14px; height: 14px; margin-right: 8px; vertical-align: -2px; background: var(--roundel) center / contain no-repeat; }
+
+/* Title rows: dark leather with a double brass rule; headings in serif. */
+html.theme-painted :is(.subpanel-head, .economy-head, .screen-head) {
+  border-bottom: 1px solid #120C07;
+  background: linear-gradient(180deg, #4A3420, #33241A);
+  box-shadow: inset 0 1px 0 rgb(246 222 152 / 22%), inset 0 -2px 0 var(--brass-lo), inset 0 -3px 0 rgb(246 222 152 / 30%);
+}
+html.theme-painted :is(.subpanel-head > strong, .economy-title, .screen-head h2, .unit-head strong, .tech-column-head, .research-current strong) { font-family: var(--serif); letter-spacing: .06em; }
+html.theme-painted :is(.subpanel-head > strong, .screen-head h2) { color: var(--brass-hi); }
+html.theme-painted .screen-head h2::before { content: ""; display: inline-block; width: 18px; height: 18px; margin-right: 10px; vertical-align: -3px; background: var(--roundel) center / contain no-repeat; }
+
+/* ---------- Buttons: brass-rimmed enamel ---------- */
+html.theme-painted button {
+  border-color: #120C07;
+  background: linear-gradient(180deg, #4A3622, #34251A);
+  box-shadow: inset 0 0 0 1px rgb(215 174 88 / 45%), inset 0 1px 0 rgb(255 236 190 / 18%), 0 2px 0 #0E0905;
+  color: var(--ink);
+}
+html.theme-painted button:hover:not(:disabled) { border-color: #120C07; background: linear-gradient(180deg, #5A4229, #3F2D1E); box-shadow: inset 0 0 0 1px var(--brass), 0 2px 0 #0E0905; color: #FFF4D8; }
+html.theme-painted button:disabled { background: var(--disabled-bg); box-shadow: inset 0 0 0 1px rgb(122 86 38 / 40%); color: var(--disabled-ink); }
+html.theme-painted :is(button.primary, #end-turn) {
+  border-color: #0C1A16;
+  background: radial-gradient(ellipse at 50% 20%, #5CC3AE, #2C8C7A 60%, #1F6A5C);
+  box-shadow: 0 0 0 2px var(--brass), 0 0 0 3px #120C07, inset 0 1px 0 rgb(255 255 255 / 30%), inset 0 -3px 0 rgb(0 0 0 / 22%), 0 6px 18px rgb(0 0 0 / 45%);
+  color: #FFF8E6;
+  text-shadow: 0 1px 0 rgb(0 0 0 / 35%);
+}
+html.theme-painted .stage #end-turn { font-family: var(--serif); letter-spacing: .08em; box-shadow: 0 0 0 3px var(--brass), 0 0 0 4px #120C07, 0 0 0 6px rgb(215 174 88 / 25%), inset 0 1px 0 rgb(255 255 255 / 30%), inset 0 -3px 0 rgb(0 0 0 / 22%), 0 10px 26px rgb(0 0 0 / 50%); }
+html.theme-painted :is(button.primary, #end-turn):hover:not(:disabled) { background: radial-gradient(ellipse at 50% 20%, #6FD4BE, #36A08B 60%, #247563); }
+html.theme-painted .unit-cycle { border-radius: 50%; }
+html.theme-painted select { border-color: var(--brass-lo); background-color: #231910; color: var(--ink); }
+
+/* ---------- Top bar: leather band, brass rule, round medallions ---------- */
+html.theme-painted .topbar {
+  border: 0;
+  border-bottom: 1px solid #0E0905;
+  border-radius: 0;
+  background:
+    linear-gradient(180deg, rgb(255 236 190 / 6%), transparent 40%),
+    linear-gradient(180deg, #3A291B, #2A1D13);
+  box-shadow: inset 0 -2px 0 var(--brass-lo), inset 0 -3px 0 rgb(246 222 152 / 35%), 0 6px 18px rgb(0 0 0 / 45%);
+}
+html.theme-painted .brand strong { font-family: var(--serif); color: var(--brass-hi); }
+html.theme-painted .brand-mark { border-radius: 50%; border-color: var(--brass); background: radial-gradient(circle at 40% 35%, #4B7F6E, #1E3D35); box-shadow: 0 0 0 2px #120C07, inset 0 0 0 2px rgb(246 222 152 / 30%); }
+html.theme-painted .round-block { border-right: 1px solid var(--brass-lo); box-shadow: 1px 0 0 rgb(246 222 152 / 15%); }
+html.theme-painted .round-block strong { font-family: var(--serif); color: var(--brass-hi); text-shadow: 0 1px 0 #000; }
+html.theme-painted .resource { padding-left: 38px; }
+html.theme-painted .resource-icon {
+  top: 2px; width: 32px; height: 32px; padding: 7px; box-sizing: border-box; border-radius: 50%;
+  background: radial-gradient(circle at 38% 32%, #5A4128, #2A1D12 70%);
+  box-shadow: 0 0 0 2px var(--brass), 0 0 0 3px #120C07, inset 0 0 0 1px rgb(246 222 152 / 30%), inset 0 -3px 4px rgb(0 0 0 / 35%);
+}
+html.theme-painted .resource:nth-child(1) .resource-icon { color: #F6CF5E; background: radial-gradient(circle at 38% 32%, #7A5A1E, #3A280C 70%); }
+html.theme-painted .resource:nth-child(2) .resource-icon { color: #9FE0F0; background: radial-gradient(circle at 38% 32%, #2C6A86, #12324A 70%); }
+html.theme-painted .resource:nth-child(3) .resource-icon { color: #F2A890; background: radial-gradient(circle at 38% 32%, #7A3A2C, #3A1A12 70%); }
+html.theme-painted .resource strong { font-family: var(--serif); color: #FFF4D8; }
+html.theme-painted .hud-balls { border-radius: 999px; }
+html.theme-painted .hud-essences > * { border-radius: 999px; border-color: var(--brass-lo); background: rgb(20 13 8 / 55%); }
+html.theme-painted .launcher button { border-color: transparent; border-radius: 8px; background: transparent; box-shadow: none; color: var(--ink-secondary); }
+html.theme-painted .launcher button svg {
+  width: 30px; height: 30px; padding: 6px; box-sizing: border-box; border-radius: 50%; color: var(--brass-hi);
+  background: radial-gradient(circle at 38% 32%, #4E3823, #24180F 70%);
+  box-shadow: 0 0 0 1.5px var(--brass), 0 0 0 2.5px #120C07, inset 0 -2px 3px rgb(0 0 0 / 35%);
+}
+html.theme-painted .launcher button:hover:not(:disabled) { border-color: transparent; background: rgb(215 174 88 / 10%); box-shadow: none; }
+html.theme-painted .launcher button[aria-expanded="true"] { border-color: transparent; background: rgb(215 174 88 / 16%); color: var(--brass-hi); }
+html.theme-painted .launcher button[aria-expanded="true"] svg { background: radial-gradient(circle at 38% 32%, #5CC3AE, #1F6A5C 75%); color: #FFF8E6; }
+
+/* ---------- Unit panel: big round portrait in a type-coloured ring ---------- */
+html.theme-painted .unit-head {
+  border-bottom: 1px solid #120C07;
+  background: linear-gradient(110deg, color-mix(in srgb, var(--type-accent) 26%, #3A291B), #2A1D13 70%);
+  box-shadow: inset 0 3px 0 var(--type-accent), inset 0 -2px 0 var(--brass-lo), inset 0 -3px 0 rgb(246 222 152 / 25%);
+}
+html.theme-painted .unit-portrait {
+  flex-basis: 92px; width: 92px; height: 92px; border: 0; border-radius: 50%;
+  background: radial-gradient(circle at 50% 42%, #FBF3DD, color-mix(in srgb, var(--type-accent) 30%, #D9C49A) 72%);
+  box-shadow: 0 0 0 4px var(--type-accent), 0 0 0 5px #120C07, 0 0 0 7px var(--brass), 0 0 0 8px #120C07, inset 0 -6px 10px rgb(0 0 0 / 22%), 0 6px 14px rgb(0 0 0 / 45%);
+  margin: 6px 6px 6px 4px;
+}
+html.theme-painted .unit-portrait::after { display: none; }
+html.theme-painted .unit-portrait img { width: 80px; height: 80px; }
+html.theme-painted .unit-head strong { font-size: 1.15rem; color: #FFF4D8; text-shadow: 0 1px 0 #000; }
+html.theme-painted .unit-details > * {
+  border: 1px solid #120C07; border-radius: 8px;
+  background: linear-gradient(180deg, #3A2A1C, #271B12);
+  box-shadow: inset 0 0 0 1px rgb(215 174 88 / 30%), 0 2px 0 #0E0905;
+}
+html.theme-painted .unit-details strong { font-family: var(--serif); color: #FFF4D8; }
+html.theme-painted .unit-ap { border-radius: 999px; border-color: var(--brass-lo); }
+html.theme-painted .vital-bar { border-radius: 999px; border-color: #120C07; background: #1A120B; }
+html.theme-painted .vital-bar > span { border-radius: 999px; }
+
+/* ---------- City panel: a civ-coloured banner head ---------- */
+html.theme-painted .economy-head {
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 10%), transparent 45%),
+    linear-gradient(100deg, color-mix(in srgb, var(--civ-1) 70%, #2A1D13), color-mix(in srgb, var(--civ-1) 25%, #2A1D13) 75%);
+  box-shadow: inset 0 -2px 0 var(--brass-lo), inset 0 -3px 0 rgb(246 222 152 / 35%), inset 0 1px 0 rgb(255 255 255 / 18%);
+}
+html.theme-painted .economy-title { font-size: 1.35rem; color: #FFF8E6; text-shadow: 0 1px 0 rgb(0 0 0 / 55%); }
+html.theme-painted .economy-title::before { content: ""; display: inline-block; width: 20px; height: 20px; background: var(--roundel) center / contain no-repeat; }
+html.theme-painted #economy :is(.work-list, #recovering-units) { border-color: var(--brass-lo); border-radius: 6px; background: rgb(20 13 8 / 45%); box-shadow: inset 0 1px 3px rgb(0 0 0 / 40%); }
+html.theme-painted .city-navigation button[aria-pressed="true"] { border-color: #120C07; background: linear-gradient(180deg, #6A4E22, #4A3417); color: var(--brass-hi); box-shadow: inset 0 0 0 1px var(--brass); }
+
+/* ---------- Screens ---------- */
+html.theme-painted :is(.screen, dialog) {
+  border: 1px solid #120C07; border-radius: 8px;
+  background: linear-gradient(180deg, #2E2117, #20160F 240px);
+  box-shadow: var(--frame), 0 26px 60px rgb(0 0 0 / 55%);
+}
+html.theme-painted .screen-host .screen-backdrop { background: rgb(12 8 5 / 62%); }
+html.theme-painted .screen-close { border-radius: 50%; }
+
+/* ---------- Research tree: medallion nodes on brass lines ---------- */
+html.theme-painted .research-box, html.theme-painted .tech-detail { border-color: var(--brass-lo); border-radius: 8px; background: linear-gradient(180deg, #33251A, #251A12); box-shadow: inset 0 0 0 1px rgb(246 222 152 / 18%); }
+html.theme-painted .tech-tree-v22 .tech-node {
+  border: 1px solid #120C07; border-radius: 34px 10px 10px 34px;
+  background: linear-gradient(180deg, #3A2A1C, #281C13);
+  box-shadow: inset 4px 0 0 var(--line), inset 0 0 0 1px rgb(215 174 88 / 25%), 0 3px 0 #0E0905;
+}
+html.theme-painted .tech-node .node-icon {
+  border: 0; border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #FBF3DD, #D8C394 75%);
+  box-shadow: 0 0 0 2px var(--line), 0 0 0 3px #120C07, 0 0 0 5px var(--brass), 0 0 0 6px #120C07;
+}
+html.theme-painted .tech-node .node-main strong { font-family: var(--serif); color: #FFF0CF; }
+html.theme-painted .tech-tree-v22 .tech-node.done .node-icon { box-shadow: 0 0 0 2px #6FB58F, 0 0 0 3px #120C07, 0 0 0 5px var(--brass), 0 0 0 6px #120C07; }
+html.theme-painted .tech-tree-v22 .tech-node.active .node-icon { box-shadow: 0 0 0 2px #6FC0F0, 0 0 0 3px #120C07, 0 0 0 5px #9FE0F0, 0 0 0 6px #120C07, 0 0 14px #4A9FD4; }
+html.theme-painted .tech-tree-v22 .tech-node.available { box-shadow: inset 4px 0 0 var(--line), inset 0 0 0 1px var(--brass), 0 0 12px rgb(246 214 118 / 25%), 0 3px 0 #0E0905; }
+html.theme-painted .tech-tree-v22 .tech-node.available .node-icon { box-shadow: 0 0 0 2px var(--gold), 0 0 0 3px #120C07, 0 0 0 5px var(--brass-hi), 0 0 0 6px #120C07; }
+html.theme-painted .tech-tree-v22 .tech-node.selected { box-shadow: inset 4px 0 0 var(--line), 0 0 0 3px var(--focus), 0 3px 0 #0E0905; }
+html.theme-painted .tech-node .node-state-badge { background: #1A120B; box-shadow: 0 0 0 1px var(--brass); }
+html.theme-painted .tech-column-head { color: var(--brass-hi); }
+html.theme-painted .tech-tree-scroll { border-color: var(--brass-lo); background: radial-gradient(ellipse at 30% 0%, #2C2017, #17100B 80%); box-shadow: inset 0 0 0 1px rgb(246 222 152 / 14%), inset 0 2px 8px rgb(0 0 0 / 45%); }
+html.theme-painted .tech-links path { stroke: #B88A3E; }
+
+/* ---------- Notifications, toasts, action bar ---------- */
+html.theme-painted :is(.toast-host > *, .rail-item, .notification-rail > *) { border-color: var(--brass-lo); }
+html.theme-painted .unit-action-bar button { border-radius: 8px; }
+
+/* ---------- Reduced motion and contrast ---------- */
+@media (prefers-reduced-motion: reduce) {
+  html.theme-painted * { transition-duration: 0s !important; }
+}
+@media (prefers-contrast: more) {
+  html.theme-painted { --ink-secondary: #F0E2C0; --ink-muted: #D2C09A; }
+}

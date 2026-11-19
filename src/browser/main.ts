@@ -64,6 +64,7 @@ import type { PlayerView, VisibleEvent } from '../core/model.ts';
 import { BIOME_DISPLAY, FACTION_LEGEND } from './canvas.ts';
 import { FACTIONS, RENDER_MODE_KEY, applyRenderMode, createMapRenderer, requestedRenderMode, Timeline } from './render/index.ts';
 import { createMinimap } from './render/minimap.ts';
+import { applyTheme, requestedTheme, saveTheme, storedTheme } from './theme.ts';
 import type { RenderMode } from './render/index.ts';
 import type { DebugOverlay, RenderStats, Track } from './render/index.ts';
 import type { UnitMarkIdentity } from './render/scene.ts';
@@ -180,7 +181,10 @@ const presenting = new Map<string, VisibleEvent['payload']>();
 let trackSerial = 0;
 // ui-25d: the map projection (`?render=25d` or the menu setting; flat stays the default until the 2.5D map is accepted).
 const storedRenderMode = (() => { try { return localStorage.getItem(RENDER_MODE_KEY); } catch { return null; } })();
-const initialRenderMode: RenderMode = requestedRenderMode(location.search, storedRenderMode);
+// ui-painted: the 绘卷 theme (`?theme=painted` or 菜单 → 画风) brings its own map backend and HUD styles.
+let theme = requestedTheme(location.search, storedTheme());
+applyTheme(theme);
+const initialRenderMode: RenderMode = theme === 'painted' ? 'painted' : requestedRenderMode(location.search, storedRenderMode);
 applyRenderMode(initialRenderMode);
 const renderer = createMapRenderer(canvas, { mode: initialRenderMode });
 // ui-25d §10: the minimap (2.5D only; click or drag to move the camera there).
@@ -1521,6 +1525,23 @@ document.querySelector<HTMLElement>('#audio-settings-root')!.innerHTML = audioSe
     try { localStorage.setItem(RENDER_MODE_KEY, mode); } catch { /* private mode: the choice lasts for this page */ }
     renderer.setMode(mode);
     if (session) fit();
+  });
+}
+// ui-painted: 画风 setting (saved in this browser; `?theme=` still overrides on load). 像素 keeps the 地图视角 choice.
+{
+  const renderSettings = document.querySelector<HTMLFieldSetElement>('#render-settings')!;
+  renderSettings.insertAdjacentHTML('beforebegin', `<fieldset class="audio-settings theme-settings" id="theme-settings"><legend>画风</legend>
+    <label class="audio-mute"><input type="radio" name="theme" value="painted"${theme === 'painted' ? ' checked' : ''} />绘卷（插画）</label>
+    <label class="audio-mute"><input type="radio" name="theme" value="pixel"${theme === 'pixel' ? ' checked' : ''} />像素</label></fieldset>`);
+  renderSettings.disabled = theme === 'painted';
+  document.querySelector('#theme-settings')!.addEventListener('change', event => {
+    theme = (event.target as HTMLInputElement).value === 'painted' ? 'painted' : 'pixel';
+    saveTheme(theme); applyTheme(theme);
+    renderSettings.disabled = theme === 'painted';
+    const pixelMode = requestedRenderMode(location.search.replace(/[?&]theme=[^&]*/, ''), (() => { try { return localStorage.getItem(RENDER_MODE_KEY); } catch { return null; } })());
+    for (const input of renderSettings.querySelectorAll<HTMLInputElement>('input')) input.checked = theme === 'pixel' && input.value === pixelMode;
+    renderer.setMode(theme === 'painted' ? 'painted' : pixelMode);
+    if (session) { fit(); controls(); }
   });
 }
 bindAudioSettings(document.querySelector<HTMLElement>('#audio-settings-root')!);

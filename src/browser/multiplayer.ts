@@ -10,6 +10,7 @@ import type { Command, PlayerView } from '../core/model.ts';
 import type { BallId } from '../content/economy.ts';
 import { FACTION_LEGEND } from './canvas.ts';
 import { RENDER_MODE_KEY, applyRenderMode, createMapRenderer, requestedRenderMode } from './render/index.ts';
+import { applyTheme, requestedTheme, storedTheme } from './theme.ts';
 import { renderDiplomacyPanel, hasPendingPeace } from './diplomacy-panel.ts';
 import { renderEconomyPanel } from './economy-panel.ts';
 import { renderExpansionPanel } from './expansion-panel.ts';
@@ -27,7 +28,10 @@ import type { RoomCreateResponse } from '../network/contract.ts';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#map')!;
 // ui-25d: the same map projection setting as the single-player page (`?render=` or the saved 地图视角 choice).
-const renderMode = requestedRenderMode(location.search, (() => { try { return localStorage.getItem(RENDER_MODE_KEY); } catch { return null; } })());
+// ui-painted: the 绘卷 theme setting applies here too (`?theme=` or the saved 画风 choice).
+const theme = requestedTheme(location.search, storedTheme());
+applyTheme(theme);
+const renderMode = theme === 'painted' ? 'painted' : requestedRenderMode(location.search, (() => { try { return localStorage.getItem(RENDER_MODE_KEY); } catch { return null; } })());
 applyRenderMode(renderMode);
 const renderer = createMapRenderer(canvas, { mode: renderMode });
 const status = document.querySelector<HTMLElement>('#connection-status')!;
