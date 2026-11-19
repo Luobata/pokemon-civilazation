@@ -201,3 +201,16 @@ test('v26 victory-target knobs: the contest minimum percent and the Pokédex bon
   expect(observeContests(patched, 0, tuned)!.target).toBe(3000);
   expect(() => parsePatch({ depth26: { contestTargetPercent: 20 } }, v26)).toThrow('patch.depth26.contestTargetPercent');
 });
+
+test('v27 Pokédex knob: pace27.opening.pokedexTargetBonus stacks on the v26 bonus in v27 only', () => {
+  const setup = (gameplayVersion: 26 | 27) => ({ seed: 31, width: 40, height: 26, roundLimit: 200 as const, expansionVersion: 1 as const, eraProgression: 'simple-v1' as const,
+    gameplayVersion, players: [0, 1, 2, 3].map(id => ({ id, controller: 'ai' as const, leaderId: undefined })) });
+  const v26 = contentFor(setup(26)), v27 = contentFor(setup(27));
+  expect(() => parsePatch({ pace27: { opening: { pokedexTargetBonus: 3 } } }, v26)).toThrow('patch.pace27');
+  const target = (version: 26 | 27, content = version === 26 ? v26 : v27) => createGame(setup(version), content).expansion!.world.victory.targetDocumentedSpecies;
+  const stock = v27.pace27!.opening.pokedexTargetBonus, tuned = parsePatch({ pace27: { opening: { pokedexTargetBonus: stock + 5 } } }, v27).content;
+  expect(target(27, tuned) - target(27)).toBe(5);
+  // The same map and regional Pokédex as v26: v27's target is v26's plus the stock v27 bonus.
+  expect(target(27) - target(26)).toBe(stock);
+  expect(() => parsePatch({ pace27: { opening: { pokedexTargetBonus: 41 } } }, v27)).toThrow('patch.pace27.opening.pokedexTargetBonus');
+});

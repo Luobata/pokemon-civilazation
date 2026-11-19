@@ -65,7 +65,8 @@ export function patchSchema(base: Content): Schema {
   ...(base.pace27 ? { pace27: {
     opening: { faithWinSharePercent: [1, 100], aiSiteRadius: [1, 3], exhaustHpPercent: [0, 100], exhaustRounds: [1, 10], exhaustRecoverPercent: [1, 100],
       exhaustCaptureBonus: [0, 100], exhaustCaptureCap: [1, 100], protectionLastRound: [0, 300], protectionRounds: [1, 10], protectionHpPercent: [1, 100],
-      encounterBeforeRound: [0, 300], encounterXp: [0, 1000], encounterScience: [0, 1000], aiExhaustAttackBonus: [0, 10_000] },
+      encounterBeforeRound: [0, 300], encounterXp: [0, 1000], encounterScience: [0, 1000], aiExhaustAttackBonus: [0, 10_000],
+      pokedexTargetBonus: [0, 40] },
     economy: { projectCost: keyed(base.pace27.economy.projectCost, () => cost), projectStepPercent: [0, 1000], hatchXp: amount, drillXp: amount, drillUnits: [0, 20],
       reportScience: amount, rehearsalAppeal: amount, rehearsalScore: amount, festivalSatisfaction: [0, 100], festivalEraInterval: [1, 300],
       legendFavorPercent: [0, 1000], legendTrailPercent: [0, 100] },

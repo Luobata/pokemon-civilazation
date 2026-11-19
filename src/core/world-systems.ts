@@ -237,9 +237,10 @@ export function initializeWorld(state: GameState, content: Content = WORLD_CONTE
     overlords: {}, resources: {}, players,
     // Gameplay v3 accelerates economies; the documented-species target rises so the Pokédex stays a long-game victory.
     // v25 (roster-v25 §2.6): the target scales with the regional Pokédex's share of the mode's pool.
-        // v26 (depth-v26.md §14.9): `depth26.pokedexTargetBonus` more species on top of the regional target.
+        // v26 (depth-v26.md §14.9): `depth26.pokedexTargetBonus` more species on top of the regional target; v27 (pace-v27.md §13.8)
+    // adds `pace27.opening.pokedexTargetBonus` (no pace27 before v27).
     victory: { targetDocumentedSpecies: (content.regionalDex ? regionalPokedexTarget(baseTarget, content.regionalDex.size, content.regionalDex.pool) : baseTarget)
-      + (content.depth26?.pokedexTargetBonus ?? 0), achievedAtRound: null },
+      + (content.depth26?.pokedexTargetBonus ?? 0) + (content.pace27?.opening.pokedexTargetBonus ?? 0), achievedAtRound: null },
   };
   state.expansion.world = world;
 

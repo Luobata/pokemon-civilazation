@@ -41,13 +41,16 @@ export type OpeningTuning = {
   encounterBeforeRound: number; encounterXp: number; encounterScience: number;
   /** ② §3.3 AI: attack score for a hit that leaves a wild target exhausted with an own ball carrier within 2. */
   aiExhaustAttackBonus: number;
+  /** Integration (pace-v27 §13.8): more documented species for the Pokédex victory, on top of v26's `depth26.pokedexTargetBonus`
+   *  (the early captures of ① ② fill the Pokédex sooner). Read once, when the world is created. */
+  pokedexTargetBonus: number;
 };
 export const OPENING_TUNING: OpeningTuning = {
   faithWinSharePercent: 65, aiSiteRadius: 2,
   exhaustHpPercent: 40, exhaustRounds: 2, exhaustRecoverPercent: 41, exhaustCaptureBonus: 25, exhaustCaptureCap: 95,
   protectionLastRound: 30, protectionRounds: 1, protectionHpPercent: 50,
   encounterBeforeRound: 40, encounterXp: 15, encounterScience: 5,
-  aiExhaustAttackBonus: 30,
+  aiExhaustAttackBonus: 30, pokedexTargetBonus: 0,
 };
 
 // ---------- Economy lane (③ ④) ----------
