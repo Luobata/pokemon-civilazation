@@ -189,6 +189,25 @@ describe('v27 city projects: AI', () => {
     expect(cityProjectCandidates(observe(createGame(setup(26)), 1), city.id, contentFor(setup(26)))).toEqual([]);
   });
 
+  test('the AI egg is reachable: offered at the training cap (planNext trains below it), not from 1.5 × the cap', () => {
+    const { state, content } = game();
+    giveDistrict(state, 'gardenDistrict', 1);
+    const base = observe(state, 0, content), city = base.economy.cities[0], own = base.units.find(unit => unit.ownerId === 0 && unit.kind === 'pokemon')!;
+    // Three cities: training cap max(4, 2 × 3) = 6, egg limit max(4, 3 × 3) = 9 (the view is edited; the rule reads only these fields).
+    const withArmy = (count: number) => {
+      const view = structuredClone(base);
+      view.economy.cities = [city, { ...city, id: 9001 }, { ...city, id: 9002 }];
+      view.units = [...view.units.filter(unit => !(unit.ownerId === 0 && unit.kind === 'pokemon')), ...Array.from({ length: count }, (_, index) => ({ ...own, id: 8000 + index }))];
+      view.recoveringUnits = [];
+      // Content citizens (no festival need) and nothing else asks for a project first.
+      if (view.expansion?.world.player) view.expansion.world.player.satisfaction = 80;
+      return cityProjectCandidates(view, city.id, content)[0]?.item;
+    };
+    expect(withArmy(6)).toEqual({ kind: 'project', defId: 'hatchEgg' });
+    expect(withArmy(8)).toEqual({ kind: 'project', defId: 'hatchEgg' });
+    expect(withArmy(9)).not.toEqual({ kind: 'project', defId: 'hatchEgg' });
+  });
+
   test('AI v27 games run a few rounds without refused commands, and some idle city queues a project', () => {
     const { state, content } = game();
     state.players[0].controller = 'ai';

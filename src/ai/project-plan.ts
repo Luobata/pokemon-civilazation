@@ -2,7 +2,7 @@
 // only for a city with no building, district, legend, logistics unit or Pokémon to queue. Order of need: a drill when at war or a rival
 // is announced against the civilization; a rehearsal while a rival is close to a contest win (`contestThreat`) or a season is announced
 // and not yet entered; a festival under 50 satisfaction; otherwise the field report and the egg in turn (the cheaper next one first; the
-// egg only below the army cap), then whatever else the city can do. Only the first candidate is offered (one project per city).
+// egg while the army is below 1.5 × the training cap), then whatever else the city can do. Only the first candidate is offered (one project per city).
 // View-only: the requirement is `cityProjectBlocker` and the cost `projectCost`, the authority's own rule and function.
 import { CITY_PROJECT_IDS } from '../content/pace-v27.ts';
 import type { CityProjectId } from '../content/pace-v27.ts';
@@ -29,7 +29,9 @@ export function cityProjectCandidates(view: PlayerView, cityId: number, content:
   const seasonOpen = Boolean(seasons?.category && !seasons.ownEntry && view.expansion?.cityProjects?.rehearsalSeason !== seasons.season);
   const satisfaction = view.expansion?.world.player?.satisfaction ?? 100;
   const army = view.units.filter(unit => unit.ownerId === me && unit.kind === 'pokemon').length + view.recoveringUnits.filter(unit => unit.ownerId === me).length;
-  const armyRoom = army < Math.max(4, 2 * view.economy.cities.length);
+  // The egg's limit is 1.5 × the training cap (planNext trains Pokémon itself below `max(4, 2 × cities)` and only asks for a project when it
+  // offered nothing, so an egg gated at the training cap was never reached: 0 eggs in the 216-game integration gate).
+  const armyRoom = army < Math.max(4, 3 * view.economy.cities.length);
   const need: CityProjectId[] = [];
   if (atWar || rivalThreatenedCityIds(view).length) need.push('gymDrill');
   if (seasonOpen || contestThreat(view, content)) need.push('contestRehearsal');
