@@ -156,6 +156,10 @@ describe('v27 city projects: effects', () => {
     expect(rehearsalScoreBonus(once, 1, content)).toBe(0);
     const twice = finishRound(ok(queue(once, content, 'contestRehearsal')).state, content);
     expect(twice.expansion!.cityProjects!.rehearsal[0]).toBe(once.expansion!.cityProjects!.rehearsal[0]);
+    // The view numbers seasons like the contest-season view (1-based), so the AI and the card see the bonus as taken for this season.
+    const view = observe(once, 0, content);
+    expect(view.expansion!.cityProjects!.rehearsalSeason).toBe(once.expansion!.cityProjects!.rehearsal[0] + 1);
+    expect(view.expansion!.cityProjects!.rehearsalSeason).toBe(view.expansion!.contestSeasons!.season);
     // After the season round the bonus no longer applies (it was for that season).
     const after = structuredClone(twice); after.round = seasonRounds(content, 100)[0] + 1;
     expect(rehearsalScoreBonus(after, 0, content)).toBe(0);

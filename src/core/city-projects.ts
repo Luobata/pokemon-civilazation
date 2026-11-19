@@ -35,7 +35,7 @@ export type CityProjectState = {
   /** ④ legend trail (src/core/legend-favor.ts): city id -> production carried to the city's next legend. */
   legendTrail: Record<number, number>;
 };
-/** The viewer's own counts, rehearsal season, festival round and legend trails (own cities only). */
+/** The viewer's own counts, rehearsal season (1-based season number, as `ContestSeasonView.season`), festival round and legend trails (own cities only). */
 export type CityProjectView = { done: Partial<Record<CityProjectId, number>>; rehearsalSeason: number | null; festivalRound: number | null;
   legendTrail: Record<number, number> };
 export type CityProjectEffects = { unitId?: number; speciesId?: SpeciesId; waiting?: true; xp?: number; unitIds?: number[]; science?: number;
@@ -166,7 +166,9 @@ export function rehearsalScoreBonus(state: GameState, playerId: number, content:
 export function observeCityProjects(state: GameState, playerId: number): CityProjectView {
   const book = state.expansion?.cityProjects;
   const trail = Object.entries(book?.legendTrail ?? {}).filter(([cityId]) => state.cities[Number(cityId)]?.ownerId === playerId);
-  return { done: { ...book?.done[playerId] }, rehearsalSeason: book?.rehearsal[playerId] ?? null, festivalRound: book?.festival[playerId] ?? null,
+  // The ledger keeps the 0-based season index; the view gives the 1-based season number (the same numbering as ContestSeasonView.season).
+  const rehearsal = book?.rehearsal[playerId];
+  return { done: { ...book?.done[playerId] }, rehearsalSeason: rehearsal === undefined ? null : rehearsal + 1, festivalRound: book?.festival[playerId] ?? null,
     legendTrail: Object.fromEntries(trail) };
 }
 /** ④ legend trail: stores production carried to this city's next legend (adds to an earlier trail). */
