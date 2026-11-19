@@ -128,6 +128,25 @@ export function drawTownLights(context: CanvasRenderingContext2D, p: Point, radi
  * faction-coloured top with the faction pattern. `centre` is where the token sits (the sprite stands on it).
  */
 export function unitPlinth(context: CanvasRenderingContext2D, centre: Point, size: number, squash: number, ownerId: number | null, color: string, spent: boolean): void {
+  // Baked once per look and device size (a clip and a pattern per unit per frame added up in dense scenes): one drawImage.
+  const dpr = context.getTransform().a || 1, rounded = Math.round(size * 2) / 2;
+  const key = `${ownerId}|${color}|${rounded}|${squash}|${spent ? 1 : 0}|${dpr}`;
+  let art = plinths.get(key);
+  if (!art) {
+    const rx = rounded * .31, pad = 3, half = Math.ceil(rx * 1.5) + pad, top = Math.ceil(rx * squash * .55) + pad, bottom = Math.ceil(rx * squash * .55 * 1.6 + Math.max(2, rounded * .07)) + pad;
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.ceil(half * 2 * dpr); canvas.height = Math.ceil((top + bottom) * dpr);
+    const g = canvas.getContext('2d')!;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    paintPlinth(g, { x: half, y: top }, rounded, squash, ownerId, color, spent);
+    art = { canvas, x: half, y: top, width: half * 2, height: top + bottom };
+    if (plinths.size > 256) plinths.clear();
+    plinths.set(key, art);
+  }
+  context.drawImage(art.canvas, centre.x - art.x, centre.y - art.y, art.width, art.height);
+}
+const plinths = new Map<string, { canvas: HTMLCanvasElement; x: number; y: number; width: number; height: number }>();
+function paintPlinth(context: CanvasRenderingContext2D, centre: Point, size: number, squash: number, ownerId: number | null, color: string, spent: boolean): void {
   const rx = size * .31, ry = rx * squash * .55, thick = Math.max(2, size * .07);
   context.beginPath(); context.ellipse(centre.x + rx * .3, centre.y + thick + ry * .35, rx * 1.12, ry * 1.15, 0, 0, Math.PI * 2);
   context.fillStyle = '#07111480'; context.fill();

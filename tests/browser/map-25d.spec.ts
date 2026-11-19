@@ -145,6 +145,29 @@ test('2.5D map: locate centres the lifted tile, the minimap stays clear of the H
   expect(errors).toEqual([]);
 });
 
+test('2.5D map: the panned terrain composite matches a fresh render at the same camera', async ({ page }) => {
+  await page.goto('/?render=25d&gameplay=26&seed=31&size=24x16&dev=1');
+  await page.locator('#animate').uncheck();
+  const result = await page.evaluate(async () => {
+    const { session } = await import('/src/browser/main.ts' as string), { createMapRenderer } = await import('/src/browser/render/index.ts' as string);
+    const view = session.getView(), make = () => { const canvas = document.createElement('canvas'); canvas.style.width = '640px'; canvas.style.height = '480px'; document.body.append(canvas); return canvas; };
+    const a = make(), b = make(), panned = createMapRenderer(a, { mode: '25d' }), fresh = createMapRenderer(b, { mode: '25d' });
+    const start = { x: 40, y: 30, zoom: 1.5 }, end = { x: start.x - 53, y: start.y + 29, zoom: 1.5 };
+    // Settle at the start, pan in uneven steps (strips scroll in from two sides), settle at the end.
+    panned.render({ view, camera: start }); panned.render({ view, camera: start });
+    for (let k = 1; k <= 9; k++) panned.render({ view, camera: { zoom: 1.5, x: start.x + (end.x - start.x) * k / 9, y: start.y + (end.y - start.y) * k / 9 } });
+    panned.render({ view, camera: end }); panned.render({ view, camera: end });
+    fresh.render({ view, camera: end }); fresh.render({ view, camera: end });
+    const pa = a.getContext('2d')!.getImageData(0, 0, a.width, a.height).data, pb = b.getContext('2d')!.getImageData(0, 0, b.width, b.height).data;
+    let worst = 0, off = 0;
+    for (let i = 0; i < pa.length; i++) { const d = Math.abs(pa[i] - pb[i]); worst = Math.max(worst, d); if (d > 3) off++; }
+    a.remove(); b.remove();
+    return { worst, off, size: pa.length };
+  });
+  // Alpha compositing through the screen canvas may round a translucent pixel by a step or two; nothing else may differ.
+  expect(result.off).toBeLessThan(result.size * .001);
+});
+
 test('2.5D map: wrap seam draws both copies and picks across it', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));

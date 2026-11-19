@@ -1,5 +1,6 @@
 // ui-25d §12: the 2.5D terrain is cached in world space as chunks (a few rows × columns each, ~600 device px), rendered once per
-// zoom and reused while the camera pans: a panning frame is a handful of drawImage calls instead of a full terrain redraw.
+// zoom and reused while the camera pans. Round 2: the visible chunks are composited into a screen-sized canvas, so a still frame
+// is one blit and a panning frame shifts that composite and paints chunks only into the strips that scrolled into view.
 // Chunks are blitted back row first (wrapped copies interleaved), so a nearer chunk's tall columns cover the farther chunk, as
 // in the direct drawing. Rebuilt lazily when the terrain key (biomes, features, borders), zoom, DPR or tilt changes.
 import { HEX_RADIUS } from '../camera.ts';
@@ -8,6 +9,7 @@ import type { MapScene } from './scene.ts';
 import { drawBase25d } from './terrain25d.ts';
 
 type Bounds = { minX: number; minY: number; maxX: number; maxY: number };
+type Rect = { x: number; y: number; width: number; height: number };
 /** `fog`: the chunk's fogged tiles when it was built (fogged props carry a veil, so a chunk is rebuilt when its fog changes). */
 type Chunk = { canvas: HTMLCanvasElement; ox: number; oy: number; used: number; fog: string };
 /** Chunks kept at most (least recently used ones are dropped). */
@@ -28,6 +30,7 @@ export type ChunkFrame = {
 export function createChunkCache() {
   let key = '', frameNumber = 0, fogFor: readonly number[] | null = null, fogKeys: string[] = [];
   let layout: { rows: number; cols: number; bounds: Bounds[]; zoomed: Point[] } | null = null;
+  let front: CanvasRenderingContext2D | null = null, back: CanvasRenderingContext2D | null = null, screenKey = '', screenX = 0, screenY = 0;
   const chunks = new Map<number, Chunk>();
   return {
     /** Draws the terrain from chunks; 'direct' when the zoom just changed and the camera is still moving (no chunks built). */
@@ -53,31 +56,66 @@ export function createChunkCache() {
       }
       const { rows, cols, bounds, zoomed } = layout!, across = Math.ceil(scene.width / cols), down = Math.ceil(scene.height / rows);
       // Per-chunk fog signature (only the chunks whose fogged tiles changed are rebuilt after a move).
+      let fogChanged = false;
       if (scene.fog !== fogFor) {
         fogFor = scene.fog;
         const lists: number[][] = [];
         for (const index of scene.fog) (lists[Math.floor(Math.floor(index / scene.width) / rows) * across + Math.floor(index % scene.width / cols)] ??= []).push(index);
-        fogKeys = lists.map(list => list.join(','));
+        const next = lists.map(list => list.join(','));
+        fogChanged = next.length !== fogKeys.length || next.some((item, id) => item !== fogKeys[id]);
+        fogKeys = next;
       }
       let built = false;
       frameNumber++;
+      // Paints the chunks into a screen-sized canvas (device px, no shake), only inside `rects` when given.
+      const paint = (target: CanvasRenderingContext2D, rects: readonly Rect[] | null) => {
+        target.save();
+        target.setTransform(1, 0, 0, 1, 0, 0);
+        if (rects) { target.beginPath(); for (const r of rects) target.rect(r.x, r.y, r.width, r.height); target.clip(); }
+        for (let chunkRow = 0; chunkRow < down; chunkRow++) for (const shift of f.shifts) for (let chunkCol = 0; chunkCol < across; chunkCol++) {
+          const id = chunkRow * across + chunkCol, box = bounds[id];
+          if (!box) continue;
+          const x = Math.floor(box.minX * dpr) + Math.round((camera.x + shift) * dpr), y = Math.floor(box.minY * dpr) + Math.round(camera.y * dpr);
+          const w = Math.ceil((box.maxX - box.minX) * dpr) + 2, h = Math.ceil((box.maxY - box.minY) * dpr) + 2;
+          if (x > target.canvas.width || x + w < 0 || y > target.canvas.height || y + h < 0) continue;
+          if (rects && !rects.some(r => x < r.x + r.width && r.x < x + w && y < r.y + r.height && r.y < y + h)) continue;
+          let chunk = chunks.get(id);
+          const fog = fogKeys[id] ?? '';
+          if (!chunk || chunk.fog !== fog) {
+            chunk = build(f, zoomed, box, [chunkRow * rows, Math.min(scene.height, (chunkRow + 1) * rows)], [chunkCol * cols, Math.min(scene.width, (chunkCol + 1) * cols)], fog);
+            chunks.set(id, chunk);
+            built = true;
+          }
+          chunk.used = frameNumber;
+          target.drawImage(chunk.canvas, chunk.ox + Math.round((camera.x + shift) * dpr), chunk.oy + Math.round(camera.y * dpr));
+        }
+        target.restore();
+      };
+      // Screen composite: a still frame is one blit; a panning frame shifts the composite by the (integer) device-pixel step
+      // and paints chunks only into the strips that scrolled into view.
+      const deviceWidth = f.context.canvas.width, deviceHeight = f.context.canvas.height;
+      const sx = Math.round(camera.x * dpr), sy = Math.round(camera.y * dpr);
+      if (!front || !back || front.canvas.width !== deviceWidth || front.canvas.height !== deviceHeight) {
+        front = screenCanvas(deviceWidth, deviceHeight); back = screenCanvas(deviceWidth, deviceHeight); screenKey = '';
+      }
+      const dx = sx - screenX, dy = sy - screenY;
+      if (screenKey !== key || fogChanged || Math.abs(dx) >= deviceWidth || Math.abs(dy) >= deviceHeight) {
+        front.clearRect(0, 0, deviceWidth, deviceHeight);
+        paint(front, null);
+        screenKey = key; built = true;
+      } else if (dx || dy) {
+        back.clearRect(0, 0, deviceWidth, deviceHeight);
+        back.drawImage(front.canvas, dx, dy);
+        const rects: Rect[] = [];
+        if (dx > 0) rects.push({ x: 0, y: 0, width: dx, height: deviceHeight }); else if (dx < 0) rects.push({ x: deviceWidth + dx, y: 0, width: -dx, height: deviceHeight });
+        if (dy > 0) rects.push({ x: 0, y: 0, width: deviceWidth, height: dy }); else if (dy < 0) rects.push({ x: 0, y: deviceHeight + dy, width: deviceWidth, height: -dy });
+        paint(back, rects);
+        [front, back] = [back, front];
+      }
+      screenX = sx; screenY = sy;
       f.context.save();
       f.context.setTransform(1, 0, 0, 1, 0, 0);
-      for (let chunkRow = 0; chunkRow < down; chunkRow++) for (const shift of f.shifts) for (let chunkCol = 0; chunkCol < across; chunkCol++) {
-        const id = chunkRow * across + chunkCol, box = bounds[id];
-        if (!box) continue;
-        const left = box.minX + camera.x + shift, top = box.minY + camera.y;
-        if (left > f.width || left + box.maxX - box.minX < 0 || top > f.height || top + box.maxY - box.minY < 0) continue;
-        let chunk = chunks.get(id);
-        const fog = fogKeys[id] ?? '';
-        if (!chunk || chunk.fog !== fog) {
-          chunk = build(f, zoomed, box, [chunkRow * rows, Math.min(scene.height, (chunkRow + 1) * rows)], [chunkCol * cols, Math.min(scene.width, (chunkCol + 1) * cols)], fog);
-          chunks.set(id, chunk);
-          built = true;
-        }
-        chunk.used = frameNumber;
-        f.context.drawImage(chunk.canvas, chunk.ox + Math.round((camera.x + shift) * dpr) + f.shakeX, chunk.oy + Math.round(camera.y * dpr) + f.shakeY);
-      }
+      f.context.drawImage(front.canvas, f.shakeX, f.shakeY);
       f.context.restore();
       if (chunks.size > CHUNK_CAP) {
         const old = [...chunks.entries()].sort((a, b) => a[1].used - b[1].used).slice(0, chunks.size - CHUNK_CAP);
@@ -85,8 +123,16 @@ export function createChunkCache() {
       }
       return built ? 'miss' : 'hit';
     },
-    clear() { key = ''; chunks.clear(); layout = null; fogFor = null; },
+    clear() { key = ''; chunks.clear(); layout = null; fogFor = null; screenKey = ''; },
   };
+}
+
+function screenCanvas(width: number, height: number): CanvasRenderingContext2D {
+  const canvas = document.createElement('canvas');
+  canvas.width = width; canvas.height = height;
+  const context = canvas.getContext('2d')!;
+  context.imageSmoothingEnabled = false;
+  return context;
 }
 
 function build(f: ChunkFrame, zoomed: readonly Point[], box: Bounds, rows: readonly [number, number], cols: readonly [number, number], fog: string): Chunk {
