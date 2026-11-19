@@ -7,7 +7,7 @@ import type { LandmarkId } from '../../content/terrain.ts';
 import type { Point } from '../camera.ts';
 import type { MapScene } from './scene.ts';
 import { landmarkGlyph } from './terrain-features.ts';
-import { CORNERS, EDGE_CORNERS, ELEVATION, SE, SW } from './projection.ts';
+import { CORNERS, EDGE_CORNERS, ELEVATION, SE, SW, neighbourIndexOf, propScale } from './projection.ts';
 
 /** Texture hex radius (native pixels); textures are drawn scaled by radius / RT. */
 const RT = 24;
@@ -95,12 +95,13 @@ function ground(kind: GroundKind, variant: number): HTMLCanvasElement {
     for (const [x, y] of crack) { rect(g, '#E2703E', x, y + variant % 3 - 1, 4, 1); rect(g, '#FFC25A', x + 1, y + variant % 3 - 1, 2, 1); }
     scatter(seed, 6, (x, y) => rect(g, '#7B5F52', x, y, 2, 1));
   } else if (kind === 'ocean' || kind === 'deep' || kind === 'lake') {
-    const palette = kind === 'deep' ? ['#26658A', '#2D7096', '#205A7C', '#4F8FB0', '#6FA8C4'] : kind === 'lake' ? ['#4AA0B5', '#56ACC0', '#3E92A8', '#A7DCDD', '#D3F0EC'] : ['#3A84A3', '#4590AE', '#30789A', '#8CC7D2', '#B9E2E2'];
+    // Round 2: water a shade darker than the flat map's, so the lower level reads as depth.
+    const palette = kind === 'deep' ? ['#1D5276', '#235C82', '#184769', '#3D7A9E', '#5A93B3'] : kind === 'lake' ? ['#3F91A8', '#4A9DB3', '#35829A', '#98D0D4', '#C6EAE6'] : ['#2F7495', '#3880A0', '#286686', '#7AB8C8', '#A9D9DD'];
     base(palette[0]); light(palette[1]); shade(palette[2]);
     scatter(seed, 9, (x, y, i) => { rect(g, i % 3 ? palette[3] : palette[4], x, y, i % 2 ? 3 : 4, 1); if (i % 4 === 0) rect(g, palette[2], x + 2, y + 2, 4, 1); });
   } else {
-    base('#0B161B');
-    scatter(seed, 6, (x, y) => rect(g, '#10202A', x, y, 3, 1));
+    base('#081116');
+    scatter(seed, 6, (x, y) => rect(g, '#0E1C24', x, y, 3, 1));
   }
   grounds.set(key, element);
   cached = element;
@@ -155,7 +156,8 @@ function cactus(g: Paint, x: number, y: number) {
 }
 /** A rock spire: left face lit, right face shaded, optional snow cap. */
 function crag(g: Paint, x: number, y: number, height: number, half: number, snow: number, palette = ['#A2A496', '#6A6D62', '#4C4F47', '#C6C7BA']) {
-  poly(g, 'rgba(8,20,24,.35)', [[x - half + 2, y], [x + half + 4, y], [x + half * 1.6 + 5, y - 3], [x + 3, y - 4]]);
+  // Cast shadow to the south-east (light from the north-west), longer for taller rocks.
+  poly(g, 'rgba(8,20,24,.34)', [[x - half + 1, y], [x + half + 1, y - 1], [x + half + 2 + height * .45, y + 2 + height * .14], [x + height * .3, y + 3 + height * .16]]);
   for (let j = 0; j <= height; j++) {
     const w = Math.round(half * j / height + (j % 4 === 1 ? .7 : 0)), top = y - height + j;
     rect(g, palette[2], x - w - 1, top, w * 2 + 2, 1);
@@ -202,17 +204,17 @@ function propsFor(biome: BiomeId, variant: number, hill: boolean, peak: boolean,
     add(5, () => crag(g, 1, 5, 30, 10, .38));
     add(8, () => crag(g, -10, 8, 13, 6, .25));
   } else if (biome === 'mountain') {
-    add(3, () => crag(g, -5, 3, 18, 9, variant % 2 ? .3 : 0));
-    add(8, () => crag(g, 8, 8, 13, 7, variant % 2 ? 0 : .3));
+    add(3, () => crag(g, -5, 3, 22, 10, variant % 2 ? .3 : 0));
+    add(8, () => crag(g, 8, 8, 15, 8, variant % 2 ? 0 : .3));
   } else if (biome === 'volcano') add(7, () => cone(g, 0, 7));
   if (hill && !peak) {
     const palette = HILL_PALETTE[biome] ?? HILL_PALETTE.default;
-    add(2, () => mound(g, -6, 2, 9, 6, palette));
-    add(8, () => mound(g, 7, 8, 8, 5, palette));
+    add(2, () => mound(g, -6, 2, 10, 8, palette));
+    add(8, () => mound(g, 7, 8, 9, 7, palette));
   }
   if (!peak && biome === 'forest') {
-    const spots = hill ? [[-12, -2], [12, 0], [0, -7]] : [[-10, -5], [2, -8], [12, -3], [-5, 3], [8, 6], [-13, 6]];
-    spots.forEach(([x, y], index) => add(y, () => variant % 2 || index % 3 === 1 ? pine(g, x + jitter(index), y, 12 + index % 3, PINE) : broadleaf(g, x + jitter(index), y, 9 + index % 3)));
+    const spots = hill ? [[-12, -2], [12, 0], [0, -7]] : [[-10, -5], [2, -8], [12, -3], [-4, 1], [-5, 5], [8, 6], [-13, 6]];
+    spots.forEach(([x, y], index) => add(y, () => variant % 2 || index % 3 === 1 ? pine(g, x + jitter(index), y, 14 + index % 3, PINE) : broadleaf(g, x + jitter(index), y, 10 + index % 3)));
   } else if (!peak && !hill && biome === 'grassland') {
     if (variant === 0) add(2, () => bush(g, 6 + jitter(1), 2));
     if (variant === 1) { add(-3, () => grassTuft(g, -8, -3)); add(6, () => grassTuft(g, 7, 6)); }
@@ -234,16 +236,19 @@ function propsFor(biome: BiomeId, variant: number, hill: boolean, peak: boolean,
 }
 
 // ---------- Side faces ----------
+// Round 2: a wider split between the lit SW face and the shaded SE face, so steps read at the default zoom.
 type Sides = { lip: string; lit: string; dark: string; strata: string };
 const SIDES: Record<BiomeId, Sides> = {
-  grassland: { lip: '#5C8A43', lit: '#9A7650', dark: '#74563A', strata: '#5E4530' },
-  forest: { lip: '#2F573D', lit: '#8A6A47', dark: '#664D35', strata: '#4F3B2A' },
-  desert: { lip: '#CFA764', lit: '#C08E5C', dark: '#9A6C42', strata: '#7E5634' },
-  snow: { lip: '#F3F7F4', lit: '#A9BDC6', dark: '#7F96A3', strata: '#6A7F8C' },
-  mountain: { lip: '#9A9C8D', lit: '#75786C', dark: '#55584F', strata: '#43463F' },
-  volcano: { lip: '#6E574F', lit: '#4C3D3A', dark: '#362B2A', strata: '#E0703F' },
-  ocean: { lip: '#4D98B6', lit: '#2E6E8A', dark: '#245A72', strata: '#1D4A5E' },
+  grassland: { lip: '#5C8A43', lit: '#B08A5C', dark: '#654830', strata: '#5A4230' },
+  forest: { lip: '#2F573D', lit: '#9C774D', dark: '#563F2B', strata: '#4A3727' },
+  desert: { lip: '#CFA764', lit: '#D7A46A', dark: '#8A5C36', strata: '#7A5232' },
+  snow: { lip: '#F3F7F4', lit: '#C2D4DC', dark: '#6C8496', strata: '#62788A' },
+  mountain: { lip: '#9A9C8D', lit: '#8E9183', dark: '#474A43', strata: '#3E413B' },
+  volcano: { lip: '#6E574F', lit: '#5C4A43', dark: '#2C2222', strata: '#E0703F' },
+  ocean: { lip: '#4D98B6', lit: '#2E6E8A', dark: '#1F4F66', strata: '#1D4A5E' },
 };
+/** Wet-sand lip on land cliffs that drop into water (the shoreline reads as a rim, not just a colour change). */
+const BEACH = '#E2CF97';
 
 export type Base25d = {
   context: CanvasRenderingContext2D;
@@ -271,17 +276,7 @@ function flagsFor(scene: MapScene): Flags {
   return flags;
 }
 /** Index of the neighbour in HEX_DIRECTIONS order (offset rows: index = row × width + col), or -1 off the map. */
-function neighbourIndex(scene: MapScene, index: number, direction: number): number {
-  const width = scene.width, row = Math.floor(index / width), col = index % width;
-  // Axial q = col − floor(row / 2) on these maps (odd rows shifted right): convert the axial step to an offset step.
-  const q = col - Math.floor(row / 2);
-  const steps = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
-  const nr = row + steps[direction][1], nq = q + steps[direction][0];
-  if (nr < 0 || nr >= scene.height) return -1;
-  let nc = nq + Math.floor(nr / 2);
-  if (nc < 0 || nc >= width) { if (!scene.wrap) return -1; nc = ((nc % width) + width) % width; }
-  return nr * width + nc;
-}
+const neighbourIndex = (scene: MapScene, index: number, direction: number) => neighbourIndexOf(scene, index, direction);
 export { neighbourIndex as neighbourIndex25d };
 
 const DIRECTION_ANGLES = [0, -60, -120, 180, 120, 60].map(degrees => degrees * Math.PI / 180);
@@ -322,7 +317,7 @@ const segment = (path: Path2D, a: Point, b: Point) => { path.moveTo(a.x, a.y); p
 /** The 2.5D base layer: terrain columns (all copies, back rows first), then territory borders. */
 export function drawBase25d(b: Base25d): void {
   const { context, scene, lifts, radius, zoom, squash } = b;
-  const flags = flagsFor(scene), s = radius / RT;
+  const flags = flagsFor(scene), s = radius / RT, ps = s * propScale(radius), fogged = fogSet(scene);
   const margin = radius * 2.2;
   const corner = (p: Point, k: number): Point => ({ x: p.x + radius * CORNERS[k].x, y: p.y + radius * CORNERS[k].y * squash });
   const toward = (a: Point, p: Point, t: number): Point => ({ x: a.x + (p.x - a.x) * t, y: a.y + (p.y - a.y) * t });
@@ -332,7 +327,7 @@ export function drawBase25d(b: Base25d): void {
   const thin = Math.max(1, s * .9), lipHeight = Math.max(1, 1.6 * s), foamWidth = Math.max(1, s * 1.1), outlineWidth = Math.max(.6, radius * .04);
   const foamDash = [Math.max(2, 3 * s), Math.max(1, 1.5 * s)], fallWidth = Math.max(2, radius * .12);
   const riverOuter = Math.max(1.6, radius * .17), riverInner = Math.max(1, radius * .08), reach = radius * .87;
-  const tiles: { p: Point; index: number }[] = [], propsDraws: { art: HTMLCanvasElement; p: Point }[] = [], stones: { p: Point; id: LandmarkId }[] = [];
+  const tiles: { p: Point; index: number }[] = [], propsDraws: { art: HTMLCanvasElement; p: Point; index: number }[] = [], stones: { p: Point; id: LandmarkId }[] = [];
   context.save();
   context.lineJoin = 'round';
   const [rowFrom, rowTo] = b.rows ?? [0, scene.height], [colFrom, colTo] = b.cols ?? [0, scene.width];
@@ -340,7 +335,7 @@ export function drawBase25d(b: Base25d): void {
     tiles.length = 0; propsDraws.length = 0; stones.length = 0;
     for (const centres of b.copies) for (let col = colFrom; col < colTo; col++) {
       const index = row * scene.width + col, p = centres[index];
-      if (p.x < -margin || p.x > b.width + margin || p.y < -margin * 1.6 || p.y > b.height + margin) continue;
+      if (p.x < -margin || p.x > b.width + margin || p.y < -margin * 1.6 || p.y > b.height + margin * 1.4) continue;
       tiles.push({ p, index });
       const biome = scene.tiles[index].biome;
       if (!biome) continue;
@@ -350,12 +345,15 @@ export function drawBase25d(b: Base25d): void {
         const other = neighbourIndex(scene, index, direction), h = (lift - liftOf(other)) * zoom;
         if (h <= .4) continue;
         const [ka, kb] = EDGE_CORNERS[direction], a = corner(p, ka), c = corner(p, kb);
+        const otherBiome = other < 0 ? null : scene.tiles[other].biome, shore = !water && otherBiome === 'ocean';
         quad(faces.fill(direction === SW ? sides.lit : sides.dark), a, c, down(c, h), down(a, h));
-        const lip = Math.min(h, lipHeight);
-        quad(faces.fill(sides.lip), a, c, down(c, lip), down(a, lip));
+        // Ambient occlusion at the foot of the cliff: the lowest third is a step darker (one translucent band per row).
+        if (h > 3 * s) { const foot = Math.min(h * .34, 5 * s); quad(faces.fill('rgba(12,14,18,.30)'), down(a, h - foot), down(c, h - foot), down(c, h), down(a, h)); }
+        const lip = Math.min(h, lipHeight * (shore ? 1.5 : 1));
+        quad(faces.fill(shore && biome !== 'snow' ? BEACH : sides.lip), a, c, down(c, lip), down(a, lip));
+        if (shore && biome !== 'snow') quad(faces.fill(sides.lip), a, c, down(c, Math.min(h, lipHeight * .6)), down(a, Math.min(h, lipHeight * .6)));
         if (h > 7 * s) segment(faces.stroke(sides.strata, thin), down(a, h * .58), down(c, h * .58));
-        const otherBiome = other < 0 ? null : scene.tiles[other].biome;
-        if (!water && otherBiome === 'ocean') segment(faces.stroke('#E4F3EFCC', foamWidth), down(a, h - Math.max(.8, s * .7)), down(c, h - Math.max(.8, s * .7)));
+        if (shore) segment(faces.stroke('#E4F3EFCC', foamWidth), down(a, h - Math.max(.8, s * .7)), down(c, h - Math.max(.8, s * .7)));
         if (flags.river.get(index)?.includes(direction)) {
           const mid = { x: (a.x + c.x) / 2, y: (a.y + c.y) / 2 };
           faces.fill('#6FB6E6').rect(Math.round(mid.x - fallWidth / 2), Math.round(mid.y), Math.round(fallWidth), Math.round(h));
@@ -374,8 +372,9 @@ export function drawBase25d(b: Base25d): void {
       for (const direction of [3, 2, 1]) {
         const other = neighbourIndex(scene, index, direction), rise = liftOf(other) - lift;
         if (other < 0 || rise <= 1 || !scene.tiles[other].biome) continue;
-        const depth = Math.min(.42, rise * .028 + .1) * (direction === 1 ? .7 : 1), [ka, kb] = EDGE_CORNERS[direction], a = corner(p, ka), c = corner(p, kb);
-        quad(overlay.fill('rgba(10,26,36,.26)'), a, c, toward(c, p, depth), toward(a, p, depth));
+        const depth = Math.min(.46, rise * .03 + .12) * (direction === 1 ? .7 : 1), [ka, kb] = EDGE_CORNERS[direction], a = corner(p, ka), c = corner(p, kb);
+        quad(overlay.fill('rgba(10,26,36,.22)'), a, c, toward(c, p, depth), toward(a, p, depth));
+        quad(overlay.fill('rgba(10,26,36,.22)'), a, c, toward(c, p, depth * .4), toward(a, p, depth * .4));
       }
       // Water: dashed foam along the shore behind and beside it.
       if (water) for (const direction of [0, 1, 2, 3]) {
@@ -390,10 +389,16 @@ export function drawBase25d(b: Base25d): void {
         const [ka, kb] = EDGE_CORNERS[direction];
         segment(overlay.stroke(water ? '#9FD3DD80' : '#FFF8DC70', thin), corner(p, ka), corner(p, kb));
       }
-      // Grid: a faint outline of the top face.
+      // Grid: a faint outline of the top face, and a pixel bevel just inside it (lit W / NW / NE edges, shaded E / SE / SW edges),
+      // so every tile reads as a slab even on level ground.
       const outline = overlay.stroke(water ? '#0B2A3A30' : '#0B1A1C38', outlineWidth);
       for (let k = 0; k < 6; k++) { const q = corner(p, k); if (k) outline.lineTo(q.x, q.y); else outline.moveTo(q.x, q.y); }
       outline.closePath();
+      if (!water) {
+        const inset = Math.min(.12, (thin * 1.1 + outlineWidth) / radius), lit = overlay.stroke('#FFF6D82E', thin), dim = overlay.stroke('#0A141A3A', thin);
+        for (const direction of [3, 2, 1]) { const [ka, kb] = EDGE_CORNERS[direction]; segment(lit, toward(corner(p, ka), p, inset), toward(corner(p, kb), p, inset)); }
+        for (const direction of [0, 5, 4]) { const [ka, kb] = EDGE_CORNERS[direction]; segment(dim, toward(corner(p, ka), p, inset), toward(corner(p, kb), p, inset)); }
+      }
       const links = flags.river.get(index);
       if (links) for (const direction of links.length ? links : [0]) {
         const end = { x: p.x + reach * Math.cos(DIRECTION_ANGLES[direction]), y: p.y + reach * Math.sin(DIRECTION_ANGLES[direction]) * squash };
@@ -401,14 +406,27 @@ export function drawBase25d(b: Base25d): void {
         segment(overlay.stroke('#6FB6E6', riverInner), p, end);
       }
       const art = propsFor(biome, variant, flags.hill[index] === 1, flags.peak[index] === 1, index * 13 + 5);
-      if (art) propsDraws.push({ art, p });
+      if (art) propsDraws.push({ art, p, index });
       const landmark = flags.landmark.get(index);
       if (landmark) stones.push({ p, id: landmark });
     }
     context.lineCap = 'round';
     overlay.flush(context);
     context.lineCap = 'butt';
-    for (const item of propsDraws) context.drawImage(item.art, item.p.x - PC.x * s, item.p.y - PC.y * s, PW * s, PH * s);
+    for (const { art, p, index } of propsDraws) {
+      const x = p.x - PC.x * ps, y = p.y - PC.y * ps;
+      context.drawImage(art, x, y, PW * ps, PH * ps);
+      // Fog: the part of a prop standing out of its tile's veil outline gets a pre-veiled copy here (under the units); the part
+      // inside the outline is veiled by the fog layer, so every pixel of the prop is veiled exactly once.
+      if (fogged.has(index)) {
+        const clip = new Path2D();
+        clip.rect(x - 2, y - 2, PW * ps + 4, PH * ps + 4);
+        veilOutline(clip, scene, lifts, index, p, radius, zoom, squash);
+        context.save(); context.clip(clip, 'evenodd');
+        context.drawImage(veiledArt(art), x, y, PW * ps, PH * ps);
+        context.restore();
+      }
+    }
     for (const stone of stones) landmarkStone(context, stone.p, radius, stone.id);
   }
   // Territory: a soft inner band in the owner's colour and a dark under-stroke, then the border line on the lifted top-face edge.
@@ -448,6 +466,32 @@ function landmarkStone(context: CanvasRenderingContext2D, p: Point, radius: numb
   context.fillText(glyph.mark, q.x, q.y + 1);
 }
 
+const FOG_VEIL = '#121C23A8';
+const fogSets = new WeakMap<readonly number[], Set<number>>();
+const fogSet = (scene: MapScene) => { let set = fogSets.get(scene.fog); if (!set) { set = new Set(scene.fog); fogSets.set(scene.fog, set); } return set; };
+/** A prop canvas with the fog veil composited onto its pixels (cached per prop canvas). */
+const veiled = new WeakMap<HTMLCanvasElement, HTMLCanvasElement>();
+function veiledArt(art: HTMLCanvasElement): HTMLCanvasElement {
+  let copy = veiled.get(art);
+  if (copy) return copy;
+  const { element, context } = canvas(art.width, art.height);
+  context.drawImage(art, 0, 0);
+  context.globalCompositeOperation = 'source-atop';
+  context.fillStyle = FOG_VEIL; context.fillRect(0, 0, art.width, art.height);
+  veiled.set(art, copy = element);
+  return copy;
+}
+/** Adds a tile column's veil outline (top face and its visible SW / SE cliffs) to a path. */
+function veilOutline(path: Path2D, scene: MapScene, lifts: Float32Array, index: number, p: Point, radius: number, zoom: number, squash: number) {
+  const lift = lifts[index];
+  const h = (direction: number) => { const other = neighbourIndex(scene, index, direction); return Math.max(0, (lift - (other < 0 ? ELEVATION.unknown : lifts[other])) * zoom); };
+  const hw = h(SW), he = h(SE), pt = (k: number, down = 0) => ({ x: p.x + radius * CORNERS[k].x, y: p.y + radius * CORNERS[k].y * squash + down });
+  // Outline: top corners 5, 0, 1, then down the SE face, along the bottom, up the SW face, back to 3 and 4.
+  const outline = [pt(5), pt(0), pt(1), pt(1, he), pt(2, Math.max(he, hw)), pt(3, hw), pt(3), pt(4)];
+  outline.forEach((q, i) => i ? path.lineTo(q.x, q.y) : path.moveTo(q.x, q.y));
+  path.closePath();
+}
+
 /** The 2.5D fog veil: top face plus the visible cliff faces of every remembered-but-not-visible tile. */
 export function drawFog25d(b: Base25d): void {
   const { context, scene, lifts, radius, zoom, squash } = b;
@@ -458,18 +502,12 @@ export function drawFog25d(b: Base25d): void {
   for (const centres of b.copies) for (const index of scene.fog) {
     const p = centres[index];
     if (p.x < -margin || p.x > b.width + margin || p.y < -margin || p.y > b.height + margin) continue;
-    const lift = lifts[index];
-    const h = (direction: number) => { const other = neighbourIndex(scene, index, direction); return Math.max(0, (lift - (other < 0 ? ELEVATION.unknown : lifts[other])) * zoom); };
-    const hw = h(SW), he = h(SE), pt = (k: number, down = 0) => ({ x: p.x + radius * CORNERS[k].x, y: p.y + radius * CORNERS[k].y * squash + down });
-    // Outline: top corners 5, 0, 1, then down the SE face, along the bottom, up the SW face, back to 3 and 4.
-    const outline = [pt(5), pt(0), pt(1), pt(1, he), pt(2, Math.max(he, hw)), pt(3, hw), pt(3), pt(4)];
-    outline.forEach((q, i) => i ? veil.lineTo(q.x, q.y) : veil.moveTo(q.x, q.y));
-    veil.closePath();
+    veilOutline(veil, scene, lifts, index, p, radius, zoom, squash);
     any = true;
   }
   if (!any) return;
   context.save();
-  context.fillStyle = '#121C23A8'; context.fill(veil);
+  context.fillStyle = FOG_VEIL; context.fill(veil);
   context.clip(veil);
   context.strokeStyle = '#E8F0F012'; context.lineWidth = 1;
   context.beginPath();

@@ -1154,7 +1154,7 @@ export function createCanvas2DRenderer(canvas: HTMLCanvasElement, options: Rende
       context.setTransform(dpr, 0, 0, dpr, shakeX, shakeY);
       context.imageSmoothingEnabled = false;
       const radius = HEX_RADIUS * camera.zoom;
-      const squash = tilted ? mapTilt() : 1, lifts = tilted ? sceneLifts(scene.tiles, scene.terrain) : null;
+      const squash = tilted ? mapTilt() : 1, lifts = tilted ? sceneLifts(scene.tiles, scene.terrain, scene) : null;
       if (lifts) picking = { scene, lifts };
       const liftAt = (world: Point) => lifts ? liftAtWorld(world, scene, lifts) * camera.zoom : 0;
       const centers = scene.tiles.map((tile, index) => {

@@ -8,7 +8,8 @@ import type { MapScene } from './scene.ts';
 import { drawBase25d } from './terrain25d.ts';
 
 type Bounds = { minX: number; minY: number; maxX: number; maxY: number };
-type Chunk = { canvas: HTMLCanvasElement; ox: number; oy: number; used: number };
+/** `fog`: the chunk's fogged tiles when it was built (fogged props carry a veil, so a chunk is rebuilt when its fog changes). */
+type Chunk = { canvas: HTMLCanvasElement; ox: number; oy: number; used: number; fog: string };
 /** Chunks kept at most (least recently used ones are dropped). */
 const CHUNK_CAP = 96;
 
@@ -25,7 +26,7 @@ export type ChunkFrame = {
 };
 
 export function createChunkCache() {
-  let key = '', frameNumber = 0;
+  let key = '', frameNumber = 0, fogFor: readonly number[] | null = null, fogKeys: string[] = [];
   let layout: { rows: number; cols: number; bounds: Bounds[]; zoomed: Point[] } | null = null;
   const chunks = new Map<number, Chunk>();
   return {
@@ -35,7 +36,7 @@ export function createChunkCache() {
       const full = `${f.key}|${zoom}|${dpr}|${f.squash}`;
       if (full !== key) {
         if (!f.settled && key) return 'direct';
-        key = full; chunks.clear();
+        key = full; chunks.clear(); fogFor = null;
         // World positions at this zoom (lifted), relative to the camera origin: screen = zoomed + camera + shift.
         const zoomed = scene.tiles.map((tile, index) => ({ x: tile.world.x * zoom, y: tile.world.y * zoom - f.lifts[index] * zoom }));
         const tileWidth = Math.sqrt(3) * radius * dpr, rowHeight = 1.5 * radius * f.squash * dpr;
@@ -46,11 +47,18 @@ export function createChunkCache() {
           const box = bounds[id] ??= { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
           // Room for props and landmark stones above a tile, and for its cliffs down to the unexplored floor below it.
           box.minX = Math.min(box.minX, p.x - radius * 1.3); box.maxX = Math.max(box.maxX, p.x + radius * 1.3);
-          box.minY = Math.min(box.minY, p.y - radius * 2.5); box.maxY = Math.max(box.maxY, p.y + radius * 2.7);
+          box.minY = Math.min(box.minY, p.y - radius * 3); box.maxY = Math.max(box.maxY, p.y + radius * 2.8);
         }
         layout = { rows, cols, bounds, zoomed };
       }
       const { rows, cols, bounds, zoomed } = layout!, across = Math.ceil(scene.width / cols), down = Math.ceil(scene.height / rows);
+      // Per-chunk fog signature (only the chunks whose fogged tiles changed are rebuilt after a move).
+      if (scene.fog !== fogFor) {
+        fogFor = scene.fog;
+        const lists: number[][] = [];
+        for (const index of scene.fog) (lists[Math.floor(Math.floor(index / scene.width) / rows) * across + Math.floor(index % scene.width / cols)] ??= []).push(index);
+        fogKeys = lists.map(list => list.join(','));
+      }
       let built = false;
       frameNumber++;
       f.context.save();
@@ -61,8 +69,9 @@ export function createChunkCache() {
         const left = box.minX + camera.x + shift, top = box.minY + camera.y;
         if (left > f.width || left + box.maxX - box.minX < 0 || top > f.height || top + box.maxY - box.minY < 0) continue;
         let chunk = chunks.get(id);
-        if (!chunk) {
-          chunk = build(f, zoomed, box, [chunkRow * rows, Math.min(scene.height, (chunkRow + 1) * rows)], [chunkCol * cols, Math.min(scene.width, (chunkCol + 1) * cols)]);
+        const fog = fogKeys[id] ?? '';
+        if (!chunk || chunk.fog !== fog) {
+          chunk = build(f, zoomed, box, [chunkRow * rows, Math.min(scene.height, (chunkRow + 1) * rows)], [chunkCol * cols, Math.min(scene.width, (chunkCol + 1) * cols)], fog);
           chunks.set(id, chunk);
           built = true;
         }
@@ -76,11 +85,11 @@ export function createChunkCache() {
       }
       return built ? 'miss' : 'hit';
     },
-    clear() { key = ''; chunks.clear(); layout = null; },
+    clear() { key = ''; chunks.clear(); layout = null; fogFor = null; },
   };
 }
 
-function build(f: ChunkFrame, zoomed: readonly Point[], box: Bounds, rows: readonly [number, number], cols: readonly [number, number]): Chunk {
+function build(f: ChunkFrame, zoomed: readonly Point[], box: Bounds, rows: readonly [number, number], cols: readonly [number, number], fog: string): Chunk {
   const { dpr } = f, ox = Math.floor(box.minX * dpr), oy = Math.floor(box.minY * dpr);
   const canvas = document.createElement('canvas');
   canvas.width = Math.ceil(box.maxX * dpr) - ox + 1; canvas.height = Math.ceil(box.maxY * dpr) - oy + 1;
@@ -90,5 +99,5 @@ function build(f: ChunkFrame, zoomed: readonly Point[], box: Bounds, rows: reado
   const local = zoomed.map(p => ({ x: p.x - ox / dpr, y: p.y - oy / dpr }));
   drawBase25d({ context, scene: f.scene, lifts: f.lifts, radius: HEX_RADIUS * f.camera.zoom, zoom: f.camera.zoom, squash: f.squash,
     copies: [local], width: canvas.width / dpr, height: canvas.height / dpr, ownerColor: f.ownerColor, rows, cols });
-  return { canvas, ox, oy, used: 0 };
+  return { canvas, ox, oy, used: 0, fog };
 }

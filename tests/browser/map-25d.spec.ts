@@ -37,7 +37,7 @@ async function tileCentres(page: Page, indexes: number[]) {
     const { camera, session, developerAdapter } = await import(mainPath), { tileToScreen } = await import(cameraPath), { indexToHex } = await import(hexPath);
     const { buildScene } = await import(scenePath), { sceneLifts } = await import(projectionPath);
     const view = session.getView(), scene = buildScene({ view }), tilted = developerAdapter.renderMode() === '25d';
-    const lifts = sceneLifts(scene.tiles, scene.terrain), canvas = document.querySelector<HTMLCanvasElement>('#map')!;
+    const lifts = sceneLifts(scene.tiles, scene.terrain, scene), canvas = document.querySelector<HTMLCanvasElement>('#map')!;
     return indexes.map(index => {
       const p = tileToScreen(indexToHex(index, view.map), camera, view.map, canvas.clientWidth);
       return { index, x: p.x, y: p.y - (tilted ? lifts[index] * camera.zoom : 0), lift: lifts[index] };

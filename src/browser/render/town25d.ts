@@ -2,6 +2,7 @@
 // faction-coloured token with a thickness and a contact shadow cast to the south-east). Original pixel art drawn with fillRect into
 // cached canvases; the faction patterns repeat the flat map's colour-blind-safe marks (stripes, dots, cross-hatch).
 import type { Point } from '../camera.ts';
+import { propScale } from './projection.ts';
 
 const RT = 24;
 /** Town canvas (native pixels): room above the tile for the keep and its flag. */
@@ -88,7 +89,7 @@ function townArt(roof: string, houses: number, capital: boolean, wonder: boolean
 /** Paved plaza on the city's top face, then the town; returns the screen y of the town's top (for the banner). */
 export function drawTown25d(context: CanvasRenderingContext2D, p: Point, radius: number, squash: number, ownerColor: string,
   population: number | undefined, capital: boolean, wonders: number): number {
-  const s = radius / RT;
+  const s = radius / RT * propScale(radius);
   context.beginPath();
   for (let k = 0; k < 6; k++) {
     const angle = (k * 60 - 30) * Math.PI / 180, x = p.x + radius * .78 * Math.cos(angle), y = p.y + radius * .78 * Math.sin(angle) * squash;
@@ -105,7 +106,7 @@ export function drawTown25d(context: CanvasRenderingContext2D, p: Point, radius:
 export function drawTownLights(context: CanvasRenderingContext2D, p: Point, radius: number, ownerColor: string, population: number | undefined,
   capital: boolean, wonders: number, level: number): void {
   if (level <= 0) return;
-  const s = radius / RT, art = townArt(ownerColor, townHouses(population), capital, wonders > 0);
+  const s = radius / RT * propScale(radius), art = townArt(ownerColor, townHouses(population), capital, wonders > 0);
   context.save();
   context.globalAlpha = level;
   // Two flat halos (no blur): a wide faint one on the ground and a tighter warm one around the houses.

@@ -25,20 +25,66 @@ export function applyRenderMode(mode: RenderMode): void { setMapTilt(mode === '2
 
 /**
  * Elevation steps in world pixels (HEX_RADIUS = 22). Unexplored tiles sit lowest, so explored land rises out of the dark like a
- * diorama; water is one step below land; hills, mountains, volcanoes and peaks climb in steps.
+ * diorama; water is one step below land; hills, mountains, volcanoes and peaks climb in steps. A column more than ~8.25 above the
+ * tile behind it covers that tile's centre (row spacing 24.75 − top-face half height 16.5 at tilt 0.75), so the common steps
+ * (water → land, land → hill, land → mountain) stay at 8 or less; only peaks and hills on high ground rise further.
  */
-export const ELEVATION = { unknown: -12, water: -6, land: 0, snow: 2, mountain: 8, volcano: 8, hill: 5, peak: 10 } as const;
+export const ELEVATION = { unknown: -16, water: -8, land: 0, snow: 2, mountain: 8, volcano: 8, hill: 6, peak: 14 } as const;
 export function tileLift(biome: BiomeId | null, hill: boolean, peak: boolean): number {
   if (biome === null) return ELEVATION.unknown;
   if (biome === 'ocean') return ELEVATION.water;
   const base = biome === 'mountain' ? ELEVATION.mountain : biome === 'volcano' ? ELEVATION.volcano : biome === 'snow' ? ELEVATION.snow : ELEVATION.land;
   return base + (hill ? ELEVATION.hill : 0) + (peak ? ELEVATION.peak : 0);
 }
-/** Per-tile lift for a scene's tiles (index order). */
-export function sceneLifts(tiles: readonly { biome: BiomeId | null }[], terrain?: SceneTerrain): Float32Array {
+/**
+ * Size factor for standing props and towns: a little larger at the default zoom (≤ 1.5), where the relief would otherwise read
+ * thin, easing back to the native size by zoom 2.6 (close-ups already show the pixel detail).
+ */
+export function propScale(radius: number): number {
+  const zoom = radius / HEX_RADIUS;
+  return 1 + .25 * Math.max(0, Math.min(1, (2.6 - zoom) / 1.1));
+}
+/** Height of one inland terrace step (world px). */
+export const TERRACE = 3.5;
+/** Offset-row neighbour of a tile index in HEX_DIRECTIONS order (odd rows shifted right), folded across the wrap; -1 off the map. */
+export function neighbourIndexOf(size: GridSize, index: number, direction: number): number {
+  const width = size.width, row = Math.floor(index / width), col = index % width, step = DIRECTIONS[direction];
+  const nr = row + step.r;
+  if (nr < 0 || nr >= size.height) return -1;
+  let nc = col - Math.floor(row / 2) + step.q + Math.floor(nr / 2);
+  if (nc < 0 || nc >= width) { if (!size.wrap) return -1; nc = ((nc % width) + width) % width; }
+  return nr * width + nc;
+}
+/**
+ * Inland terraces: known land rises one TERRACE step two tiles from the water and another four tiles in, so a continent reads
+ * as a stepped plateau with contour cliffs even where every tile is level grassland. Distance is counted over known land from
+ * known water (ocean, lakes); land with no known water in reach sits on the top step.
+ */
+export function terraceLevels(tiles: readonly { biome: BiomeId | null }[], size: GridSize): Uint8Array {
+  const count = tiles.length, distance = new Int16Array(count).fill(-1), queue = new Int32Array(count);
+  let head = 0, tail = 0;
+  for (let index = 0; index < count; index++) if (tiles[index].biome === 'ocean') { distance[index] = 0; queue[tail++] = index; }
+  while (head < tail) {
+    const index = queue[head++];
+    for (let direction = 0; direction < 6; direction++) {
+      const other = neighbourIndexOf(size, index, direction);
+      if (other < 0 || distance[other] >= 0 || !tiles[other].biome) continue;
+      distance[other] = distance[index] + 1; queue[tail++] = other;
+    }
+  }
+  const levels = new Uint8Array(count);
+  for (let index = 0; index < count; index++) {
+    if (!tiles[index].biome || tiles[index].biome === 'ocean') continue;
+    const d = distance[index];
+    levels[index] = d < 0 || d >= 4 ? 2 : d >= 2 ? 1 : 0;
+  }
+  return levels;
+}
+/** Per-tile lift for a scene's tiles (index order); with the map size, land also stands on its inland terrace. */
+export function sceneLifts(tiles: readonly { biome: BiomeId | null }[], terrain?: SceneTerrain, size?: GridSize): Float32Array {
   const hills = new Set(terrain?.hills ?? []), peaks = new Set(terrain?.peaks ?? []);
-  const lifts = new Float32Array(tiles.length);
-  for (let index = 0; index < tiles.length; index++) lifts[index] = tileLift(tiles[index].biome, hills.has(index), peaks.has(index));
+  const lifts = new Float32Array(tiles.length), levels = size ? terraceLevels(tiles, size) : null;
+  for (let index = 0; index < tiles.length; index++) lifts[index] = tileLift(tiles[index].biome, hills.has(index), peaks.has(index)) + (levels ? levels[index] * TERRACE : 0);
   return lifts;
 }
 
