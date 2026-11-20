@@ -14,4 +14,4 @@
 - `public/sprites/`：宝可梦像素图与官方插画，来自 PokeAPI/sprites，图片版权属于 The Pokémon Company / Nintendo / Game Freak / Creatures，来源和提交见各目录的 `manifest.json`。
 - `public/leaders/`：领袖头像。画是本项目手绘的，但画的是宝可梦系列里的官方角色（小刚、小霞等），角色形象属于 The Pokémon Company，所以本项目无法、也不把它们贡献到公共领域。
 - 宝可梦名称、角色、物种设定等一切宝可梦相关的知识产权。
-- 本文件只涉及美术素材，**不涉及源代码**；源代码的许可尚未声明。
+- 源代码不用 CC0：仓库所有者于 2026-11-20 决定源代码采用 **MIT 许可**，见仓库根目录的 `LICENSE`。MIT 同样不覆盖上面列出的宝可梦相关内容。
