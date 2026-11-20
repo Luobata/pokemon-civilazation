@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-20 -8 42 14" width="42" height="14">
+  <!-- 绘卷 map art (docs/design/map-art-options.md, option A): water-lily pads. Original artwork by this project, no third-party sources (public/map-art/README.md).
+       Anchor (0, 0) is the ground contact point; 100 units = one tile radius; light from the north-west. -->
+  <path d="M-12 -2L-6 -3.2A6 2.7 0 1 1 -6.6 -0.9Z" fill="#5E9E48" stroke="#24502C" stroke-width="1"/>
+  <ellipse cx="-13.8" cy="-2.9" rx="2.4" ry="0.9" fill="#A6D46A" opacity=".8"/>
+  <path d="M4 1L11.5 -0.5A7.5 3.4 0 1 1 10.8 2.3Z" fill="#5E9E48" stroke="#24502C" stroke-width="1"/>
+  <ellipse cx="1.8" cy="-0.1" rx="3" ry="1.1" fill="#A6D46A" opacity=".8"/>
+  <path d="M14 -4L19 -5A5 2.2 0 1 1 18.5 -3.1Z" fill="#5E9E48" stroke="#24502C" stroke-width="1"/>
+  <ellipse cx="12.5" cy="-4.8" rx="2" ry="0.8" fill="#A6D46A" opacity=".8"/>
+  <circle cx="4" cy="-1" r="2.6" fill="#F7C6D6" stroke="#2B1E10" stroke-width=".7"/><circle cx="4" cy="-1.2" r="1" fill="#F6D85A"/>
+</svg>

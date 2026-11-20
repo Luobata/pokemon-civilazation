@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-66 -16 132 40" width="132" height="40">
+  <!-- 绘卷 map art (docs/design/map-art-options.md, option A): a snowy shore edge (snow shelf, ice floes, surf). Original artwork by this project, no third-party sources (public/map-art/README.md).
+       Anchor (0, 0) is the ground contact point; 100 units = one tile radius; light from the north-west. -->
+  <defs><linearGradient id="coast-snow-b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F7FAFB" stop-opacity="0"/><stop offset=".3" stop-color="#F7FAFB" stop-opacity=".96"/><stop offset="1" stop-color="#D7E4EC"/></linearGradient></defs>
+  <path d="M-66 1V-7Q-52-11-36-8T-6-9T24-8T66-7V1Z" fill="url(#coast-snow-b)"/>
+  <path d="M-66-2H66" stroke="#A9C0D0" stroke-width="1.2" stroke-dasharray="10 6" opacity=".7"/>
+  <rect x="-66" y="0" width="132" height="3.4" fill="#B7CCD8" opacity=".8"/>
+  <rect x="-66" y="3" width="132" height="3.2" fill="#F2FBFF" opacity=".3"/>
+  <path d="M-66 5q4.5 -3.2 9 0q4.5 -3.2 9 0q4.5 -3.2 9 0q4.5 -3.2 9 0q4.5 -3.2 9 0q4.5 -3.2 9 0q4.5 -3.2 9 0q4.5 -3.2 9 0q4.5 -3.2 9 0q4.5 -3.2 9 0q4.5 -3.2 9 0q4.5 -3.2 9 0q4.5 -3.2 9 0q4.5 -3.2 9 0" fill="none" stroke="#F7FDFF" stroke-opacity=".9" stroke-width="2" stroke-linecap="round"/>
+  <g fill="#F4F9FC" stroke="#8FA6B8" stroke-width=".8"><path d="M-40 9l7-1.5l5 2l-3 2.6l-8 .4z"/><path d="M12 10l6-1l4 2l-4 2l-6-.4z"/><path d="M44 8.5l4-.6l3 1.6l-3 1.6l-4-.4z"/></g>
+  <path d="M-66 13q5.5 -2.4 11 0q5.5 -2.4 11 0q5.5 -2.4 11 0q5.5 -2.4 11 0q5.5 -2.4 11 0q5.5 -2.4 11 0q5.5 -2.4 11 0q5.5 -2.4 11 0q5.5 -2.4 11 0q5.5 -2.4 11 0q5.5 -2.4 11 0q5.5 -2.4 11 0" fill="none" stroke="#EAF8FF" stroke-opacity=".34" stroke-width="1.4" stroke-linecap="round" stroke-dasharray="8 5"/>
+</svg>
