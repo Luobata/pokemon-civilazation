@@ -34,6 +34,8 @@ const WORLD = ['world-ui.spec.ts', 'gym-circuit.spec.ts', 'rivals.spec.ts', 'lat
 const NOTICES = ['turn-feedback.spec.ts', 'interaction-review.spec.ts', 'presentation-batch3.spec.ts', 'playtest-fixes-2.spec.ts'];
 const NETWORK = ['entrypoints.spec.ts', 'expansion.spec.ts', 'eras.spec.ts', 'map-25d.spec.ts', 'crossenv.spec.ts'];
 const GUIDE = ['guide.spec.ts', 'civ-glossary.spec.ts', 'roles.spec.ts', 'unit-classes.spec.ts'];
+/** Gameplay v27 (pace-v27): opening safety and wild encounters, city projects and legend favour, Max raids and the contest circuit, league trainers. */
+const PACE_V27 = ['pace-v27-opening.spec.ts', 'pace-v27-economy.spec.ts', 'pace-v27-events.spec.ts', 'league-trainers.spec.ts'];
 
 export type SpecRule = { files: string[]; specs: string[]; why: string };
 
@@ -96,6 +98,13 @@ export const SPEC_RULES: SpecRule[] = [
   { files: ['src/content/civ-glossary.ts'], specs: GUIDE, why: 'glossary terms shown in the guide' },
   { files: ['src/content/units.ts', 'src/content/species.ts', 'src/content/roster*.ts', 'src/content/regional-dex.ts', 'src/core/promotions.ts', 'src/core/unit*.ts'],
     specs: ['roster.spec.ts', 'regional-dex.spec.ts', 'selection.spec.ts', 'promotions.spec.ts', 'unit-classes.spec.ts'], why: 'unit stats shown in panels' },
+  // Gameplay v27 (pace-v27.md): its client modules, rule modules whose numbers the page shows, the trainer portraits; the raid spec also
+  // checks the boss's aura on the map in all three render modes.
+  { files: ['src/browser/city-projects-ui.ts', 'src/browser/encounter-ui.ts', 'src/browser/max-raid-ui.ts', 'src/browser/trainer-card.ts', 'src/browser/league-*.ts',
+    'src/content/pace-v27.ts', 'src/content/conference.ts', 'src/core/city-projects.ts', 'src/core/contest-circuit.ts', 'src/core/league-roster.ts',
+    'src/core/legend-favor.ts', 'src/core/max-raids.ts', 'src/core/raids.ts', 'src/core/opening-safety.ts', 'src/core/wild-encounters.ts', 'public/trainers/**'],
+  specs: PACE_V27, why: 'gameplay v27 panels and the numbers they show' },
+  { files: ['src/browser/render/**'], specs: ['pace-v27-events.spec.ts'], why: 'Max raid aura and shield pips in flat, 2.5D and painted' },
 ];
 
 /** Changed files that also need the production-build e2e (tests/browser-prod: CSS bundle order, overlay placement). */
