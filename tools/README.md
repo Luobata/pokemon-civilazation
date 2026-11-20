@@ -18,6 +18,23 @@
 | `opening-probe.ts` | v27 开局探针（`docs/design/pace-v27.md` §0、§13.2）：`node tools/opening-probe.ts --gameplay 27 [--seeds 31-38] [--stop 36] [--workers 12] --out /tmp/opening-v27.jsonl` 重放 216 个门槛开局（`gate` 预设、图鉴轮换），逐文明记第三城、被野生打倒的职能单位、首捕（是否第一颗球）、御三家被打倒、受惊撤退与力竭；`--summary a.jsonl [b.jsonl]` 汇总并与基线逐局配对。 |
 | `balance-run.ts` 等 | 平衡门槛：并行跑批、报告、参数扫描，见下方[平衡门槛](#平衡门槛balance-run--balance-report--balance-sweep)。 |
 | `rejections.ts` | 模拟器内部调用 `classifyRejection(state, command, reason, content?)`，区分迷雾下合法尝试被拒与缺陷。无独立 CLI。 |
+| `test-plan.ts` 等 | 按改动范围选择检查：`npm run check` / `check:plan` / `check:full` / `check:release`，见下方[按改动范围测试](#按改动范围测试test-plan--smoke-parallel)。 |
+
+## 按改动范围测试（test-plan / smoke-parallel）
+
+完整说明见 [docs/tech/testing.md](../docs/tech/testing.md)。
+
+| 文件 | 用途 |
+| --- | --- |
+| `test-plan.ts` | `node tools/test-plan.ts [--commit sha \| --range A..B \| --base ref \| --files a b] [--json] [--run] [--full \| --release] [--keep-going] [--smoke-versions 24-26] [--pw-workers N] [--smoke-workers N]`。默认范围 merge-base(main)..HEAD + 工作区。用导入图选出 vitest 文件、Playwright spec、是否需要 vite build / 生产构建 e2e / smoke（及哪些玩法版本）/ 平衡扫描建议，打印理由和粗略耗时；`--run` 依次执行（遇错即停）。 |
+| `test-plan-map.ts` | 人工审阅的映射表：`SPEC_RULES`（源码 → spec）、`ALWAYS_SPECS`、`PROD_TRIGGERS`、`FULL_TRIGGERS`、`VITEST_TEXT_DEPENDENCIES`、`VERSION_SCOPED`（可证明只影响 ≥ N 版本的规则文件）、`BALANCE_KNOBS`、`COST`。`tests/tools/test-plan.test.ts` 检查 glob 都有匹配、没有孤立 spec、版本收窄文件的导入者未变。 |
+| `smoke-parallel.ts` | 并行版 `district-smoke.ts`：`node tools/smoke-parallel.ts --versions 24-26\|all [--base ref \| --no-base] [--head ref] [--out 目录] [--workers N] [--allow-diff 27]`。每个版本同样的 48 局、同样的输出字节（启动时核对 `district-smoke.ts` 的配置），拆到子进程；基线提交用 `git archive` 导出后同样运行，按提交缓存在 `~/.cache/pokemon-civilization/smoke/<sha>/v<N>`；逐字节比较，未完成的对局或旧版本出现差异则非零退出（比 `LATEST_GAMEPLAY_VERSION` 新的版本和 `--allow-diff` 只报告）。`--workers` 默认核数 / 4、最多 16。 |
+
+```sh
+npm run check:plan                                              # 看本分支需要什么
+node tools/test-plan.ts --commit 6ac8e59                        # 某个提交
+node tools/smoke-parallel.ts --versions 26 --base 5d263aa --head 6ac8e59   # 单独比较一个提交与其父提交
+```
 
 ## M6 发布批次复现
 
