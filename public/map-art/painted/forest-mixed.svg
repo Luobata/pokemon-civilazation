@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 260 340" width="260" height="340">
+  <!-- Map-art option A (docs/design/map-art-options.md): a mixed wood (broadleaf and fir). Original artwork made for pokemon-civilazation (no third-party sources; same standing as public/buildings/).
+       Tile frame: R = 100, tile centre (130, 230), squash 0.8; the hex spans x 43-217, y 150-310. Light from the north-west. -->
+  <defs>
+    <linearGradient id="bark" x1="0" x2="1"><stop offset="0" stop-color="#9A7046"/><stop offset=".45" stop-color="#6E4B2B"/><stop offset="1" stop-color="#3B2716"/></linearGradient>
+    <radialGradient id="floor" cx=".5" cy=".55" r=".5"><stop offset="0" stop-color="#25401C" stop-opacity=".62"/><stop offset=".7" stop-color="#2E4E22" stop-opacity=".38"/><stop offset="1" stop-color="#2E4E22" stop-opacity="0"/></radialGradient>
+    <path id="oak-crown" d="M-22-36a10 10 0 0 1 4-16a11 11 0 0 1 14-10a12 12 0 0 1 19 2a10 10 0 0 1 8 14a10 10 0 0 1-2 16a10 10 0 0 1-14 8a11 11 0 0 1-16 0a10 10 0 0 1-13-14z"/>
+    <clipPath id="oak-clip"><use href="#oak-crown" xlink:href="#oak-crown"/></clipPath>
+    <symbol id="oak" overflow="visible">
+      <ellipse cx="10" cy="1" rx="24" ry="7" fill="#1A140C" opacity=".3"/>
+      <path d="M-5.5 1Q-2.4-8-2.6-26H2.6Q2.4-8 5.5 1Q0 2.8-5.5 1Z" fill="url(#bark)" stroke="#2B1E10" stroke-width="1.5" stroke-linejoin="round"/>
+      <use href="#oak-crown" xlink:href="#oak-crown" fill="#2B1E10" stroke="#2B1E10" stroke-width="4.5" stroke-linejoin="round"/>
+      <use href="#oak-crown" xlink:href="#oak-crown" style="fill:var(--leaf-dark,#2E5B2A)"/>
+      <g clip-path="url(#oak-clip)">
+        <use href="#oak-crown" xlink:href="#oak-crown" transform="translate(-4 -5) translate(0 -42) scale(.84) translate(0 42)" style="fill:var(--leaf-mid,#4F8A38)"/>
+        <g style="fill:var(--leaf-light,#8DBF4E)" opacity=".9"><circle cx="-14" cy="-50" r="7"/><circle cx="-2" cy="-57" r="7.5"/><circle cx="11" cy="-56" r="5.5"/><circle cx="-19" cy="-38" r="5"/></g>
+        <g style="fill:var(--leaf-hi,#CBE37E)"><circle cx="-16" cy="-53" r="2.6"/><circle cx="-4" cy="-60" r="2.8"/><circle cx="9" cy="-59" r="2"/></g>
+        <path d="M3-29q6-1 9-7M-9-26q5 0 8-5M12-43q5-1 7-6M-2-38q4 1 7-2" fill="none" stroke="#1C3618" stroke-opacity=".45" stroke-width="1.5" stroke-linecap="round"/>
+        <path d="M-12-44q2-2 4.5-1M-1-49q2-2 4.5-1M-21-44q2-2 4-1M4-52q2-2 4-1" fill="none" stroke="#EAF5B0" stroke-opacity=".7" stroke-width="1.2" stroke-linecap="round"/>
+      </g>
+    </symbol>
+    <symbol id="bush" overflow="visible">
+      <ellipse cx="5" cy="1" rx="13" ry="4" fill="#1A140C" opacity=".28"/>
+      <path d="M-11 0a6 6 0 0 1 2-9a7 7 0 0 1 10-5a6.5 6.5 0 0 1 10 4a5.5 5.5 0 0 1 0 10z" fill="#3A6B2E" stroke="#2B1E10" stroke-width="1.4" stroke-linejoin="round"/>
+      <path d="M-8-6a5 5 0 0 1 8-6a5 5 0 0 1 6 2" fill="none" stroke="#9CC65A" stroke-width="2.2" stroke-linecap="round"/>
+    </symbol>
+    <linearGradient id="fir-grad" x1="0" x2="1"><stop offset="0" stop-color="#6AA65E"/><stop offset=".5" stop-color="#2F6B45"/><stop offset="1" stop-color="#1B3F2B"/></linearGradient>
+    <path id="fir-a" d="M0-44Q-8.5-19.5-19-9q6.33 5 12.67 0q6.33 5 12.67 0q6.33 5 12.67 0Q8.5-19.5 0-44Z"/>
+    <path id="fir-b" d="M0-60Q-6.5-36-14.5-27q4.83 4.4 9.67 0q4.83 4.4 9.67 0q4.83 4.4 9.67 0Q6.5-36 0-60Z"/>
+    <path id="fir-c" d="M0-75Q-4.5-53-10-45q3.33 3.6 6.67 0q3.33 3.6 6.67 0q3.33 3.6 6.67 0Q4.5-53 0-75Z"/>
+    <clipPath id="fir-a-clip"><use href="#fir-a" xlink:href="#fir-a"/></clipPath>
+    <clipPath id="fir-b-clip"><use href="#fir-b" xlink:href="#fir-b"/></clipPath>
+    <symbol id="fir" overflow="visible">
+      <ellipse cx="8" cy="1" rx="16" ry="5" fill="#1A140C" opacity=".3"/>
+      <path d="M-2.6 1L-2-11H2L2.6 1Z" fill="#5A3B21" stroke="#2B1E10" stroke-width="1.2" stroke-linejoin="round"/>
+      <g stroke="#2B1E10" stroke-width="1.8" stroke-linejoin="round" fill="url(#fir-grad)">
+        <use href="#fir-a" xlink:href="#fir-a"/>
+        <ellipse cx="2" cy="-25" rx="13" ry="4.5" fill="#0F2A1A" opacity=".5" stroke="none" clip-path="url(#fir-a-clip)"/>
+        <use href="#fir-b" xlink:href="#fir-b"/>
+        <ellipse cx="1.5" cy="-43" rx="9.5" ry="3.6" fill="#0F2A1A" opacity=".5" stroke="none" clip-path="url(#fir-b-clip)"/>
+        <use href="#fir-c" xlink:href="#fir-c"/>
+      </g>
+      <path d="M-1-39Q-8-24-15-11M-1-56Q-6-39-11.5-28.5M-.8-71Q-4-54-7.5-46.5" fill="none" stroke="#B5D985" stroke-opacity=".75" stroke-width="1.3" stroke-linecap="round"/>
+    </symbol>
+    <radialGradient id="floor" cx=".5" cy=".55" r=".5"><stop offset="0" stop-color="#1F3A22" stop-opacity=".62"/><stop offset=".7" stop-color="#2A4A26" stop-opacity=".38"/><stop offset="1" stop-color="#2A4A26" stop-opacity="0"/></radialGradient>
+  </defs>
+  <ellipse cx="132" cy="238" rx="96" ry="72" fill="url(#floor)"/>
+    <use href="#fir" xlink:href="#fir" transform="translate(106 178) scale(0.78)"/>
+    <use href="#oak" xlink:href="#oak" transform="translate(152 178) scale(0.8)" style="--leaf-dark:#3D6B2B;--leaf-mid:#6A9E3D;--leaf-light:#A9CC59;--leaf-hi:#E0EC8E"/>
+    <use href="#oak" xlink:href="#oak" transform="translate(80 203) scale(0.84)" style="--leaf-dark:#24502C;--leaf-mid:#3F7F3C;--leaf-light:#79B04E;--leaf-hi:#B8DB7A"/>
+    <use href="#fir" xlink:href="#fir" transform="translate(126 198) scale(0.86)"/>
+    <use href="#oak" xlink:href="#oak" transform="translate(178 205) scale(0.82)"/>
+    <use href="#oak" xlink:href="#oak" transform="translate(100 228) scale(0.9)" style="--leaf-dark:#3D6B2B;--leaf-mid:#6A9E3D;--leaf-light:#A9CC59;--leaf-hi:#E0EC8E"/>
+    <use href="#fir" xlink:href="#fir" transform="translate(150 224) scale(0.92)"/>
+    <use href="#fir" xlink:href="#fir" transform="translate(196 234) scale(0.8)"/>
+    <use href="#oak" xlink:href="#oak" transform="translate(70 254) scale(0.84)"/>
+    <use href="#fir" xlink:href="#fir" transform="translate(120 252) scale(0.94)"/>
+    <use href="#oak" xlink:href="#oak" transform="translate(172 258) scale(0.88)" style="--leaf-dark:#24502C;--leaf-mid:#3F7F3C;--leaf-light:#79B04E;--leaf-hi:#B8DB7A"/>
+    <use href="#fir" xlink:href="#fir" transform="translate(96 282) scale(0.9)"/>
+    <use href="#oak" xlink:href="#oak" transform="translate(148 286) scale(0.93)" style="--leaf-dark:#3D6B2B;--leaf-mid:#6A9E3D;--leaf-light:#A9CC59;--leaf-hi:#E0EC8E"/>
+    <use href="#bush" xlink:href="#bush" transform="translate(124 304) scale(0.9)"/>
+    <use href="#bush" xlink:href="#bush" transform="translate(188 290) scale(0.78)"/>
+</svg>

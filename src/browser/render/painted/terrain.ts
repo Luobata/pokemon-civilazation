@@ -14,6 +14,7 @@ import { landmarkGlyph } from '../terrain-features.ts';
 import { neighbourIndexOf } from '../projection.ts';
 import type { Base25d } from '../terrain25d.ts';
 import { DIRECTION_ANGLES, EDGE_CORNERS, SERIF, addHex, alpha, bucket, corner, dab, darken, hexPath, lighten, makeCanvas, mix, noise, spriteCache, stream, stroke } from './kit.ts';
+import { mapArt, mapArtKey } from './map-art.ts';
 
 export type GroundKind = BiomeId | 'shallow' | 'deep' | 'lake' | 'unknown';
 type Palette = { base: string; light: string; dark: string; tones: readonly string[] };
@@ -369,7 +370,10 @@ function spots(rnd: () => number, count: number, R: number, sq: number, spread =
 const CONIFER_SHARE = [.15, .3, .8, .5];
 /** Baked props of a tile (null when it has none); (ox, oy) is the tile centre inside the canvas. */
 export function propSprite(biome: BiomeId, variant: number, hill: boolean, peak: boolean, R: number, sq: number): Prop {
-  return props.get(`${biome}|${variant}|${hill ? 1 : 0}${peak ? 1 : 0}|${R}|${sq}`, () => {
+  return props.get(`${biome}|${variant}|${hill ? 1 : 0}${peak ? 1 : 0}|${R}|${sq}|${mapArtKey()}`, () => {
+    // A dev-flag art set (map-art.ts) may replace this tile's props; undefined falls through to the procedural art.
+    const art = mapArt()?.prop?.(biome, variant, hill, peak, R, sq);
+    if (art !== undefined) return art;
     if (biome === 'ocean' && !peak) return null;
     const w = R * 2.6, h = R * 3.4, ox = w / 2, oy = R * 2.3;
     const { canvas, context: g } = makeCanvas(w, h), rnd = stream(biome.charCodeAt(0) * 977 + biome.length * 31 + variant * 7907 + (hill ? 13 : 0) + (peak ? 29 : 0));
@@ -532,7 +536,7 @@ export function drawBasePainted(args: Base25d): void {
   for (const { index, p } of items) {
     const directions = flags.coast.get(index);
     if (!directions) continue;
-    for (const direction of directions) coastEdge(g, p, radius, sq, direction, scene, index);
+    for (const direction of directions) coastEdge(g, p, radius, sq, direction, scene, index, R);
   }
   // 4. Rivers.
   for (const { index, p } of items) {
@@ -557,9 +561,20 @@ function edgePoints(p: Point, radius: number, sq: number, direction: number): [P
   const [a, b] = EDGE_CORNERS[direction];
   return [corner(p, radius, sq, a), corner(p, radius, sq, b)];
 }
-function coastEdge(g: CanvasRenderingContext2D, p: Point, radius: number, sq: number, direction: number, scene: MapScene, index: number) {
+function coastEdge(g: CanvasRenderingContext2D, p: Point, radius: number, sq: number, direction: number, scene: MapScene, index: number, R: number) {
   const [a, b] = edgePoints(p, radius, sq, direction), angle = DIRECTION_ANGLES[direction];
   const n = { x: Math.cos(angle), y: Math.sin(angle) * sq };
+  const art = mapArt();
+  if (art?.coastEdge) {
+    // The art draws in the unsquashed edge frame: +x along the edge, +y out to sea (this tile is the water side).
+    const other = neighbourIndexOf(scene, index, direction), land = other >= 0 ? scene.tiles[other].biome : null;
+    const shore = land === 'snow' ? 'snow' : land === 'volcano' ? 'volcanic' : land === 'mountain' ? 'rock' : 'sand';
+    g.save();
+    g.translate(p.x + Math.cos(angle) * radius * .866, p.y + Math.sin(angle) * radius * .866 * sq); g.scale(1, sq); g.rotate(angle + Math.PI / 2);
+    const drawn = art.coastEdge(g, radius, R, shore);
+    g.restore();
+    if (drawn) return;
+  }
   const line = (offset: number, inset: number, width: number, color: string) => {
     const ax = a.x + (b.x - a.x) * inset, ay = a.y + (b.y - a.y) * inset, bx = b.x + (a.x - b.x) * inset, by = b.y + (a.y - b.y) * inset;
     g.beginPath(); g.moveTo(ax + n.x * offset * radius, ay + n.y * offset * radius); g.lineTo(bx + n.x * offset * radius, by + n.y * offset * radius);

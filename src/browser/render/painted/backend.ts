@@ -24,6 +24,7 @@ import { DIRECTION_ANGLES, EDGE_CORNERS, SERIF, addHex, alpha, bucket, corner, d
 import { drawBasePainted } from './terrain.ts';
 import { MEDALLION, TOWN, medallionFrame, plate, townSprite, typeBadge, yieldRow } from './tokens.ts';
 import { drawIcon } from '../../map-icons.ts';
+import { mapArtKey } from './map-art.ts';
 
 const ROLE_MARK = { settler: '拓', builder: '工', trader: '商' } as const;
 const OUTLINE = '#22170D', BRASS = '#E2BE6E';
@@ -428,7 +429,7 @@ export function createPaintedRenderer(canvas: HTMLCanvasElement, options: Render
       const budget = { particles: PARTICLE_CAP }, typeOf = typeReader(view);
       const all: Ctx[] = copies.map(copy => ({ context, width, height, radius, centers: copy.centers, onscreen, scene, shift: copy.shift, span, budget, squash, liftAt: () => 0, dpr, typeOf }));
       const indexOf = (hex: Hex) => hexToIndex(hex, scene);
-      const viewKey = `${generation}|painted${squash}|${deviceWidth}x${deviceHeight}@${dpr}|${camera.x},${camera.y},${camera.zoom}`;
+      const viewKey = `${generation}|${mapArtKey()}|painted${squash}|${deviceWidth}x${deviceHeight}@${dpr}|${camera.x},${camera.y},${camera.zoom}`;
       const settled = viewKey === lastView;
       lastView = viewKey;
       const baseArgs = (target: CanvasRenderingContext2D) => ({ context: target, scene, lifts: zeros, radius, zoom: camera.zoom, squash, copies: copies.map(copy => copy.centers), width, height, ownerColor });
@@ -436,7 +437,7 @@ export function createPaintedRenderer(canvas: HTMLCanvasElement, options: Render
       let baseStat: LayerStat;
       if (caching) {
         baseStat = chunks.draw({ context, scene, lifts: zeros, camera, squash, dpr, shifts: copies.map(copy => copy.shift), width, height, shakeX, shakeY,
-          key: `${generation}|painted|${terrainKey}`, settled, ownerColor, paint: drawBasePainted, fogReach: { rows: 3, cols: 2 } });
+          key: `${generation}|painted|${mapArtKey()}|${terrainKey}`, settled, ownerColor, paint: drawBasePainted, fogReach: { rows: 3, cols: 2 } });
         if (baseStat === 'direct') drawBasePainted(baseArgs(context));
       } else { drawBasePainted(baseArgs(context)); baseStat = 'off'; }
 

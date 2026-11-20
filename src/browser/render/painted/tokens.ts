@@ -8,6 +8,7 @@ import { TYPE_COLORS } from '../../../content/type-colors.ts';
 import type { Point } from '../../camera.ts';
 import { TYPE_SYMBOLS } from '../../ui-icons.ts';
 import { SERIF, alpha, bucket, dab, darken, lighten, makeCanvas, mix, spriteCache } from './kit.ts';
+import { mapArt, mapArtKey } from './map-art.ts';
 
 const BRASS = '#E2BE6E', BRASS_DARK = '#7A5626', OUTLINE = '#22170D', CREAM = '#FBF3DD';
 
@@ -157,7 +158,9 @@ function wonderSpire(g: CanvasRenderingContext2D, x: number, y: number, s: numbe
 /** The baked town and its night window glow, for a tile radius bucket R (device px). */
 export function townSprite(look: TownLook, R: number, sq: number) {
   const count = houseCount(look.population);
-  return towns.get(`${look.color}|${count}|${look.capital ? 1 : 0}|${Math.min(look.wonders, 1)}|${R}|${sq}`, () => {
+  return towns.get(`${look.color}|${count}|${look.capital ? 1 : 0}|${Math.min(look.wonders, 1)}|${R}|${sq}|${mapArtKey()}`, () => {
+    const art = mapArt()?.town?.(look, R, sq);
+    if (art) return art;
     const { canvas, context: g } = makeCanvas(R * TOWN.width, R * TOWN.height), ox = R * TOWN.ox, oy = R * TOWN.oy;
     const windows: Point[] = [];
     // The square: warm paving under the houses, with a low stone wall ring for capitals and big towns.
