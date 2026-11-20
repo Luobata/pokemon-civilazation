@@ -5,7 +5,7 @@
 ## 来源与许可
 
 - **全部是本项目原创**：由本项目为这款游戏手绘（以代码生成路径的方式编写），不含、也不改编任何第三方图片、素材包或字体。`docs/design/map-art-options.md` 中对比过的第三方素材（Kenney、Battle for Wesnoth 等）只在本机临时目录里用于截图对比，从未进入仓库。
-- **许可：本项目原创素材，许可待仓库所有者决定。** 仓库目前没有 LICENSE 文件，`docs/` 与提交历史中也没有为本项目原创素材声明过具体许可（`docs/design/roster-v14.md` 里的 “CC0” 指的是 PokeAPI/sprites 仓库本身，不是本项目）。在所有者确定之前，不要假定任何开放许可。
+- **许可：CC0 1.0（公共领域贡献）。** 仓库所有者于 2026-11-20 决定，本目录的原创素材按 [CC0 1.0 Universal](https://creativecommons.org/publicdomain/zero/1.0/legalcode) 贡献到公共领域：可以复制、修改、分发和商用，无需署名。范围和例外见仓库根目录的 `ASSETS-LICENSE.md`。
 - 与 `public/buildings/` 的原创建筑图同等地位；宝可梦官方插画与像素图（`public/sprites/`）是另一回事，见各自的 `manifest.json`。
 
 ## 约定
