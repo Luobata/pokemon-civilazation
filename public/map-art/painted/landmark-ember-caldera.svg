@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-110 -180 220 250" width="220" height="250">
+  <!-- 绘卷 map art (docs/design/map-art-options.md, option A): landmark 余烬火口 (ember caldera): a caldera ring round a lava lake. Original artwork by this project, no third-party sources (public/map-art/README.md).
+       Anchor (0, 0) is the ground contact point; 100 units = one tile radius; light from the north-west. -->
+  <defs><linearGradient id="cl" x1="0" x2="1"><stop offset="0" stop-color="#9A7666"/><stop offset=".5" stop-color="#5A4440"/><stop offset="1" stop-color="#2E2224"/></linearGradient>
+    <radialGradient id="ll" cx=".45" cy=".45" r=".6"><stop offset="0" stop-color="#FFF0A8"/><stop offset=".35" stop-color="#FFB040"/><stop offset=".75" stop-color="#E2582A"/><stop offset="1" stop-color="#8A2A1C"/></radialGradient></defs>
+  <path d="M-92 10Q-70-20-52-44Q-30-56 0-56Q30-56 52-44Q70-20 92 10Q0 20-92 10Z" fill="#1A140C" opacity=".24" transform="translate(10 3)"/>
+  <path d="M-92 10Q-70-20-52-44Q-30-56 0-56Q30-56 52-44Q70-20 92 10Q0 20-92 10Z" fill="url(#cl)" stroke="#2B1E10" stroke-width="2.2" stroke-linejoin="round"/>
+  <ellipse cx="0" cy="-42" rx="50" ry="13" fill="#2A1716" stroke="#2B1E10" stroke-width="1.6"/>
+  <ellipse cx="0" cy="-40" rx="44" ry="10" fill="url(#ll)"/>
+  <path d="M-30-40q8-4 14 0q8-5 16 0M8-38q8-4 16 0" fill="none" stroke="#FFF0A8" stroke-width="1.4" stroke-linecap="round" opacity=".9"/>
+  <path d="M-34-30Q-44-10-58 6M30-30Q38-14 50 4" fill="none" stroke="#B8321E" stroke-width="4.6" stroke-linecap="round"/>
+  <path d="M-34-30Q-44-10-58 6M30-30Q38-14 50 4" fill="none" stroke="#FF9A3C" stroke-width="2.2" stroke-linecap="round"/>
+  <path d="M-70 0q10-8 20-6M60-10q8-2 14 6M-10 4q8-4 18-2" fill="none" stroke="#1C1416" stroke-opacity=".5" stroke-width="1.4" stroke-linecap="round"/>
+  <g fill="#FFB060"><circle cx="-14" cy="-66" r="2"/><circle cx="10" cy="-80" r="1.6"/><circle cx="-4" cy="-96" r="1.3"/><circle cx="22" cy="-62" r="1.5"/><circle cx="-26" cy="-84" r="1.2"/></g>
+  <g fill="#FFE29A"><circle cx="2" cy="-70" r="1"/><circle cx="-18" cy="-104" r=".9"/></g>
+  <g fill="#8E8580" opacity=".55"><circle cx="-4" cy="-70" r="8"/><circle cx="6" cy="-82" r="10"/><circle cx="16" cy="-96" r="9"/></g><g fill="#C9C1BA" opacity=".5"><circle cx="-6" cy="-73" r="4.6"/><circle cx="3" cy="-86" r="6"/><circle cx="13" cy="-99" r="5.4"/></g>
+</svg>

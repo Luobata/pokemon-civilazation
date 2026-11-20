@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-110 -180 220 250" width="220" height="250">
+  <!-- 绘卷 map art (docs/design/map-art-options.md, option A): landmark 鸣沙回廊 (singing dunes): a wind-carved sandstone arch between dunes. Original artwork by this project, no third-party sources (public/map-art/README.md).
+       Anchor (0, 0) is the ground contact point; 100 units = one tile radius; light from the north-west. -->
+  <g transform="translate(-48 34) scale(1)"><defs><linearGradient id="adn" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FAE3A8"/><stop offset="1" stop-color="#E2B66C"/></linearGradient></defs>
+  <ellipse cx="6" cy="1" rx="52" ry="5" fill="#1A140C" opacity="0.16"/>
+  <path d="M-52 0Q-40-6-26-15Q-10-26 6-24Q20-22 32-12Q44-4 54 0Q0 6-52 0Z" fill="url(#adn)" stroke="#9A7440" stroke-opacity=".7" stroke-width="1.2" stroke-linejoin="round"/>
+  <path d="M6-24Q14-14 12 0Q36 3 54 0Q44-4 32-12Q20-22 6-24Z" fill="#C79552" opacity=".75"/>
+  <path d="M-40-6Q-22-22 6-24" fill="none" stroke="#FFF4D2" stroke-width="2" stroke-linecap="round" opacity=".9"/>
+  <path d="M-30-4q6-3 12-2M-14-9q6-3 12-2M-38 -1q5-2 10-1" fill="none" stroke="#C4945A" stroke-opacity=".6" stroke-width="1" stroke-linecap="round"/></g><path d="M-58 6Q-62-40-40-62Q-10-84 22-70Q52-56 56-20Q58 0 60 8Q48 12 40 8Q40-26 26-40Q6-56-16-44Q-34-32-32 8Q-46 12-58 6Z" fill="#1A140C" opacity=".22" transform="translate(8 3)"/>
+  <path d="M-58 6Q-62-40-40-62Q-10-84 22-70Q52-56 56-20Q58 0 60 8Q48 12 40 8Q40-26 26-40Q6-56-16-44Q-34-32-32 8Q-46 12-58 6Z" fill="#D9A866"/><path d="M-32 8Q-34-32-16-44Q6-56 26-40Q40-26 40 8Q20 4 0 4Q-16 4-32 8Z" fill="#7E5530" opacity=".55"/>
+  <path d="M-58 6Q-62-40-40-62Q-10-84 22-70Q-8-74-30-56Q-48-38-46 8Z" fill="#F3D59C"/><path d="M26-40Q40-26 40 8Q48 12 60 8Q58 0 56-20Q52-56 22-70Q46-50 48-20Q48-4 50 6Q44 6 40 5Z" fill="#A9733E"/>
+  <path d="M-52-14q12-4 22 0M-50-34q10-4 18-1M30-30q8 2 14 8M34-8q6 2 12 6M-20-60q14-6 28-2" fill="none" stroke="#9A6A36" stroke-opacity=".55" stroke-width="1.4" stroke-linecap="round"/>
+  <path d="M-58 6Q-62-40-40-62Q-10-84 22-70Q52-56 56-20Q58 0 60 8Q48 12 40 8Q40-26 26-40Q6-56-16-44Q-34-32-32 8Q-46 12-58 6Z" fill="none" stroke="#2B1E10" stroke-width="2.2" stroke-linejoin="round"/><g transform="translate(34 52) scale(1.1)"><defs><linearGradient id="bdn" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FAE3A8"/><stop offset="1" stop-color="#E2B66C"/></linearGradient></defs>
+  <ellipse cx="6" cy="1" rx="52" ry="5" fill="#1A140C" opacity="0.16"/>
+  <path d="M-52 0Q-40-6-26-15Q-10-26 6-24Q20-22 32-12Q44-4 54 0Q0 6-52 0Z" fill="url(#bdn)" stroke="#9A7440" stroke-opacity=".7" stroke-width="1.2" stroke-linejoin="round"/>
+  <path d="M6-24Q14-14 12 0Q36 3 54 0Q44-4 32-12Q20-22 6-24Z" fill="#C79552" opacity=".75"/>
+  <path d="M-40-6Q-22-22 6-24" fill="none" stroke="#FFF4D2" stroke-width="2" stroke-linecap="round" opacity=".9"/>
+  <path d="M-30-4q6-3 12-2M-14-9q6-3 12-2M-38 -1q5-2 10-1" fill="none" stroke="#C4945A" stroke-opacity=".6" stroke-width="1" stroke-linecap="round"/></g><path d="M-74-40q10-10 22-4q8 4 4 10q-4 4-8 0M50-70q14-8 26 0q6 6 0 10q-6 2-6-4M-8-104q12-6 20 2q4 6-2 8" fill="none" stroke="#FFF2CC" stroke-width="2.2" stroke-linecap="round" opacity=".9"/><g fill="#F6DFA6" opacity=".9"><circle cx="-60" cy="-52" r="1.6"/><circle cx="66" cy="-80" r="1.4"/><circle cx="4" cy="-112" r="1.4"/><circle cx="-46" cy="-46" r="1"/></g>
+</svg>

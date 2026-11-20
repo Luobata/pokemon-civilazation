@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-110 -180 220 250" width="220" height="250">
+  <!-- 绘卷 map art (docs/design/map-art-options.md, option A): landmark 潮音洞 (tidesong grotto): a headland with a glowing sea cave. Original artwork by this project, no third-party sources (public/map-art/README.md).
+       Anchor (0, 0) is the ground contact point; 100 units = one tile radius; light from the north-west. -->
+  <defs><linearGradient id="hl" x1="0" y1="0" x2=".8" y2="1"><stop offset="0" stop-color="#E4E0D6"/><stop offset="1" stop-color="#9C978E"/></linearGradient>
+    <radialGradient id="cg" cx=".5" cy=".7" r=".6"><stop offset="0" stop-color="#B8FFF2"/><stop offset=".5" stop-color="#4BB3C9"/><stop offset="1" stop-color="#173E52"/></radialGradient><clipPath id="hc"><path d="M-80 10Q-76-30-56-56Q-40-82-14-92Q12-100 34-80Q58-60 70-30Q80-6 82 10Q0 18-80 10Z"/></clipPath></defs>
+  <path d="M-80 10Q-76-30-56-56Q-40-82-14-92Q12-100 34-80Q58-60 70-30Q80-6 82 10Q0 18-80 10Z" fill="#1A140C" opacity=".22" transform="translate(10 3)"/>
+  <path d="M-80 10Q-76-30-56-56Q-40-82-14-92Q12-100 34-80Q58-60 70-30Q80-6 82 10Q0 18-80 10Z" fill="url(#hl)"/>
+  <g clip-path="url(#hc)"><path d="M18-86Q24-40 40 14H90V-90Z" fill="#76788A" opacity=".7"/>
+    <path d="M-60-20q14-6 26 0M-46-50q12-6 22-2M44-40q10 2 18 10M46-6q8 2 16 8" fill="none" stroke="#5E5C6A" stroke-opacity=".5" stroke-width="1.6" stroke-linecap="round"/>
+    <path d="M-80-6Q-40-16 0-10Q40-16 82-6V20H-80Z" fill="#3E7A3A" opacity="0"/></g>
+  <path d="M-22 12Q-24-20-6-34Q12-42 24-28Q34-14 30 12Z" fill="url(#cg)" stroke="#2B1E10" stroke-width="1.8" stroke-linejoin="round"/>
+  <path d="M-12 8q8-10 18-2q8-8 16 2" fill="none" stroke="#E8FFFA" stroke-width="1.6" stroke-linecap="round"/>
+  <path d="M-80 10Q-76-30-56-56Q-40-82-14-92Q12-100 34-80Q58-60 70-30Q80-6 82 10Q0 18-80 10Z" fill="none" stroke="#2B1E10" stroke-width="2.2" stroke-linejoin="round"/>
+  <path d="M-86 16q10-8 20 0q10-8 20 0M40 16q10-8 20 0q10-8 20 0q8-6 16 0" fill="none" stroke="#F7FDFF" stroke-width="2.4" stroke-linecap="round"/>
+  <g fill="#F7FDFF" opacity=".9"><circle cx="-70" cy="4" r="2"/><circle cx="74" cy="2" r="2.2"/><circle cx="66" cy="-6" r="1.4"/></g>
+  <g stroke="#7FE6DA" stroke-width="1.6" fill="none" stroke-linecap="round" opacity=".9"><path d="M38-46q6-6 12 0"/><path d="M44-56q8-8 16 0"/><path d="M50-66q10-10 20 0"/></g>
+  <path d="M-44 10q3-6 8-1q4-5 6 1z" fill="#F4C6C0" stroke="#2B1E10" stroke-width=".8"/>
+</svg>

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-110 -180 220 250" width="220" height="250">
+  <!-- 绘卷 map art (docs/design/map-art-options.md, option A): landmark 雷鸣台地 (thunder mesa): a banded mesa under a storm cloud and lightning. Original artwork by this project, no third-party sources (public/map-art/README.md).
+       Anchor (0, 0) is the ground contact point; 100 units = one tile radius; light from the north-west. -->
+  <g transform="translate(0 24) scale(1.2)"><defs><radialGradient id="hhg-g" cx=".34" cy=".15" r=".9"><stop offset="0" stop-color="#D4E78E"/><stop offset=".5" stop-color="#93BA56"/><stop offset="1" stop-color="#557F32"/></radialGradient><clipPath id="hhg-c"><path d="M-70 0C-50.4 -44.2 50.4 -44.2 70 0Q0 5.4 -70 0Z"/></clipPath></defs>
+  <path d="M-70 0C-50.4 -44.2 50.4 -44.2 70 0Q0 5.4 -70 0Z" fill="#1A140C" opacity=".2" transform="translate(7 4.1)"/>
+  <path d="M-70 0C-50.4 -44.2 50.4 -44.2 70 0Q0 5.4 -70 0Z" fill="url(#hhg-g)" stroke="#3E5A22" stroke-opacity=".8" stroke-width="1.8"/>
+  <g clip-path="url(#hhg-c)"><ellipse cx="38.5" cy="-3.4" rx="38.5" ry="25.5" fill="#557F32" opacity=".35"/><path d="M-40 -10l2.2-5.5l2.2 5.5M-18 -24l2.2-5.5l2.2 5.5M6 -20l2.2-5.5l2.2 5.5M28 -12l2.2-5.5l2.2 5.5M-2 -6l2.2-5.5l2.2 5.5M44 -4l2.2-5.5l2.2 5.5" fill="none" stroke="#4E7A2E" stroke-opacity=".7" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></g>
+  <path d="M-43.4 -17Q-22.4 -32.3 7 -32.3" fill="none" stroke="#F0F7C0" stroke-opacity=".8" stroke-width="2.4" stroke-linecap="round"/></g><defs><linearGradient id="ms" x1="0" x2="1"><stop offset="0" stop-color="#E9B888"/><stop offset=".55" stop-color="#C47C52"/><stop offset="1" stop-color="#8A4E36"/></linearGradient><clipPath id="mc"><path d="M-64 8L-52-22L-48-50L-36-58H34L44-48L50-20L64 8Q0 14-64 8Z"/></clipPath></defs>
+  <path d="M-64 8L-52-22L-48-50L-36-58H34L44-48L50-20L64 8Q0 14-64 8Z" fill="#1A140C" opacity=".22" transform="translate(8 3)"/>
+  <path d="M-64 8L-52-22L-48-50L-36-58H34L44-48L50-20L64 8Q0 14-64 8Z" fill="url(#ms)"/>
+  <g clip-path="url(#mc)"><path d="M-70-34H70M-70-14H70M-70 2H70" stroke="#8A4E36" stroke-width="3" stroke-opacity=".55"/><path d="M14-58L22 12H70V-60Z" fill="#6E3A2A" opacity=".4"/>
+    <path d="M-40-58H34L30-52H-36Z" fill="#9DBB5C"/></g>
+  <path d="M-64 8L-52-22L-48-50L-36-58H34L44-48L50-20L64 8Q0 14-64 8Z" fill="none" stroke="#2B1E10" stroke-width="2.2" stroke-linejoin="round"/>
+  <path d="M-6-58V-76" stroke="#2B1E10" stroke-width="2"/><circle cx="-6" cy="-78" r="3" fill="#F2D24E" stroke="#2B1E10" stroke-width="1"/>
+  <path d="M-40-140q-6-16 10-20q4-14 22-10q12-12 28 0q18-2 18 14q12 6 4 16q-4 6-14 4h-58q-12 0-10-4z" fill="#6E7488" stroke="#2B1E10" stroke-width="1.6" stroke-linejoin="round"/>
+  <path d="M-30-150q4-10 16-8M2-160q10-6 20 2" fill="none" stroke="#C4C8D6" stroke-width="2" stroke-linecap="round"/>
+  <path d="M2-124L-12-100H-2L-10-82L10-108H0L8-124Z" fill="#FFE45C" stroke="#2B1E10" stroke-width="1.4" stroke-linejoin="round"/>
+  <path d="M-20-84l-6-4M8-84l7-3M-14-74l-4 4M2-72l3 5" stroke="#FFE45C" stroke-width="2" stroke-linecap="round"/>
+</svg>
