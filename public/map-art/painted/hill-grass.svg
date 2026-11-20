@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-74 -42 154 50" width="154" height="50">
+  <!-- 绘卷 map art (docs/design/map-art-options.md, option A): a grassy hill dome. Original artwork by this project, no third-party sources (public/map-art/README.md).
+       Anchor (0, 0) is the ground contact point; 100 units = one tile radius; light from the north-west. -->
+  <defs><radialGradient id="hg-g" cx=".34" cy=".15" r=".9"><stop offset="0" stop-color="#D4E78E"/><stop offset=".5" stop-color="#93BA56"/><stop offset="1" stop-color="#557F32"/></radialGradient><clipPath id="hg-c"><path d="M-70 0C-50.4 -44.2 50.4 -44.2 70 0Q0 5.4 -70 0Z"/></clipPath></defs>
+  <path d="M-70 0C-50.4 -44.2 50.4 -44.2 70 0Q0 5.4 -70 0Z" fill="#1A140C" opacity=".2" transform="translate(7 4.1)"/>
+  <path d="M-70 0C-50.4 -44.2 50.4 -44.2 70 0Q0 5.4 -70 0Z" fill="url(#hg-g)" stroke="#3E5A22" stroke-opacity=".8" stroke-width="1.8"/>
+  <g clip-path="url(#hg-c)"><ellipse cx="38.5" cy="-3.4" rx="38.5" ry="25.5" fill="#557F32" opacity=".35"/><path d="M-40 -10l2.2-5.5l2.2 5.5M-18 -24l2.2-5.5l2.2 5.5M6 -20l2.2-5.5l2.2 5.5M28 -12l2.2-5.5l2.2 5.5M-2 -6l2.2-5.5l2.2 5.5M44 -4l2.2-5.5l2.2 5.5" fill="none" stroke="#4E7A2E" stroke-opacity=".7" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></g>
+  <path d="M-43.4 -17Q-22.4 -32.3 7 -32.3" fill="none" stroke="#F0F7C0" stroke-opacity=".8" stroke-width="2.4" stroke-linecap="round"/>
+</svg>

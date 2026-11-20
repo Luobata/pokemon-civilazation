@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-28 -22 62 30" width="62" height="30">
+  <!-- 绘卷 map art (docs/design/map-art-options.md, option A): sandstone boulders. Original artwork by this project, no third-party sources (public/map-art/README.md).
+       Anchor (0, 0) is the ground contact point; 100 units = one tile radius; light from the north-west. -->
+  <ellipse cx="6" cy="1" rx="26" ry="6" fill="#1A140C" opacity="0.3"/>
+  <path d="M-23 -1Q-24 -13 -14 -18Q-2 -20 3 -7Q4 0 -10 0.5Q-18 0.5 -23 -1Z" fill="#C8A979" stroke="#2B1E10" stroke-width="1.6" stroke-linejoin="round"/>
+  <path d="M-9 -10L-1 -16Q3 -10 3 -5Q1 0 -8 0Z" fill="#8E6E4C" opacity=".85"/><path d="M-21 -5Q-21 -13 -13 -16L-9 -10L-13 -3Z" fill="#F1DEB4"/>
+  <path d="M-23 -1Q-24 -13 -14 -18Q-2 -20 3 -7Q4 0 -10 0.5Q-18 0.5 -23 -1Z" fill="none" stroke="#2B1E10" stroke-width="1.6" stroke-linejoin="round"/>
+  <path d="M0.6 1Q-0.1 -7.6 7.1 -11.2Q15.8 -12.7 19.4 -3.3Q20.1 1.7 10 2.1Q4.2 2.1 0.6 1Z" fill="#C8A979" stroke="#2B1E10" stroke-width="1.6" stroke-linejoin="round"/>
+  <path d="M10.7 -5.5L16.5 -9.8Q19.4 -5.5 19.4 -1.9Q17.9 1.7 11.4 1.7Z" fill="#8E6E4C" opacity=".85"/><path d="M2.1 -1.9Q2.1 -7.6 7.8 -9.8L10.7 -5.5L7.8 -0.4Z" fill="#F1DEB4"/>
+  <path d="M0.6 1Q-0.1 -7.6 7.1 -11.2Q15.8 -12.7 19.4 -3.3Q20.1 1.7 10 2.1Q4.2 2.1 0.6 1Z" fill="none" stroke="#2B1E10" stroke-width="1.6" stroke-linejoin="round"/>
+  <path d="M-4.5 4Q-5 -2 0 -4.5Q6 -5.5 8.5 1Q9 4.5 2 4.8Q-2 4.8 -4.5 4Z" fill="#C8A979" stroke="#2B1E10" stroke-width="1.6" stroke-linejoin="round"/>
+  <path d="M2.5 -0.5L6.5 -3.5Q8.5 -0.5 8.5 2Q7.5 4.5 3 4.5Z" fill="#8E6E4C" opacity=".85"/><path d="M-3.5 2Q-3.5 -2 0.5 -3.5L2.5 -0.5L0.5 3Z" fill="#F1DEB4"/>
+  <path d="M-4.5 4Q-5 -2 0 -4.5Q6 -5.5 8.5 1Q9 4.5 2 4.8Q-2 4.8 -4.5 4Z" fill="none" stroke="#2B1E10" stroke-width="1.6" stroke-linejoin="round"/>
+</svg>

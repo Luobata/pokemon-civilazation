@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-38 -20 78 24" width="78" height="24">
+  <!-- 绘卷 map art (docs/design/map-art-options.md, option A): a snow drift. Original artwork by this project, no third-party sources (public/map-art/README.md).
+       Anchor (0, 0) is the ground contact point; 100 units = one tile radius; light from the north-west. -->
+  <ellipse cx="5" cy="1" rx="34" ry="4" fill="#1A140C" opacity="0.14"/>
+  <path d="M-34 0Q-30-9-18-12Q-6-17 6-13Q20-12 30-5Q35-2 36 0Q0 4-34 0Z" fill="#FBFDFE" stroke="#8FA6B8" stroke-width="1.1" stroke-linejoin="round"/>
+  <path d="M6-13Q20-12 30-5Q35-2 36 0Q22 2 10 1Q16-6 6-13Z" fill="#C6D6E4"/>
+  <path d="M-26-7Q-14-15 2-13" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"/>
+  <path d="M-20-2q5-2 9-1M2-5q4-2 8-1" fill="none" stroke="#A9C0D0" stroke-width="1" stroke-linecap="round"/>
+</svg>

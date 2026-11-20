@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-74 -42 154 50" width="154" height="50">
+  <!-- 绘卷 map art (docs/design/map-art-options.md, option A): a sandstone hill dome. Original artwork by this project, no third-party sources (public/map-art/README.md).
+       Anchor (0, 0) is the ground contact point; 100 units = one tile radius; light from the north-west. -->
+  <defs><radialGradient id="hd-g" cx=".34" cy=".15" r=".9"><stop offset="0" stop-color="#FBE7B4"/><stop offset=".5" stop-color="#E2B86E"/><stop offset="1" stop-color="#B88848"/></radialGradient><clipPath id="hd-c"><path d="M-70 0C-50.4 -41.6 50.4 -41.6 70 0Q0 5.1 -70 0Z"/></clipPath></defs>
+  <path d="M-70 0C-50.4 -41.6 50.4 -41.6 70 0Q0 5.1 -70 0Z" fill="#1A140C" opacity=".2" transform="translate(7 3.8)"/>
+  <path d="M-70 0C-50.4 -41.6 50.4 -41.6 70 0Q0 5.1 -70 0Z" fill="url(#hd-g)" stroke="#8E6434" stroke-opacity=".8" stroke-width="1.8"/>
+  <g clip-path="url(#hd-c)"><ellipse cx="38.5" cy="-3.2" rx="38.5" ry="24" fill="#B88848" opacity=".35"/><path d="M-56-8Q-20-14 30-9M-46-16Q-10-24 36-18M-30-23Q0-29 28-26" fill="none" stroke="#A8783E" stroke-opacity=".45" stroke-width="1.2" stroke-linecap="round"/></g>
+  <path d="M-43.4 -16Q-22.4 -30.4 7 -30.4" fill="none" stroke="#FFF6D8" stroke-opacity=".8" stroke-width="2.4" stroke-linecap="round"/>
+</svg>

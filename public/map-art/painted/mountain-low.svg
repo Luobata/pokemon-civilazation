@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-50 -62 108 70" width="108" height="70">
+  <!-- 绘卷 map art (docs/design/map-art-options.md, option A): a low rocky mountain. Original artwork by this project, no third-party sources (public/map-art/README.md).
+       Anchor (0, 0) is the ground contact point; 100 units = one tile radius; light from the north-west. -->
+  <defs><linearGradient id="ml-l" x1="0" y1="0" x2=".6" y2="1"><stop offset="0" stop-color="#F0EBDF"/><stop offset="1" stop-color="#BDB3A2"/></linearGradient><linearGradient id="ml-s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8A8892"/><stop offset="1" stop-color="#6C6A7C"/></linearGradient><clipPath id="ml-c"><path d="M-46 0L-40.8 -11L-29.2 -22.6L-24.5 -34.7L-12 -45.6L-4 -56L9.3 -43.8L16 -33L29.8 -21.3L36.4 -11.7L46 0Q0 2.8 -46 0Z"/></clipPath></defs>
+  <path d="M-46 0L-40.8 -11L-29.2 -22.6L-24.5 -34.7L-12 -45.6L-4 -56L9.3 -43.8L16 -33L29.8 -21.3L36.4 -11.7L46 0Q0 2.8 -46 0Z" fill="#1A140C" opacity=".2" transform="translate(6.4 2.2)"/>
+  <path d="M-46 0L-40.8 -11L-29.2 -22.6L-24.5 -34.7L-12 -45.6L-4 -56L9.3 -43.8L16 -33L29.8 -21.3L36.4 -11.7L46 0Q0 2.8 -46 0Z" fill="url(#ml-l)"/>
+  <g clip-path="url(#ml-c)">
+  <path d="M-4 -56L-1.7 -40.3L-3.1 -25.2L2.4 -11.2L5.2 2L-8.6 2L-9.1 -11.2L-12.3 -25.2L-8.6 -40.3L-8.6 -56Z" fill="#B0AAA4" opacity=".75"/>
+  <path d="M-29.2 -22.6L-5.8 -34.9L-4.9 -15.9L-24.6 -11.4Z" fill="#BDB3A2" opacity=".55"/><path d="M-12 -45.6L-5.8 -57.9L-4.9 -38.9L-7.4 -34.4Z" fill="#BDB3A2" opacity=".55"/>
+  <path d="M-4 -56L-1.7 -40.3L-3.1 -25.2L2.4 -11.2L5.2 2L50 2L50 -60Z" fill="url(#ml-s)"/>
+  <path d="M-21.2 -33.7q-2.3 6.7 -4.6 12.3M-10.6 -27.6q-2.3 6.7 -4.6 12.3M-19.2 -37.7q-2.3 6.7 -4.6 12.3M-11.9 -24.5q-2.3 6.7 -4.6 12.3" fill="none" stroke="#7A6E62" stroke-opacity=".55" stroke-width="1.4" stroke-linecap="round"/>
+  <path d="M12.8 -10.1l8.3 1.7M14.1 -19l8.3 1.7M8.1 -28l8.3 1.7" fill="none" stroke="#2B1E10" stroke-opacity=".28" stroke-width="1.2" stroke-linecap="round"/>
+  </g>
+  <path d="M-4 -56L-1.7 -40.3L-3.1 -25.2L2.4 -11.2L5.2 2" fill="none" stroke="#FFFFFF" stroke-opacity=".35" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M-46 0L-40.8 -11L-29.2 -22.6L-24.5 -34.7L-12 -45.6L-4 -56L9.3 -43.8L16 -33L29.8 -21.3L36.4 -11.7L46 0Q0 2.8 -46 0Z" fill="none" stroke="#2B1E10" stroke-opacity="1" stroke-width="2.2" stroke-linejoin="round"/>
+</svg>

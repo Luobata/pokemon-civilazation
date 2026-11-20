@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-56 -28 116 34" width="116" height="34">
+  <!-- 绘卷 map art (docs/design/map-art-options.md, option A): a crescent sand dune. Original artwork by this project, no third-party sources (public/map-art/README.md).
+       Anchor (0, 0) is the ground contact point; 100 units = one tile radius; light from the north-west. -->
+  <defs><linearGradient id="dn" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FAE3A8"/><stop offset="1" stop-color="#E2B66C"/></linearGradient></defs>
+  <ellipse cx="6" cy="1" rx="52" ry="5" fill="#1A140C" opacity="0.16"/>
+  <path d="M-52 0Q-40-6-26-15Q-10-26 6-24Q20-22 32-12Q44-4 54 0Q0 6-52 0Z" fill="url(#dn)" stroke="#9A7440" stroke-opacity=".7" stroke-width="1.2" stroke-linejoin="round"/>
+  <path d="M6-24Q14-14 12 0Q36 3 54 0Q44-4 32-12Q20-22 6-24Z" fill="#C79552" opacity=".75"/>
+  <path d="M-40-6Q-22-22 6-24" fill="none" stroke="#FFF4D2" stroke-width="2" stroke-linecap="round" opacity=".9"/>
+  <path d="M-30-4q6-3 12-2M-14-9q6-3 12-2M-38 -1q5-2 10-1" fill="none" stroke="#C4945A" stroke-opacity=".6" stroke-width="1" stroke-linecap="round"/>
+</svg>
