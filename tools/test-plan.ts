@@ -7,18 +7,26 @@
  *   node tools/test-plan.ts --commit a71c3af      # plan for one commit
  *   node tools/test-plan.ts --base origin/main | --range A..B | --files a.ts b.css
  *   node tools/test-plan.ts --json                # machine-readable plan
- *   node tools/test-plan.ts --full --run          # the old full gate (npm run check:full); --release adds the balance gate steps
+ *   node tools/test-plan.ts --merge --run         # the merge tier: smoke runs all 48 cases per version (npm run check:merge)
+ *   node tools/test-plan.ts --full --run          # the old full gate with the merge-tier smoke (npm run check:full); --release adds the balance gate steps
+ *
+ * Smoke tiers: by default (npm run check) smoke runs the 8-case QUICK sample of each selected version — QUICK, not merge-proof;
+ * --merge / --full / --release run all 48 cases. Versions: every supported version, narrowed by VERSION_SCOPED or, for a change that
+ * only edits literal values of the traced tuning modules, by the stored content read traces (tools/content-trace.ts).
  *
  * Other flags: --keep-going (don't stop at the first failing step), --smoke-versions 24-26 (override the computed versions; the
- * plan says it is no longer the proven set), --pw-workers N (Playwright workers, default 4), --smoke-workers N.
+ * plan says it is no longer the proven set), --pw-workers N (Playwright workers, default 4), --smoke-workers N, --no-trace-narrowing.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, posix, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
-import { supportedVersions } from './smoke-parallel.ts';
-import { ALWAYS_SPECS, BALANCE_KNOBS, COST, DOC_FILES, FULL_TRIGGERS, PROD_TRIGGERS, SPEC_RULES, VERSION_SCOPED, VITEST_TEXT_DEPENDENCIES } from './test-plan-map.ts';
+import { changedKeys, loadTraces, provenUnobservable, TRACE_FORMAT } from './content-trace.ts';
+import { cacheRoot, exportTree, QUICK_CASES, SMOKE_CASES, smokeConfig, supportedVersions } from './smoke-parallel.ts';
+import { ALWAYS_SPECS, BALANCE_KNOBS, COST, DOC_FILES, FULL_TRIGGERS, INIT_COPY_SITES, PROD_TRIGGERS, SPEC_RULES, TRACED_MODULES, VERSION_SCOPED,
+  VITEST_TEXT_DEPENDENCIES } from './test-plan-map.ts';
 
 export const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 /** Same globs as `test.include` in vite.config.ts (tests/tools/test-plan.test.ts keeps them equal). */
@@ -165,9 +173,182 @@ export function closure(graph: Graph, entries: readonly string[], page = false):
 const hits = (reach: { files: Set<string>; prefixes: string[] }, changed: readonly string[]): string[] =>
   changed.filter(file => reach.files.has(file) || reach.prefixes.some(prefix => file.startsWith(prefix)));
 
+// ---------------------------------------------------------------- rule shape (version narrowing by content read traces)
+
+const unwrap = (node: ts.Expression): ts.Expression => {
+  while (ts.isParenthesizedExpression(node) || ts.isAsExpression(node) || ts.isSatisfiesExpression(node) || ts.isTypeAssertionExpression(node)) node = node.expression;
+  return node;
+};
+const isValueLiteral = (node: ts.Expression): boolean => ts.isNumericLiteral(node) || ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)
+  || node.kind === ts.SyntaxKind.TrueKeyword || node.kind === ts.SyntaxKind.FalseKeyword
+  || (ts.isPrefixUnaryExpression(node) && (node.operator === ts.SyntaxKind.MinusToken || node.operator === ts.SyntaxKind.PlusToken) && ts.isNumericLiteral(node.operand));
+const isExportedConst = (statement: ts.Statement): statement is ts.VariableStatement => ts.isVariableStatement(statement)
+  && Boolean(statement.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.ExportKeyword)) && (statement.declarationList.flags & ts.NodeFlags.Const) !== 0;
+
+/**
+ * A traced module's source with the tuning values blanked: every number / string / boolean literal that sits, through object and array
+ * literals only, in the initializer of an exported `const` object or array (exactly the leaves tools/content-trace.ts instruments), and
+ * no comments or formatting. Two versions of a module with the same normalized text differ only in traced values.
+ */
+export function normalizeTraced(file: string, text: string): string {
+  const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const ranges: [number, number][] = [];
+  const blank = (node: ts.Expression): void => {
+    const inner = unwrap(node);
+    if (ts.isObjectLiteralExpression(inner)) { for (const property of inner.properties) if (ts.isPropertyAssignment(property)) blank(property.initializer); }
+    else if (ts.isArrayLiteralExpression(inner)) { for (const element of inner.elements) if (!ts.isSpreadElement(element) && !ts.isOmittedExpression(element)) blank(element); }
+    else if (isValueLiteral(inner)) ranges.push([inner.getStart(source), inner.end]);
+  };
+  for (const statement of source.statements) {
+    if (!isExportedConst(statement)) continue;
+    for (const declaration of statement.declarationList.declarations) {
+      const init = declaration.initializer && unwrap(declaration.initializer);
+      if (init && (ts.isObjectLiteralExpression(init) || ts.isArrayLiteralExpression(init))) blank(init);
+    }
+  }
+  let out = text;
+  for (const [start, end] of ranges.sort((a, b) => b[0] - a[0])) out = `${out.slice(0, start)}__${out.slice(end)}`;
+  return ts.createPrinter({ removeComments: true }).printFile(ts.createSourceFile(file, out, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS));
+}
+
+/**
+ * Structural rules that make a traced module's values observable only through the tracer's getters: at load time (outside function
+ * bodies) it may only declare things, name its own objects (`late: LATE_GAME_TUNING`), and read imports from untraced modules. A
+ * top-level read of its own objects (`const HALF = DEPTH26_TUNING.x / 2`) or of another traced module would copy a value before the
+ * tracer instruments it. Returns the violations (empty = traceable).
+ */
+export function checkTracedModule(file: string, text: string, tracedFiles: readonly string[] = TRACED_MODULES.map(entry => entry.file)): string[] {
+  const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const guarded = new Set<string>(), violations: string[] = [];
+  const where = (node: ts.Node) => `${file}:${source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1}`;
+  for (const statement of source.statements) {
+    if (ts.isVariableStatement(statement)) for (const declaration of statement.declarationList.declarations) { if (ts.isIdentifier(declaration.name)) guarded.add(declaration.name.text); }
+    else if ((ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) && statement.name) guarded.add(statement.name.text);
+    else if (ts.isImportDeclaration(statement) && !statement.importClause?.isTypeOnly && ts.isStringLiteral(statement.moduleSpecifier)) {
+      const target = posix.normalize(posix.join(posix.dirname(file), statement.moduleSpecifier.text));
+      if (tracedFiles.includes(target) || tracedFiles.includes(`${target}.ts`)) {
+        const bindings = statement.importClause?.namedBindings;
+        if (bindings && ts.isNamedImports(bindings)) for (const element of bindings.elements) guarded.add(element.name.text);
+        else if (bindings && ts.isNamespaceImport(bindings)) guarded.add(bindings.name.text);
+        if (statement.importClause?.name) guarded.add(statement.importClause.name.text);
+      }
+    }
+  }
+  const root = (node: ts.Expression): ts.Expression => {
+    let current = unwrap(node);
+    while (ts.isPropertyAccessExpression(current) || ts.isElementAccessExpression(current) || ts.isCallExpression(current) || ts.isNonNullExpression(current)) current = unwrap(current.expression);
+    return current;
+  };
+  const scan = (node: ts.Node): void => {
+    if (ts.isArrowFunction(node) || ts.isFunctionExpression(node) || ts.isMethodDeclaration(node) || ts.isGetAccessorDeclaration(node) || ts.isSetAccessorDeclaration(node)) return;
+    if (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node) || ts.isCallExpression(node) || ts.isNewExpression(node)
+      || ts.isSpreadElement(node) || ts.isSpreadAssignment(node) || ts.isTaggedTemplateExpression(node)) {
+      const target = root(ts.isTaggedTemplateExpression(node) ? node.tag : node.expression!);
+      if (ts.isIdentifier(target) && guarded.has(target.text)) { violations.push(`${where(node)}: reads ${target.text} while the module loads`); return; }
+    }
+    if (ts.isPropertyAssignment(node) && node.name.getText(source) === '__proto__') violations.push(`${where(node)}: __proto__ in a traced object`);
+    ts.forEachChild(node, scan);
+  };
+  for (const statement of source.statements) {
+    if (ts.isImportDeclaration(statement) || ts.isTypeAliasDeclaration(statement) || ts.isInterfaceDeclaration(statement) || ts.isFunctionDeclaration(statement)
+      || (ts.isExportDeclaration(statement) && statement.moduleSpecifier)) continue;
+    if (ts.isVariableStatement(statement)) {
+      if (!(statement.declarationList.flags & ts.NodeFlags.Const)) violations.push(`${where(statement)}: top-level let / var`);
+      for (const declaration of statement.declarationList.declarations) if (declaration.initializer) scan(declaration.initializer);
+      continue;
+    }
+    violations.push(`${where(statement)}: top-level ${ts.SyntaxKind[statement.kind]} (only declarations may run while a traced module loads)`);
+  }
+  return violations;
+}
+
+/**
+ * Source lines of `file` that name a traced export (imported from a traced module) or a traced content block (`.world24`, `depth26:` …):
+ * the places that can copy traced values. tests/tools/test-plan.test.ts pins them for src/content/units.ts (INIT_COPY_SITES).
+ */
+export function copySites(file: string, text: string, modules = TRACED_MODULES): string[] {
+  const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const blocks = new Set(modules.flatMap(entry => Object.keys(entry.blocks))), names = new Set<string>(), lineNumbers = new Set<number>();
+  for (const statement of source.statements) {
+    if (!ts.isImportDeclaration(statement) || statement.importClause?.isTypeOnly || !ts.isStringLiteral(statement.moduleSpecifier)) continue;
+    const target = posix.normalize(posix.join(posix.dirname(file), statement.moduleSpecifier.text));
+    const bindings = statement.importClause?.namedBindings;
+    if (modules.some(entry => entry.file === target) && bindings && ts.isNamedImports(bindings)) {
+      for (const element of bindings.elements) if (!element.isTypeOnly) names.add(element.name.text);
+    }
+  }
+  const visit = (node: ts.Node): void => {
+    if (ts.isImportDeclaration(node)) return;
+    const hit = (ts.isIdentifier(node) && names.has(node.text))
+      || ((ts.isPropertyAccessExpression(node) || ts.isPropertyAssignment(node)) && blocks.has(node.name.getText(source)));
+    if (hit) lineNumbers.add(source.getLineAndCharacterOfPosition(node.getStart(source)).line);
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  const lineTexts = text.split('\n');
+  return [...lineNumbers].sort((a, b) => a - b).map(line => lineTexts[line].trim());
+}
+
+/**
+ * Preconditions of the tracer in a tree (empty = traceable): each traced module passes `checkTracedModule`; nothing a traced module
+ * imports imports a traced module (so nothing reads one before the tracer instruments it); src/content/units.ts copies traced values only
+ * at the reviewed INIT_COPY_SITES.
+ */
+export function traceSafety(root: string, graph: Graph = buildGraph(root, treeFiles(root))): string[] {
+  const present = TRACED_MODULES.map(entry => entry.file).filter(file => existsSync(join(root, file)));
+  const out = present.flatMap(file => checkTracedModule(file, readFileSync(join(root, file), 'utf8')));
+  for (const file of present) {
+    for (const dependency of closure(graph, [file]).files) {
+      if (dependency === file) continue;
+      const traced = [...graph.edges.get(dependency) ?? []].filter(target => present.includes(target));
+      if (traced.length) out.push(`${dependency} (loaded by ${file}) imports the traced ${traced.join(', ')}`);
+    }
+  }
+  for (const [file, reviewed] of Object.entries(INIT_COPY_SITES)) {
+    if (!existsSync(join(root, file))) continue;
+    const sites = copySites(file, readFileSync(join(root, file), 'utf8'));
+    const unreviewed = sites.filter(line => !reviewed.includes(line));
+    if (unreviewed.length) out.push(`${file}: copy site not in INIT_COPY_SITES (review it): ${unreviewed[0]}`);
+  }
+  return out;
+}
+
+/** Files of a tree: git's list in a checkout, a directory walk of src/ and tools/ in an exported tree (tools/smoke-parallel.ts exportTree). */
+export function treeFiles(root: string): string[] {
+  if (existsSync(join(root, '.git'))) return repoFiles(root);
+  const out: string[] = [];
+  const visit = (dir: string): void => {
+    for (const name of readdirSync(join(root, dir)).sort()) {
+      const file = dir ? `${dir}/${name}` : name;
+      if (statSync(join(root, file)).isDirectory()) visit(file); else out.push(file);
+    }
+  };
+  for (const dir of ['src', 'tools']) if (existsSync(join(root, dir))) visit(dir);
+  return out;
+}
+
+/**
+ * Rule shape of a tree: a hash of every file in the runtime import closure of RULE_ENTRIES (the only code a smoke game runs: rules are
+ * import-pure), with the traced modules normalized (`normalizeTraced`), plus the node version, the smoke configuration and the tracer
+ * format. Equal shapes = the same smoke code up to the traced tuning values, so a content read trace taken in one tree holds in the other.
+ */
+export function ruleShape(root: string, graph: Graph = buildGraph(root, treeFiles(root))): string {
+  const reach = closure(graph, RULE_ENTRIES);
+  const files = [...new Set([...reach.files, ...[...graph.files].filter(file => reach.prefixes.some(prefix => file.startsWith(prefix)))])]
+    .filter(file => existsSync(join(root, file))).sort();
+  const traced = new Set(TRACED_MODULES.map(entry => entry.file));
+  const hash = createHash('sha256').update(`trace-format ${TRACE_FORMAT}\nnode ${process.version}\nsmoke ${JSON.stringify(smokeConfig(0))} ${SMOKE_CASES}\n`);
+  for (const file of files) {
+    const text = readFileSync(join(root, file), 'utf8');
+    hash.update(`${file}\0${traced.has(file) ? normalizeTraced(file, text) : text}\0`);
+  }
+  return hash.digest('hex').slice(0, 24);
+}
+
 // ---------------------------------------------------------------- changed files
 
-export type ChangeSource = { label: string; base: string | null; files: string[] };
+/** `base`: the commit to compare against (null: none, e.g. --files); `head`: the commit under test (absent or null: the working tree). */
+export type ChangeSource = { label: string; base: string | null; head?: string | null; files: string[] };
 const git = (root: string, args: string[]): string => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 64 << 20 }).trim();
 const lines = (text: string): string[] => text.split('\n').map(line => line.trim()).filter(Boolean);
 
@@ -180,12 +361,12 @@ export function collectChanges(root: string, options: { base?: string; range?: s
     const sha = git(root, ['rev-parse', '--short', options.commit]);
     const files = lines(git(root, ['diff-tree', '--no-commit-id', '--name-only', '-r', '--no-renames', '--root', options.commit]));
     const parent = (() => { try { return git(root, ['rev-parse', `${options.commit}^`]); } catch { return null; } })();
-    return { label: `commit ${sha}`, base: parent, files: [...new Set(files)].sort() };
+    return { label: `commit ${sha}`, base: parent, head: git(root, ['rev-parse', options.commit]), files: [...new Set(files)].sort() };
   }
   if (options.range) {
     const [from, to] = options.range.split(/\.\.\.?/);
     const files = lines(git(root, ['diff', '--name-only', '--no-renames', from, to || 'HEAD']));
-    return { label: `range ${options.range}`, base: git(root, ['rev-parse', from]), files: [...new Set(files)].sort() };
+    return { label: `range ${options.range}`, base: git(root, ['rev-parse', from]), head: git(root, ['rev-parse', to || 'HEAD']), files: [...new Set(files)].sort() };
   }
   const ref = options.base ?? 'main';
   const base = options.base ? git(root, ['rev-parse', options.base]) : git(root, ['merge-base', ref, 'HEAD']);
@@ -195,8 +376,15 @@ export function collectChanges(root: string, options: { base?: string; range?: s
 
 // ---------------------------------------------------------------- plan
 
+/** Smoke versions and cases for one tier, with the trace proof per version (when a values-only tuning change was traced). */
+export type SmokeSelection = { versions: number[]; why: string; proven: boolean;
+  /** Version → why it runs or why it is proven unable to observe the change (trace narrowing only). */
+  byVersion: Record<number, string>;
+  /** Versions whose base results are cached for these cases (the estimate counts one run instead of two). */
+  baseCached: number[] };
+
 export type Plan = {
-  source: string; base: string | null; files: string[];
+  source: string; base: string | null; head: string | null; files: string[];
   tier: 'full' | 'release' | 'docs' | 'none' | 'scoped';
   full: { on: boolean; why: string[] };
   /** Per changed file: how the planner classified it. */
@@ -205,15 +393,23 @@ export type Plan = {
   vitest: { files: 'all' | string[]; total: number; why: Record<string, string> };
   playwright: { specs: 'all' | string[]; total: number; why: Record<string, string> };
   prod: { run: boolean; why: string };
-  smoke: { run: boolean; versions: number[]; supported: number[]; ruleFiles: string[]; why: string; proven: boolean };
+  /**
+   * `tier`: quick (8 of 48 cases per version, not merge-proof) or merge (all 48); `cases` = the case indices that run. `versions` /
+   * `why` / `proven` / `byVersion` describe the selected tier; `merge` is what the merge tier runs (for the quick tier's report).
+   */
+  smoke: { run: boolean; tier: 'quick' | 'merge'; cases: number[]; versions: number[]; supported: number[]; ruleFiles: string[]; why: string; proven: boolean;
+    byVersion: Record<number, string>; baseCached: number[]; merge: SmokeSelection; mergeSeconds: number };
   balance: { recommend: boolean; params: string[]; command: string | null; why: string };
   notes: string[];
   estimate: { selectedSeconds: number; fullSeconds: number };
 };
 
-export type PlanOptions = { full?: boolean; release?: boolean; smokeVersions?: number[]; vitestSeconds?: Record<string, number> };
+export type PlanOptions = { full?: boolean; release?: boolean; merge?: boolean; smokeVersions?: number[]; vitestSeconds?: Record<string, number>;
+  /** Skip the content-trace narrowing (no tree export, no trace store lookup). */
+  noTraceNarrowing?: boolean };
 
-export type Context = { root: string; graph: Graph; supported: number[] };
+/** `ruleGraph`: the import graph of the tree under test when it is a commit (--commit, --range): its rule closure decides smoke and balance. */
+export type Context = { root: string; graph: Graph; supported: number[]; ruleGraph?: Graph };
 export function loadContext(root = REPO_ROOT): Context {
   return { root, graph: buildGraph(root), supported: supportedVersions(root) };
 }
@@ -249,9 +445,9 @@ export function planFor(context: Context, source: ChangeSource, options: PlanOpt
   const release = Boolean(options.release);
 
   // Rule closure: can these changes alter gameplay bytes?
-  const ruleReach = closure(graph, RULE_ENTRIES);
+  const ruleReach = closure(context.ruleGraph ?? graph, RULE_ENTRIES);
   const ruleFiles = hits(ruleReach, files);
-  const balanceReach = closure(graph, [BALANCE_ENTRY]);
+  const balanceReach = closure(context.ruleGraph ?? graph, [BALANCE_ENTRY]);
   const balanceFiles = hits(balanceReach, files).filter(file => matches(file, RULES));
 
   // Vitest.
@@ -314,31 +510,52 @@ export function planFor(context: Context, source: ChangeSource, options: PlanOpt
       full ? 'vite build: full gate' : buildHit.length ? `vite build: client bundle changed (${list(buildHit)})` : unknown.length ? 'vite build: unknown file' : 'vite build: nothing in the html entries\' import closure changed'],
   };
 
-  // Smoke.
-  let smoke: Plan['smoke'];
-  if (full) smoke = { run: true, versions: supported, supported, ruleFiles, proven: true, why: 'full gate: every supported gameplay version' };
-  else if (!ruleFiles.length) {
-    smoke = { run: false, versions: [], supported, ruleFiles, proven: true,
-      why: `no changed file is in the runtime import closure of ${RULE_ENTRIES.join(', ')} (${ruleReach.files.size} files). `
-        + 'Rules are import-pure (eslint boundaries/pure-imports: src/core, src/content, src/ai import nothing else, no fs), so gameplay results cannot change.' };
-  } else {
+  // Smoke: which versions each tier runs (quick: QUICK_CASES of each version; merge: all 48 cases).
+  // Only an explicit --merge / --full / --release runs all 48 cases; a FULL GATE reached by plain `npm run check` keeps the quick sample.
+  const mergeTier = Boolean(options.merge || options.full || options.release);
+  const allCases = Array.from({ length: SMOKE_CASES }, (_, index) => index);
+  const tracedOnly = ruleFiles.length > 0 && ruleFiles.every(file => TRACED_MODULES.some(entry => entry.file === file));
+  let inputs: TraceInputs | null = null;
+  const select = (cases: number[]): SmokeSelection => {
+    const cachedFor = (versions: number[]) => source.base ? versions.filter(version => baseIsCached(source.base!, version, cases)) : [];
+    const done = (selection: Omit<SmokeSelection, 'baseCached'>): SmokeSelection => ({ ...selection, baseCached: cachedFor(selection.versions) });
+    if (full) return done({ versions: supported, proven: true, byVersion: {}, why: 'full gate: every supported gameplay version' });
+    if (!ruleFiles.length) {
+      return done({ versions: [], proven: true, byVersion: {},
+        why: `no changed file is in the runtime import closure of ${RULE_ENTRIES.join(', ')} (${ruleReach.files.size} files). `
+          + 'Rules are import-pure (eslint boundaries/pure-imports: src/core, src/content, src/ai import nothing else, no fs), so gameplay results cannot change.' });
+    }
     const scoped = ruleFiles.map(file => VERSION_SCOPED.find(entry => entry.file === file));
-    const narrowed = scoped.every(Boolean) ? Math.min(...scoped.map(entry => entry!.from)) : null;
-    const versions = narrowed === null ? supported : supported.filter(version => version >= narrowed);
-    smoke = { run: true, versions, supported, ruleFiles, proven: true,
-      why: narrowed === null
-        ? `rule closure touched by ${list(ruleFiles)}; ${ruleFiles.filter((_, i) => !scoped[i]).length} of them can affect every version → all supported versions`
-        : `only version-scoped rule files changed (${list(ruleFiles)}) → gameplay ≥ ${narrowed}` };
-    const named = narrowed === null ? [...new Set(ruleFiles.map(file => /-v(\d+)(?:[-.]|$)/.exec(file)?.[1]).filter(Boolean).map(Number))] : [];
+    if (scoped.every(Boolean)) {
+      const from = Math.min(...scoped.map(entry => entry!.from));
+      return done({ versions: supported.filter(version => version >= from), proven: true, byVersion: {},
+        why: `only version-scoped rule files changed (${list(ruleFiles)}) → gameplay ≥ ${from}` });
+    }
+    let why = `rule closure touched by ${list(ruleFiles)}; ${ruleFiles.filter((_, i) => !scoped[i]).length} of them can affect every version → all supported versions`;
+    if (tracedOnly && !options.noTraceNarrowing) {
+      inputs ??= traceInputs(context, source);
+      const traced = traceSelection(supported, ruleFiles, cases, inputs);
+      if (traced) return done(traced);
+      why = `${list(ruleFiles)} changed; trace narrowing does not apply (${inputs.fallback}) → all supported versions`;
+    }
+    return done({ versions: supported, proven: true, byVersion: {}, why });
+  };
+  const merge = select(allCases);
+  const chosen = mergeTier ? merge : select([...QUICK_CASES]);
+  let smoke: Plan['smoke'] = { run: chosen.versions.length > 0, tier: mergeTier ? 'merge' : 'quick', cases: mergeTier ? allCases : [...QUICK_CASES],
+    versions: chosen.versions, supported, ruleFiles, why: chosen.why, proven: chosen.proven, byVersion: chosen.byVersion, baseCached: chosen.baseCached,
+    merge, mergeSeconds: 0 };
+  if (ruleFiles.length && merge.versions.length === supported.length && !full) {
+    const named = [...new Set(ruleFiles.map(file => /-v(\d+)(?:[-.]|$)/.exec(file)?.[1]).filter(Boolean).map(Number))];
     if (named.length && ruleFiles.every(file => /-v\d+[-.]/.test(file))) {
-      notes.push(`the changed rule files are named for gameplay ${named.join(', ')} but not proven version-scoped (VERSION_SCOPED in tools/test-plan-map.ts); `
-        + `if you have checked that only those versions read them, --smoke-versions ${named.map(version => `${version}-${Math.max(...supported)}`).join(',')} is the unproven shortcut`);
+      notes.push(`the changed rule files are named for gameplay ${named.join(', ')} but no version could be proven unable to observe them; `
+        + `--smoke-versions ${named.map(version => `${version}-${Math.max(...supported)}`).join(',')} is the unproven shortcut`);
     }
   }
   if (options.smokeVersions) {
     const override = options.smokeVersions.filter(version => supported.includes(version));
     const missing = smoke.versions.filter(version => !override.includes(version));
-    smoke = { ...smoke, run: override.length > 0, versions: override, proven: missing.length === 0,
+    smoke = { ...smoke, run: override.length > 0, versions: override, proven: missing.length === 0, byVersion: {}, baseCached: smoke.baseCached.filter(version => override.includes(version)),
       why: `${smoke.why}; overridden by --smoke-versions${missing.length ? ` (NOT the proven set: skips ${missing.join(', ')})` : ''}` };
   }
 
@@ -354,7 +571,7 @@ export function planFor(context: Context, source: ChangeSource, options: PlanOpt
 
   const tier: Plan['tier'] = release ? 'release' : full ? 'full' : !files.length ? 'none' : docs.length === files.length ? 'docs' : 'scoped';
   const plan: Plan = {
-    source: source.label, base: source.base, files, tier, full: { on: full, why: fullWhy }, classes,
+    source: source.label, base: source.base, head: source.head ?? null, files, tier, full: { on: full, why: fullWhy }, classes,
     lint, vitest: { files: vitestFiles, total: vitestAll.length, why: vitestWhy },
     playwright: { specs, total: specsAll.length, why: specWhy }, prod, smoke, balance, notes,
     estimate: { selectedSeconds: 0, fullSeconds: 0 },
@@ -364,10 +581,62 @@ export function planFor(context: Context, source: ChangeSource, options: PlanOpt
     plan.playwright.specs = []; plan.vitest.files = [];
   }
   plan.estimate = estimate(context, plan, options.vitestSeconds);
+  plan.smoke.mergeSeconds = Math.round(smokeSeconds(plan.smoke.merge.versions, SMOKE_CASES, plan.smoke.merge.baseCached));
   return plan;
 }
 
 const list = (items: readonly string[], max = 3): string => items.length <= max ? items.join(', ') : `${items.slice(0, max).join(', ')} +${items.length - max}`;
+
+/** Are the base's smoke results for these cases cached (tools/smoke-parallel.ts: a complete run serves any subset)? */
+function baseIsCached(base: string, version: number, cases: number[]): boolean {
+  const dir = (suffix: string) => join(cacheRoot(), base, `v${version}${suffix}`, '.complete');
+  return existsSync(dir('')) || (cases.length < SMOKE_CASES && existsSync(dir(`-c${cases.join('.')}`)));
+}
+
+/** What trace narrowing needs from the base and head trees, or why it cannot have it. */
+export type TraceInputs = { fallback: string; baseShape?: string; headShape?: string; baseValues?: Record<string, unknown>; headValues?: Record<string, unknown>; baseVersions?: number[] };
+
+/** Base and head trees of a change: rule shapes, traced values, structural check of the traced modules. */
+export function traceInputs(context: Context, source: ChangeSource): TraceInputs {
+  if (!source.base) return { fallback: 'no base commit (--files): the values of the base are unknown' };
+  try {
+    const baseTree = exportTree(source.base), headTree = source.head ? exportTree(source.head) : context.root;
+    const baseGraph = buildGraph(baseTree, treeFiles(baseTree)), headGraph = headTree === context.root ? context.graph : buildGraph(headTree, treeFiles(headTree));
+    const violations = [...new Set([...traceSafety(baseTree, baseGraph), ...traceSafety(headTree, headGraph)])];
+    if (violations.length) return { fallback: `the tracer cannot vouch for these trees: ${violations[0]}` };
+    const valuesOf = (tree: string) => JSON.parse(execFileSync(process.execPath, [join(REPO_ROOT, 'tools/content-trace.ts'), '--values', tree],
+      { encoding: 'utf8', maxBuffer: 64 << 20 })) as Record<string, unknown>;
+    const baseShape = ruleShape(baseTree, baseGraph), headShape = ruleShape(headTree, headGraph);
+    if (baseShape !== headShape) return { fallback: 'not a values-only change: the rule shape differs (code, keys, array lengths or a computed value changed)' };
+    return { fallback: '', baseShape, headShape, baseValues: valuesOf(baseTree), headValues: valuesOf(headTree), baseVersions: supportedVersions(baseTree) };
+  } catch (error) {
+    return { fallback: `cannot inspect the base / head trees: ${(error as Error).message.split('\n')[0]}` };
+  }
+}
+
+/**
+ * Versions a values-only change of the traced modules can reach: those for which no stored trace of the same rule shape covering `cases`
+ * avoids every changed key (tools/content-trace.ts `provenUnobservable`), plus versions the base does not have. Null when not applicable.
+ */
+export function traceSelection(supported: number[], ruleFiles: string[], cases: number[], inputs: TraceInputs, store?: string): Omit<SmokeSelection, 'baseCached'> | null {
+  if (inputs.fallback || !inputs.baseShape || !inputs.baseValues || !inputs.headValues) return null;
+  const changed = changedKeys(inputs.baseValues, inputs.headValues);
+  const short = (key: string) => key.replace(/^[^#]*#/, '');
+  if (!changed.length) {
+    return { versions: [], proven: true, byVersion: {}, why: `${list(ruleFiles)}: same rule shape and same traced values (comments or formatting only) → gameplay cannot change` };
+  }
+  const versions: number[] = [], byVersion: Record<number, string> = {};
+  for (const version of supported) {
+    if (!inputs.baseVersions?.includes(version)) { versions.push(version); byVersion[version] = 'new version (not in the base)'; continue; }
+    const result = provenUnobservable(loadTraces(inputs.baseShape, version, store), cases, inputs.baseValues, inputs.headValues);
+    byVersion[version] = result.why;
+    if (!result.proven) versions.push(version);
+  }
+  const skipped = supported.length - versions.length;
+  return { versions, proven: true, byVersion,
+    why: `values-only change to ${list(ruleFiles)} (${changed.length} key(s): ${list(changed.map(short), 2)}); `
+      + `${skipped ? `stored traces of rule shape ${inputs.baseShape.slice(0, 10)} prove ${skipped} version(s) never read them` : 'no version is proven unable to read them'}` };
+}
 
 // ---------------------------------------------------------------- estimate
 
@@ -383,18 +652,39 @@ export function estimate(context: Context, plan: Plan, vitestSeconds: Record<str
       tests.reduce((sum, file) => sum + (vitestSeconds[file] ?? COST.vitestHeavy[file] ?? COST.vitestDefaultFile), 0) / COST.vitestParallel) : 0;
   const specCost = (specs: string[]) => specs.length
     ? COST.playwrightStartup + specs.reduce((sum, spec) => sum + testCount(root, spec) * COST.playwrightTest, 0) / Math.min(COST.playwrightWorkers, specs.length) : 0;
-  const smokeCost = (versions: number) => versions * COST.smokeGamesPerVersion * COST.smokeGame * COST.smokeRuns / COST.smokeWorkers;
   const lintCost = (eslint: 'all' | string[]) => eslint === 'all' ? COST.eslintAll : eslint.length * COST.eslintFile + (eslint.length ? 8 : 0);
-  const fullSeconds = COST.tsc + COST.eslintAll + COST.viteBuild + vitestCost(vitestAll) + specCost(specsAll) + COST.prodE2e + smokeCost(context.supported.length);
+  const fullSeconds = COST.tsc + COST.eslintAll + COST.viteBuild + vitestCost(vitestAll) + specCost(specsAll) + COST.prodE2e + smokeSeconds(context.supported, SMOKE_CASES, []);
   const selectedSeconds = (plan.lint.tsc ? COST.tsc : 0) + lintCost(plan.lint.eslint) + (plan.lint.build ? COST.viteBuild : 0)
     + vitestCost(plan.vitest.files === 'all' ? vitestAll : plan.vitest.files) + specCost(plan.playwright.specs === 'all' ? specsAll : plan.playwright.specs)
-    + (plan.prod.run ? COST.prodE2e : 0) + (plan.smoke.run ? smokeCost(plan.smoke.versions.length) : 0);
+    + (plan.prod.run ? COST.prodE2e : 0) + (plan.smoke.run ? smokeSeconds(plan.smoke.versions, plan.smoke.cases.length, plan.smoke.baseCached) : 0);
   return { selectedSeconds: Math.round(selectedSeconds), fullSeconds: Math.round(fullSeconds) };
+}
+
+/** Games per smoke job: small runs use small jobs (latency), big runs 4 (fewer process start-ups). */
+export const smokeChunk = (games: number, workers: number = COST.smokeWorkers): number => Math.max(1, Math.min(4, Math.ceil(games / (workers * 2))));
+/** Wall-clock seconds of a smoke run: head (and base, unless cached) jobs of `smokeChunk` games, in waves of COST.smokeWorkers. */
+export function smokeSeconds(versions: readonly number[], cases: number, baseCached: readonly number[], workers: number = COST.smokeWorkers): number {
+  if (!versions.length) return 0;
+  const games = versions.reduce((sum, version) => sum + cases * (baseCached.includes(version) ? 1 : COST.smokeRuns), 0);
+  const chunk = smokeChunk(games, workers), jobs = versions.reduce((sum, version) => sum + Math.ceil(cases / chunk) * (baseCached.includes(version) ? 1 : COST.smokeRuns), 0);
+  return Math.ceil(jobs / workers) * chunk * COST.smokeGame;
 }
 
 // ---------------------------------------------------------------- output
 
 export const formatDuration = (seconds: number): string => seconds < 90 ? `${Math.round(seconds)} s` : seconds < 5400 ? `${Math.round(seconds / 60)} min` : `${(seconds / 3600).toFixed(1)} h`;
+
+/** 9, 10, 11, 24 → "9–11, 24". */
+export function ranges(versions: readonly number[]): string {
+  const out: string[] = [];
+  for (let i = 0; i < versions.length; i++) {
+    let j = i;
+    while (j + 1 < versions.length && versions[j + 1] === versions[j] + 1) j++;
+    out.push(j > i + 1 ? `${versions[i]}–${versions[j]}` : j === i + 1 ? `${versions[i]}, ${versions[j]}` : `${versions[i]}`);
+    i = j;
+  }
+  return out.join(', ');
+}
 
 export function formatPlan(plan: Plan): string {
   const out: string[] = [];
@@ -411,8 +701,23 @@ export function formatPlan(plan: Plan): string {
   out.push(`playwright  ${count(plan.playwright.specs, plan.playwright.total)} specs`);
   if (plan.playwright.specs !== 'all') for (const spec of plan.playwright.specs) out.push(`              ${spec.replace('tests/browser/', '').padEnd(36)} ${plan.playwright.why[spec]}`);
   out.push(`prod e2e    ${plan.prod.run ? 'run' : 'skip'}: ${plan.prod.why}`);
-  out.push(`smoke       ${plan.smoke.run ? `gameplay ${plan.smoke.versions.join(', ')} (${plan.smoke.versions.length}/${plan.smoke.supported.length} versions × 48 games)` : 'skip'}${plan.smoke.proven ? '' : ' — NOT PROVEN'}`);
-  out.push(`              ${plan.smoke.why}`);
+  const smoke = plan.smoke, quick = smoke.tier === 'quick';
+  const label = quick ? `QUICK — not merge-proof: ${smoke.cases.length} of ${SMOKE_CASES} cases` : `merge tier: all ${SMOKE_CASES} cases`;
+  out.push(`smoke       ${smoke.run ? `gameplay ${ranges(smoke.versions)} (${smoke.versions.length}/${smoke.supported.length} versions; ${label})` : 'skip'}${smoke.proven ? '' : ' — NOT PROVEN'}`);
+  out.push(`              ${smoke.why}`);
+  // Trace narrowing, grouped by reason: "proven: v9–25 (trace …)", "runs v26: reads DEPTH26_TUNING.npcBasePower".
+  const groups = new Map<string, number[]>();
+  for (const version of smoke.supported) {
+    const why = smoke.byVersion[version];
+    if (!why) continue;
+    const key = `${smoke.versions.includes(version) ? 'runs' : 'proven unobservable'}\0${why.replace(/^trace of \S+ /, 'trace ')}`;
+    groups.set(key, [...groups.get(key) ?? [], version]);
+  }
+  for (const [key, versions] of groups) { const [verdict, why] = key.split('\0'); out.push(`              ${verdict} v${ranges(versions)}: ${why}`); }
+  if (smoke.baseCached.length) out.push(`              base results cached for v${ranges(smoke.baseCached)}`);
+  if (quick && smoke.run) {
+    out.push(`              before merging: npm run ${plan.full.on ? 'check:full' : 'check:merge'} — gameplay ${ranges(smoke.merge.versions)} × ${SMOKE_CASES} cases, ~${formatDuration(smoke.mergeSeconds)} of smoke`);
+  }
   out.push(`balance     ${plan.balance.recommend ? 'recommended (not run): ' : 'not needed: '}${plan.balance.why}`);
   if (plan.balance.command) out.push(`              ${plan.balance.command}`);
   for (const note of plan.notes) out.push(`note        ${note}`);
@@ -438,9 +743,12 @@ export function planSteps(plan: Plan, options: { pwWorkers?: number; smokeWorker
   else if (plan.playwright.specs.length) steps.push(npx(`playwright (${plan.playwright.specs.length})`, 'playwright', 'test', workers, ...plan.playwright.specs));
   if (plan.prod.run) steps.push(npx('prod e2e', 'playwright', 'test', '-c', 'playwright.prod.config.ts'));
   if (plan.smoke.run && plan.smoke.versions.length) {
-    steps.push({ name: `smoke v${plan.smoke.versions.join(',')}`, command: process.execPath,
-      args: ['tools/smoke-parallel.ts', '--versions', plan.smoke.versions.join(','), ...(plan.base ? ['--base', plan.base] : []),
-        ...(options.smokeWorkers ? ['--workers', String(options.smokeWorkers)] : [])] });
+    const quick = plan.smoke.tier === 'quick', workers = options.smokeWorkers ?? COST.smokeWorkers;
+    const games = plan.smoke.versions.length * plan.smoke.cases.length * COST.smokeRuns;
+    steps.push({ name: `smoke ${quick ? 'QUICK ' : ''}v${ranges(plan.smoke.versions).replace(/ /g, '')}`, command: process.execPath,
+      args: ['tools/smoke-parallel.ts', '--versions', plan.smoke.versions.join(','), ...(quick ? ['--cases', 'quick'] : []),
+        ...(plan.base ? ['--base', plan.base] : []), ...(plan.head ? ['--head', plan.head] : []),
+        '--chunk', String(smokeChunk(games, workers)), ...(options.smokeWorkers ? ['--workers', String(options.smokeWorkers)] : [])] });
   }
   return steps;
 }
@@ -464,7 +772,8 @@ function runSteps(root: string, steps: Step[], keepGoing: boolean): number {
 
 // ---------------------------------------------------------------- CLI
 
-export type CliOptions = { base?: string; range?: string; commit?: string; files?: string[]; json: boolean; run: boolean; full: boolean; release: boolean;
+export type CliOptions = { base?: string; range?: string; commit?: string; files?: string[]; json: boolean; run: boolean; full: boolean; release: boolean; merge: boolean;
+  noTraceNarrowing: boolean;
   keepGoing: boolean; smokeVersions?: number[]; pwWorkers?: number; smokeWorkers?: number };
 
 export function parseVersions(text: string): number[] {
@@ -479,13 +788,15 @@ export function parseVersions(text: string): number[] {
 }
 
 export function parseCli(args: string[]): CliOptions {
-  const options: CliOptions = { json: false, run: false, full: false, release: false, keepGoing: false };
+  const options: CliOptions = { json: false, run: false, full: false, release: false, merge: false, noTraceNarrowing: false, keepGoing: false };
   for (let i = 0; i < args.length; i++) {
     const arg = args[i], value = () => { const next = args[++i]; if (next === undefined || next.startsWith('--')) throw new Error(`${arg} needs a value`); return next; };
     if (arg === '--json') options.json = true;
     else if (arg === '--run') options.run = true;
     else if (arg === '--full') options.full = true;
     else if (arg === '--release') options.release = true;
+    else if (arg === '--merge') options.merge = true;
+    else if (arg === '--no-trace-narrowing') options.noTraceNarrowing = true;
     else if (arg === '--keep-going') options.keepGoing = true;
     else if (arg === '--base') options.base = value();
     else if (arg === '--range') options.range = value();
@@ -501,10 +812,18 @@ export function parseCli(args: string[]): CliOptions {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  if (process.argv[2] === '--shape') { console.log(ruleShape(resolve(process.argv[3] ?? REPO_ROOT))); process.exit(0); }
   const options = parseCli(process.argv.slice(2));
   const context = loadContext(REPO_ROOT);
   const source = collectChanges(REPO_ROOT, options);
-  const plan = planFor(context, source, { full: options.full, release: options.release, smokeVersions: options.smokeVersions });
+  // A commit (--commit, --range) is judged on its own tree: its rule closure and the versions its tools/district-smoke.ts supports.
+  if (source.head) {
+    const tree = exportTree(source.head);
+    context.supported = supportedVersions(tree);
+    context.ruleGraph = buildGraph(tree, treeFiles(tree));
+  }
+  const plan = planFor(context, source, { full: options.full, release: options.release, merge: options.merge, smokeVersions: options.smokeVersions,
+    noTraceNarrowing: options.noTraceNarrowing });
   console.log(options.json ? JSON.stringify({ ...plan, steps: planSteps(plan, options) }, null, 2) : formatPlan(plan));
   if (options.run) {
     const steps = planSteps(plan, options);

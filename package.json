@@ -17,6 +17,7 @@
     "server": "node server/main.ts",
     "check": "node tools/test-plan.ts --run",
     "check:plan": "node tools/test-plan.ts",
+    "check:merge": "node tools/test-plan.ts --merge --run",
     "check:full": "node tools/test-plan.ts --full --run",
     "check:release": "node tools/test-plan.ts --release --run"
   },
