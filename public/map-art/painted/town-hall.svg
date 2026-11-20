@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-30 -84 76 90" width="76" height="90" style="--roof:#C4553A;--roof-edge:#E58A5E;--accent:#3BA68A;--accent-light:#6CC4AA;--accent-dark:#26705C">
+  <!-- 绘卷 map art (docs/design/map-art-options.md, option A): a town hall with a bell tower (accent colour from CSS variable accent). Original artwork by this project, no third-party sources (public/map-art/README.md).
+       Anchor (0, 0) is the ground contact point; 100 units = one tile radius; light from the north-west. -->
+  <ellipse cx="8" cy="2" rx="34" ry="8" fill="#1A140C" opacity="0.3"/>
+  <g transform="translate(6 0) scale(1.3)" style="--roof:var(--accent);--roof-edge:var(--accent-light)"><ellipse cx="11.2" cy="1" rx="19.5" ry="5.5" fill="#1A140C" opacity="0.3"/>
+  <path d="M9 0L25 -4V-19L9 -15Z" fill="#C7AE84" stroke="#2B1E10" stroke-width="1.4" stroke-linejoin="round"/>
+  <path d="M-9 0H9V-15L0 -26L-9 -15Z" fill="#F2E4C4" stroke="#2B1E10" stroke-width="1.4" stroke-linejoin="round"/>
+  <path d="M-9 -15H9" stroke="#7A5634" stroke-width="1.1" fill="none"/>
+  <path d="M-2.8 0V-6.2a2.8 2.8 0 0 1 5.6 0V0Z" fill="#5A3B21"/>
+  <rect data-win="-1.2 -12.3" x="-7.2" y="-11.3" width="3.4" height="3.6" fill="#46586A" stroke="#5A3B21" stroke-width=".7"/>
+  <rect data-win="13.2 -12.3" x="3.8" y="-11.3" width="3.4" height="3.6" fill="#46586A" stroke="#5A3B21" stroke-width=".7"/>
+  <path data-win="22.9 -11.7" d="M11.3 -10.5l3.4 -0.8v3.8l-3.4 0.8z" fill="#46586A" stroke="#5A3B21" stroke-width=".7"/>
+  <path data-win="32 -13.8" d="M18.3 -12.1l3.4 -0.8v3.8l-3.4 0.8z" fill="#46586A" stroke="#5A3B21" stroke-width=".7"/>
+  <path d="M0 -27.5L16 -31.5L28 -17.5L12 -13.5Z" style="fill:var(--roof)" stroke="#2B1E10" stroke-width="1.4" stroke-linejoin="round"/>
+  <path d="M4 -22.9l16 -4M7.9 -18.3l16 -4" fill="none" stroke="#2B1E10" stroke-opacity=".28" stroke-width="1"/>
+  <path d="M1 -28.6L16 -32.6" fill="none" stroke="#FFF1D8" stroke-opacity=".5" stroke-width="1.3" stroke-linecap="round"/>
+  <path d="M-11 -13.5L0 -27.5L11 -13.5" fill="none" stroke="#2B1E10" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M-11 -13.5L0 -27.5L11 -13.5" fill="none" style="stroke:var(--roof-edge)" stroke-width="2.1" stroke-linejoin="round" stroke-linecap="round"/></g>
+  <path d="M-25-1V-46H-13V-1Z" fill="#E8D8B6" stroke="#2B1E10" stroke-width="1.4" stroke-linejoin="round"/>
+  <path d="M-13-1L-7.5-2.6V-47.6L-13-46Z" fill="#B49C76" stroke="#2B1E10" stroke-width="1.4" stroke-linejoin="round"/>
+  <rect data-win="-19 -36" x="-20.8" y="-38.5" width="3.6" height="5" fill="#46586A" stroke="#5A3B21" stroke-width=".7"/><rect data-win="-19 -20" x="-20.8" y="-22.5" width="3.6" height="5" fill="#46586A" stroke="#5A3B21" stroke-width=".7"/>
+  <path d="M-26.6-45L-16-70L-12.6-44.6Z" style="fill:var(--accent-light)" stroke="#2B1E10" stroke-width="1.4" stroke-linejoin="round"/>
+  <path d="M-12.6-44.6L-16-70L-6-47.4Z" style="fill:var(--accent-dark)" stroke="#2B1E10" stroke-width="1.4" stroke-linejoin="round"/>
+  <path d="M-16-70V-80" stroke="#2B1E10" stroke-width="1.3"/><path d="M-15.6-80L-6.5-77.2L-15.6-74.6Z" style="fill:var(--accent)" stroke="#2B1E10" stroke-width="1" stroke-linejoin="round"/>
+</svg>

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-16 -20 36 24" width="36" height="24">
+  <!-- 绘卷 map art (docs/design/map-art-options.md, option A): a market stall. Original artwork by this project, no third-party sources (public/map-art/README.md).
+       Anchor (0, 0) is the ground contact point; 100 units = one tile radius; light from the north-west. -->
+  <ellipse cx="5" cy="1" rx="16" ry="4" fill="#1A140C" opacity="0.28"/>
+  <path d="M-11 0V-9M11 0V-9" stroke="#5A3B21" stroke-width="1.6"/>
+  <path d="M-12-1H12V-5H-12Z" fill="#B48A5A" stroke="#2B1E10" stroke-width="1.1"/>
+  <g stroke="#2B1E10" stroke-width="1"><circle cx="-6" cy="-6.4" r="2" fill="#E2584A"/><circle cx="-1.5" cy="-6.6" r="2" fill="#F2C14E"/><circle cx="3" cy="-6.4" r="2" fill="#8DB653"/><circle cx="7.4" cy="-6.6" r="2" fill="#E2584A"/></g>
+  <path d="M-14-9L-10-16H10L14-9Z" fill="#F7EEDC" stroke="#2B1E10" stroke-width="1.2" stroke-linejoin="round"/>
+  <path d="M-11.3-9L-8-16M-5.6-9L-3.3-16M0-9V-16M5.6-9L3.3-16M11.3-9L8-16" stroke="#C4553A" stroke-width="2.2"/>
+  <path d="M-14-9L-10-16H10L14-9Z" fill="none" stroke="#2B1E10" stroke-width="1.2" stroke-linejoin="round"/>
+</svg>

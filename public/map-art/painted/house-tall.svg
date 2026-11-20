@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-17 -56 50 60" width="50" height="60" style="--roof:#C4553A;--roof-edge:#E58A5E;--accent:#3BA68A;--accent-light:#6CC4AA;--accent-dark:#26705C">
+  <!-- 绘卷 map art (docs/design/map-art-options.md, option A): a two-storey timbered house (roof colour from CSS variable roof). Original artwork by this project, no third-party sources (public/map-art/README.md).
+       Anchor (0, 0) is the ground contact point; 100 units = one tile radius; light from the north-west. -->
+  <ellipse cx="10.8" cy="1" rx="18.4" ry="5.5" fill="#1A140C" opacity="0.3"/>
+  <path d="M8.5 0L23.5 -4V-30L8.5 -26Z" fill="#C7AE84" stroke="#2B1E10" stroke-width="1.4" stroke-linejoin="round"/>
+  <path d="M-8.5 0H8.5V-26L0 -37L-8.5 -26Z" fill="#F2E4C4" stroke="#2B1E10" stroke-width="1.4" stroke-linejoin="round"/>
+  <path d="M-8.5 -13H8.5M-4.2 0V-26M4.2 0V-26M-8.5 -26H8.5" stroke="#7A5634" stroke-width="1.2" fill="none"/>
+  <path d="M-2.8 0V-6.2a2.8 2.8 0 0 1 5.6 0V0Z" fill="#5A3B21"/>
+  <rect data-win="-4.6 -19" x="-6.3" y="-20.8" width="3.4" height="3.6" fill="#46586A" stroke="#5A3B21" stroke-width=".7"/>
+  <rect data-win="4.6 -19" x="2.9" y="-20.8" width="3.4" height="3.6" fill="#46586A" stroke="#5A3B21" stroke-width=".7"/>
+  <rect data-win="-4.6 -9.5" x="-6.3" y="-11.3" width="3.4" height="3.6" fill="#46586A" stroke="#5A3B21" stroke-width=".7"/>
+  <path data-win="12.5 -18.5" d="M10.8 -19.9l3.4 -0.9v3.8l-3.4 0.9z" fill="#46586A" stroke="#5A3B21" stroke-width=".7"/>
+  <path data-win="19 -20" d="M17.3 -21.4l3.4 -0.9v3.8l-3.4 0.9z" fill="#46586A" stroke="#5A3B21" stroke-width=".7"/>
+  <path data-win="12.5 -8" d="M10.8 -9.4l3.4 -0.9v3.8l-3.4 0.9z" fill="#46586A" stroke="#5A3B21" stroke-width=".7"/>
+  <path data-win="19 -9.5" d="M17.3 -10.9l3.4 -0.9v3.8l-3.4 0.9z" fill="#46586A" stroke="#5A3B21" stroke-width=".7"/>
+  <path d="M9.3 -38.5v-7h4v6z" fill="#A08C72" stroke="#2B1E10" stroke-width="1.1" stroke-linejoin="round"/>
+  <path d="M0 -38.5L15 -42.5L26.5 -28.5L11.5 -24.5Z" style="fill:var(--roof)" stroke="#2B1E10" stroke-width="1.4" stroke-linejoin="round"/>
+  <path d="M3.8 -33.9l15 -4M7.6 -29.3l15 -4" fill="none" stroke="#2B1E10" stroke-opacity=".28" stroke-width="1"/>
+  <path d="M1 -39.6L15 -43.6" fill="none" stroke="#FFF1D8" stroke-opacity=".5" stroke-width="1.3" stroke-linecap="round"/>
+  <path d="M-10.5 -24.5L0 -38.5L10.5 -24.5" fill="none" stroke="#2B1E10" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M-10.5 -24.5L0 -38.5L10.5 -24.5" fill="none" style="stroke:var(--roof-edge)" stroke-width="2.1" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>
