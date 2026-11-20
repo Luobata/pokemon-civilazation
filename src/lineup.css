@@ -28,7 +28,7 @@
 .lineup-picker .lp-stake-note { font-size: 12px; text-align: center; margin: 2px 0 6px; }
 .lineup-picker footer { display: flex; justify-content: flex-end; gap: 8px; }
 .lineup-picker .lp-stats { display: flex; gap: 4px; flex-wrap: wrap; opacity: 0.9; }
-.lineup-picker .lp-stat { display: inline-flex; align-items: center; gap: 1px; font-size: 11px; }
+.lineup-picker .lp-stat { display: inline-flex; align-items: center; gap: 1px; font-size: var(--text-xs); }
 .lineup-picker .lp-stat svg, .lineup-picker .lp-stat img { width: 12px; height: 12px; }
 .lineup-picker .lp-why { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; justify-content: center; font-size: 12px; margin: 2px 0; }
 .lineup-picker .lp-site-note { font-size: 12px; margin: 0 0 4px; color: #f6e3a1; line-height: 1.5; }

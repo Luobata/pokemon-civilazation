@@ -14,7 +14,7 @@
 .lb .lb-match .league-match-head { display: flex; align-items: center; gap: 6px; height: 18px; color: var(--ink-muted); }
 .lb .lb-replay { margin-left: auto; min-width: 0; min-height: 0; box-shadow: none; height: 18px; padding: 0 6px; line-height: 1; }
 .lb .lb-match .league-pair { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; margin: 0; padding: 0; list-style: none; }
-.lb .lb-slot .league-score { gap: 1px; font-size: 10px; }
+.lb .lb-slot .league-score { gap: 1px; font-size: var(--text-tag); }
 .lb .lb-slot .league-score .px-icon { width: 12px; height: 12px; }
 .league-card .league-champion .px-art, .league-card .league-damage .px-art { padding: 1px; }
 .lb .lb-slot { display: flex; min-width: 0; align-items: center; gap: 4px; height: 24px; padding: 0 4px; border-radius: 4px; }
@@ -24,7 +24,7 @@
 .lb .lb-slot.lost { opacity: .62; }
 .lb .lb-slot.mine { outline: 2px solid var(--accent, #72C99E); outline-offset: -2px; }
 .lb .lb-slot.champion .league-team-name b { color: #FFE7A8; }
-.lb .lb-flag { display: inline-grid; place-items: center; flex: 0 0 16px; width: 16px; height: 16px; border: 1px solid #FFFDF7; border-radius: 3px; background: var(--flag); color: #FFFDF7; font-size: 10px; font-weight: 800; }
+.lb .lb-flag { display: inline-grid; place-items: center; flex: 0 0 16px; width: 16px; height: 16px; border: 1px solid #FFFDF7; border-radius: 3px; background: var(--flag); color: #FFFDF7; font-size: var(--text-tag); font-weight: 700; }
 .lb .lb-flag.npc { border-color: #9AA6A0; background: #26343A; }
 .lb .lb-champion { position: absolute; display: grid; justify-items: center; gap: 4px; box-sizing: border-box; padding: 8px 6px; border: 2px solid var(--gold, #F2C14E); border-radius: 8px; background: #403722; text-align: center; }
 .lb .lb-champion b { color: #FFE7A8; font-size: 13px; }

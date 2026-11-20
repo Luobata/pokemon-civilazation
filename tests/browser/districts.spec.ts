@@ -48,7 +48,7 @@ for (const width of [1280, 768, 390] as const) {
     await expect(page.locator('#district-preview')).toContainText('当前已知合计');
     await expect(page.locator('#district-preview')).toContainText('部分相邻格未知');
     await expect(page.locator('#district-preview')).toContainText('城市 1 将释放该格工作与锁定');
-    await expect(page.locator('.district-incomplete')).toHaveCSS('font-size', '10px');
+    await expect(page.locator('.district-incomplete')).toHaveCSS('font-size', '12px'); // the 12px floor for Chinese text (docs/design/fidelity/README.md §1)
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.screenshot({ path: `${reports}/p3-v10-ui-selection-${width}.png`, fullPage: true });
     await page.screenshot({ path: `${reports}/p3-v10-ui2-incomplete-${width}.png`, fullPage: true });

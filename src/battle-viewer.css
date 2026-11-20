@@ -26,7 +26,6 @@
 .bv-step-head small { color: var(--ink-muted); font-weight: 400; }
 .bv-round { min-width: 2.4em; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
 .bv-type { width: 10px; height: 4px; border: 1px solid #10191B; background: var(--type); }
-.bv-steps .px-art { image-rendering: pixelated; }
 .bv-mirror { transform: scaleX(-1); }
 .bv-steps b { min-width: 3em; color: #FFF3C4; font-variant-numeric: tabular-nums; }
 /* Replay entry buttons (toasts, league card, challenge cards). */
@@ -35,7 +34,7 @@
 .matchup { margin: 6px 0 0; padding: 5px 6px; border: 1px solid #3E5450; border-radius: 3px; background: #16262A; }
 .matchup-grid { border-collapse: separate; border-spacing: 2px; margin: 0 auto; }
 .matchup-grid th { padding: 0; font-weight: 400; }
-.matchup-grid th .px-art { display: block; margin: 0 auto; image-rendering: pixelated; }
+.matchup-grid th .px-art { display: block; margin: 0 auto; }
 .matchup-grid thead th:first-child { vertical-align: middle; }
 .mu-types { display: flex; justify-content: center; gap: 1px; }
 .matchup-grid tbody th { display: flex; align-items: center; gap: 2px; }
@@ -45,13 +44,12 @@
 .mu-cell.bad { background: #47262A; border-color: #8A4E4E; }
 .mu-out { position: absolute; top: 2px; left: 3px; line-height: 0; }
 .mu-in { position: absolute; right: 2px; bottom: 2px; line-height: 0; opacity: .9; }
-.mu-first { position: absolute; right: 3px; top: 1px; font-size: 9px; line-height: 1; color: #F6C945; }
+.mu-first { position: absolute; right: 3px; top: 1px; font-size: var(--text-tag); line-height: 1; color: #F6C945; }
 .mu-first-key { color: #F6C945; margin-right: 2px; }
-.matchup-legend { display: flex; margin-bottom: 0; flex-wrap: wrap; justify-content: center; gap: 4px 10px; margin-top: 3px; color: var(--ink-muted); font-size: 11px; }
+.matchup-legend { display: flex; margin-bottom: 0; flex-wrap: wrap; justify-content: center; gap: 4px 10px; margin-top: 3px; color: var(--ink-muted); font-size: var(--text-xs); }
 .matchup-legend > span { display: inline-flex; align-items: center; gap: 3px; }
 .matchup-legend .mu-key .mu-out, .matchup-legend .mu-key .mu-in { position: static; }
 .cp-team-sprites { display: flex; flex-wrap: wrap; gap: 2px; margin: 2px 0; }
-.cp-team-sprites .px-art { image-rendering: pixelated; }
 /* Guardian / Elite Four challenge card (src/browser/challenge-card.ts): a fixed dialog above the screens. */
 .combat-card.challenge-card { position: fixed; top: 50%; left: 50%; z-index: 26; width: min(500px, calc(100vw - 24px)); max-height: calc(100vh - 32px); transform: translate(-50%, -50%); }
 .combat-card.challenge-card[hidden] { display: none; }
@@ -67,11 +65,11 @@
 .bv-steps button { min-height: 0; }
 
 /* Playtest 2026-11b: key turns above a collapsible step list. */
-.bv-keys-box h4 { display: flex; align-items: center; gap: 4px; margin: 0 0 2px; color: var(--ink-muted); font-size: 11px; font-weight: 600; }
+.bv-keys-box h4 { display: flex; align-items: center; gap: 4px; margin: 0 0 2px; color: var(--ink-muted); font-size: var(--text-xs); font-weight: 600; }
 .bv-keys { display: flex; flex-wrap: wrap; gap: 3px; margin: 0; padding: 0; list-style: none; }
 .bv-key button { display: inline-flex; align-items: center; gap: 2px; min-height: 0; padding: 1px 4px; border: 1px solid var(--border-strong); border-radius: 4px; background: transparent; color: var(--ink-secondary); }
 .bv-key.faint.away button { border-color: #6fdc6f; }
 .bv-key.faint.home button { border-color: #d3655c; }
 .bv-key .grey { filter: grayscale(1) opacity(0.7); }
-.bv-key.none { color: var(--ink-muted); font-size: 11px; }
-.bv-steps-box summary { cursor: pointer; color: var(--ink-muted); font-size: 11px; }
+.bv-key.none { color: var(--ink-muted); font-size: var(--text-xs); }
+.bv-steps-box summary { cursor: pointer; color: var(--ink-muted); font-size: var(--text-xs); }

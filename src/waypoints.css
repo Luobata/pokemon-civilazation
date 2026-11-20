@@ -8,7 +8,7 @@
 .site-pin-button { position: absolute; left: -13px; top: -44px; display: grid; place-items: center; width: 26px; height: 26px; min-height: 0; padding: 0;
   border: 0; background: none; box-shadow: none; pointer-events: auto; cursor: pointer; filter: drop-shadow(1px 2px 0 rgb(4 12 15 / 75%)); }
 .site-pin-button img { position: absolute; inset: 0; image-rendering: pixelated; }
-.site-pin-button b { position: relative; top: -3px; color: #17262A; font-size: 12px; font-weight: 800; line-height: 1; }
+.site-pin-button b { position: relative; top: -3px; color: #17262A; font-size: 12px; font-weight: 700; line-height: 1; }
 .site-pin-button:hover, .site-pin-button:focus-visible { outline: 2px solid #FFF3C4; outline-offset: 1px; border-radius: 4px; }
 .site-card { position: absolute; left: 0; bottom: 48px; display: none; gap: 5px; width: max-content; max-width: 250px; padding: 7px 9px;
   transform: translateX(-50%); border: 1px solid var(--border-strong); border-left: 3px solid #F2A93B; border-radius: var(--radius-md);

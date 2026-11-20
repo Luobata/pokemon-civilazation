@@ -22,7 +22,7 @@
 .trainer-card .tc-line { color: #CFEFF7; font-style: italic; }
 
 .league-roster-strip { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0; padding: 0; list-style: none; }
-.league-roster-strip li { position: relative; display: grid; justify-items: center; gap: 2px; width: 52px; font-size: 11px; }
+.league-roster-strip li { position: relative; display: grid; justify-items: center; gap: 2px; width: 52px; font-size: var(--text-xs); }
 .league-roster-strip li.unmet .trainer-portrait { filter: brightness(0) opacity(.55); }
 .league-roster-strip li.unmet small { color: var(--ink-muted, #8FA39A); }
 .league-roster-strip li .px-icon { position: absolute; top: -4px; right: 0; }
@@ -41,4 +41,4 @@
 .league-world .league-announced { display: grid; gap: 4px; margin: 4px 0 8px; padding: 0; list-style: none; }
 .league-world .league-announced li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .league-world .league-announced small { color: var(--ink-secondary, #B8C8C0); }
-.league-world .tc-nemesis { padding: 0 4px; border-radius: 3px; background: #5A2430; color: #FFC2CA; font-size: 11px; font-style: normal; font-weight: 700; }
+.league-world .tc-nemesis { padding: 0 4px; border-radius: 3px; background: #5A2430; color: #FFC2CA; font-size: var(--text-xs); font-style: normal; font-weight: 700; }

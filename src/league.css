@@ -11,7 +11,6 @@
 .league-champion { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 10px; border-radius: 10px; background: #403722aa; }
 .league-champion b { color: #FFE7A8; font-size: 15px; }
 .league-team-sprites { display: inline-flex; gap: 2px; }
-.league-team-sprites .px-art { image-rendering: pixelated; }
 .league-bracket { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; align-items: center; }
 .league-bracket h4, .league-roster h4 { margin: 0 0 6px; color: var(--ink-secondary); font-size: 13px; }
 .league-bracket h4 small { color: var(--ink-muted); font-weight: 400; }
@@ -49,6 +48,6 @@
 .battle-log-title small { opacity: 0.8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .battle-log-team { display: inline-flex; gap: 1px; }
 .battle-log-matches { display: inline-flex; flex-wrap: wrap; gap: 3px; }
-.battle-log-matches button { display: inline-flex; align-items: center; gap: 2px; padding: 1px 5px; font-size: 11px; min-height: 0; }
+.battle-log-matches button { display: inline-flex; align-items: center; gap: 2px; padding: 1px 5px; font-size: var(--text-xs); min-height: 0; }
 .battle-log-empty { opacity: 0.7; font-size: 12px; }
 .unit-battle-log { display: inline-flex; align-items: center; gap: 2px; padding: 2px 6px; min-height: 0; margin-left: 4px; }
