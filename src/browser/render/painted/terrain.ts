@@ -127,128 +127,246 @@ function detail(g: CanvasRenderingContext2D, kind: GroundKind, rnd: () => number
 }
 
 // ---------- Standing props ----------
+// Every prop is drawn the same way (fidelity pass, docs/design/fidelity/README.md): a soft contact shadow cast to the south-east,
+// a thin dark ink silhouette, the shade colour as the body, the mid tone shifted toward the light (north-west) so the shade
+// remains as a rim on the lower right, light caps on the lit lobes and a little texture. Sizes are in device pixels.
 export type Prop = { canvas: HTMLCanvasElement; ox: number; oy: number } | null;
-const props = spriteCache<Prop>(220);
-type TreeTone = { light: string; mid: string; dark: string };
+const props = spriteCache<Prop>(260);
+type TreeTone = { light: string; mid: string; dark: string; ink: string };
 const BROADLEAF: readonly TreeTone[] = [
-  { light: '#A9D05E', mid: '#62A03C', dark: '#2F622B' }, { light: '#BCD565', mid: '#79A942', dark: '#3B6A2C' }, { light: '#98C858', mid: '#4F9139', dark: '#28552A' },
+  { light: '#BEDD6E', mid: '#6FA944', dark: '#2F652F', ink: '#1B341A' },
+  { light: '#CFE27A', mid: '#86B24B', dark: '#40702F', ink: '#21391A' },
+  { light: '#A8D366', mid: '#5B9B3F', dark: '#295B2D', ink: '#17301A' },
 ];
-const shadow = (g: CanvasRenderingContext2D, x: number, y: number, rx: number, sq: number) => dab(g, x, y, rx, rx * sq * .5, '#1A140C', .45);
+const INK = '#21170D';
+const ink = (s: number) => Math.max(1, s * .055);
+const shadow = (g: CanvasRenderingContext2D, x: number, y: number, rx: number, sq: number) => dab(g, x, y, rx, rx * sq * .5, '#1A140C', .42);
+/** Union of discs as one path (nonzero fill), each grown by `grow` and shifted by (dx, dy). */
+function discs(g: CanvasRenderingContext2D, lobes: readonly (readonly [number, number, number])[], dx = 0, dy = 0, grow = 0) {
+  g.beginPath();
+  for (const [x, y, r] of lobes) { if (r + grow <= 0) continue; g.moveTo(x + dx + r + grow, y + dy); g.arc(x + dx, y + dy, r + grow, 0, Math.PI * 2); }
+}
 
-function broadleaf(g: CanvasRenderingContext2D, x: number, y: number, s: number, tone: TreeTone, sq: number) {
-  shadow(g, x + s * .35, y, s * 1.15, sq);
-  g.fillStyle = '#6A4A2C'; g.fillRect(x - s * .13, y - s * .95, s * .26, s * .95);
-  g.fillStyle = '#4A321E'; g.fillRect(x, y - s * .95, s * .13, s * .95);
-  const blobs: [number, number, number][] = [[-.48, -1.15, .68], [.45, -1.1, .64], [0, -1.62, .8]];
-  for (const [dx, dy, r] of blobs) {
-    const bx = x + dx * s, by = y + dy * s, radius = r * s;
-    const fill = g.createRadialGradient(bx - radius * .35, by - radius * .4, radius * .1, bx, by, radius);
-    fill.addColorStop(0, tone.light); fill.addColorStop(.55, tone.mid); fill.addColorStop(1, tone.dark);
-    g.fillStyle = fill; g.beginPath(); g.arc(bx, by, radius, 0, Math.PI * 2); g.fill();
-  }
-  dab(g, x - s * .25, y - s * 1.85, s * .3, s * .22, '#E6F2A0', .55);
+/** A tapered trunk with a root flare, lit on the left. */
+function trunk(g: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, lean = 0) {
+  const top = y - height, tx = x + lean;
+  g.beginPath(); g.moveTo(x - width * 1.5, y); g.quadraticCurveTo(x - width * .55, y - height * .15, tx - width * .5, top);
+  g.lineTo(tx + width * .5, top); g.quadraticCurveTo(x + width * .55, y - height * .15, x + width * 1.5, y); g.quadraticCurveTo(x, y + width * .35, x - width * 1.5, y);
+  const bark = g.createLinearGradient(x - width * 1.5, 0, x + width * 1.5, 0);
+  bark.addColorStop(0, '#93693F'); bark.addColorStop(.42, '#6E4B2B'); bark.addColorStop(1, '#3B2716');
+  g.fillStyle = bark; g.fill(); g.strokeStyle = alpha(INK, .75); g.lineWidth = Math.max(1, width * .3); g.stroke();
 }
-function conifer(g: CanvasRenderingContext2D, x: number, y: number, h: number, snowy: boolean, sq: number) {
-  shadow(g, x + h * .18, y, h * .38, sq);
-  g.fillStyle = '#5A3E26'; g.fillRect(x - h * .05, y - h * .2, h * .1, h * .2);
-  for (let tier = 0; tier < 3; tier++) {
-    const base = y - h * (.15 + tier * .26), top = base - h * .42, half = h * (.3 - tier * .06);
-    const fill = g.createLinearGradient(x - half, 0, x + half, 0);
-    fill.addColorStop(0, snowy ? '#4C7C66' : '#3F8A4A'); fill.addColorStop(.5, snowy ? '#2F5B4C' : '#2C6638'); fill.addColorStop(1, snowy ? '#1D3B33' : '#1A4426');
-    g.fillStyle = fill;
-    g.beginPath(); g.moveTo(x, top); g.quadraticCurveTo(x - half * .35, base - h * .12, x - half, base); g.quadraticCurveTo(x, base + h * .05, x + half, base);
-    g.quadraticCurveTo(x + half * .35, base - h * .12, x, top); g.fill();
-    if (snowy) { g.beginPath(); g.moveTo(x, top); g.quadraticCurveTo(x - half * .3, base - h * .2, x - half * .75, base - h * .04); g.strokeStyle = '#F4FAFC'; g.lineWidth = h * .05; g.lineCap = 'round'; g.stroke(); }
+
+/** A round-crowned broadleaf tree: seeded lobes around a centre, `s` ≈ a fifth of its height. */
+function broadleaf(g: CanvasRenderingContext2D, x: number, y: number, s: number, tone: TreeTone, sq: number, rnd: () => number) {
+  shadow(g, x + s * .45, y + s * .04, s * 1.15, sq);
+  trunk(g, x, y, s * .12, s * 1.05, (rnd() - .5) * s * .1);
+  const cx = x + (rnd() - .5) * s * .12, cy = y - s * 1.62, count = 5 + Math.floor(rnd() * 2), lobes: [number, number, number][] = [];
+  for (let i = 0; i < count; i++) {
+    const a = -Math.PI / 2 + i * Math.PI * 2 / count + (rnd() - .5) * .55;
+    lobes.push([cx + Math.cos(a) * s * .5, cy + Math.sin(a) * s * .42, s * (.36 + rnd() * .12)]);
   }
-}
-function bush(g: CanvasRenderingContext2D, x: number, y: number, s: number, sq: number) {
-  shadow(g, x + s * .3, y, s, sq);
-  const fill = g.createRadialGradient(x - s * .3, y - s * .7, s * .1, x, y - s * .45, s * .8);
-  fill.addColorStop(0, '#B4D86A'); fill.addColorStop(.6, '#5E9A3A'); fill.addColorStop(1, '#2F5E2A');
-  g.fillStyle = fill; g.beginPath(); g.ellipse(x, y - s * .45, s * .8, s * .6, 0, 0, Math.PI * 2); g.fill();
-}
-type Rock = { light: string; mid: string; dark: string };
-const ROCK: Rock = { light: '#D9C9A6', mid: '#A08D71', dark: '#5E5345' };
-const ROCK_SNOW: Rock = { light: '#E8EEF0', mid: '#A6AEB4', dark: '#5D6870' };
-function massif(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, rock: Rock, cap: number, rnd: () => number, sq: number) {
-  shadow(g, x + w * .12, y, w * .62, sq);
-  const peak = x + (rnd() - .5) * w * .14;
-  const outline = () => { g.beginPath(); g.moveTo(x - w / 2, y); g.quadraticCurveTo(x - w * .3, y - h * .55, peak, y - h); g.quadraticCurveTo(x + w * .26, y - h * .5, x + w / 2, y); g.quadraticCurveTo(x, y + h * .05, x - w / 2, y); };
-  const fill = g.createLinearGradient(x - w / 2, y - h, x + w / 2, y);
-  fill.addColorStop(0, rock.light); fill.addColorStop(.5, rock.mid); fill.addColorStop(1, rock.dark);
-  outline(); g.fillStyle = fill; g.fill();
-  // The shaded east face.
-  g.save(); outline(); g.clip();
-  g.beginPath(); g.moveTo(peak, y - h); g.quadraticCurveTo(peak + w * .02, y - h * .45, x + w * .06, y + h * .05); g.lineTo(x + w * .6, y + h * .05); g.lineTo(x + w * .6, y - h); g.closePath();
-  g.fillStyle = alpha(rock.dark, .45); g.fill();
-  // Ridges and gullies.
-  for (let k = 0; k < 4; k++) {
-    const sx = peak + (rnd() - .6) * w * .25, sy = y - h * (.55 + rnd() * .3);
-    stroke(g, sx - w * .06, sy + h * .2, h * (.3 + rnd() * .2), Math.PI * (.55 + rnd() * .2), .2, Math.max(1, w * .018), alpha(rock.dark, .45));
-  }
-  if (cap > 0) {
-    const capY = y - h * (1 - cap);
-    const snow = g.createLinearGradient(peak - w * .2, 0, peak + w * .25, 0);
-    snow.addColorStop(0, '#FFFFFF'); snow.addColorStop(.55, '#EEF4F8'); snow.addColorStop(1, '#B7CADA');
-    g.beginPath(); g.moveTo(peak, y - h * 1.02);
-    const left = peak - w * .5 * cap * 1.1, right = peak + w * .5 * cap * 1.05;
-    g.lineTo(right, capY);
-    for (let k = 0; k <= 5; k++) { const t = 1 - k / 5, px = left + (right - left) * t; g.lineTo(px, capY + (k % 2 ? h * .07 : -h * .02) * (1 + rnd() * .5)); }
-    g.lineTo(left, capY); g.closePath(); g.fillStyle = snow; g.fill();
+  lobes.push([cx, cy - s * .04, s * .52]);
+  discs(g, lobes, 0, 0, ink(s)); g.fillStyle = tone.ink; g.fill();
+  discs(g, lobes); g.fillStyle = tone.dark; g.fill();
+  g.save(); discs(g, lobes); g.clip();
+  discs(g, lobes, -s * .09, -s * .11, -s * .05); g.fillStyle = tone.mid; g.fill();
+  // Light caps on the lobes facing the light.
+  g.beginPath();
+  for (const [lx, ly, r] of lobes) if ((lx - cx) + (ly - cy) * 1.3 < s * .12) { g.moveTo(lx - r * .32 + r * .42, ly - r * .38); g.arc(lx - r * .32, ly - r * .38, r * .42, 0, Math.PI * 2); }
+  g.fillStyle = alpha(tone.light, .78); g.fill();
+  // Leaf texture: shade crescents on the lower right, bright flecks on the upper left.
+  g.lineCap = 'round';
+  for (let k = 0; k < 9; k++) {
+    const a = rnd() * Math.PI * 2, d = rnd() * s * .62, px = cx + Math.cos(a) * d, py = cy + Math.sin(a) * d * .85, lit = (px - cx) + (py - cy) < 0;
+    g.beginPath(); g.arc(px, py, s * (.09 + rnd() * .05), lit ? Math.PI * 1.05 : Math.PI * .05, lit ? Math.PI * 1.65 : Math.PI * .75);
+    g.strokeStyle = lit ? alpha('#F2F7B4', .6) : alpha(tone.ink, .45); g.lineWidth = Math.max(1, s * .045); g.stroke();
   }
   g.restore();
-  outline(); g.strokeStyle = alpha(rock.dark, .55); g.lineWidth = Math.max(1, w * .012); g.stroke();
 }
-function mound(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, pal: Palette, sq: number) {
-  shadow(g, x + w * .1, y + h * .05, w * .58, sq);
-  g.beginPath(); g.moveTo(x - w / 2, y); g.bezierCurveTo(x - w * .38, y - h * 1.32, x + w * .38, y - h * 1.32, x + w / 2, y); g.quadraticCurveTo(x, y + h * .18, x - w / 2, y);
-  const fill = g.createRadialGradient(x - w * .16, y - h * .82, w * .05, x, y - h * .3, w * .62);
-  fill.addColorStop(0, lighten(pal.light, .15)); fill.addColorStop(.55, pal.base); fill.addColorStop(1, mix(pal.base, pal.dark, .7));
-  g.fillStyle = fill; g.fill();
+
+/** A layered conifer, `h` tall; snowy ones carry snow on the lit side of every tier. */
+function conifer(g: CanvasRenderingContext2D, x: number, y: number, h: number, snowy: boolean, sq: number) {
+  shadow(g, x + h * .2, y + h * .01, h * .34, sq);
+  trunk(g, x, y, h * .035, h * .22);
+  const tiers = h > 26 ? 4 : 3, inkWidth = Math.max(1, h * .022);
+  const colors = snowy ? ['#5B8A72', '#356452', '#1E4036'] : ['#4F9A55', '#2E6E3C', '#1B4628'];
+  for (let tier = 0; tier < tiers; tier++) {
+    const t = tier / tiers, base = y - h * (.16 + t * .74), top = base - h * (.44 - t * .1), half = h * (.32 - t * .2);
+    const path = new Path2D();
+    path.moveTo(x, top); path.quadraticCurveTo(x - half * .3, base - h * .14, x - half, base);
+    // A scalloped hem: three small drooping arcs.
+    for (let k = 0; k < 3; k++) { const x0 = x - half + k * half * 2 / 3, x1 = x0 + half * 2 / 3; path.quadraticCurveTo((x0 + x1) / 2, base + h * .05, x1, base); }
+    path.quadraticCurveTo(x + half * .3, base - h * .14, x, top); path.closePath();
+    g.lineJoin = 'round'; g.strokeStyle = INK; g.lineWidth = inkWidth * 2; g.stroke(path);
+    const fill = g.createLinearGradient(x - half, 0, x + half, 0);
+    fill.addColorStop(0, colors[0]); fill.addColorStop(.48, colors[1]); fill.addColorStop(1, colors[2]);
+    g.fillStyle = fill; g.fill(path);
+    g.save(); g.clip(path);
+    // Shade under the hem and a lit ridge down the left flank.
+    dab(g, x + half * .2, base, half * 1.1, h * .06, colors[2], .55);
+    g.beginPath(); g.moveTo(x - inkWidth, top + h * .04); g.quadraticCurveTo(x - half * .35, base - h * .16, x - half * .82, base - h * .02);
+    g.strokeStyle = snowy ? '#F4FAFC' : alpha('#B6DB78', .75); g.lineWidth = snowy ? h * .06 : Math.max(1, h * .025); g.lineCap = 'round'; g.stroke();
+    g.restore();
+  }
+}
+
+/** A palm: a leaning ringed trunk and a crown of drooping fronds. */
+function palm(g: CanvasRenderingContext2D, x: number, y: number, s: number, lean: number, sq: number) {
+  shadow(g, x + s * .6, y, s * .75, sq);
+  const top = { x: x + lean * s * .45, y: y - s * 1.7 };
+  g.lineCap = 'round';
+  g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + lean * s * .05, y - s * .9, top.x, top.y);
+  g.strokeStyle = INK; g.lineWidth = s * .2; g.stroke();
+  g.strokeStyle = '#8E6A43'; g.lineWidth = s * .13; g.stroke();
+  for (let k = 1; k < 7; k++) {
+    const t = k / 7, px = (1 - t) * (1 - t) * x + 2 * (1 - t) * t * (x + lean * s * .05) + t * t * top.x, py = (1 - t) * (1 - t) * y + 2 * (1 - t) * t * (y - s * .9) + t * t * top.y;
+    g.beginPath(); g.moveTo(px - s * .065, py); g.lineTo(px + s * .065, py - s * .02); g.strokeStyle = alpha('#4A3220', .8); g.lineWidth = Math.max(1, s * .03); g.stroke();
+  }
+  for (const [angle, length] of [[-2.9, .95], [-2.3, .85], [-1.75, .7], [-1.2, .85], [-.55, .95], [.1, .8], [2.6, .7]] as const) {
+    const tip = { x: top.x + Math.cos(angle) * s * length, y: top.y + Math.sin(angle) * s * length * .7 + s * .32 };
+    const mid = { x: (top.x + tip.x) / 2, y: Math.min(top.y, tip.y) - s * .18 }, nx = -(tip.y - top.y) * .16, ny = (tip.x - top.x) * .16;
+    g.beginPath(); g.moveTo(top.x, top.y); g.quadraticCurveTo(mid.x + nx, mid.y + ny, tip.x, tip.y); g.quadraticCurveTo(mid.x - nx, mid.y - ny, top.x, top.y);
+    const lit = Math.cos(angle) < 0;
+    g.fillStyle = lit ? '#6FAE45' : '#3F7A32'; g.fill(); g.strokeStyle = INK; g.lineWidth = Math.max(1, s * .035); g.stroke();
+    g.beginPath(); g.moveTo(top.x, top.y); g.quadraticCurveTo(mid.x, mid.y, tip.x, tip.y); g.strokeStyle = lit ? alpha('#D8EC92', .8) : alpha('#7DB255', .7); g.lineWidth = Math.max(1, s * .025); g.stroke();
+  }
+  for (const [dx, dy] of [[-.08, .1], [.08, .12], [0, .2]] as const) { g.beginPath(); g.arc(top.x + dx * s, top.y + dy * s, s * .07, 0, Math.PI * 2); g.fillStyle = '#5A3B1E'; g.fill(); }
+}
+
+function bush(g: CanvasRenderingContext2D, x: number, y: number, s: number, sq: number, rnd: () => number, berries = false) {
+  shadow(g, x + s * .35, y, s, sq);
+  const lobes: [number, number, number][] = [[x - s * .42, y - s * .38, s * .42], [x + s * .4, y - s * .36, s * .4], [x, y - s * .6, s * .5]];
+  discs(g, lobes, 0, 0, Math.max(1, s * .08)); g.fillStyle = '#1D3A1B'; g.fill();
+  discs(g, lobes); g.fillStyle = '#356B2E'; g.fill();
+  g.save(); discs(g, lobes); g.clip();
+  discs(g, lobes, -s * .12, -s * .14, -s * .08); g.fillStyle = '#6FA944'; g.fill();
+  dab(g, x - s * .3, y - s * .78, s * .34, s * .24, '#D6EC8C', .7);
+  g.restore();
+  if (berries) for (let k = 0; k < 3; k++) { g.beginPath(); g.arc(x + (rnd() - .5) * s, y - s * (.35 + rnd() * .35), Math.max(1, s * .08), 0, Math.PI * 2); g.fillStyle = '#E2584A'; g.fill(); }
+}
+
+type Rock = { light: string; mid: string; dark: string };
+const ROCK: Rock = { light: '#E0D0AC', mid: '#A58F70', dark: '#5B4E40' };
+const ROCK_SNOW: Rock = { light: '#ECF1F3', mid: '#A9B2B9', dark: '#56626B' };
+const DARK_ROCK: Rock = { light: '#8A6A5C', mid: '#4E3A37', dark: '#2A1E20' };
+function massif(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, rock: Rock, cap: number, rnd: () => number, sq: number) {
+  shadow(g, x + w * .18, y + h * .02, w * .62, sq);
+  const peak = x + (rnd() - .5) * w * .14, shoulder = (rnd() - .5) * .1;
+  const outline = () => {
+    g.beginPath(); g.moveTo(x - w / 2, y);
+    g.quadraticCurveTo(x - w * (.34 + shoulder), y - h * .5, x - w * .16, y - h * .72); g.lineTo(peak, y - h);
+    g.lineTo(x + w * .1, y - h * .78); g.quadraticCurveTo(x + w * .3, y - h * .48, x + w / 2, y);
+    g.quadraticCurveTo(x, y + h * .06, x - w / 2, y); g.closePath();
+  };
+  outline(); g.strokeStyle = INK; g.lineWidth = Math.max(1.5, w * .03); g.lineJoin = 'round'; g.stroke();
+  const fill = g.createLinearGradient(x - w / 2, y - h, x + w * .2, y);
+  fill.addColorStop(0, rock.light); fill.addColorStop(.6, rock.mid); fill.addColorStop(1, mix(rock.mid, rock.dark, .4));
+  outline(); g.fillStyle = fill; g.fill();
+  g.save(); outline(); g.clip();
+  // The shaded east face, from the summit down a slightly wandering ridge.
+  const ridge = peak + w * (.02 + rnd() * .04);
+  g.beginPath(); g.moveTo(peak, y - h); g.quadraticCurveTo(ridge, y - h * .5, x + w * .1, y + h * .06); g.lineTo(x + w * .6, y + h * .06); g.lineTo(x + w * .6, y - h * 1.1); g.closePath();
+  g.fillStyle = alpha(rock.dark, .58); g.fill();
+  // Gullies on the lit face, strata on the shade face.
+  g.lineCap = 'round';
+  for (let k = 0; k < 4; k++) {
+    const sx = peak - w * (.05 + rnd() * .25), sy = y - h * (.45 + rnd() * .35);
+    stroke(g, sx, sy + h * .12, h * (.22 + rnd() * .18), Math.PI * (.6 + rnd() * .12), .15, Math.max(1, w * .016), alpha(rock.dark, .5));
+  }
+  for (let k = 0; k < 3; k++) stroke(g, ridge + w * (.08 + k * .08), y - h * (.25 + k * .14), w * .16, -.15, .1, Math.max(1, w * .012), alpha(INK, .35));
+  // Lit ridge line.
+  g.beginPath(); g.moveTo(peak, y - h); g.quadraticCurveTo(ridge - w * .01, y - h * .5, x + w * .08, y + h * .04);
+  g.strokeStyle = alpha(lighten(rock.light, .4), .55); g.lineWidth = Math.max(1, w * .012); g.stroke();
+  if (cap > 0) {
+    const capY = y - h * (1 - cap), left = peak - w * .5 * cap * 1.1, right = peak + w * .5 * cap * 1.05;
+    g.beginPath(); g.moveTo(peak, y - h * 1.02); g.lineTo(right, capY);
+    for (let k = 0; k <= 5; k++) { const t = 1 - k / 5, px = left + (right - left) * t; g.lineTo(px, capY + (k % 2 ? h * .08 : -h * .015) * (1 + rnd() * .5)); }
+    g.lineTo(left, capY); g.closePath();
+    g.fillStyle = '#F7FAFC'; g.fill();
+    g.save(); g.clip();
+    g.beginPath(); g.moveTo(peak, y - h * 1.05); g.quadraticCurveTo(ridge, y - h * .7, x + w * .3, capY + h * .2); g.lineTo(x + w * .6, y - h * 1.1); g.closePath();
+    g.fillStyle = '#B9CCDB'; g.fill();
+    g.restore();
+  }
+  g.restore();
+}
+function mound(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, pal: Palette, sq: number, rnd: () => number) {
+  shadow(g, x + w * .12, y + h * .06, w * .58, sq);
+  const path = new Path2D();
+  path.moveTo(x - w / 2, y); path.bezierCurveTo(x - w * .38, y - h * 1.32, x + w * .38, y - h * 1.32, x + w / 2, y); path.quadraticCurveTo(x, y + h * .18, x - w / 2, y);
+  g.strokeStyle = alpha(darken(pal.dark, .4), .55); g.lineWidth = Math.max(1, w * .015); g.stroke(path);
+  const fill = g.createRadialGradient(x - w * .18, y - h * .85, w * .04, x, y - h * .3, w * .62);
+  fill.addColorStop(0, lighten(pal.light, .2)); fill.addColorStop(.5, pal.base); fill.addColorStop(1, mix(pal.base, pal.dark, .75));
+  g.fillStyle = fill; g.fill(path);
+  g.save(); g.clip(path);
+  dab(g, x + w * .3, y - h * .1, w * .35, h * .5, pal.dark, .4);
+  g.lineCap = 'round';
+  for (let k = 0; k < 6; k++) {
+    const tx = x + (rnd() - .5) * w * .7, ty = y - h * (.15 + rnd() * .6), t = Math.max(1, w * .012), l = w * .035;
+    g.beginPath(); g.moveTo(tx - l * .5, ty); g.lineTo(tx - l * .2, ty - l); g.moveTo(tx + l * .1, ty); g.lineTo(tx + l * .4, ty - l * .9);
+    g.strokeStyle = alpha(tx < x ? lighten(pal.light, .25) : pal.dark, .6); g.lineWidth = t; g.stroke();
+  }
+  g.restore();
   // A lit crest line instead of a hard outline.
   g.beginPath(); g.moveTo(x - w * .32, y - h * .62); g.bezierCurveTo(x - w * .2, y - h * .98, x + w * .1, y - h * 1.02, x + w * .22, y - h * .82);
-  g.strokeStyle = alpha(lighten(pal.light, .3), .55); g.lineWidth = Math.max(1, w * .02); g.lineCap = 'round'; g.stroke();
+  g.strokeStyle = alpha(lighten(pal.light, .35), .6); g.lineWidth = Math.max(1, w * .02); g.lineCap = 'round'; g.stroke();
 }
 function cone(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, sq: number) {
-  shadow(g, x + w * .12, y, w * .62, sq);
+  shadow(g, x + w * .14, y, w * .62, sq);
   const outline = () => { g.beginPath(); g.moveTo(x - w / 2, y); g.quadraticCurveTo(x - w * .22, y - h * .6, x - w * .12, y - h); g.lineTo(x + w * .12, y - h); g.quadraticCurveTo(x + w * .22, y - h * .6, x + w / 2, y); g.quadraticCurveTo(x, y + h * .06, x - w / 2, y); };
+  outline(); g.strokeStyle = INK; g.lineWidth = Math.max(1.5, w * .03); g.lineJoin = 'round'; g.stroke();
   const fill = g.createLinearGradient(x - w / 2, 0, x + w / 2, 0);
-  fill.addColorStop(0, '#8A6A5C'); fill.addColorStop(.5, '#4E3A37'); fill.addColorStop(1, '#2A1E20');
+  fill.addColorStop(0, '#93715F'); fill.addColorStop(.45, '#523D39'); fill.addColorStop(1, '#2A1E20');
   outline(); g.fillStyle = fill; g.fill();
-  stroke(g, x - w * .05, y - h * .55, h * .7, Math.PI * .56, .25, w * .06, alpha('#E0522A', .85));
-  stroke(g, x - w * .05, y - h * .55, h * .62, Math.PI * .56, .25, w * .022, '#FFC36A');
+  g.save(); outline(); g.clip();
+  for (let k = 0; k < 4; k++) stroke(g, x - w * (.3 - k * .17), y - h * .35, h * .5, Math.PI * (.5 - (k - 1.5) * .06), .1, Math.max(1, w * .014), alpha('#1C1416', .45));
+  g.restore();
+  stroke(g, x - w * .05, y - h * .55, h * .7, Math.PI * .56, .25, w * .065, alpha('#E0522A', .85));
+  stroke(g, x - w * .05, y - h * .55, h * .62, Math.PI * .56, .25, w * .024, '#FFC36A');
   g.beginPath(); g.ellipse(x, y - h, w * .13, w * .045, 0, 0, Math.PI * 2); g.fillStyle = '#2A1716'; g.fill();
-  dab(g, x, y - h, w * .18, w * .08, '#FF8A3A', .9);
+  dab(g, x, y - h, w * .2, w * .09, '#FF8A3A', .9);
   for (const [dx, dy, r] of [[.04, -1.18, .12], [.12, -1.36, .15], [.2, -1.56, .17]] as const) dab(g, x + dx * w, y + dy * h, r * w, r * w * .8, '#857C78', .55);
 }
 function cactus(g: CanvasRenderingContext2D, x: number, y: number, s: number, sq: number) {
-  shadow(g, x + s * .2, y, s * .5, sq);
-  g.lineCap = 'round';
-  for (const [x0, y0, x1, y1, width] of [[0, 0, 0, -1.1, .28], [-.3, -.45, -.3, -.8, .18], [.28, -.6, .28, -.9, .16]] as const) {
-    g.beginPath(); g.moveTo(x + x0 * s, y + y0 * s); g.lineTo(x + x1 * s, y + y1 * s); g.strokeStyle = '#3F7A3A'; g.lineWidth = width * s; g.stroke();
-    g.beginPath(); g.moveTo(x + x0 * s - width * s * .18, y + y0 * s); g.lineTo(x + x1 * s - width * s * .18, y + y1 * s); g.strokeStyle = '#7FB45A'; g.lineWidth = width * s * .3; g.stroke();
-  }
-  g.beginPath(); g.moveTo(x - .3 * s, y - .45 * s); g.lineTo(x, y - .45 * s); g.moveTo(x + .28 * s, y - .6 * s); g.lineTo(x, y - .6 * s); g.strokeStyle = '#3F7A3A'; g.lineWidth = .16 * s; g.stroke();
+  shadow(g, x + s * .3, y, s * .5, sq);
+  g.lineCap = 'round'; g.lineJoin = 'round';
+  const arms = new Path2D();
+  arms.moveTo(x, y); arms.lineTo(x, y - s * 1.1);
+  arms.moveTo(x, y - s * .42); arms.quadraticCurveTo(x - s * .32, y - s * .42, x - s * .32, y - s * .82);
+  arms.moveTo(x, y - s * .58); arms.quadraticCurveTo(x + s * .3, y - s * .58, x + s * .3, y - s * .92);
+  g.strokeStyle = INK; g.lineWidth = s * .3 + Math.max(2, s * .08); g.stroke(arms);
+  g.strokeStyle = '#3F7A3A'; g.lineWidth = s * .3; g.stroke(arms);
+  g.save(); g.translate(-s * .06, -s * .02); g.strokeStyle = '#7DB55A'; g.lineWidth = s * .1; g.stroke(arms); g.restore();
+  g.fillStyle = '#F07AB0'; g.beginPath(); g.arc(x, y - s * 1.14, Math.max(1.5, s * .08), 0, Math.PI * 2); g.fill();
 }
 function boulder(g: CanvasRenderingContext2D, x: number, y: number, s: number, rock: Rock, sq: number) {
-  shadow(g, x + s * .25, y, s * .8, sq);
-  const fill = g.createRadialGradient(x - s * .25, y - s * .55, s * .05, x, y - s * .3, s * .7);
-  fill.addColorStop(0, rock.light); fill.addColorStop(.6, rock.mid); fill.addColorStop(1, rock.dark);
-  g.fillStyle = fill; g.beginPath(); g.ellipse(x, y - s * .3, s * .65, s * .45, 0, 0, Math.PI * 2); g.fill();
+  shadow(g, x + s * .3, y, s * .8, sq);
+  const path = new Path2D();
+  path.moveTo(x - s * .66, y - s * .1); path.quadraticCurveTo(x - s * .6, y - s * .62, x - s * .1, y - s * .74); path.quadraticCurveTo(x + s * .5, y - s * .7, x + s * .66, y - s * .18);
+  path.quadraticCurveTo(x + s * .6, y + s * .06, x, y + s * .04); path.quadraticCurveTo(x - s * .5, y + s * .04, x - s * .66, y - s * .1);
+  g.strokeStyle = INK; g.lineWidth = Math.max(1.5, s * .1); g.lineJoin = 'round'; g.stroke(path);
+  g.fillStyle = rock.dark; g.fill(path);
+  g.save(); g.clip(path);
+  g.beginPath(); g.ellipse(x - s * .12, y - s * .42, s * .5, s * .36, -.3, 0, Math.PI * 2); g.fillStyle = rock.mid; g.fill();
+  g.beginPath(); g.moveTo(x - s * .5, y - s * .3); g.quadraticCurveTo(x - s * .4, y - s * .62, x - s * .05, y - s * .66); g.lineTo(x - s * .12, y - s * .42); g.closePath(); g.fillStyle = rock.light; g.fill();
+  g.restore();
 }
 
 /** Spots inside the (squashed) hex for a tile's props, back to front. */
-function spots(rnd: () => number, count: number, R: number, sq: number, spread = .62): Point[] {
+function spots(rnd: () => number, count: number, R: number, sq: number, spread = .62, gap = .26): Point[] {
   const list: Point[] = [];
-  for (let tries = 0; list.length < count && tries < count * 12; tries++) {
+  for (let tries = 0; list.length < count && tries < count * 14; tries++) {
     const x = (rnd() - .5) * 2 * spread * R, y = (rnd() - .5) * 2 * spread * R * sq;
     if (Math.abs(x) / (.866 * R) + Math.abs(y) / (R * sq) * .55 > .92) continue;
-    if (list.some(p => Math.hypot(p.x - x, (p.y - y) / sq) < R * .26)) continue;
+    if (list.some(p => Math.hypot(p.x - x, (p.y - y) / sq) < R * gap)) continue;
     list.push({ x, y });
   }
   return list.sort((a, b) => a.y - b.y);
 }
 
+/** Share of conifers in a forest tile, per variant: two broadleaf woods, a pine stand and a mixed wood. */
+const CONIFER_SHARE = [.15, .3, .8, .5];
 /** Baked props of a tile (null when it has none); (ox, oy) is the tile centre inside the canvas. */
 export function propSprite(biome: BiomeId, variant: number, hill: boolean, peak: boolean, R: number, sq: number): Prop {
   return props.get(`${biome}|${variant}|${hill ? 1 : 0}${peak ? 1 : 0}|${R}|${sq}`, () => {
@@ -259,35 +377,57 @@ export function propSprite(biome: BiomeId, variant: number, hill: boolean, peak:
     let drew = false, ground = 0;
     if (hill && biome !== 'mountain' && biome !== 'volcano') {
       // Soft rounded relief: one broad dome, a smaller one behind it on some variants.
-      if (variant % 2) mound(g, ox + R * .32, oy - R * .24 * sq, R * .95, R * .26, pal, sq);
-      mound(g, ox - R * .06, oy + R * .14 * sq, R * 1.5, R * .36, pal, sq);
+      if (variant % 2) mound(g, ox + R * .32, oy - R * .24 * sq, R * .95, R * .26, pal, sq, rnd);
+      mound(g, ox - R * .06, oy + R * .14 * sq, R * 1.5, R * .36, pal, sq, rnd);
       ground = R * .4; drew = true;
     }
-    if (biome === 'forest' || (biome === 'grassland' && variant === 3 && !hill)) {
-      const count = biome === 'forest' ? 7 : 2;
-      for (const p of spots(rnd, count, R, sq)) {
-        const lift = hill ? ground * Math.max(0, 1 - Math.hypot(p.x / R, p.y / (R * sq)) * 1.2) : 0;
-        if (rnd() < .3) conifer(g, ox + p.x, oy + p.y - lift, R * (.55 + rnd() * .15), false, sq);
-        else broadleaf(g, ox + p.x, oy + p.y - lift, R * (.2 + rnd() * .06), BROADLEAF[Math.floor(rnd() * BROADLEAF.length)], sq);
-      }
+    const lift = (p: Point) => hill ? ground * Math.max(0, 1 - Math.hypot(p.x / R, p.y / (R * sq)) * 1.2) : 0;
+    const tree = (p: Point, size: number, coniferShare: number) => {
+      const x = ox + p.x, y = oy + p.y - lift(p);
+      if (rnd() < coniferShare) conifer(g, x, y, R * .56 * size, false, sq);
+      else broadleaf(g, x, y, R * .21 * size, BROADLEAF[Math.floor(rnd() * BROADLEAF.length)], sq, rnd);
+    };
+    if (biome === 'forest') {
+      // A wood: a dense clump, the trees at the back a little taller, a bush or two in front.
+      const list = spots(rnd, 9, R, sq, .7, .2);
+      list.forEach((p, i) => tree(p, .82 + (1 - i / list.length) * .22 + rnd() * .14, CONIFER_SHARE[variant]));
+      for (const p of spots(rnd, 2, R, sq, .5, .3).filter(q => q.y > 0)) bush(g, ox + p.x, oy + p.y + R * .25 * sq - lift(p), R * .1, sq, rnd);
+      drew = true;
+    } else if (biome === 'grassland' && variant === 3 && !hill) {
+      // A copse: two or three trees close together.
+      for (const p of spots(rnd, 3, R * .6, sq, .7, .3)) tree(p, .9 + rnd() * .2, .25);
       drew = true;
     } else if (biome === 'grassland') {
-      for (const p of spots(rnd, variant === 0 ? 3 : 1 + variant % 2, R, sq, .55)) bush(g, ox + p.x, oy + p.y - (hill ? ground * .6 : 0), R * (.13 + rnd() * .05), sq);
+      for (const p of spots(rnd, variant === 0 ? 3 : 1 + variant % 2, R, sq, .55)) bush(g, ox + p.x, oy + p.y - (hill ? ground * .6 : 0), R * (.12 + rnd() * .05), sq, rnd, variant === 1);
       drew = true;
     } else if (biome === 'snow') {
       for (const p of spots(rnd, 2 + variant % 2, R, sq, .55)) conifer(g, ox + p.x, oy + p.y - (hill ? ground * .6 : 0), R * (.5 + rnd() * .15), true, sq);
       drew = true;
     } else if (biome === 'desert') {
+      if (variant === 0) {
+        // An oasis: a small pool with two palms.
+        const px = ox - R * .05, py = oy + R * .22 * sq;
+        g.beginPath(); g.ellipse(px, py, R * .3, R * .3 * sq * .55, 0, 0, Math.PI * 2); g.fillStyle = '#C49450'; g.fill();
+        g.beginPath(); g.ellipse(px, py, R * .26, R * .26 * sq * .5, 0, 0, Math.PI * 2); g.fillStyle = '#4FB0C6'; g.fill();
+        dab(g, px - R * .08, py - R * .03, R * .1, R * .03, '#E8FBFF', .8);
+        palm(g, ox - R * .3, oy + R * .05 * sq, R * .26, -.5, sq);
+        palm(g, ox + R * .22, oy - R * .05 * sq, R * .3, .6, sq);
+        drew = true;
+      }
       if (variant === 1 || variant === 3) { cactus(g, ox + R * (rnd() - .5) * .6, oy + R * .15 * sq, R * .32, sq); drew = true; }
+      if (variant === 3) boulder(g, ox + R * .38, oy + R * .3 * sq, R * .12, ROCK, sq);
       if (variant === 2) { boulder(g, ox + R * .25, oy + R * .2 * sq, R * .22, ROCK, sq); boulder(g, ox - R * .1, oy + R * .3 * sq, R * .14, ROCK, sq); drew = true; }
     } else if (biome === 'mountain') {
+      // A small range: two shoulders behind, the main summit in front, scree and (on two variants) a pine on the lower slope.
       const tall = peak ? 1.75 : 1.1;
       massif(g, ox - R * .42, oy - R * .1 * sq, R * .9, R * .62, ROCK, .25, rnd, sq);
       massif(g, ox + R * .38, oy - R * .05 * sq, R * .85, R * .7, ROCK, .28, rnd, sq);
       massif(g, ox + R * (rnd() - .5) * .15, oy + R * .22 * sq, R * 1.25, R * tall, peak ? ROCK_SNOW : ROCK, peak ? .48 : .32, rnd, sq);
+      boulder(g, ox - R * .5, oy + R * .42 * sq, R * .1, ROCK, sq);
+      if (variant % 2 && !peak) conifer(g, ox + R * .55, oy + R * .38 * sq, R * .36, false, sq);
       drew = true;
     } else if (biome === 'volcano') {
-      boulder(g, ox - R * .5, oy + R * .3 * sq, R * .16, { light: '#8A6A5C', mid: '#4E3A37', dark: '#2A1E20' }, sq);
+      boulder(g, ox - R * .5, oy + R * .3 * sq, R * .16, DARK_ROCK, sq);
       cone(g, ox, oy + R * .25 * sq, R * 1.3, R * (peak ? 1.5 : 1.05), sq);
       drew = true;
     }
