@@ -3,6 +3,7 @@
 // cached canvases; the faction patterns repeat the flat map's colour-blind-safe marks (stripes, dots, cross-hatch).
 import type { Point } from '../camera.ts';
 import { propScale } from './projection.ts';
+import { drawPixelArt, snappedScale } from './terrain25d.ts';
 
 const RT = 24;
 /** Town canvas (native pixels): room above the tile for the keep and its flag. */
@@ -89,7 +90,7 @@ function townArt(roof: string, houses: number, capital: boolean, wonder: boolean
 /** Paved plaza on the city's top face, then the town; returns the screen y of the town's top (for the banner). */
 export function drawTown25d(context: CanvasRenderingContext2D, p: Point, radius: number, squash: number, ownerColor: string,
   population: number | undefined, capital: boolean, wonders: number): number {
-  const s = radius / RT * propScale(radius);
+  const s = snappedScale(context, radius / RT * propScale(radius));
   context.beginPath();
   for (let k = 0; k < 6; k++) {
     const angle = (k * 60 - 30) * Math.PI / 180, x = p.x + radius * .78 * Math.cos(angle), y = p.y + radius * .78 * Math.sin(angle) * squash;
@@ -99,14 +100,14 @@ export function drawTown25d(context: CanvasRenderingContext2D, p: Point, radius:
   context.fillStyle = '#B9A77CD0'; context.fill();
   context.strokeStyle = `${ownerColor}CC`; context.lineWidth = Math.max(1.5, radius * .07); context.stroke();
   const art = townArt(ownerColor, townHouses(population), capital, wonders > 0);
-  context.drawImage(art.canvas, p.x - TC.x * s, p.y - TC.y * s, TW * s, TH * s);
+  drawPixelArt(context, art.canvas, p.x, p.y, s, { snap: true, anchorX: TC.x, anchorY: TC.y });
   return p.y - (capital ? 30 : 20) * s;
 }
 /** Night: warm window lights over the (already dimmed) town, drawn after the night overlay. */
 export function drawTownLights(context: CanvasRenderingContext2D, p: Point, radius: number, ownerColor: string, population: number | undefined,
   capital: boolean, wonders: number, level: number): void {
   if (level <= 0) return;
-  const s = radius / RT * propScale(radius), art = townArt(ownerColor, townHouses(population), capital, wonders > 0);
+  const s = snappedScale(context, radius / RT * propScale(radius)), art = townArt(ownerColor, townHouses(population), capital, wonders > 0);
   context.save();
   context.globalAlpha = level;
   // Two flat halos (no blur): a wide faint one on the ground and a tighter warm one around the houses.

@@ -1,5 +1,6 @@
 import type { BiomeId } from '../content/rules.ts';
 import type { Point } from './camera.ts';
+import { drawPixelArt } from './render/terrain25d.ts';
 
 const RADIUS = 48;
 const WIDTH = 88;
@@ -157,6 +158,6 @@ export function drawTerrain(context: CanvasRenderingContext2D, biome: BiomeId, i
     tile = createTile(biome, variant);
     tiles.set(key, tile);
   }
-  const scale = radius / RADIUS;
-  context.drawImage(tile, center.x - CENTER.x * scale, center.y - CENTER.y * scale, WIDTH * scale, HEIGHT * scale);
+  // Exact size (tiles must meet), every art pixel the same size on screen (drawPixelArt in render/terrain25d.ts).
+  drawPixelArt(context, tile, center.x, center.y, radius / RADIUS, { anchorX: CENTER.x, anchorY: CENTER.y });
 }

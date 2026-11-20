@@ -3,6 +3,7 @@
 // inversion), illustrated terrain cached as world-space chunks (chunks25d.ts with the painted painter), a parchment fog layer
 // cached like the flat map's, and painted tokens. Overlays that read well in any style (resource badges, districts, weather,
 // trade routes, go-to routes, combat and event effects, debug) reuse the Canvas 2D layer functions.
+import { drawSpeciesSprite, drawSpriteFile } from '../terrain25d.ts';
 import { contentForView } from '../../../content/units.ts';
 import type { TypeId } from '../../../content/species.ts';
 import { hexToIndex } from '../../../core/hex.ts';
@@ -11,7 +12,7 @@ import type { PlayerView } from '../../../core/model.ts';
 import { ROLE_POKEMON } from '../../../content/roles.ts';
 import { HEX_RADIUS, copyShifts, mapSpan, mapTilt, toScreen, toWorld, worldToHex } from '../../camera.ts';
 import type { Camera, Point } from '../../camera.ts';
-import { drawPokemonSilhouette, drawPokemonSprite, drawSpritePath } from '../../sprites.ts';
+import { drawPokemonSilhouette } from '../../sprites.ts';
 import { EMPTY_FRAME } from '../animation.ts';
 import type { AnimationFrame } from '../animation.ts';
 import { DISTRICT_COLORS, MAX_COLORS, PARTICLE_CAP, YIELD_MIN_RADIUS, blit, cachedLayer, drawDebug, drawEffects, drawFeatures, drawGoTo, drawTradeRoutes, drawWeather, ownerColor } from '../canvas2d.ts';
@@ -44,7 +45,7 @@ function disc(g: CanvasRenderingContext2D, x: number, y: number, r: number, fill
   g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fillStyle = fill; g.fill();
   g.strokeStyle = ring; g.lineWidth = Math.max(1, r * .2); g.stroke();
   if (!text) return;
-  g.fillStyle = ink; g.font = `800 ${Math.max(8, Math.round(r * 1.25))}px ${SERIF}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillStyle = ink; g.font = `800 ${Math.max(9, Math.round(r * 1.25))}px ${SERIF}`; g.textAlign = 'center'; g.textBaseline = 'middle';
   g.fillText(text, x, y + r * .06);
 }
 
@@ -87,12 +88,12 @@ function medallion(d: Ctx, unit: UnitMarkIdentity, p: Point, o: MedallionMarks =
   g.imageSmoothingEnabled = false;
   if (unit.kind === 'pokemon') {
     if (o.exhausted) { g.save(); g.filter = 'grayscale(1) brightness(.9)'; }
-    if (!drawPokemonSprite(g, unit.speciesId, Math.round(c.x - box / 2), Math.round(c.y - box * .56), box)) disc(g, c.x, c.y, m * .5, '#B9A57E', '?');
+    if (!drawSpeciesSprite(g, unit.speciesId, Math.round(c.x - box / 2), Math.round(c.y - box * .56), box)) disc(g, c.x, c.y, m * .5, '#B9A57E', '?');
     if (o.exhausted) { g.restore(); drawIcon(g, 'exhausted', c.x + m * .78, c.y - m * .9, Math.max(11, m * .7)); }
   } else {
     const role = ROLE_POKEMON[unit.role];
-    drawSpritePath(g, role.sprite, Math.round(c.x - box / 2), Math.round(c.y - box * .55), box);
-    if (unit.role === 'settler' && unit.escortId) drawPokemonSprite(g, unit.escortId, Math.round(c.x - m * 1.25), Math.round(c.y), Math.round(m * .8));
+    drawSpriteFile(g, role.sprite, Math.round(c.x - box / 2), Math.round(c.y - box * .55), box);
+    if (unit.role === 'settler' && unit.escortId) drawSpeciesSprite(g, unit.escortId, Math.round(c.x - m * 1.25), Math.round(c.y), Math.round(m * .8));
   }
   g.imageSmoothingEnabled = smoothing;
   // Badges: type (or logistics role) lower right, done ✓ lower left, status / enraged upper left, rank and promotion on the right.
@@ -187,8 +188,9 @@ function drawTownLights(d: Ctx, level: number) {
 
 /** Ribbon banner: civ emblem, population medallion, name in serif, capital star / wonder crown, HP bar when damaged. */
 function cityBanner(d: Ctx, city: SceneCity, p: Point) {
-  const g = d.context, radius = d.radius, h = Math.max(15, Math.min(24, radius * .64)), color = ownerColor(city.ownerId);
-  g.font = `700 ${Math.round(h * .6)}px ${SERIF}`;
+  // The name stays at 12 CSS px or more at every zoom (fidelity pass); the ribbon grows to fit it.
+  const g = d.context, radius = d.radius, h = Math.max(20, Math.min(26, radius * .64)), color = ownerColor(city.ownerId), nameSize = Math.max(12, Math.round(h * .6));
+  g.font = `700 ${nameSize}px ${SERIF}`;
   const nameWidth = g.measureText(city.name).width, extra = (city.capital ? h * .8 : 0) + (city.wonders ? h * .8 : 0);
   const pop = city.population !== undefined ? h * .95 : 0, width = h * .9 + pop + nameWidth + extra + h * .7;
   const left = p.x - width / 2 + h * .25, top = p.y - radius - h * .5;
@@ -220,7 +222,7 @@ function cityBanner(d: Ctx, city: SceneCity, p: Point) {
     g.fillStyle = '#2A1C0E'; g.font = `800 ${Math.round(h * .52)}px ${SERIF}`; g.fillText(String(city.population), cx, ey + h * .03);
     cursor += pop;
   }
-  g.font = `700 ${Math.round(h * .6)}px ${SERIF}`; g.textAlign = 'left';
+  g.font = `700 ${nameSize}px ${SERIF}`; g.textAlign = 'left';
   g.lineJoin = 'round'; g.lineWidth = Math.max(2, h * .16); g.strokeStyle = 'rgba(24,14,6,.85)'; g.strokeText(city.name, cursor + h * .12, ey + h * .04);
   g.fillStyle = '#FFF8E6'; g.fillText(city.name, cursor + h * .12, ey + h * .04);
   cursor += nameWidth + h * .3;

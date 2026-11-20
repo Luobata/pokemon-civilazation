@@ -1,13 +1,14 @@
 // Canvas 2D backend: draws a MapScene (plus an animation frame) for a camera.
 // Layers are drawn in a fixed order; the two that rarely change (terrain/borders and fog)
 // are cached as device-pixel images and reused until their inputs or the camera change.
+import { FONT_UI } from '../theme.ts';
 import { DISTRICTS } from '../../content/districts.ts';
 import { speciesDisplay } from '../../content/species.ts';
 import { hexToIndex } from '../../core/hex.ts';
 import type { Hex } from '../../core/hex.ts';
 import { HEX_RADIUS, copyShifts, mapSpan, mapTilt, toScreen, toWorld, worldToHex } from '../camera.ts';
 import type { Camera, Point } from '../camera.ts';
-import { buildingSprite, drawPokemonSilhouette, drawPokemonSprite, drawSpritePath } from '../sprites.ts';
+import { buildingSprite, drawPokemonSilhouette } from '../sprites.ts';
 import { ROLE_POKEMON } from '../../content/roles.ts';
 const ROLE_MARK = { settler: '拓', builder: '工', trader: '商' } as const;
 import { drawTerrain } from '../terrain.ts';
@@ -19,7 +20,7 @@ import { EMPTY_FRAME, EVOLUTION_REVEAL_AT, SWEEP_MS, SWEEP_RING_MS } from './ani
 import type { AnimationFrame, MapEffect, NumberTone, UnitPose } from './animation.ts';
 import { liftAtWorld, pickHex, sceneLifts } from './projection.ts';
 import type { RenderMode } from './projection.ts';
-import { drawBase25d, drawFog25d } from './terrain25d.ts';
+import { drawBase25d, drawFog25d, drawSpeciesSprite, drawSpriteFile } from './terrain25d.ts';
 import { createChunkCache } from './chunks25d.ts';
 import { drawTown25d, drawTownLights, unitPlinth } from './town25d.ts';
 
@@ -72,7 +73,7 @@ function polygon(d: Draw, p: Point) {
 function centeredText(d: Draw, text: string, p: Point, color: string, size: number) {
   const { context } = d;
   context.fillStyle = color;
-  context.font = `650 ${Math.max(9, size)}px system-ui, sans-serif`;
+  context.font = `600 ${Math.max(10, size)}px ${FONT_UI}`;
   context.textAlign = 'center';
   context.textBaseline = 'middle';
   context.fillText(text, p.x, p.y);
@@ -80,7 +81,7 @@ function centeredText(d: Draw, text: string, p: Point, color: string, size: numb
 /** Text with a dark outline (stroke under fill), readable on every terrain; no shadowBlur. */
 function outlinedText(d: Draw, text: string, p: Point, color: string, size: number, outline = '#10191B') {
   const { context } = d;
-  context.font = `800 ${Math.max(10, size)}px system-ui, sans-serif`;
+  context.font = `800 ${Math.max(11, size)}px ${FONT_UI}`;
   context.textAlign = 'center';
   context.textBaseline = 'middle';
   context.lineJoin = 'round';
@@ -211,7 +212,7 @@ export function drawFeatures(d: Draw) {
         context.fillStyle = '#FFF3B0'; context.fill(); context.strokeStyle = '#14211F'; context.lineWidth = 1; context.stroke();
       }
       if (item.kind === 'icon') drawIcon(context, item.icon as IconName, p.x, p.y, size * .74);
-      else if (item.kind === 'legend') drawSpritePath(context, item.path, Math.round(p.x - size * .5), Math.round(p.y - size * .55), Math.round(size));
+      else if (item.kind === 'legend') drawSpriteFile(context, item.path, Math.round(p.x - size * .5), Math.round(p.y - size * .55), Math.round(size));
       else if (item.kind === 'itemBall') {
         // 道具球: a Poké Ball (red top, white bottom, black band and button).
         const r = size * .38;
@@ -222,7 +223,7 @@ export function drawFeatures(d: Draw) {
         context.beginPath(); context.arc(p.x, p.y, r * .3, 0, Math.PI * 2); context.fillStyle = '#F6F1E4'; context.fill(); context.stroke();
       }
       else {
-        if (!drawPokemonSprite(context, item.speciesId, Math.round(p.x - size * .55), Math.round(p.y - size * .62), Math.round(size * 1.1))) centeredText(d, item.fallback, p, '#FFF8E5', size * .5);
+        if (!drawSpeciesSprite(context, item.speciesId, Math.round(p.x - size * .55), Math.round(p.y - size * .62), Math.round(size * 1.1))) centeredText(d, item.fallback, p, '#FFF8E5', size * .5);
       }
       context.restore();
     }
@@ -300,8 +301,11 @@ function drawCities(d: Draw) {
       const art = buildingSprite(id);
       if (!art) continue;
       const width = radius * .66, height = width * 80 / 96;
+      // Building art is SVG: draw it smoothly (the base layer turns smoothing off for pixel art).
+      context.imageSmoothingEnabled = true; context.imageSmoothingQuality = 'high';
       context.drawImage(art, Math.round(p.x + slots[slot][0] * radius - width / 2), Math.round(p.y + slots[slot][1] * radius - height / 2), Math.round(width), Math.round(height));
     }
+    context.imageSmoothingEnabled = false;
     context.beginPath();
     context.ellipse(p.x, p.y + size * .36, size * .48, size * .17, 0, 0, Math.PI * 2);
     context.fillStyle = '#07111499'; context.fill();
@@ -418,17 +422,17 @@ function unitMark(d: Draw, unit: UnitMarkIdentity, point: Point, actionLeft?: nu
     context.strokeStyle = actionLeft === 0 ? '#81908A' : '#F2E7C9'; context.lineWidth = 1.2; context.stroke();
   }
   if (unit.kind === 'pokemon') {
-    if (!drawPokemonSprite(context, unit.speciesId, Math.round(point.x - size * .54), Math.round(point.y - size * .62), Math.round(size * 1.08))) centeredText(d, speciesDisplay(unit.speciesId).abbreviation, point, '#FFF3D4', size * .42);
+    if (!drawSpeciesSprite(context, unit.speciesId, Math.round(point.x - size * .54), Math.round(point.y - size * .62), Math.round(size * 1.08))) centeredText(d, speciesDisplay(unit.speciesId).abbreviation, point, '#FFF3D4', size * .42);
   } else {
     // Role Pokémon (all versions): settler = 肯泰罗, builder = 搬运小匠, trader = 变隐龙, with a gold role badge.
     const role = ROLE_POKEMON[unit.role];
-    if (!drawSpritePath(context, role.sprite, Math.round(point.x - size * .5), Math.round(point.y - size * .58), Math.round(size))) centeredText(d, role.unitName.slice(0, 1), point, '#FFF3D4', size * .42);
+    if (!drawSpriteFile(context, role.sprite, Math.round(point.x - size * .5), Math.round(point.y - size * .58), Math.round(size))) centeredText(d, role.unitName.slice(0, 1), point, '#FFF3D4', size * .42);
     const q = { x: point.x - size * .36, y: point.y - size * .34 };
     context.beginPath(); context.arc(q.x, q.y, size * .17, 0, Math.PI * 2); context.fillStyle = '#F2C14E'; context.fill();
     context.strokeStyle = '#10191B'; context.lineWidth = 1.5; context.stroke();
     centeredText(d, ROLE_MARK[unit.role], q, '#10191B', size * .22);
     // v17 settler escort: a small portrait of the escort Pokémon beside the settler.
-    if (unit.role === 'settler' && unit.escortId) drawPokemonSprite(context, unit.escortId, Math.round(point.x + size * .08), Math.round(point.y - size * .05), Math.round(size * .5));
+    if (unit.role === 'settler' && unit.escortId) drawSpeciesSprite(context, unit.escortId, Math.round(point.x + size * .08), Math.round(point.y - size * .05), Math.round(size * .5));
   }
   ownerBadge(d, unit.ownerId, point, size);
   if (actionLeft === 0) {
@@ -673,8 +677,9 @@ function drawEvolution(d: Draw, p: Point, effect: Extract<MapEffect, { kind: 'ev
 /** Civilization-style banner: faction mark, population (own cities), name, capital star, HP when damaged. */
 function cityBanner(d: Draw, city: SceneCity, p: Point, size: number) {
   const { context, radius } = d;
-  const height = Math.max(16, Math.min(24, radius * .8));
-  context.font = `650 ${Math.round(height * .62)}px system-ui, sans-serif`;
+  // Name at 12 CSS px or more at every zoom (fidelity pass): the banner grows to fit it.
+  const height = Math.max(19, Math.min(26, radius * .8));
+  context.font = `600 ${Math.max(12, Math.round(height * .62))}px ${FONT_UI}`;
   const nameWidth = context.measureText(city.name).width;
   const width = height + (city.population !== undefined ? height : 0) + nameWidth + height * .55 + (city.capital ? height * .85 : 0) + (city.wonders ? height * .85 : 0);
   const left = p.x - width / 2, top = p.y - size * .66 - height;
@@ -1136,8 +1141,9 @@ export function drawEffects(d: Draw, frame: AnimationFrame, indexOf: (hex: Hex) 
     const p = centers[index];
     if (!d.onscreen(p)) continue;
     if (effect.kind === 'tap') {
-      const grow = .35 + effect.progress * .75;
-      context.save(); context.globalAlpha = 1 - effect.progress;
+      // Clamped: a tap sampled before its start time has a negative progress, and arc() throws on a negative radius.
+      const progress = Math.max(0, Math.min(1, effect.progress)), grow = .35 + progress * .75;
+      context.save(); context.globalAlpha = 1 - progress;
       context.beginPath(); context.arc(p.x, p.y, radius * grow, 0, Math.PI * 2);
       context.strokeStyle = effect.tone === 'error' ? '#E07A6D' : '#FFF3C4'; context.lineWidth = 3; context.stroke();
       context.restore();

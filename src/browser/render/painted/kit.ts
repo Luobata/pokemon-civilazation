@@ -2,6 +2,7 @@
 // soft dabs and strokes, hex paths and the size buckets every sprite cache is keyed by. Everything here runs while a sprite is
 // baked (never per frame), so gradients are fine; no `filter` and no `shadowBlur` anywhere.
 import type { Point } from '../../camera.ts';
+import { FONT_DISPLAY } from '../../theme.ts';
 
 export function noise(seed: number, index: number): number {
   let value = Math.imul(seed + index * 374761393, 668265263);
@@ -88,11 +89,12 @@ export function stroke(context: CanvasRenderingContext2D, x: number, y: number, 
 }
 
 /**
- * Size buckets: sprites are baked at a quarter-octave step of the device-pixel radius and scaled (smoothly) to the exact size
- * when drawn, so zooming does not bake a new set for every wheel step.
+ * Size buckets: sprites are baked at an eighth-octave step of the device-pixel radius, rounded UP, and drawn at the exact size
+ * (k = size / bucket ≤ 1). They are only ever shrunk by at most ~8 % with high-quality smoothing — never stretched, which is
+ * what made them soft — and zooming still does not bake a new set for every wheel step.
  */
 export function bucket(devicePixels: number): number {
-  return Math.round(2 ** (Math.round(Math.log2(Math.max(4, devicePixels)) * 4) / 4));
+  return Math.ceil(2 ** (Math.ceil(Math.log2(Math.max(4, devicePixels)) * 8 - 1e-9) / 8));
 }
 
 /** Bounded sprite cache (cleared wholesale when full: sprites are cheap to rebake and zoom changes are rare). */
@@ -112,5 +114,5 @@ export function spriteCache<T>(cap: number) {
   };
 }
 
-/** Canvas font stack for painted labels: free serif CJK faces first (never bundled), then system serifs. */
-export const SERIF = '"Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", "SimSun", serif';
+/** Canvas font stack for painted labels: the display-serif role (FONT_DISPLAY in src/browser/theme.ts) (system fonts only, never bundled). */
+export const SERIF = FONT_DISPLAY;

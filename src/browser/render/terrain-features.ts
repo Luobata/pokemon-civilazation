@@ -1,6 +1,7 @@
 // Gameplay v24 terrain features on the map (docs/design/world-v24.md §2.9): deep water and lakes tinted, hills as two small mounds,
 // peaks as white-capped spikes, rivers as blue lines through tile centres (towards linked river / water tiles) and landmark glyphs.
 // Pure canvas drawing from the scene; the base layer calls it once per wrapped copy, so the seam copies match.
+import { FONT_UI } from '../theme.ts';
 import { LANDMARKS } from '../../content/terrain.ts';
 import type { LandmarkId } from '../../content/terrain.ts';
 import type { Point } from '../camera.ts';
@@ -80,7 +81,7 @@ export function drawTerrainFeatures(context: CanvasRenderingContext2D, terrain: 
     context.beginPath(); context.arc(p.x, p.y, size, 0, Math.PI * 2);
     context.fillStyle = '#1B1F26E6'; context.fill();
     context.strokeStyle = glyph.color; context.lineWidth = Math.max(1.5, radius * .1); context.stroke();
-    context.fillStyle = glyph.color; context.font = `bold ${Math.round(size * 1.1)}px sans-serif`;
+    context.fillStyle = glyph.color; context.font = `700 ${Math.max(10, Math.round(size * 1.1))}px ${FONT_UI}`;
     context.textAlign = 'center'; context.textBaseline = 'middle';
     context.fillText(glyph.mark, p.x, p.y + 1);
   }
