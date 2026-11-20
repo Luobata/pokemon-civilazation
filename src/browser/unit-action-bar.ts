@@ -23,7 +23,7 @@ import { gymBarState, gymTitle, nextLeaderText, openGymCard, refreshGymCard } fr
 import { openLineupPicker, refreshLineupPicker } from './lineup-picker.ts';
 import { duelBarState } from './rival-tracker.ts';
 import { rivalDuelSpec } from '../ai/rival-duel-plan.ts';
-import { uiIcon } from './ui-icons.ts';
+import { iconStyle, uiIcon, vectorIconUrl } from './ui-icons.ts';
 import { captureUnitReason } from './capture-reason.ts';
 import type { UiIconName } from './ui-icons.ts';
 
@@ -91,6 +91,13 @@ const ICONS = {
   skip: pixelIcon(['k...k....', 'kk..kk...', 'kwk.kwk..', 'kwwkkwwk.', 'kwwwkwwwk', 'kwwkkwwk.', 'kwk.kwk..', 'kk..kk...', 'k...k....'], {}),
 } as const;
 type IconName = keyof typeof ICONS;
+/** 18 px pixel icons (2 CSS px per cell); the painted theme's vector icons draw a little larger. */
+const actionIconSize = () => iconStyle() === 'vector' ? 20 : 18;
+/** The bar icon: these 9×9 pixel grids, or the 绘卷 theme's smooth vector version (src/browser/ui-icons.ts `action:*`). */
+function actionIcon(name: IconName): string {
+  const vector = iconStyle() === 'vector' ? vectorIconUrl(`action:${name}`) : null;
+  return vector ? `<img class="px-icon vec-icon" src="${vector}" width="20" height="20" alt="" aria-hidden="true" draggable="false">` : ICONS[name];
+}
 
 // ---------- the bar ----------
 
@@ -273,7 +280,7 @@ export function renderUnitActionBar(view: PlayerView, selected: number | null, m
     <button type="button" id="${item.id}" class="unit-action${item.selected ? ' selected' : ''}${item.tone ? ` ${item.tone}` : ''}${item.attention ? ' attention' : ''}" data-action="${item.action}" data-hotkey="${escapeHtml(item.key)}"${item.data ? ` data-species="${item.data}"` : ''}
       aria-label="${escapeHtml(item.title)}" aria-keyshortcuts="${item.key === ' ' ? 'Space' : item.key === 'backspace' ? 'Backspace' : item.hotkey}" aria-describedby="${item.id}-tip"${item.selected ? ' aria-pressed="true"' : ''}
       title="${escapeHtml(item.reason ? `${item.title}：${item.reason}` : `${item.title}（${item.hotkey}）`)}"${item.reason ? ` data-reason="${escapeHtml(item.reason)}" disabled` : ''}>
-      <span class="unit-action-icon">${item.kit ? uiIcon(item.kit, { size: 18 }) : ICONS[item.icon!]}</span><span class="unit-action-label">${item.label}</span><kbd>${item.hotkey}</kbd>${item.count !== undefined ? `<span class="unit-action-count${item.count ? '' : ' empty'}" aria-hidden="true">${item.count}</span>` : ''}</button>
+      <span class="unit-action-icon">${item.kit ? uiIcon(item.kit, { size: actionIconSize() }) : actionIcon(item.icon!)}</span><span class="unit-action-label">${item.label}</span><kbd>${item.hotkey}</kbd>${item.count !== undefined ? `<span class="unit-action-count${item.count ? '' : ' empty'}" aria-hidden="true">${item.count}</span>` : ''}</button>
     <span class="unit-action-tip${item.reason ? ' unavailable' : ''}" id="${item.id}-tip" role="tooltip"><b>${escapeHtml(item.title)} <kbd>${item.hotkey}</kbd></b>${item.reason ? `<span class="unit-action-reason">${escapeHtml(item.reason)}</span>` : ''}${item.detail ? `<small>${escapeHtml(item.detail)}</small>` : ''}</span>
     ${item.action === 'improve' && menuOpen ? `<span class="unit-action-menu" role="menu" aria-label="选择改良">${options.map(option => `<button type="button" role="menuitem" data-action="improve-option" data-tile="${option.tileIndex}" data-kind="${option.kind}">${escapeHtml(option.label)}</button>`).join('')}</span>` : ''}
   </span>`).join('')}`;

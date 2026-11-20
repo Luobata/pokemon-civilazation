@@ -1,5 +1,11 @@
 /* Icon-first panels (src/browser/ui-icons.ts, docs/design/ui-icons/README.md). Pixel art stays crisp at any size. */
 .px-icon, .px-art { display: inline-block; flex: none; vertical-align: middle; image-rendering: pixelated; }
+/* Sprites: pixel sets at an integer device scale stay hard-edged; smooth art (gens 6–9, SVG, downscaled sprites) filters. */
+.px-art { image-rendering: auto; }
+.px-art.px-art-pixel { image-rendering: pixelated; }
+/* Painted theme (绘卷): smooth vector icons (src/browser/ui-icons.ts, vector set) are rasterised by the browser at device resolution. */
+img[src*="vector-icon"], .vec-icon { image-rendering: auto; }
+.unit-action-icon .vec-icon { display: block; margin-top: 1px; }
 .px-art { object-fit: contain; }
 .icon-stat { display: inline-flex; align-items: center; gap: 3px; color: var(--ink-secondary); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .icon-stat b { color: #F3E7C9; font-weight: 600; }
@@ -43,7 +49,7 @@
 .tech-tree-v22 .tech-node.selected { box-shadow: inset 4px 0 0 var(--line), 0 0 0 3px var(--focus); }
 
 /* Legend */
-.tech-icon-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: -4px 0 10px; padding: 0; list-style: none; color: var(--ink-secondary); font-size: 11px; }
+.tech-icon-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: -4px 0 10px; padding: 0; list-style: none; color: var(--ink-secondary); font-size: 12px; }
 .tech-icon-legend li { display: inline-flex; align-items: center; gap: 4px; }
 .tech-icon-legend .legend-gap { margin-left: 10px; }
 .tech-icon-legend .unlock-chip { width: 20px; height: 20px; border-radius: 4px; }
@@ -71,7 +77,7 @@
 .tech-requires li { display: flex; align-items: center; gap: 5px; }
 .tech-detail .tech-unlocks { gap: 5px; }
 .tech-detail .tech-unlocks li { align-items: center; gap: 8px; color: #E6DDC4; font-size: 12px; }
-.tech-detail .tech-unlocks li small { display: block; color: var(--ink-muted); font-size: 10px; }
+.tech-detail .tech-unlocks li small { display: block; color: var(--ink-muted); font-size: 12px; }
 .tech-detail .tech-unlocks .unlock-chip { width: 32px; height: 32px; }
 .tech-leads { display: flex; flex-wrap: wrap; gap: 4px 10px; margin: 0; }
 .tech-lead { display: inline-flex; align-items: center; gap: 4px; color: var(--ink-secondary); font-size: 12px; }
@@ -100,8 +106,8 @@
 .charter-card.active .card-emblem { border-color: #E0A030; box-shadow: 0 0 8px rgb(242 193 78 / 35%); }
 .charter-card.locked .card-emblem > img { filter: grayscale(.7) brightness(.8); }
 .charter-government { display: flex; align-items: center; gap: 5px; margin: 0; }
-.section-mini { color: var(--ink-muted); font-size: 10px; letter-spacing: .06em; }
-.slot-pip { display: inline-flex; align-items: center; gap: 2px; padding: 1px 5px 1px 3px; border-radius: 999px; font-size: 10.5px; line-height: 16px; }
+.section-mini { color: var(--ink-muted); font-size: 11px; letter-spacing: .06em; }
+.slot-pip { display: inline-flex; align-items: center; gap: 2px; padding: 1px 5px 1px 3px; border-radius: 999px; font-size: 11px; line-height: 16px; }
 .slot-pip b { font-weight: 600; }
 .slot-card { display: inline-block; flex: none; width: 10px; height: 13px; border: 1px solid #17262A; border-radius: 2px; background: linear-gradient(#F2E3B8 0 3px, #6E6243 3px); vertical-align: middle; }
 .slot-card.military { background: linear-gradient(#FFD0C4 0 3px, #D2614E 3px); }
@@ -113,7 +119,7 @@
 .policy-chip.military { border-color: #B0604E; background: linear-gradient(#D2614E 0 4px, #33201C 4px); }
 .policy-chip.economic { border-color: #4F8A5C; background: linear-gradient(#5FB06A 0 4px, #1B3024 4px); }
 .policy-chip.affinity::after { content: "★"; position: absolute; top: -7px; right: -6px; color: var(--gold); font-size: 12px; line-height: 1; text-shadow: 0 0 2px #000, 0 0 2px #000; }
-.government-card .government-tier { color: var(--gold); font-size: 9px; letter-spacing: 1px; }
+.government-card .government-tier { color: var(--gold); font-size: 11px; letter-spacing: .06em; }
 .government-effects { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 9px; }
 .government-effects .charter-slots { gap: 4px; }
 .government-card.active .card-emblem { border-color: var(--gold); box-shadow: 0 0 8px rgb(242 193 78 / 35%); }
@@ -141,6 +147,7 @@
 
 /* ---------- World page: Pokédex, nests, overlords, resources, gym circuit ---------- */
 .world-stats { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.world-stats .icon-stat { font-size: 12px; }
 .dex-strip { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
 .dex-entry { position: relative; display: grid; place-items: center; width: 46px; height: 46px; border: 1px solid #34494C; border-radius: 8px; background: #132428; }
 .dex-entry:not(.documented) img.px-art { filter: brightness(.55) saturate(.4); }
@@ -148,11 +155,11 @@
 .dex-entry .dex-mark { position: absolute; right: 1px; bottom: 1px; }
 /* v25 regional Pokédex: class × stage grid, silhouettes for regional species not seen yet, new-game summary. */
 .dex-entry.dex-silhouette img.px-art { filter: brightness(0) opacity(.45); }
-.regional-dex { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 11px; }
+.regional-dex { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 12px; }
 .regional-dex th, .regional-dex td { border: 1px solid #34494C; padding: 2px; vertical-align: top; }
 .regional-dex thead th { font-weight: 600; }
-.regional-dex td .dex-entry { display: inline-grid; grid-template-rows: 40px auto; width: 46px; height: auto; margin: 1px; padding-bottom: 1px; }
-.dex-entry .dex-name { font-size: 9px; line-height: 1.1; max-width: 44px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.regional-dex td .dex-entry { display: inline-grid; grid-template-rows: 40px auto; width: 56px; height: auto; margin: 1px; padding-bottom: 1px; }
+.dex-entry .dex-name { font-size: 12px; line-height: 1.2; max-width: 54px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .dex-empty { opacity: .5; }
 .dex-summary { margin: 6px 0; }
 .dex-summary-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; }
@@ -167,7 +174,7 @@
 .bond-track i { position: absolute; top: -3px; width: 2px; height: 14px; background: #5B6A60; }
 .bond-track i.met { background: var(--gold); }
 .badge-box { grid-template-columns: repeat(8, minmax(0, 76px)); gap: 6px; }
-.badge-box .badge-slot { flex-direction: column; justify-content: center; gap: 2px; min-height: 58px; padding: 4px 2px; border-radius: 8px; font-size: 10px; text-align: center; }
+.badge-box .badge-slot { flex-direction: column; justify-content: center; gap: 2px; min-height: 58px; padding: 4px 2px; border-radius: 8px; font-size: 11px; text-align: center; }
 .badge-box .badge-slot span { overflow: hidden; max-width: 100%; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 700px) { .badge-box { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 .badge-slot.empty img { opacity: .28; filter: grayscale(1); }

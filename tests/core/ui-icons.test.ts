@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { iconGrid, iconUrl, statChip, typeBadge, uiIcon, UI_ICON_NAMES, artImage } from '../../src/browser/ui-icons.ts';
+import { iconGrid, iconStyle, iconUrl, pixelIconBox, setIconStyle, statChip, typeBadge, uiIcon, UI_ICON_NAMES, artImage, VECTOR_ICON_NAMES, vectorIconUrl } from '../../src/browser/ui-icons.ts';
 import { TECH_ICONS, unlockChip } from '../../src/browser/unlock-icons.ts';
 import { techUnlocks } from '../../src/browser/tech-info.ts';
 import { TREE_TECH_IDS } from '../../src/content/tech-tree.ts';
@@ -34,4 +34,32 @@ test('every v22 tech has a subject icon, and each unlock chip carries its full s
     expect(UI_ICON_NAMES, id).toContain(TECH_ICONS[id]);
     for (const item of techUnlocks(id, WORLD_CONTENT, 22)) expect(unlockChip(item, id), `${id}: ${item.text}`).toContain(`：${item.text.replace(/"/g, '&quot;')}" title=`);
   }
+});
+
+test('the painted theme swaps in smooth vector icons for the most visible names; others fall back to the pixel grid', () => {
+  const visible = ['food', 'production', 'gold', 'research', 'civics', 'faith', 'satisfaction', 'turns', 'rush', 'clipboard', 'pokeBall', 'greatBall', 'masterBall',
+    'essence', 'essence:tide', 'attack', 'defense', 'move', 'range', 'heart', 'shield', 'star', 'check', 'lock', 'trophy', 'type:fire', 'class:scout', 'gym:water', 'hm:surf',
+    'action:move', 'action:found', 'action:skip'];
+  for (const name of visible) expect(VECTOR_ICON_NAMES, name).toContain(name);
+  for (const name of VECTOR_ICON_NAMES) {
+    const svg = decodeURIComponent(vectorIconUrl(name)!.replace('data:image/svg+xml,', ''));
+    expect(svg, name).toMatch(/^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" class="vector-icon" viewBox="0 0 24 24">/);
+    expect(svg, name).not.toMatch(/NaN|undefined|\{[sd]\}/);
+  }
+  try {
+    setIconStyle('vector');
+    expect(iconStyle()).toBe('vector');
+    expect(uiIcon('gold', { size: 18 })).toMatch(/class="px-icon vec-icon" src="data:image\/svg\+xml,[^"]*vector-icon[^"]*" width="18" height="18"/);
+    expect(uiIcon('oranBerry')).not.toContain('vec-icon');
+  } finally { setIconStyle('pixel'); }
+  expect(uiIcon('gold')).not.toContain('vec-icon');
+});
+
+test('pixel icons snap to a whole number of device pixels per grid cell', () => {
+  expect(pixelIconBox(9, 9, 18, 1)).toEqual({ width: 18, height: 18 });
+  expect(pixelIconBox(12, 12, 16, 1)).toEqual({ width: 12, height: 12 });
+  expect(pixelIconBox(12, 12, 16, 2)).toEqual({ width: 18, height: 18 });
+  expect(pixelIconBox(12, 10, 20, 1.5)).toEqual({ width: 24, height: 20 });
+  expect(pixelIconBox(12, 12, 4, 1)).toEqual({ width: 12, height: 12 });
+  expect(uiIcon('food', { size: 18 })).toContain('width="18" height="18"');
 });
