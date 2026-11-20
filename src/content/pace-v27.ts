@@ -50,7 +50,7 @@ export const OPENING_TUNING: OpeningTuning = {
   exhaustHpPercent: 40, exhaustRounds: 2, exhaustRecoverPercent: 41, exhaustCaptureBonus: 25, exhaustCaptureCap: 95,
   protectionLastRound: 30, protectionRounds: 1, protectionHpPercent: 50,
   encounterBeforeRound: 40, encounterXp: 15, encounterScience: 5,
-  aiExhaustAttackBonus: 30, pokedexTargetBonus: 0,
+  aiExhaustAttackBonus: 30, pokedexTargetBonus: 3,
 };
 
 // ---------- Economy lane (③ ④) ----------
