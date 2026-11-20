@@ -4,9 +4,9 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, describe, expect, test } from 'vitest';
 import viteConfig from '../../vite.config.ts';
-import { ALWAYS_SPECS, BALANCE_KNOBS, FULL_TRIGGERS, INIT_COPY_SITES, PROD_TRIGGERS, SPEC_RULES, TRACED_MODULES, VERSION_SCOPED, VITEST_TEXT_DEPENDENCIES } from '../../tools/test-plan-map.ts';
+import { ALWAYS_SPECS, BALANCE_KNOBS, COST, FULL_TRIGGERS, INIT_COPY_SITES, PROD_TRIGGERS, SPEC_RULES, TRACED_MODULES, VERSION_SCOPED, VITEST_TEXT_DEPENDENCIES } from '../../tools/test-plan-map.ts';
 import { BROWSER_SPECS, buildGraph, checkTracedModule, closure, copySites, globToRegExp, loadContext, normalizeTraced, parseCli, planFor, planSteps, ranges, REPO_ROOT, RULE_ENTRIES,
-  ruleShape, traceInputs, traceSafety, traceSelection, VITEST_INCLUDE } from '../../tools/test-plan.ts';
+  ruleShape, smokeChunk, traceInputs, traceSafety, traceSelection, VITEST_INCLUDE } from '../../tools/test-plan.ts';
 import type { Plan } from '../../tools/test-plan.ts';
 import { checkSignature, compareSmoke, exportTree, parseSmokeArgs, QUICK_CASES, SMOKE_CASES, SMOKE_ROTATIONS, smokeConfig, supportedVersions } from '../../tools/smoke-parallel.ts';
 import { covers, loadTraces, mergeChunkTraces, provenUnobservable, storeTrace } from '../../tools/content-trace.ts';
@@ -262,8 +262,10 @@ describe('CLI and smoke runner', () => {
     expect(steps.find(step => step.startsWith('eslint'))).toMatch(/eslint --no-warn-ignored src\/content\/stone-evolutions\.ts$/);
     expect(steps.find(step => step.startsWith('playwright'))).toMatch(/--workers=2/);
     const versions = context.supported.filter(version => version >= 25).join(',');
+    // The chunk follows the number of smoke versions (25–26 on a v26 tree, 25–27 once v27 is in district-smoke).
+    const quickChunk = smokeChunk(versions.split(',').length * QUICK_CASES.length * COST.smokeRuns);
     // `npm run check`: the quick sample, labelled; `--merge`: all 48 cases; --commit / --range: the commit, not the working tree.
-    expect(steps.find(step => step.startsWith('smoke'))).toMatch(new RegExp(`^smoke QUICK .*tools/smoke-parallel\\.ts --versions ${versions} --cases quick --base abc123 --chunk 1$`));
+    expect(steps.find(step => step.startsWith('smoke'))).toMatch(new RegExp(`^smoke QUICK .*tools/smoke-parallel\\.ts --versions ${versions} --cases quick --base abc123 --chunk ${quickChunk}$`));
     const merge = planFor(context, { label: 't', base: 'abc123', head: 'def456', files: ['src/content/stone-evolutions.ts'] }, { merge: true });
     const mergeStep = planSteps(merge).find(step => step.name.startsWith('smoke'))!;
     expect(mergeStep.args.join(' ')).toBe(`tools/smoke-parallel.ts --versions ${versions} --base abc123 --head def456 --chunk 4`);
