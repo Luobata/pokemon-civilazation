@@ -24,7 +24,7 @@ import { DIRECTION_ANGLES, EDGE_CORNERS, SERIF, addHex, alpha, bucket, corner, d
 import { drawBasePainted } from './terrain.ts';
 import { MEDALLION, TOWN, medallionFrame, plate, townSprite, typeBadge, yieldRow } from './tokens.ts';
 import { drawIcon } from '../../map-icons.ts';
-import { mapArtKey } from './map-art.ts';
+import { loadMapArt, mapArtKey } from './map-art.ts';
 
 const ROLE_MARK = { settler: '拓', builder: '工', trader: '商' } as const;
 const OUTLINE = '#22170D', BRASS = '#E2BE6E';
@@ -402,6 +402,8 @@ function typeReader(view: PlayerView | undefined): (unit: UnitMarkIdentity) => T
 }
 
 export function createPaintedRenderer(canvas: HTMLCanvasElement, options: RendererOptions = {}): PaintedBackend {
+  // The authored map art (map-art.ts) loads in the background; the procedural props stand in until it is installed.
+  void loadMapArt();
   const caching = options.cacheLayers ?? true, chunks = createChunkCache();
   let fog: LayerCache | null = null, generation = 0, lastView = '', zeros = new Float32Array(0);
   return {

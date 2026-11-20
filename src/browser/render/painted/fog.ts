@@ -5,7 +5,7 @@ import type { Point } from '../../camera.ts';
 import { neighbourIndexOf } from '../projection.ts';
 import type { MapScene } from '../scene.ts';
 import { DIRECTION_ANGLES, EDGE_CORNERS, addHex, alpha, bucket, corner, dab, darken, makeCanvas, spriteCache, stream, stroke } from './kit.ts';
-import { flagsFor, groundKind, variantOf } from './terrain.ts';
+import { flagsFor, groundKind, inkedProp, variantOf } from './terrain.ts';
 import type { GroundKind } from './terrain.ts';
 
 export const INK = '#4A3420';
@@ -134,10 +134,12 @@ export function drawFogPainted(f: FogArgs): void {
     if (color) dab(g, p.x, p.y, radius * 1.25, radius * 1.25 * sq, color, kind === 'deep' ? .34 : kind === 'snow' ? .3 : .24);
   }
   g.restore();
-  // 2. The land in ink.
+  // 2. The land in ink: the map art's own props redrawn in brown ink when it covers the tile, else the procedural ink glyph.
   for (const { index, p } of shown) {
     const biome = scene.tiles[index].biome;
     if (!biome) continue;
+    const inked = inkedProp(scene, flags, index, R, sq);
+    if (inked) { g.drawImage(inked.canvas, p.x - inked.ox * k, p.y - inked.oy * k, inked.canvas.width * k, inked.canvas.height * k); continue; }
     const glyph = inkGlyph(groundKind(scene, flags, index), Boolean(flags.hill[index]), Boolean(flags.peak[index]), variantOf(index), R, sq);
     if (glyph) g.drawImage(glyph, p.x - glyph.width * k / 2, p.y - glyph.height * .58 * k, glyph.width * k, glyph.height * k);
   }

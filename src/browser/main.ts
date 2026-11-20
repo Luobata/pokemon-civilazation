@@ -68,6 +68,7 @@ import { BIOME_DISPLAY, FACTION_LEGEND } from './canvas.ts';
 import { FACTIONS, RENDER_MODE_KEY, applyRenderMode, createMapRenderer, requestedRenderMode, Timeline } from './render/index.ts';
 import { createMinimap } from './render/minimap.ts';
 import { applyTheme, requestedTheme, saveTheme, storedTheme } from './theme.ts';
+import { onMapArtChange } from './render/painted/map-art.ts';
 import type { RenderMode } from './render/index.ts';
 import type { DebugOverlay, RenderStats, Track } from './render/index.ts';
 import type { UnitMarkIdentity } from './render/scene.ts';
@@ -1019,6 +1020,8 @@ function evolveSelected(intoSpeciesId?: SpeciesId) {
   const evolution = unit?.kind === 'pokemon' ? CONTENT.species[unit.speciesId].evolution : null;
   if (unit && (intoSpeciesId ?? evolution)) issue({ type: 'Evolve', unitId: unit.id, intoSpeciesId: intoSpeciesId ?? evolution!.speciesId });
 }
+// The 绘卷 map art arrives after the first frames: redraw once it is installed (render/painted/map-art.ts).
+onMapArtChange(() => requestFrame());
 function requestFrame() {
   if (session && !frameRequested) { frameRequested = true; requestAnimationFrame(frame); }
 }

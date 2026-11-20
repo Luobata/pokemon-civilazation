@@ -14,7 +14,8 @@ import { landmarkGlyph } from '../terrain-features.ts';
 import { neighbourIndexOf } from '../projection.ts';
 import type { Base25d } from '../terrain25d.ts';
 import { DIRECTION_ANGLES, EDGE_CORNERS, SERIF, addHex, alpha, bucket, corner, dab, darken, hexPath, lighten, makeCanvas, mix, noise, spriteCache, stream, stroke } from './kit.ts';
-import { mapArt, mapArtKey } from './map-art.ts';
+import { mapArt, mapArtKey, mapArtVersion } from './map-art.ts';
+import type { ArtTile, CoastEnd, Shore } from './map-art.ts';
 
 export type GroundKind = BiomeId | 'shallow' | 'deep' | 'lake' | 'unknown';
 type Palette = { base: string; light: string; dark: string; tones: readonly string[] };
@@ -370,10 +371,7 @@ function spots(rnd: () => number, count: number, R: number, sq: number, spread =
 const CONIFER_SHARE = [.15, .3, .8, .5];
 /** Baked props of a tile (null when it has none); (ox, oy) is the tile centre inside the canvas. */
 export function propSprite(biome: BiomeId, variant: number, hill: boolean, peak: boolean, R: number, sq: number): Prop {
-  return props.get(`${biome}|${variant}|${hill ? 1 : 0}${peak ? 1 : 0}|${R}|${sq}|${mapArtKey()}`, () => {
-    // A dev-flag art set (map-art.ts) may replace this tile's props; undefined falls through to the procedural art.
-    const art = mapArt()?.prop?.(biome, variant, hill, peak, R, sq);
-    if (art !== undefined) return art;
+  return props.get(`${biome}|${variant}|${hill ? 1 : 0}${peak ? 1 : 0}|${R}|${sq}`, () => {
     if (biome === 'ocean' && !peak) return null;
     const w = R * 2.6, h = R * 3.4, ox = w / 2, oy = R * 2.3;
     const { canvas, context: g } = makeCanvas(w, h), rnd = stream(biome.charCodeAt(0) * 977 + biome.length * 31 + variant * 7907 + (hill ? 13 : 0) + (peak ? 29 : 0));
@@ -461,6 +459,53 @@ export function flagsFor(scene: MapScene): Flags {
   return flags;
 }
 export const variantOf = (index: number) => Math.floor(noise(9173, index) * 4);
+/** What the map art needs to know about a tile (map-art.ts ArtTile); null for unknown tiles. */
+export function artTile(scene: MapScene, flags: Flags, index: number): ArtTile | null {
+  const biome = scene.tiles[index].biome;
+  if (!biome) return null;
+  let woods = 0;
+  if (biome === 'forest') for (let direction = 0; direction < 6; direction++) {
+    const other = neighbourIndexOf(scene, index, direction);
+    if (other >= 0 && scene.tiles[other].biome === 'forest') woods |= 1 << direction;
+  }
+  return { biome, variant: variantOf(index), alt: noise(5113, index) < .5 ? 1 : 0, hill: Boolean(flags.hill[index]), peak: Boolean(flags.peak[index]), lake: Boolean(flags.lake[index]), landmark: flags.landmarks.get(index) ?? null, woods };
+}
+const NO_ART = { canvas: null as unknown as HTMLCanvasElement, ox: 0, oy: 0 };
+/** The standing props of a tile: the installed map art's (map-art.ts) when it covers the tile, else the procedural props. */
+/** Per scene and art set: each tile's ArtTile and the cache key prefix of its art props (null where the art does not cover it). */
+type ArtEntry = { tile: ArtTile; key: string; R?: number; sq?: number; prop?: Prop } | null;
+const artEntries = new WeakMap<Flags, { art: number; list: (ArtEntry | undefined)[] }>();
+function artEntry(scene: MapScene, flags: Flags, index: number): ArtEntry {
+  const art = mapArt();
+  if (!art?.propKey) return null;
+  let cached = artEntries.get(flags);
+  if (!cached || cached.art !== mapArtVersion()) { cached = { art: mapArtVersion(), list: [] }; artEntries.set(flags, cached); }
+  let entry = cached.list[index];
+  if (entry === undefined) {
+    const tile = artTile(scene, flags, index), key = tile ? art.propKey(tile) : null;
+    entry = cached.list[index] = tile && key !== null ? { tile, key: `${key}|${mapArtKey()}` } : null;
+  }
+  return entry;
+}
+/** The standing props of a tile: the installed map art's (map-art.ts) when it covers the tile, else the procedural props. */
+export function tileProp(scene: MapScene, flags: Flags, index: number, R: number, sq: number): Prop {
+  const art = mapArt(), entry = art?.prop ? artEntry(scene, flags, index) : null;
+  if (entry) {
+    // The last size this tile was drawn at is remembered on its entry, so a redraw at the same zoom skips the cache-key string.
+    if (entry.R !== R || entry.sq !== sq) { entry.prop = props.get(`art|${entry.key}|${R}|${sq}`, () => art!.prop!(entry.tile, R, sq) ?? NO_ART); entry.R = R; entry.sq = sq; }
+    const made = entry.prop!;
+    if (made !== NO_ART) return made;
+  }
+  const biome = scene.tiles[index].biome;
+  return biome ? propSprite(biome, variantOf(index), Boolean(flags.hill[index]), Boolean(flags.peak[index]), R, sq) : null;
+}
+const inks = spriteCache<Prop>(160);
+/** A fogged tile's props in the fog's ink (map art only); undefined when the procedural ink glyph should be drawn. */
+export function inkedProp(scene: MapScene, flags: Flags, index: number, R: number, sq: number): Prop | undefined {
+  const art = mapArt(), entry = art?.inked ? artEntry(scene, flags, index) : null;
+  if (!entry) return undefined;
+  return inks.get(`${entry.key}|${R}|${sq}`, () => art!.inked!(entry.tile, R, sq) ?? null) ?? undefined;
+}
 export function groundKind(scene: MapScene, flags: Flags, index: number): GroundKind {
   const biome = scene.tiles[index].biome;
   if (!biome) return 'unknown';
@@ -547,10 +592,10 @@ export function drawBasePainted(args: Base25d): void {
   for (const { index, p } of items) {
     const biome = scene.tiles[index].biome;
     if (!biome || flags.fog[index]) continue;
-    const prop = propSprite(biome, variantOf(index), Boolean(flags.hill[index]), Boolean(flags.peak[index]), R, sq);
+    const prop = tileProp(scene, flags, index, R, sq);
     if (prop) g.drawImage(prop.canvas, p.x - prop.ox * k, p.y - prop.oy * k, prop.canvas.width * k, prop.canvas.height * k);
     const landmark = flags.landmarks.get(index);
-    if (landmark) landmarkStone(g, p, radius, landmark, sq);
+    if (landmark) landmarkStone(g, p, radius, landmark, sq, Boolean(mapArt()?.landmarks));
   }
   // 6. Border ribbons on top.
   borders(g, args, items);
@@ -561,17 +606,36 @@ function edgePoints(p: Point, radius: number, sq: number, direction: number): [P
   const [a, b] = EDGE_CORNERS[direction];
   return [corner(p, radius, sq, a), corner(p, radius, sq, b)];
 }
+type CoastLook = { shore: Shore; ends: readonly [CoastEnd, CoastEnd] };
+const coastLooks = new WeakMap<MapScene, Map<number, CoastLook>>();
+/** The shore kind of a coast edge (from the land across it) and how its two ends meet the third tile at each corner. Cached per scene. */
+function coastLook(scene: MapScene, index: number, direction: number): CoastLook {
+  let looks = coastLooks.get(scene);
+  if (!looks) { looks = new Map(); coastLooks.set(scene, looks); }
+  let look = looks.get(index * 6 + direction);
+  if (!look) {
+    const other = neighbourIndexOf(scene, index, direction), land = other >= 0 ? scene.tiles[other].biome : null;
+    const shore: Shore = land === 'snow' ? 'snow' : land === 'volcano' ? 'volcanic' : land === 'mountain' ? 'rock' : 'sand';
+    // Local -x is the corner shared with the neighbour at direction + 1, +x the one shared with direction - 1.
+    const end = (step: number): CoastEnd => {
+      const third = neighbourIndexOf(scene, index, (direction + step) % 6), biome = third >= 0 ? scene.tiles[third].biome : null;
+      return !biome ? 'open' : biome === 'ocean' ? 'cape' : 'bay';
+    };
+    look = { shore, ends: [end(1), end(5)] };
+    looks.set(index * 6 + direction, look);
+  }
+  return look;
+}
 function coastEdge(g: CanvasRenderingContext2D, p: Point, radius: number, sq: number, direction: number, scene: MapScene, index: number, R: number) {
   const [a, b] = edgePoints(p, radius, sq, direction), angle = DIRECTION_ANGLES[direction];
   const n = { x: Math.cos(angle), y: Math.sin(angle) * sq };
   const art = mapArt();
   if (art?.coastEdge) {
     // The art draws in the unsquashed edge frame: +x along the edge, +y out to sea (this tile is the water side).
-    const other = neighbourIndexOf(scene, index, direction), land = other >= 0 ? scene.tiles[other].biome : null;
-    const shore = land === 'snow' ? 'snow' : land === 'volcano' ? 'volcanic' : land === 'mountain' ? 'rock' : 'sand';
+    const { shore, ends } = coastLook(scene, index, direction);
     g.save();
     g.translate(p.x + Math.cos(angle) * radius * .866, p.y + Math.sin(angle) * radius * .866 * sq); g.scale(1, sq); g.rotate(angle + Math.PI / 2);
-    const drawn = art.coastEdge(g, radius, R, shore);
+    const drawn = art.coastEdge(g, radius, R, shore, ends);
     g.restore();
     if (drawn) return;
   }
@@ -600,13 +664,17 @@ function river(g: CanvasRenderingContext2D, p: Point, radius: number, sq: number
     g.strokeStyle = color; g.lineWidth = Math.max(1, width * radius); g.lineCap = 'round'; g.lineJoin = 'round'; g.stroke();
   }
 }
-function landmarkStone(g: CanvasRenderingContext2D, p: Point, radius: number, id: LandmarkId, sq: number) {
-  const glyph = landmarkGlyph(id), w = radius * .34, h = radius * .62, x = p.x + radius * .3, y = p.y + radius * .25 * sq;
+function landmarkStone(g: CanvasRenderingContext2D, p: Point, radius: number, id: LandmarkId, sq: number, discOnly = false) {
+  const glyph = landmarkGlyph(id), w = radius * .34, h = radius * .62, x = p.x + radius * (discOnly ? .5 : .3), y = p.y + radius * (discOnly ? .62 : .25) * sq;
+  if (discOnly) { glyphDisc(g, x, y - radius * .55 * sq, radius * .17, glyph); return; }
   dab(g, x + w * .4, y, w * 1.1, w * .4, '#1A140C', .45);
   const fill = g.createLinearGradient(x - w / 2, 0, x + w / 2, 0);
   fill.addColorStop(0, '#D8CDB4'); fill.addColorStop(.6, '#9C917C'); fill.addColorStop(1, '#5E5649');
   g.beginPath(); g.roundRect(x - w / 2, y - h, w, h, [w * .45, w * .45, 2, 2]); g.fillStyle = fill; g.fill();
-  const r = radius * .22, cy = y - h - r * .55;
+  glyphDisc(g, x, y - h - radius * .22 * .55, radius * .22, glyph);
+}
+/** The landmark's brass-rimmed glyph disc. */
+function glyphDisc(g: CanvasRenderingContext2D, x: number, cy: number, r: number, glyph: { mark: string; color: string }) {
   g.beginPath(); g.arc(x, cy, r, 0, Math.PI * 2);
   const disc = g.createRadialGradient(x - r * .3, cy - r * .3, r * .1, x, cy, r);
   disc.addColorStop(0, lighten(glyph.color, .35)); disc.addColorStop(1, darken(glyph.color, .25));
