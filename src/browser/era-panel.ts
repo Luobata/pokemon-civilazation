@@ -16,6 +16,7 @@ import '../leader-doctrines.css';
 import { civHint } from './civ-hint.ts';
 import { statChip, uiIcon } from './ui-icons.ts';
 import type { UiIconName } from './ui-icons.ts';
+import { spriteImage } from './sprites.ts';
 import type { EraAbilityId } from '../content/era-abilities.ts';
 
 /** Icon per era-score milestone (docs/design/ui-icons/README.md). */
@@ -129,7 +130,7 @@ function draftIds(view: PlayerView, honor: Honor): DedicationId[] {
 }
 function cardMarkup(id: DedicationId, options: { picked?: boolean; button?: boolean; status?: string; golden?: boolean }): string {
   const card = DEDICATIONS[id];
-  const body = `<span class="dedication-art"><img src="${dedicationSprite(id)}" alt="" width="56" height="56"></span>
+  const body = `<span class="dedication-art">${spriteImage(dedicationSprite(id), 56)}</span>
     <span class="dedication-name">${card.name}</span><span class="dedication-style">${card.style}</span>
     <span class="dedication-line promise${options.golden ? ' inactive' : ''}"><b>${uiIcon('eraScore', { size: 14 })}承诺</b>${card.promiseText}</span>
     <span class="dedication-line golden${options.golden === false ? ' inactive' : ''}"><b>${uiIcon('crown', { size: 14 })}黄金</b>${card.goldenText}</span>

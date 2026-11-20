@@ -22,7 +22,7 @@ import { bestAttack } from '../core/team-battle.ts';
 import type { RelayFighter } from '../core/team-battle.ts';
 import { estimateLineup, lineupFighters, viewChampionshipSpec, viewEliteFourSpec, viewGuardianSpec, viewGymSpec } from '../core/team-battle-views.ts';
 import type { LineupSpec } from '../core/team-battle-views.ts';
-import { pokemonSpritePath } from './sprites.ts';
+import { pokemonPortrait } from './sprites.ts';
 import { statChip, typeBadge, uiIcon } from './ui-icons.ts';
 import { gymBlockerText, gymTitle } from './gym-panel.ts';
 import { matchupGridMarkup } from './matchup-grid.ts';
@@ -130,7 +130,7 @@ export function suggestReason(lineup: readonly RelayFighter[], foes: readonly Re
 const stars = (count: number) => count ? `<span class="lp-stars" title="历练 +${count}（攻防）" aria-label="历练 ${count}">${'★'.repeat(count)}</span>` : '';
 function fighterChip(fighter: RelayFighter, content: Content, extra = ''): string {
   const species = content.species[fighter.speciesId];
-  return `<img src="${pokemonSpritePath(fighter.speciesId)}" alt="" width="32" height="32"><span class="lp-name"><b>${esc(species?.name ?? fighter.speciesId)}</b>`
+  return `${pokemonPortrait(fighter.speciesId, 32, { className: 'lp-portrait', paintedBox: 40 })}<span class="lp-name"><b>${esc(species?.name ?? fighter.speciesId)}</b>`
     + `<small>${fighter.typeIds.map(type => typeBadge(type, 14)).join('')}${uiIcon(`class:${species?.role ?? 'melee'}`, { size: 14, label: `${CLASS_NAMES[species?.role ?? 'melee']}（先手 ${fighter.speed}）` })}`
     + ` HP ${fighter.hp}/${fighter.maxHp}${stars(fighter.veteran)}</small>`
     // U-b: attack, defence (历练 included) and the speed class, as icon chips (the numbers are their accessible names).

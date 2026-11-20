@@ -12,7 +12,7 @@ import type { Command, MapUnit, PlayerView } from '../core/model.ts';
 import type { BattleCombatant } from '../core/civilization-systems.ts';
 import { matchupGridMarkup } from './matchup-grid.ts';
 import { speciesTypes } from './gym-panel.ts';
-import { pokemonSpritePath } from './sprites.ts';
+import { pokemonPortrait, pokemonSpritePath } from './sprites.ts';
 import { artImage, escapeAttr, uiIcon } from './ui-icons.ts';
 
 export type PreviewedChallenge = Extract<Command['action'], { type: 'ChallengeGuardian' | 'ChallengeEliteFour' }>;
@@ -39,7 +39,7 @@ function markup(view: PlayerView, state: Opened): string | null {
   const team = state.action.unitIds.map(id => view.units.find((unit): unit is Extract<MapUnit, { kind: 'pokemon' }> => unit.id === id && unit.kind === 'pokemon')).filter(Boolean) as Extract<MapUnit, { kind: 'pokemon' }>[];
   const power = team.reduce((sum, unit) => sum + unitPower(unit, content), 0), ratio = Math.round(power * 100 / Math.max(1, foe.power));
   const title = state.action.type === 'ChallengeGuardian' ? '圣所守卫挑战' : '四天王与冠军';
-  const mine = team.map(unit => `<div class="cp-who"><span class="cp-sprite"><img src="${pokemonSpritePath(unit.speciesId)}" alt="" width="40" height="40"></span><p><strong>${escapeAttr(content.species[unit.speciesId].name)}</strong><small>HP ${unit.hp}/${content.species[unit.speciesId].maxHp} · 战力 ${unitPower(unit, content)}</small></p></div>`).join('');
+  const mine = team.map(unit => `<div class="cp-who"><span class="cp-sprite">${pokemonPortrait(unit.speciesId, 40)}</span><p><strong>${escapeAttr(content.species[unit.speciesId].name)}</strong><small>HP ${unit.hp}/${content.species[unit.speciesId].maxHp} · 战力 ${unitPower(unit, content)}</small></p></div>`).join('');
   const theirs = foe.team.map(item => artImage(pokemonSpritePath(item.speciesId), { size: 32, label: `${content.species[item.speciesId].name}（${item.typeIds.map(type => TYPE_NAMES[type]).join(' / ')}）` })).join('');
   const stages = state.action.type === 'ChallengeEliteFour' ? `<nav class="cc-stages" aria-label="五场对手">${ELITE_FOUR.map((member, index) => `<button type="button" data-cc-stage="${index}" aria-pressed="${index === state.stage}" title="第 ${index + 1} 场：${member.title}${member.name}">${uiIcon(index === ELITE_FOUR.length - 1 ? 'crown' : 'trainer', { size: 14 })}${escapeAttr(member.name)}</button>`).join('')}</nav>` : '';
   const grid = matchupGridMarkup(team.map(unit => ({ speciesId: unit.speciesId, typeIds: speciesTypes(content, unit.speciesId) })), foe.team, `属性克制：你的队伍对${foe.name}`, 'challenge-matchup');

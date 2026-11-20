@@ -3,6 +3,7 @@ import { ROSTER_V14_SPECIES } from '../content/roster-v14-data.ts';
 import { ROSTER_V26_SPECIES } from '../content/roster-v26-data.ts';
 import type { BuildingId } from '../content/economy.ts';
 import { buildingArtPath } from './building-art.ts';
+import { artFit, escapeAttr } from './ui-icons.ts';
 
 const BASE_POKEDEX: Record<BaseSpeciesId, number> = {
   clefable: 36, sandshrew: 27, ekans: 23, caterpie: 10, swinub: 220, magnemite: 81, umbreon: 197, clefairy: 35,
@@ -22,6 +23,28 @@ const spriteFolder = (dex: number) => dex <= 386 ? 'gen3' : dex <= 493 ? 'gen4' 
 /** Gens 6–9 come as tightly cropped, non-square images: fit by the long side at Emerald's typical fill (~0.77). */
 const isTightSprite = (dex: number) => dex > 649;
 export const pokemonSpritePath = (id: SpeciesId) => `/sprites/${spriteFolder(POKEDEX[id])}/${POKEDEX[id]}.png`;
+/** Every species with a sprite, and its National Pokédex number (tests: each one has a sprite and an artwork file). */
+export const SPRITE_SPECIES = Object.keys(POKEDEX) as SpeciesId[];
+export const pokedexNumber = (id: SpeciesId): number => POKEDEX[id];
+/** Official artwork, 192 px WebP (public/sprites/art/manifest.json): the 绘卷 theme's large portraits. Every species in POKEDEX has one. */
+export const pokemonArtPath = (id: SpeciesId) => `/sprites/art/${POKEDEX[id]}.webp`;
+const paintedTheme = () => (globalThis as { document?: Document }).document?.documentElement.classList.contains('theme-painted') ?? false;
+/**
+ * A large portrait `<img>` of a species in a `box`×`box` slot (unit panel, lineup picker, battle cards). The 绘卷 theme shows the
+ * smooth official artwork; the pixel looks show the game sprite at the largest integer device scale that fits, centred.
+ */
+export function pokemonPortrait(id: SpeciesId, box: number, { alt = '', className = '', paintedBox = box } = {}): string {
+  const named = alt ? `alt="${escapeAttr(alt)}"` : 'alt="" aria-hidden="true"';
+  const classes = (kind: string) => `${kind}${className ? ` ${className}` : ''}`;
+  if (paintedTheme() && POKEDEX[id]) return `<img class="${classes('portrait-art')}" src="${pokemonArtPath(id)}" width="${paintedBox}" height="${paintedBox}" ${named} decoding="async" draggable="false">`;
+  return spriteImage(pokemonSpritePath(id), box, { alt, className });
+}
+/** Any sprite file in a `box`×`box` slot: fixed-canvas pixel sets at the largest integer device scale that fits, centred. */
+export function spriteImage(src: string, box: number, { alt = '', className = '' } = {}): string {
+  const named = alt ? `alt="${escapeAttr(alt)}"` : 'alt="" aria-hidden="true"';
+  const fit = artFit(src, box);
+  return `<img class="portrait-px${fit.pixelated ? ' px-art-pixel' : ''}${className ? ` ${className}` : ''}" src="${src}" width="${fit.size}" height="${fit.size}"${fit.inset ? ` style="margin:${fit.inset}px"` : ''} ${named} draggable="false">`;
+}
 const images = new Map<SpeciesId, HTMLImageElement>();
 
 const buildingImages = new Map<BuildingId, HTMLImageElement>();

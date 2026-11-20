@@ -12,6 +12,7 @@ import { civOrYou } from './civ-names.ts';
 import { contentForView } from '../content/units.ts';
 import { viewLegendCost } from '../core/legend-favor.ts';
 import { legendFavorChip, legendTrailNote } from './city-projects-ui.ts';
+import { spriteImage } from './sprites.ts';
 
 type ViewCity = PlayerView['economy']['cities'][number];
 const YIELD_NAMES = { food: '食物', production: '生产', gold: '金币', research: '科研' } as const;
@@ -76,7 +77,7 @@ export function legendScreenMarkup(view: PlayerView): string {
     const chapters = story ? [clue || wonder ? ['第一章 · 线索', story.clue] : null, building || state === 'mine' ? ['第二章 · 筑殿', story.building] : null,
       state === 'mine' ? ['终章 · 降临', story.complete] : null].filter((item): item is string[] => item !== null) : [];
     const site = legends.sites.find(item => item.legendId === id);
-    return `<article class="legend-card ${state}" data-legend="${id}"><img src="${legendSprite(id)}" alt="" width="64" height="64">
+    return `<article class="legend-card ${state}" data-legend="${id}">${spriteImage(legendSprite(id), 64)}
       <div><p class="legend-dex">#${String(legend.dex).padStart(3, '0')}</p><h3>${legendTitle(id)}</h3><p class="legend-status">${status}</p>
       <p class="legend-effect">${wonder ? legendCost(id) : viewLegendCost(view, id, content)} 生产 · ${legendEffectText(id)}</p>
       ${site && !wonder ? `<button type="button" data-legend-site="${site.tileIndex}">在地图上定位踪迹</button>` : ''}
@@ -90,7 +91,7 @@ export function legendScreenMarkup(view: PlayerView): string {
 export function legendCompletionMarkup(id: LegendWonderId): string {
   const story = LEGEND_STORIES[id];
   return `<div class="legend-arrival" role="dialog" aria-label="传说奇观落成"><div class="legend-arrival-card"><p class="eyebrow">传说奇观落成 · 终章</p>
-    <img src="${legendSprite(id)}" alt="${LEGEND_WONDERS[id].name}" width="128" height="128"><h2>${legendTitle(id)}</h2>
+    ${spriteImage(legendSprite(id), 128, { alt: LEGEND_WONDERS[id].name })}<h2>${legendTitle(id)}</h2>
     <p class="legend-arrival-text">${story?.complete ?? ''}</p>${story?.quote ? `<blockquote>${story.quote}</blockquote>` : ''}
     <p class="legend-effect">${legendEffectText(id)}</p><button type="button" id="legend-arrival-close" class="primary">继续</button></div></div>`;
 }

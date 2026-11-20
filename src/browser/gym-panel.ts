@@ -15,7 +15,7 @@ import { rivalLines, viewRivalSighting } from '../core/rivals.ts';
 import { hexToIndex } from '../core/hex.ts';
 import type { Command, MapUnit, PlayerView } from '../core/model.ts';
 import { placeCard } from './combat-preview.ts';
-import { pokemonSpritePath } from './sprites.ts';
+import { pokemonPortrait, pokemonSpritePath } from './sprites.ts';
 import { artImage, typeBadge, uiIcon } from './ui-icons.ts';
 import type { TileEntity } from './tile-info.ts';
 import { civFlag, civLeaderName, civName, civOrYou } from './civ-names.ts';
@@ -176,7 +176,7 @@ export function gymCardMarkup(view: PlayerView, unitId: number): string | null {
   const content = contentForView(view), { gym, team, reason } = state, row = leaderTeamFor(badgesOf(view).length, content);
   const members = team.map(id => view.units.find(item => item.id === id)!).filter((item): item is Extract<MapUnit, { kind: 'pokemon' }> => item.kind === 'pokemon');
   const power = members.reduce((sum, item) => sum + unitPower(item, content), 0), ratio = Math.round(power * 100 / row.power);
-  const side = members.map(item => `<div class="cp-who"><span class="cp-sprite"><img src="${pokemonSpritePath(item.speciesId)}" alt="" width="40" height="40"></span><p><strong>${esc(unitDefinition(item, content).name)}</strong><small>HP ${item.hp}/${content.species[item.speciesId].maxHp} · 战力 ${unitPower(item, content)}</small></p></div>`).join('');
+  const side = members.map(item => `<div class="cp-who"><span class="cp-sprite">${pokemonPortrait(item.speciesId, 40)}</span><p><strong>${esc(unitDefinition(item, content).name)}</strong><small>HP ${item.hp}/${content.species[item.speciesId].maxHp} · 战力 ${unitPower(item, content)}</small></p></div>`).join('');
   // depth-v26 §2.5: the leader's team is public (the same rules build it for the preview and the battle); the grid shows each matchup.
   const leader = leaderTeam(gym, badgesOf(view).length, view.seed, content);
   const leaderSprites = leader.map(item => artImage(pokemonSpritePath(item.speciesId), { size: 32, label: `${content.species[item.speciesId].name}（${item.typeIds.map(type => TYPE_NAMES[type]).join(' / ')}）` })).join('');

@@ -37,7 +37,7 @@ import type { BallId } from '../content/economy.ts';
 import type { Command, CombatTarget, PlayerView } from '../core/model.ts';
 import { previewAttack, previewCapture } from '../core/preview.ts';
 import { MAX_RAID_REASONS, viewRaidDynamaxBlocker } from '../core/max-raids.ts';
-import { pokemonSpritePath } from './sprites.ts';
+import { pokemonPortrait } from './sprites.ts';
 import { WORLD_DEFINITIONS } from '../content/world-systems.ts';
 import { civHint } from './civ-hint.ts';
 import { researchCardMarkup } from './research-card.ts';
@@ -194,7 +194,7 @@ export function renderUnitPanel(view: PlayerView, selected: number | null, mode:
   // v24 D: the research card of the targeted wild / enemy Pokémon, else of this unit's species (keeps its open state across refreshes).
   const researchSpecies = targetUnit?.kind === 'pokemon' ? targetUnit.speciesId : unit.speciesId;
   const researchOpen = root.querySelector<HTMLDetailsElement>('#research-card')?.open ?? false;
-  root.innerHTML = `<div class="unit-card"><div class="unit-head"><div class="unit-portrait"><img src="${pokemonSpritePath(unit.speciesId)}" alt="${definition.name}" width="64" height="64"></div><div><strong>${definition.name}</strong><span class="unit-types">${typeBadge(species.typeId, 18)}${species.secondaryTypeId ? typeBadge(species.secondaryTypeId, 18) : ''}${view.gameplayVersion ? uiIcon(`class:${species.role}`, { size: 18, label: CLASS_NAMES[species.role] }) : ''}</span><small>宝可梦 · 文明 ${view.playerId + 1}${unit.enraged ? ' · 激怒' : ''}</small></div><span class="unit-ap ${unit.actionLeft ? '' : 'spent'}">${actionPointLabel(view, unit, CONTENT)}</span></div>
+  root.innerHTML = `<div class="unit-card"><div class="unit-head"><div class="unit-portrait">${pokemonPortrait(unit.speciesId, 64, { alt: definition.name, paintedBox: 84 })}</div><div><strong>${definition.name}</strong><span class="unit-types">${typeBadge(species.typeId, 18)}${species.secondaryTypeId ? typeBadge(species.secondaryTypeId, 18) : ''}${view.gameplayVersion ? uiIcon(`class:${species.role}`, { size: 18, label: CLASS_NAMES[species.role] }) : ''}</span><small>宝可梦 · 文明 ${view.playerId + 1}${unit.enraged ? ' · 激怒' : ''}</small></div><span class="unit-ap ${unit.actionLeft ? '' : 'spent'}">${actionPointLabel(view, unit, CONTENT)}</span></div>
     <div class="unit-vitals"><span>${uiIcon('heart', { size: 14 })}HP <strong>${unit.hp}/${species.maxHp}</strong><span class="vital-bar" aria-hidden="true"><span style="width:${Math.max(0, Math.min(100, unit.hp * 100 / species.maxHp))}%"></span></span></span><span>${uiIcon('star', { size: 14 })}EXP <strong>${unit.xp}${evolution ? `/${evolution.xp}` : ''}</strong>${evolution ? `<span class="vital-bar xp" aria-hidden="true"><span style="width:${Math.max(0, Math.min(100, unit.xp * 100 / evolution.xp))}%"></span></span>` : ''}</span></div>
     <div class="unit-details">${statTile('attack', CONTENT.combat === 'strength' ? '攻击战斗力' : '攻击', species.attack)}${statTile('defense', CONTENT.combat === 'strength' ? '防御战斗力' : '防御', species.defense)}${statTile('range', '射程', species.range)}${statTile('move', '移动', species.move + doctrineEffects(player, view.eraProgression, unit, CONTENT).movementBonus + promotionMovement(view, unit.id))}${statTile('class:scout', '视野', species.vision)}${CONTENT.combat === 'strength' ? '' : statTile('effect', '威力', species.power)}</div>
     ${evolutionMarkup}
