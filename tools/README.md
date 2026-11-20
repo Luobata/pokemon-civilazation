@@ -26,14 +26,17 @@
 
 | 文件 | 用途 |
 | --- | --- |
-| `test-plan.ts` | `node tools/test-plan.ts [--commit sha \| --range A..B \| --base ref \| --files a b] [--json] [--run] [--full \| --release] [--keep-going] [--smoke-versions 24-26] [--pw-workers N] [--smoke-workers N]`。默认范围 merge-base(main)..HEAD + 工作区。用导入图选出 vitest 文件、Playwright spec、是否需要 vite build / 生产构建 e2e / smoke（及哪些玩法版本）/ 平衡扫描建议，打印理由和粗略耗时；`--run` 依次执行（遇错即停）。 |
-| `test-plan-map.ts` | 人工审阅的映射表：`SPEC_RULES`（源码 → spec）、`ALWAYS_SPECS`、`PROD_TRIGGERS`、`FULL_TRIGGERS`、`VITEST_TEXT_DEPENDENCIES`、`VERSION_SCOPED`（可证明只影响 ≥ N 版本的规则文件）、`BALANCE_KNOBS`、`COST`。`tests/tools/test-plan.test.ts` 检查 glob 都有匹配、没有孤立 spec、版本收窄文件的导入者未变。 |
-| `smoke-parallel.ts` | 并行版 `district-smoke.ts`：`node tools/smoke-parallel.ts --versions 24-26\|all [--base ref \| --no-base] [--head ref] [--out 目录] [--workers N] [--allow-diff 27]`。每个版本同样的 48 局、同样的输出字节（启动时核对 `district-smoke.ts` 的配置），拆到子进程；基线提交用 `git archive` 导出后同样运行，按提交缓存在 `~/.cache/pokemon-civilization/smoke/<sha>/v<N>`；逐字节比较，未完成的对局或旧版本出现差异则非零退出（比 `LATEST_GAMEPLAY_VERSION` 新的版本和 `--allow-diff` 只报告）。`--workers` 默认核数 / 4、最多 16。 |
+| `test-plan.ts` | `node tools/test-plan.ts [--commit sha \| --range A..B \| --base ref \| --files a b] [--json] [--run] [--merge \| --full \| --release] [--keep-going] [--smoke-versions 24-26] [--no-trace-narrowing] [--pw-workers N] [--smoke-workers N]`。默认范围 merge-base(main)..HEAD + 工作区。用导入图选出 vitest 文件、Playwright spec、是否需要 vite build / 生产构建 e2e / smoke（及哪些玩法版本）/ 平衡扫描建议，打印理由和粗略耗时；`--run` 依次执行（遇错即停）。smoke 默认 QUICK（每版本 8 局，`QUICK — not merge-proof`），`--merge`（`npm run check:merge`）/ `--full` / `--release` 跑 48 局。只改了调参模块字面值时用内容读取追踪证明并收窄版本。 |
+| `test-plan-map.ts` | 人工审阅的映射表：`SPEC_RULES`（源码 → spec）、`ALWAYS_SPECS`、`PROD_TRIGGERS`、`FULL_TRIGGERS`、`VITEST_TEXT_DEPENDENCIES`、`VERSION_SCOPED`（可证明只影响 ≥ N 版本的规则文件）、`TRACED_MODULES`（内容读取追踪的调参模块）、`INIT_COPY_SITES`（`units.ts` 里经审阅的调参拷贝行）、`BALANCE_KNOBS`、`COST`。`tests/tools/test-plan.test.ts` 检查 glob 都有匹配、没有孤立 spec、版本收窄文件的导入者未变、拷贝行未变。 |
+| `smoke-parallel.ts` | 并行版 `district-smoke.ts`：`node tools/smoke-parallel.ts --versions 24-26\|all [--cases quick\|all\|0,5,…] [--base ref \| --no-base] [--head ref] [--out 目录] [--workers N] [--chunk N] [--allow-diff 27] [--no-trace]`。每个版本同样的 48 局（或 `--cases` 选的局）、同样的输出字节（启动时核对 `district-smoke.ts` 的配置），拆到子进程；基线提交用 `git archive` 导出后同样运行，按提交缓存在 `~/.cache/pokemon-civilization/smoke/<sha>/v<N>`；逐字节比较，未完成的对局或旧版本出现差异则非零退出（比 `LATEST_GAMEPLAY_VERSION` 新的版本和 `--allow-diff` 只报告）。每个 worker 都带内容读取追踪，跑完存入追踪库。`--workers` 默认核数 / 4、最多 16。 |
+| `content-trace.ts` | 内容读取追踪：把 `TRACED_MODULES` 导出对象的叶子换成记录读取的 getter（`units.ts` 的拷贝同样处理），记录 smoke 每个版本读了哪些调参值；存于 `~/.cache/pokemon-civilization/trace/<规则形状>/v<N>/`。`node tools/content-trace.ts --case 24 0 [--tree 目录] [--rounds 30]`（追踪一局并打印）、`--values [目录]`（全部被追踪叶子的值）、`--list`（追踪库内容）。原理见 [testing.md](../docs/tech/testing.md#版本收窄的证明内容读取追踪)。 |
 
 ```sh
 npm run check:plan                                              # 看本分支需要什么
-node tools/test-plan.ts --commit 6ac8e59                        # 某个提交
+node tools/test-plan.ts --commit 6ac8e59                        # 某个提交（QUICK）；加 --merge 看合并层
 node tools/smoke-parallel.ts --versions 26 --base 5d263aa --head 6ac8e59   # 单独比较一个提交与其父提交
+node tools/smoke-parallel.ts --head main --no-base --versions all          # 给 main 当前的规则形状补追踪数据（约 1 小时）
+node tools/content-trace.ts --list                              # 已存的追踪
 ```
 
 ## M6 发布批次复现

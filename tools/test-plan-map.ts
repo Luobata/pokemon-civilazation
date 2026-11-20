@@ -113,17 +113,18 @@ export const PROD_TRIGGERS = ['src/*.css', '*.html', 'src/browser/screens.ts', '
 
 /** Any of these changed → the whole old gate (build, lint, every vitest file, every spec, prod e2e, smoke for every version). */
 export const FULL_TRIGGERS = ['package.json', 'package-lock.json', 'tsconfig*.json', 'eslint.config.js', 'vite.config.ts', 'vitest.config.*', 'playwright*.config.ts',
-  'tools/test-plan.ts', 'tools/test-plan-map.ts', 'tools/smoke-parallel.ts', '.npmrc', '.nvmrc'];
+  'tools/test-plan.ts', 'tools/test-plan-map.ts', 'tools/smoke-parallel.ts', 'tools/content-trace.ts', '.npmrc', '.nvmrc'];
 
 /** Documentation: no checks (no markdown linter is configured). Files a test or the page reads (public/**) are not docs. */
 export const DOC_FILES = ['docs/**', '**/*.md', 'LICENSE*', '.gitignore', '.claude/**'];
 
 /**
  * Tests that read source text with fs (not an import): the graph cannot see these edges.
- * civ-glossary.test scans every src/browser/*.ts for civHint('…') calls.
+ * civ-glossary.test scans every src/browser/*.ts for civHint('…') calls; test-plan.test reads the content-trace fixture.
  */
 export const VITEST_TEXT_DEPENDENCIES: { files: string[]; tests: string[] }[] = [
   { files: ['src/browser/*.ts'], tests: ['tests/core/civ-glossary.test.ts'] },
+  { files: ['tests/tools/fixtures/content-trace-*.json'], tests: ['tests/tools/test-plan.test.ts'] },
 ];
 
 /**
@@ -139,6 +140,43 @@ export const VERSION_SCOPED: { file: string; from: number; importers: string[]; 
   { file: 'src/content/roster-v26-data.ts', from: 25, importers: ['src/content/units.ts', 'src/content/regional-dex.ts'],
     why: 'units.ts: v26 species only (depthSpecies); regional-dex.ts: ALL_SPECIES_TAGS can override a v25 tag, so v25 too' },
 ];
+
+/**
+ * Tuning modules the content read tracer instruments (tools/content-trace.ts). A change that only edits literal values inside their
+ * exported objects keeps the rule shape (tools/test-plan.ts `ruleShape`), so a stored trace of the same shape proves which gameplay
+ * versions can observe it. `blocks`: the content key that carries a copy of an export (src/content/units.ts copies it into the stock
+ * contents, `INIT_COPY_READERS`); `flags`: the export whose keys are spread onto the content as feature flags. `version` is only
+ * documentation (the module's gameplay version); the proof never relies on it. A module that does not exist yet is skipped.
+ */
+export const TRACED_MODULES: { file: string; version: number; blocks: Record<string, string>; flags?: string }[] = [
+  { file: 'src/content/world24-tuning.ts', version: 24, blocks: { world24: 'WORLD24_TUNING' } },
+  { file: 'src/content/depth-v26.ts', version: 26, blocks: { depth26: 'DEPTH26_TUNING' }, flags: 'DEPTH_FLAGS' },
+  { file: 'src/content/pace-v27.ts', version: 27, blocks: { pace27: 'PACE27_TUNING' }, flags: 'PACE_FLAGS' },
+];
+
+/**
+ * Reviewed copy sites of traced values in src/content/units.ts (tools/test-plan.ts `copySites`; checked by tests/tools/test-plan.test.ts).
+ * The tracer instruments the stock contents' blocks under the name of what they copy, which is right only while every copy is a
+ * same-named block of a content that is, or is spread from, a stock content (STOCK_CONTENTS). Reviewed 2026-11-20: WORLD24_CONTENT
+ * clones WORLD24_TUNING; REGIONAL_CONTENT clones that block with v25 rival offsets; depthOverlay clones the base block with v26 offsets and
+ * early gym powers (same keys, over-approximated by name) and DEPTH26_TUNING, and spreads DEPTH_FLAGS onto the content. A changed or new
+ * line (a v27 `pace27` overlay, a copy into a non-stock object) needs the same review before it is added here.
+ */
+export const INIT_COPY_SITES: Record<string, string[]> = {
+  'src/content/units.ts': [
+    'world24: JSON.parse(JSON.stringify(WORLD24_TUNING)) as typeof WORLD24_TUNING };',
+    'world24: { ...JSON.parse(JSON.stringify(WORLD24_CONTENT.world24)) as World24Tuning, rivalStrengthOffsets: [...RIVAL_RULES_V25.strengthOffsets],',
+    'const depthOverlay = (base: Content): Content => ({ ...base, version: \'depth-v26\', ...DEPTH_FLAGS,',
+    'world24: { ...JSON.parse(JSON.stringify(base.world24)) as World24Tuning, rivalStrengthOffsets: [...RIVAL_RULES_V26.strengthOffsets],',
+    'gymTeamPower: (base.world24?.gymTeamPower ?? []).map((power, badges) => GYM_RULES_V26.earlyTeamPower[badges] ?? power) },',
+    'depth26: JSON.parse(JSON.stringify(DEPTH26_TUNING)) as Depth26Tuning });',
+    // Reviewed ahead of the v27 merge (branch commit 6721019): paceOverlay clones the same-named blocks of its base and PACE27_TUNING and
+    // spreads PACE_FLAGS; PACE_CONTENT is in STOCK_CONTENTS, per-game overlays are built during v27 games (recorded there).
+    'const paceOverlay = (base: Content): Content => ({ ...base, version: \'pace-v27\', ...PACE_FLAGS,',
+    'world24: JSON.parse(JSON.stringify(base.world24)) as World24Tuning, depth26: JSON.parse(JSON.stringify(base.depth26)) as Depth26Tuning,',
+    'pace27: JSON.parse(JSON.stringify(PACE27_TUNING)) as Pace27Tuning });',
+  ],
+};
 
 /** Balance knobs (tools/patch.ts leaves) worth sweeping when these files change. */
 export const BALANCE_KNOBS: { files: string[]; params: string[] }[] = [
