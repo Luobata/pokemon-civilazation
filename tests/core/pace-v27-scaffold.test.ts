@@ -63,11 +63,11 @@ test('scaffolding: RaidDynamax is a known command, refused in v26 and in v27 whi
 test('the pace27 knobs patch the v27 content only, one block per lane', () => {
   const v26 = contentFor(setup(26)), v27 = contentFor(setup(27));
   expect(() => parsePatch({ pace27: { opening: { faithWinSharePercent: 65 } } }, v26)).toThrow('patch.pace27: unknown field');
-  const tuned = parsePatch({ pace27: { opening: { faithWinSharePercent: 65 }, economy: { projectCost: { festival: 80 } }, events: { circuitGold: { 1: 20 } }, trainers: { stageWeights: { 2: 14 } } } }, v27).content;
-  expect(tuned.pace27!.opening.faithWinSharePercent).toBe(65);
+  const tuned = parsePatch({ pace27: { opening: { faithWinSharePercent: 75 }, economy: { projectCost: { festival: 80 } }, events: { circuitGold: { 1: 20 } }, trainers: { stageWeights: { 2: 14 } } } }, v27).content;
+  expect(tuned.pace27!.opening.faithWinSharePercent).toBe(75);
   expect(tuned.pace27!.economy.projectCost.festival).toBe(80);
   expect(tuned.pace27!.events.circuitGold).toEqual([30, 20]);
   expect(tuned.pace27!.trainers.stageWeights).toEqual([8, 10, 14]);
-  expect(v27.pace27!.opening.faithWinSharePercent).toBe(70);
+  expect(v27.pace27!.opening.faithWinSharePercent).toBe(65);
   expect(() => parsePatch({ pace27: { opening: { aiSiteRadius: 4 } } }, v27)).toThrow('patch.pace27.opening.aiSiteRadius');
 });
