@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-26 -60 56 66" width="56" height="66">
+  <!-- 绘卷 map art (docs/design/map-art-options.md, option A): a charred snag with embers (volcanic slopes). Original artwork by this project, no third-party sources (public/map-art/README.md).
+       Anchor (0, 0) is the ground contact point; 100 units = one tile radius; light from the north-west. -->
+  <defs><linearGradient id="char-b" x1="0" x2="1"><stop offset="0" stop-color="#6A5650"/><stop offset=".5" stop-color="#3E3130"/><stop offset="1" stop-color="#1E1718"/></linearGradient></defs>
+  <ellipse cx="10" cy="1" rx="18" ry="5" fill="#1A140C" opacity="0.26"/>
+  <path d="M-1.4 -26q-9 -2 -18 -10M-12.2 -30.5l-5 -6M1.4 -33q8 -2.4 16 -12M11 -38.4l5 -6M-1.4 -40q-5.5 -1.8 -11 -9M-8 -44l-5 -6M1.4 -21q6 -1 12 -5M8.6 -23.2l5 -6" fill="none" stroke="#2B1E10" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M-1.4 -26q-9 -2 -18 -10M-12.2 -30.5l-5 -6M1.4 -33q8 -2.4 16 -12M11 -38.4l5 -6M-1.4 -40q-5.5 -1.8 -11 -9M-8 -44l-5 -6M1.4 -21q6 -1 12 -5M8.6 -23.2l5 -6" fill="none" stroke="#3E3130" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M-4.5 1Q-2.6-15 -2.2-37.5L-1.2-50L1.4-41Q2.4-15 4.5 1Q0 2.6-4.5 1Z" fill="url(#char-b)" stroke="#2B1E10" stroke-width="1.5" stroke-linejoin="round"/>
+  <path d="M-2.5-6Q-1.8-20 -1.6-35" fill="none" stroke="#6A5650" stroke-width="1" stroke-opacity=".8"/><g fill="#FF9A3C"><circle cx="-1" cy="-14" r="1.4"/><circle cx="1.5" cy="-24" r="1"/></g>
+</svg>

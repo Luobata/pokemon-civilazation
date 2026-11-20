@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-25 -96 54 102" width="54" height="102">
+  <!-- 绘卷 map art (docs/design/map-art-options.md, option A): a spruce (tall, four tiers, blue-green). Original artwork by this project, no third-party sources (public/map-art/README.md).
+       Anchor (0, 0) is the ground contact point; 100 units = one tile radius; light from the north-west. -->
+  <defs><linearGradient id="spr-g" x1="0" x2="1"><stop offset="0" stop-color="#6EA88A"/><stop offset=".5" stop-color="#2E6A55"/><stop offset="1" stop-color="#1B4036"/></linearGradient></defs>
+  <ellipse cx="9" cy="1" rx="19" ry="6" fill="#1A140C" opacity="0.26"/>
+  <path d="M-2.8 1L-2.2 -11H2.2L2.8 1Z" fill="#5A3B21" stroke="#2B1E10" stroke-width="1.2" stroke-linejoin="round"/>
+  <clipPath id="spr-t0"><path d="M0 -51.1Q-6.4 -20.9 -20 -8q6.7 4 13.3 0q6.7 4 13.3 0q6.7 4 13.3 0Q6.4 -20.9 0 -51.1Z"/></clipPath>
+  <path d="M0 -51.1Q-6.4 -20.9 -20 -8q6.7 4 13.3 0q6.7 4 13.3 0q6.7 4 13.3 0Q6.4 -20.9 0 -51.1Z" fill="url(#spr-g)" stroke="#2B1E10" stroke-width="1.8" stroke-linejoin="round"/>
+  <ellipse cx="3" cy="-38.3" rx="15" ry="4.4" fill="#0F2A1A" opacity="0" />
+  <path d="M-1 -47.1Q-7 -23.1 -16 -9" fill="none" stroke="#C2E08E" stroke-opacity="0.7" stroke-width="1.3" stroke-linecap="round"/>
+  <clipPath id="spr-t1"><path d="M0 -64.2Q-5.5 -35.9 -17.1 -23.8q5.7 3.4 11.4 0q5.7 3.4 11.4 0q5.7 3.4 11.4 0Q5.5 -35.9 0 -64.2Z"/></clipPath>
+  <path d="M0 -64.2Q-5.5 -35.9 -17.1 -23.8q5.7 3.4 11.4 0q5.7 3.4 11.4 0q5.7 3.4 11.4 0Q5.5 -35.9 0 -64.2Z" fill="url(#spr-g)" stroke="#2B1E10" stroke-width="1.8" stroke-linejoin="round"/>
+  <ellipse cx="2.6" cy="-52.5" rx="12.8" ry="3.8" fill="#0F2A1A" opacity="0" />
+  <path d="M-1 -60.2Q-6 -37.9 -13.7 -24.8" fill="none" stroke="#C2E08E" stroke-opacity="0.7" stroke-width="1.3" stroke-linecap="round"/>
+  <clipPath id="spr-t2"><path d="M0 -77.3Q-4.5 -50.9 -14.2 -39.6q4.7 2.8 9.5 0q4.7 2.8 9.5 0q4.7 2.8 9.5 0Q4.5 -50.9 0 -77.3Z"/></clipPath>
+  <path d="M0 -77.3Q-4.5 -50.9 -14.2 -39.6q4.7 2.8 9.5 0q4.7 2.8 9.5 0q4.7 2.8 9.5 0Q4.5 -50.9 0 -77.3Z" fill="url(#spr-g)" stroke="#2B1E10" stroke-width="1.8" stroke-linejoin="round"/>
+  <ellipse cx="2.1" cy="-66.7" rx="10.6" ry="3.1" fill="#0F2A1A" opacity="0" />
+  <path d="M-1 -73.3Q-5 -52.8 -11.4 -40.6" fill="none" stroke="#C2E08E" stroke-opacity="0.7" stroke-width="1.3" stroke-linecap="round"/>
+  <clipPath id="spr-t3"><path d="M0 -88Q-3.6 -65.1 -11.3 -55.4q3.8 2.3 7.5 0q3.8 2.3 7.5 0q3.8 2.3 7.5 0Q3.6 -65.1 0 -88Z"/></clipPath>
+  <path d="M0 -88Q-3.6 -65.1 -11.3 -55.4q3.8 2.3 7.5 0q3.8 2.3 7.5 0q3.8 2.3 7.5 0Q3.6 -65.1 0 -88Z" fill="url(#spr-g)" stroke="#2B1E10" stroke-width="1.8" stroke-linejoin="round"/>
+  <path d="M-1 -84Q-4 -66.8 -9 -56.4" fill="none" stroke="#C2E08E" stroke-opacity="0.7" stroke-width="1.3" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-26 -66 56 72" width="56" height="72">
+  <!-- 绘卷 map art (docs/design/map-art-options.md, option A): a bare dead tree (tundra / badlands). Original artwork by this project, no third-party sources (public/map-art/README.md).
+       Anchor (0, 0) is the ground contact point; 100 units = one tile radius; light from the north-west. -->
+  <defs><linearGradient id="dead-b" x1="0" x2="1"><stop offset="0" stop-color="#B7A58E"/><stop offset=".5" stop-color="#857360"/><stop offset="1" stop-color="#4F4235"/></linearGradient></defs>
+  <ellipse cx="10" cy="1" rx="18" ry="5" fill="#1A140C" opacity="0.26"/>
+  <path d="M-1.4 -29.1q-9 -2 -18 -10M-12.2 -33.6l-5 -6M1.4 -37q8 -2.4 16 -12M11 -42.4l5 -6M-1.4 -44.8q-5.5 -1.8 -11 -9M-8 -48.9l-5 -6M1.4 -23.5q6 -1 12 -5M8.6 -25.8l5 -6" fill="none" stroke="#2B1E10" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M-1.4 -29.1q-9 -2 -18 -10M-12.2 -33.6l-5 -6M1.4 -37q8 -2.4 16 -12M11 -42.4l5 -6M-1.4 -44.8q-5.5 -1.8 -11 -9M-8 -48.9l-5 -6M1.4 -23.5q6 -1 12 -5M8.6 -25.8l5 -6" fill="none" stroke="#857360" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M-4.5 1Q-2.6-16.8 -2.2-42L-1.2-56L1.4-45.9Q2.4-16.8 4.5 1Q0 2.6-4.5 1Z" fill="url(#dead-b)" stroke="#2B1E10" stroke-width="1.5" stroke-linejoin="round"/>
+  <path d="M-2.5-6Q-1.8-22.4 -1.6-39.2" fill="none" stroke="#B7A58E" stroke-width="1" stroke-opacity=".8"/>
+</svg>

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-18 -48 38 52" width="38" height="52">
+  <!-- 绘卷 map art (docs/design/map-art-options.md, option A): a saguaro cactus. Original artwork by this project, no third-party sources (public/map-art/README.md).
+       Anchor (0, 0) is the ground contact point; 100 units = one tile radius; light from the north-west. -->
+  <ellipse cx="8" cy="0" rx="15" ry="4" fill="#1A140C" opacity="0.26"/>
+  <path d="M0 0V-40M0-14Q-11-14-11-24V-31M0-20Q10-20 10-30V-36" fill="none" stroke="#2B1E10" stroke-width="11.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M0 0V-40M0-14Q-11-14-11-24V-31M0-20Q10-20 10-30V-36" fill="none" stroke="#3F7A3A" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M0 0V-40M0-14Q-11-14-11-24V-31M0-20Q10-20 10-30V-36" fill="none" stroke="#7DB55A" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" transform="translate(-2 -.6)"/>
+  <path d="M1.5-4V-36M-10-27V-30M11.5-31V-34" fill="none" stroke="#2A5A2C" stroke-width="1" stroke-linecap="round"/>
+  <circle cx="0" cy="-42" r="2.6" fill="#F07AB0" stroke="#2B1E10" stroke-width=".8"/><circle cx="10" cy="-37.5" r="2" fill="#F6D85A" stroke="#2B1E10" stroke-width=".7"/>
+</svg>

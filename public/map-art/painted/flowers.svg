@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-17 -14 36 18" width="36" height="18">
+  <!-- 绘卷 map art (docs/design/map-art-options.md, option A): a tuft of meadow flowers. Original artwork by this project, no third-party sources (public/map-art/README.md).
+       Anchor (0, 0) is the ground contact point; 100 units = one tile radius; light from the north-west. -->
+  <ellipse cx="2" cy="0" rx="16" ry="3" fill="#1A140C" opacity="0.14"/>
+  <path d="M-6.9 -4.4q-1-4 -0.4 -7" fill="none" stroke="#3F6E2C" stroke-width="1.2" stroke-linecap="round"/>
+  <path d="M-9 -4.6q-1-4 -0.4 -7" fill="none" stroke="#3F6E2C" stroke-width="1.2" stroke-linecap="round"/>
+  <path d="M10.9 -0.2q-1-4 1.1 -7" fill="none" stroke="#3F6E2C" stroke-width="1.2" stroke-linecap="round"/>
+  <path d="M-7.2 -1.8q-1-4 -0.9 -7" fill="none" stroke="#3F6E2C" stroke-width="1.2" stroke-linecap="round"/>
+  <path d="M-8.5 -4.4q-1-4 -1.1 -7" fill="none" stroke="#3F6E2C" stroke-width="1.2" stroke-linecap="round"/>
+  <path d="M11.1 0q-1-4 1.2 -7" fill="none" stroke="#3F6E2C" stroke-width="1.2" stroke-linecap="round"/>
+  <path d="M7.8 -3.8q-1-4 -0.8 -7" fill="none" stroke="#3F6E2C" stroke-width="1.2" stroke-linecap="round"/>
+  <path d="M3.3 -0.6q-1-4 1.4 -7" fill="none" stroke="#3F6E2C" stroke-width="1.2" stroke-linecap="round"/>
+  <path d="M9.9 -4.5q-1-4 0.4 -7" fill="none" stroke="#3F6E2C" stroke-width="1.2" stroke-linecap="round"/>
+  <circle cx="4.5" cy="-7.5" r="2.3" fill="#F7F1DA" stroke="#2B1E10" stroke-opacity=".7" stroke-width=".7"/><circle cx="4.5" cy="-7.5" r=".8" fill="#C98A2A"/>
+  <circle cx="-8.4" cy="-7.6" r="2.3" fill="#F6D85A" stroke="#2B1E10" stroke-opacity=".7" stroke-width=".7"/><circle cx="-8.4" cy="-7.6" r=".8" fill="#C98A2A"/>
+  <circle cx="-10.7" cy="-5.3" r="2.3" fill="#EE8F9C" stroke="#2B1E10" stroke-opacity=".7" stroke-width=".7"/><circle cx="-10.7" cy="-5.3" r=".8" fill="#C98A2A"/>
+  <circle cx="9.5" cy="-7.3" r="2.3" fill="#F7F1DA" stroke="#2B1E10" stroke-opacity=".7" stroke-width=".7"/><circle cx="9.5" cy="-7.3" r=".8" fill="#C98A2A"/>
+  <circle cx="-5.2" cy="-5.5" r="2.3" fill="#F6D85A" stroke="#2B1E10" stroke-opacity=".7" stroke-width=".7"/><circle cx="-5.2" cy="-5.5" r=".8" fill="#C98A2A"/>
+  <circle cx="1.9" cy="-5.6" r="2.3" fill="#EE8F9C" stroke="#2B1E10" stroke-opacity=".7" stroke-width=".7"/><circle cx="1.9" cy="-5.6" r=".8" fill="#C98A2A"/>
+  <circle cx="9" cy="-7.5" r="2.3" fill="#F7F1DA" stroke="#2B1E10" stroke-opacity=".7" stroke-width=".7"/><circle cx="9" cy="-7.5" r=".8" fill="#C98A2A"/>
+  <circle cx="-2.2" cy="-7" r="2.3" fill="#F6D85A" stroke="#2B1E10" stroke-opacity=".7" stroke-width=".7"/><circle cx="-2.2" cy="-7" r=".8" fill="#C98A2A"/>
+  <circle cx="-1.8" cy="-9.2" r="2.3" fill="#EE8F9C" stroke="#2B1E10" stroke-opacity=".7" stroke-width=".7"/><circle cx="-1.8" cy="-9.2" r=".8" fill="#C98A2A"/>
+</svg>
