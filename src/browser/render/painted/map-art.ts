@@ -50,7 +50,7 @@ export const mapArtKey = (): string => current ? `${current.id}.${version}` : '-
 export function onMapArtChange(listener: () => void): () => void { listeners.add(listener); return () => listeners.delete(listener); }
 
 /** `?mapart=proc` (or `procedural`) keeps the procedural props; anything else uses the authored SVG art. */
-export const svgArtWanted = (search: string): boolean => new URLSearchParams(search).get('mapart') === 'svg';
+export const svgArtWanted = (search: string): boolean => !/^proc(edural)?$/.test(new URLSearchParams(search).get('mapart') ?? '');
 /** Starts loading the SVG art once (the painted renderer calls this); resolves when it is installed or has failed. */
 export function loadMapArt(): Promise<void> {
   if (loading) return loading;
