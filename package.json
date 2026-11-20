@@ -14,7 +14,11 @@
     "lint:tools": "eslint tools",
     "sim:explore": "node tools/explore.ts",
     "sim:leaders": "node tools/leader-balance.ts",
-    "server": "node server/main.ts"
+    "server": "node server/main.ts",
+    "check": "node tools/test-plan.ts --run",
+    "check:plan": "node tools/test-plan.ts",
+    "check:full": "node tools/test-plan.ts --full --run",
+    "check:release": "node tools/test-plan.ts --release --run"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
