@@ -15,10 +15,10 @@ const setup = (gameplayVersion: 26 | 27): GameSetup => ({ seed: 31, width: 24, h
   ] });
 const FLAGS = Object.keys(PACE_FLAGS) as (keyof typeof PACE_FLAGS)[];
 
-test('v27 envelope: schema 22, rules pace-v27, the v26 content plus the seven pace flags; the default stays v26', () => {
+test('v27 envelope: schema 22, rules pace-v27, the v26 content plus the seven pace flags; v27 is the new-game default', () => {
   expect(gameVersions({ gameplayVersion: 27 })).toEqual({ schemaVersion: 22, rulesVersion: 'pace-v27' });
   expect(isGameplayVersion(27)).toBe(true);
-  expect(LATEST_GAMEPLAY_VERSION).toBe(26);
+  expect(LATEST_GAMEPLAY_VERSION).toBe(27);
   expect(contentFor({ expansionVersion: 1, gameplayVersion: 27 })).toBe(PACE_CONTENT);
   expect(PACE_CONTENT.version).toBe('pace-v27');
   expect(STOCK_CONTENTS).toContain(PACE_CONTENT);
