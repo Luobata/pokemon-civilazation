@@ -7,14 +7,16 @@ import { createGame } from '../core/game.ts';
 import type { Command, GameEvent, GameState } from '../core/model.ts';
 import { step } from '../core/step.ts';
 import { observe } from '../core/vision.ts';
-import { EXPANSION_CONTENT, contentFor } from '../content/units.ts';
+import { contentFor } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
+import { LATEST_GAMEPLAY_VERSION } from '../content/eras.ts';
+import { gameVersions } from '../core/versions.ts';
 import { parseAuditAction } from './commands.ts';
 
 export const AUDIT_SNAPSHOT_KEY = 'pokemon-civilization:audit-snapshot';
 export type AuditTrace = { command: Command; accepted: boolean; reason?: string; events: GameEvent[] };
 const defaultSetup = {
-  expansionVersion: 1 as const, seed: 12345, width: 24, height: 16, roundLimit: 100 as const,
+  expansionVersion: 1 as const, eraProgression: 'simple-v1' as const, gameplayVersion: LATEST_GAMEPLAY_VERSION, seed: 12345, width: 24, height: 16, roundLimit: 100 as const,
   players: [
     { id: 0, controller: 'human' as const, starterId: 'bulbasaur' as const, leaderId: 'oak' as const },
     { id: 1, controller: 'ai' as const, personality: 'expansion' as const, leaderId: 'lance' as const },
@@ -41,9 +43,9 @@ export class AuditSandbox {
         aiRejectedCitySites: (save.log.aiRejectedCitySites ?? []).filter(site => site.seq < save.state.commandSeq) };
     } else {
       this.state = createGame(defaultSetup);
-      this.content = EXPANSION_CONTENT;
-      this.log = { version: 1, schemaVersion: 4, rulesVersion: 'm5-v1', contentVersion: this.state.contentVersion,
-        setup: structuredClone(defaultSetup), commands: [], aiRejectedCitySites: [] };
+      this.content = contentFor(this.state.setup);
+      this.log = { version: 1, ...gameVersions(), contentVersion: this.state.contentVersion,
+        setup: structuredClone(this.state.setup), commands: [], aiRejectedCitySites: [] };
     }
     this.baseline = this.save();
   }

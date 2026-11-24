@@ -4,7 +4,7 @@
 // Units have no "skip" command, so a unit the button has already led the player to counts as reviewed for the
 // rest of the round (it stays selectable with the ‹ › cycle buttons).
 import type { TechId } from '../content/economy.ts';
-import type { EXPANSION_CONTENT } from '../content/units.ts';
+import type { Content } from '../content/units.ts';
 import { CHARTERS } from '../content/policies.ts';
 import { canResearch } from '../core/economy-commands.ts';
 import { hexDistance } from '../core/hex.ts';
@@ -42,7 +42,7 @@ export function cycleId(ids: readonly number[], current: number | null, step: 1 
 }
 
 /** Reminders shown as chips above the end-turn button (Civilization "needs orders"). */
-export function turnReminders(view: PlayerView, content: typeof EXPANSION_CONTENT, reviewed: ReadonlySet<number> = new Set()): Reminder[] {
+export function turnReminders(view: PlayerView, content: Content, reviewed: ReadonlySet<number> = new Set()): Reminder[] {
   const items: Reminder[] = [];
   const player = view.economy.player;
   const dedication = view.expansion?.eraHonors?.dedication;

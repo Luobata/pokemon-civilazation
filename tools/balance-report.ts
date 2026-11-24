@@ -14,7 +14,7 @@ import { formatSeeds, splitFlags } from './balance-run.ts';
 import { acceptance, BOOTSTRAP_RESAMPLES, CURVE_FIELDS, curveTable, delta, estimate, leaderTable, measure, outcomeTable, personalityTable, roleShares } from './balance-metrics.ts';
 import type { Check, CurveRow, Delta, Estimate, GameMetrics, OutcomeKind } from './balance-metrics.ts';
 import { lineWinDeltas, newcombeInterval, speciesTable } from './balance-metrics.ts';
-import { REGIONAL_CONTENT } from '../src/content/units.ts';
+import { GAME_CONTENT as REGIONAL_CONTENT } from '../src/content/units.ts';
 import { dexMaxGeneration, evolutionLines } from '../src/content/regional-dex.ts';
 
 export type BalanceData = { directory: string; manifest: BalanceManifest; games: GameMetrics[]; curves: CurveRow[] };

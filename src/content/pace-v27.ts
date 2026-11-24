@@ -1,27 +1,4 @@
-// Gameplay v27 (docs/design/pace-v27.md): the feature flags and the balance knobs of the pace upgrade. The knobs ride on the v27 `Content`
-// only (`content.pace27`), so `tools/patch.ts` can vary them (and `balance-sweep` sweep them) and older contents are untouched;
-// `pace27Tuning(content)` falls back to the stock values. One block per lane, so the parallel lanes each edit their own block.
-
-/** One flag per v27 item (§1). All are absent before v27; the v27 content sets every one of them. */
-export type PaceFlags = {
-  /** ① §2: civilians flee from wild Pokémon instead of being knocked out; the AI's near city sites (radius 2); faith needs 70%. */
-  openingSafety?: true;
-  /** ② §3: exhausted wild Pokémon, newbie protection before round 30, the first-encounter reward, the guaranteed first ball. */
-  wildEncounters?: true;
-  /** ③ §4: repeatable city projects (cost +20% per completion, buyable with gold). */
-  cityProjects?: true;
-  /** ④ §5: legend wonders cost +15% per legend already owned. */
-  legendFavor?: true;
-  /** ⑤ §6: Max raids — shields, two phases, the den Dynamax, roles, catch chances, the reward preview. */
-  maxRaids?: true;
-  /** ⑥ §7: the fixed roster of 8 original league trainers (themes, signature Pokémon, growth per season, records, nemesis). */
-  leagueTrainers?: true;
-  /** ⑦ §8: contest entry from any own city, placing prizes. */
-  contestCircuit?: true;
-};
-export const PACE_FLAGS: Required<PaceFlags> = {
-  openingSafety: true, wildEncounters: true, cityProjects: true, legendFavor: true, maxRaids: true, leagueTrainers: true, contestCircuit: true,
-};
+// Balance knobs for opening safety, wild encounters, city projects, legend favour, Max raids, league trainers and contest circuit.
 
 // ---------- Opening lane (① ②) ----------
 export type OpeningTuning = {

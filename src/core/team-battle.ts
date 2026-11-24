@@ -138,7 +138,7 @@ export function runGauntlet(home: RelayFighter[], teams: readonly (readonly Rela
 
 const typesOf = (species: SpeciesDefinition) => [species.typeId, ...(species.secondaryTypeId ? [species.secondaryTypeId] : [])];
 /** 历练 (§2.1): +1 attack / defence per `veteranXp` XP, at most `veteranCap`; 0 before v26. */
-export const veteranBonus = (xp: number, content: Content) => content.teamBattles ? Math.min(depth26Tuning(content).veteranCap, Math.floor(Math.max(0, xp) / depth26Tuning(content).veteranXp)) : 0;
+export const veteranBonus = (xp: number, content: Content) => Math.min(depth26Tuning(content).veteranCap, Math.floor(Math.max(0, xp) / depth26Tuning(content).veteranXp));
 /** A player's Pokémon (current HP, its XP as 历练, an optional TM type and a strength bonus such as 劲敌气势 for rivals). */
 export function fighterFromUnit(unit: { id: number; speciesId: SpeciesId; hp: number; xp: number }, id: string, content: Content,
   extra: { taughtTypeId?: TypeId; spirit?: number } = {}): RelayFighter {

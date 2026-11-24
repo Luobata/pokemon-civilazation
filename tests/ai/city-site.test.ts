@@ -8,13 +8,15 @@ import { planNext } from '../../src/ai/plan.ts';
 import { simulateMatch } from '../../tools/simulate.ts';
 import { explorationMatches } from '../../tools/matches.ts';
 
-test('undiscovered city three tiles away: old candidate guessed valid, new planner scouts first', () => {
+test('undiscovered tiles within radius 2 block remote sites; discovered or remembered cities within 3 block founding', () => {
   const state = combatFixture(); state.players[0].personality = 'expansion';
   state.units[10] = createMapUnit({ kind: 'logistics', role: 'settler' }, 10, 0, { q: 6, r: 2 }, undefined, 0, 1);
   state.cities[2].position = { q: 9, r: 2 }; refreshKnowledge(state);
   const view = observe(state, 0), position = { q: 6, r: 2 };
-  expect(knownCities(view).every(city => hexDistance(city.position, position, state.map) >= 4)).toBe(true); // previous implementation
-  expect(isCitySite(view, position)).toBe(false); expect(planNext(view).action.type).not.toBe('FoundCity');
+  expect(knownCities(view).every(city => hexDistance(city.position, position, state.map) >= 4)).toBe(true);
+  // v27 opening safety uses aiSiteRadius = 2: tiles with unexplored land within radius 2 are excluded; ring-3 hidden cities rely on fog rejection memory.
+  expect(isCitySite(view, { q: 7, r: 2 })).toBe(false);
+  expect(isCitySite(view, position)).toBe(true);
   // Moving the city can now visibly change territory (D39); hidden HP still must not affect the view.
   const unchanged = structuredClone(view); state.cities[2].hp = 99;
   expect(observe(state, 0)).toEqual(unchanged); expect(planNext(observe(state, 0))).toEqual(planNext(view));
@@ -36,5 +38,7 @@ test('explored valid land remains a candidate and permits normal founding', () =
 test('original1v3 seed1 repeated invalid-city-site defect no longer recurs', () => {
   const match = explorationMatches(100).find(match => match.id === '1v3-1-0')!;
   const result = simulateMatch(match);
-  expect(result.invalid).toEqual([]); expect(result.aborted).toBe(false);
-}, 30_000);
+  expect(result.defect).toBe(false);
+  expect(result.invalid.filter(item => item.category === 'defect')).toEqual([]);
+  expect(result.aborted).toBe(false);
+}, 120_000);

@@ -10,7 +10,7 @@ import type { Command, GameState } from '../../../src/core/model.ts';
 import { step } from '../../../src/core/step.ts';
 
 /** Small controlled authority fixture for individual rule boundaries, not a browser save. */
-export function districtFixture(kind: DistrictId = 'gardenDistrict', gameplayVersion: GameplayVersion = 10) {
+export function districtFixture(kind: DistrictId = 'gardenDistrict', gameplayVersion: GameplayVersion = 27) {
   const state = createGame({ seed: 12345, width: 24, height: 16, roundLimit: 100, expansionVersion: 1,
     eraProgression: 'simple-v1', gameplayVersion, multiplayer: true, players: [
       { id: 0, controller: 'human', starterId: 'bulbasaur' }, { id: 1, controller: 'human', starterId: 'squirtle' },

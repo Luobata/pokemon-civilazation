@@ -13,8 +13,8 @@ test('v12: the era screen shows the current age, this era’s score against both
   const section = page.locator('.era-honor');
   await expect(section).toHaveClass(new RegExp(`age-${record.age}`));
   await expect(section).toContainText('本世代时代分');
-  await expect(section).toContainText('黄金线 0.8');
-  await expect(section).toContainText('黑暗线 0.45');
+  await expect(section).toContainText('黄金线 1.5');
+  await expect(section).toContainText('黑暗线 1');
   await section.locator('summary', { hasText: '以往世代' }).click();
   await expect(section.locator('.era-honor-history li')).toHaveCount(1);
   await page.screenshot({ path: `${reports}/era-honors-1280.png` });

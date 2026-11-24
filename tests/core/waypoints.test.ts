@@ -11,7 +11,7 @@ import { suggestCitySites } from '../../src/browser/city-sites.ts';
 import { sitePinsMarkup } from '../../src/browser/site-pins.ts';
 
 function game(seed = 12345) {
-  return new GameSession({ seed, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 24,
+  return new GameSession({ seed, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 27,
     players: [{ id: 0, controller: 'human', starterId: 'bulbasaur' }, { id: 1, controller: 'ai', personality: 'expansion' }, { id: 2, controller: 'ai', personality: 'conservative' }] });
 }
 const settlerOf = (view: PlayerView) => view.units.find(unit => unit.ownerId === view.playerId && unit.kind === 'logistics')!;

@@ -3,18 +3,21 @@ import { combatFixture, pokemon } from './combat-fixture.ts';
 import { observe, refreshKnowledge } from '../../src/core/vision.ts';
 import { previewAttack, previewCapture } from '../../src/core/preview.ts';
 
-test('GDD7.4 17–21 damage, counter2; preview includes possible vs guaranteed knockout', () => {
+test('v27 strength preview: 22–26 damage, counter 5; preview includes possible vs guaranteed knockout', () => {
   const state = combatFixture(); pokemon(state, 10, 'charmeleon').hp = 51; pokemon(state, 11, 'ivysaur', null, 4);
   refreshKnowledge(state); const view = observe(state, 0);
-  expect(previewAttack(view, 10, { kind: 'unit', id: 11 })).toEqual({ ok: true, damage: { min: 17, max: 21 }, counter: { trigger: 'always', damage: 2 }, knockdown: 'none' });
-  view.units.find(unit => unit.id === 11)!.hp = 20;
+  expect(previewAttack(view, 10, { kind: 'unit', id: 11 })).toMatchObject({
+    ok: true, damage: { min: 22, max: 26 }, counter: { trigger: 'always', damage: 5 }, knockdown: 'none',
+    strength: { attack: 45, defense: 44, gap: 14, immune: false, logistics: false },
+  });
+  view.units.find(unit => unit.id === 11)!.hp = 25;
   expect(previewAttack(view, 10, { kind: 'unit', id: 11 })).toMatchObject({ counter: { trigger: 'possible' }, knockdown: 'possible' });
-  view.units.find(unit => unit.id === 11)!.hp = 17;
+  view.units.find(unit => unit.id === 11)!.hp = 22;
   expect(previewAttack(view, 10, { kind: 'unit', id: 11 })).toMatchObject({ counter: { trigger: 'never', damage: 0 }, knockdown: 'guaranteed' });
 });
 test.each([
-  ['machoke', 15, 'pokeBall', false, 47], ['machoke', 15, 'greatBall', false, 71],
-  ['machoke', 15, 'pokeBall', true, 57], ['snorlax', 20, 'greatBall', true, 43],
+  ['machoke', 15, 'pokeBall', false, 51], ['machoke', 15, 'greatBall', false, 76],
+  ['machoke', 15, 'pokeBall', true, 61], ['snorlax', 20, 'greatBall', true, 41],
 ] as const)('capture preview %s hp%i %s observe=%s ->%i', (species, hp, ball, researched, probability) => {
   const state = combatFixture(); pokemon(state); pokemon(state, 11, species, null, 4).hp = hp;
   state.players[0].research.unlockedIds = ['domestication', 'ballCraft', ...(researched ? ['fieldObservation' as const] : [])];

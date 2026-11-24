@@ -3,7 +3,6 @@
 // authoritative battle and the attack preview share one calculation.
 import { PROMOTION_RULES, PROMOTION_TRAIT_IDS } from '../content/promotions.ts';
 import type { PromotionTrait } from '../content/promotions.ts';
-import { gameplayAtLeast } from '../content/eras.ts';
 import type { Content } from '../content/units.ts';
 import { isMapUnit } from './model.ts';
 import type { EventPayload, GameState, PlayerView } from './model.ts';
@@ -16,7 +15,7 @@ export type PromotionView = { units: Record<number, { merit?: number; traits: Pr
 export type PromotionAction = { type: 'PromoteUnit'; unitId: number; trait: PromotionTrait };
 export type PromotionEvent = { type: 'UnitPromoted'; playerId: number; unitId: number; trait: PromotionTrait; rank: number };
 
-export const usesPromotions = (state: Pick<GameState, 'setup' | 'expansion'>) => state.expansion !== undefined && gameplayAtLeast(state.setup, 13);
+export const usesPromotions = (state: Pick<GameState, 'setup' | 'expansion'>) => state.expansion !== undefined;
 export function isPromotionAction(action: { type: unknown }): action is PromotionAction { return action.type === 'PromoteUnit'; }
 export function initializePromotions(state: GameState): void {
   if (usesPromotions(state)) state.expansion!.promotions = { units: {} };

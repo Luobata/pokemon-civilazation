@@ -20,18 +20,17 @@ const favored = (cost: number, owned: number, content: Content) => Math.floor(co
 
 /** The production cost of `item` for `playerId` given its stock cost (= `cost` unless the item is a legend and the content has legend favour). */
 export function legendFavorCost(state: GameState, playerId: number, item: ProductionItem, cost: number, content: Content): number {
-  if (!content.legendFavor || item.kind !== 'legend') return cost;
+  if (item.kind !== 'legend') return cost;
   return favored(cost, ownedLegends(state, playerId), content);
 }
 /** View mirror: the viewer's cost for `legendId` (the stock cost before v27). */
 export function viewLegendCost(view: PlayerView, legendId: LegendWonderId, content: Content): number {
-  return content.legendFavor ? favored(legendCost(legendId), viewOwnedLegends(view), content) : legendCost(legendId);
+  return favored(legendCost(legendId), viewOwnedLegends(view), content);
 }
 /** The viewer's next-legend cost percent (100 before v27): the wonder tab's multiplier chip. */
-export const viewLegendFavorPercent = (view: PlayerView, content: Content): number => content.legendFavor ? legendFavorCostPercent(content, viewOwnedLegends(view)) : 100;
+export const viewLegendFavorPercent = (view: PlayerView, content: Content): number => legendFavorCostPercent(content, viewOwnedLegends(view));
 /** A lost race: the city's legend trail grows by `legendTrailPercent`% of the lost progress (nothing before v27). Returns the amount. */
 export function recordLegendTrail(state: GameState, cityId: number, progress: number, content: Content): number {
-  if (!content.legendFavor) return 0;
   const amount = Math.floor(progress * economyTuning(content).legendTrailPercent / 100);
   addLegendTrail(state, cityId, amount);
   return amount;

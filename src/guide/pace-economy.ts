@@ -2,7 +2,7 @@
 // from the content knobs (src/content/pace-v27.ts).
 import { CITY_PROJECT_IDS, CITY_PROJECT_INFO, ECONOMY_TUNING as E, cityProjectCost } from '../content/pace-v27.ts';
 import { LATE_GAME_TUNING as L } from '../content/depth-v26.ts';
-import { PACE_CONTENT } from '../content/units.ts';
+import { GAME_CONTENT } from '../content/units.ts';
 import type { GuideSection } from './sections.ts';
 
 const tip = (...lines: string[]) => `<div class="tip">${lines.map(line => `<p>${line}</p>`).join('')}</div>`;
@@ -14,7 +14,7 @@ const EFFECTS: Record<(typeof CITY_PROJECT_IDS)[number], string> = {
   festival: `满意度 +${E.festivalSatisfaction}；时代分 +1（每 ${E.festivalEraInterval} 轮最多 1 分）。`,
 };
 const projectTable = `<div class="table-wrap"><table><thead><tr><th>计划</th><th>需要（本城）</th><th>第 1 / 2 / 5 / 10 次成本</th><th>完成时</th></tr></thead><tbody>${CITY_PROJECT_IDS.map(id =>
-  `<tr><td>${CITY_PROJECT_INFO[id].name}</td><td>${CITY_PROJECT_INFO[id].needs}</td><td>${[0, 1, 4, 9].map(done => cityProjectCost(PACE_CONTENT, id, done)).join(' / ')}</td><td>${EFFECTS[id]}</td></tr>`).join('')}</tbody></table></div>`;
+  `<tr><td>${CITY_PROJECT_INFO[id].name}</td><td>${CITY_PROJECT_INFO[id].needs}</td><td>${[0, 1, 4, 9].map(done => cityProjectCost(GAME_CONTENT, id, done)).join(' / ')}</td><td>${EFFECTS[id]}</td></tr>`).join('')}</tbody></table></div>`;
 
 export const PACE_ECONOMY_SECTIONS: readonly GuideSection[] = [
   { id: 'city-projects', group: '文明发展', title: '城市计划：闲置产能的去处', badge: 'v27 新增', html: `

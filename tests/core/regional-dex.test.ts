@@ -1,19 +1,18 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
-import { deriveRosterTables, drawRegionalDex, evolutionLines, dexMaxGeneration, unmetConstraints, REGIONAL_DEX_RULES } from '../../src/content/regional-dex.ts';
+import { ALL_SPECIES_TAGS, deriveRosterTables, drawRegionalDex, evolutionLines, dexMaxGeneration, unmetConstraints, REGIONAL_DEX_RULES } from '../../src/content/regional-dex.ts';
 import type { RegionalDexDraw } from '../../src/content/regional-dex.ts';
 import { RECRUIT_SLOTS } from '../../src/content/recruit-slots.ts';
-import { SPECIES_TAGS } from '../../src/content/species-tags.ts';
-import { WORLD24_CONTENT } from '../../src/content/units.ts';
+import { GAME_CONTENT } from '../../src/content/units.ts';
 import type { SpeciesId } from '../../src/content/units.ts';
 import type { EraProgression } from '../../src/content/eras.ts';
 import { LEADER_IDS } from '../../src/content/leaders.ts';
 import type { LeaderId } from '../../src/content/leaders.ts';
 
-const species = WORLD24_CONTENT.species;
+const species = GAME_CONTENT.species;
 const MODES: readonly EraProgression[] = ['simple-v1', 'full-v1'];
 const seated = (seed: number): LeaderId[] => [0, 1, 2, 3].map(index => LEADER_IDS[(seed + index) % LEADER_IDS.length]);
-const GOLDEN = new URL('./__golden__/regional-dex-v25.json', import.meta.url);
+const GOLDEN = new URL('./__golden__/regional-dex-v26.json', import.meta.url);
 
 test.each(MODES)('%s: seeds 1–150 meet every coverage constraint with whole lines, anchors and regional recruits', mode => {
   const lines = evolutionLines(species, dexMaxGeneration(mode));
@@ -50,7 +49,7 @@ test('the draw is a pure function of its public inputs (no game state, stable ac
 });
 
 test('tags cover the regional pool: every regional species has a tag row', () => {
-  for (const mode of MODES) for (const line of evolutionLines(species, dexMaxGeneration(mode))) for (const id of line.speciesIds) expect(SPECIES_TAGS[id], id).toBeDefined();
+  for (const mode of MODES) for (const line of evolutionLines(species, dexMaxGeneration(mode))) for (const id of line.speciesIds) expect(ALL_SPECIES_TAGS[id], id).toBeDefined();
 });
 
 /** Golden draws: a change here changes existing v25 saves and must ship as a new gameplay version (roster-v25 §4.1). */

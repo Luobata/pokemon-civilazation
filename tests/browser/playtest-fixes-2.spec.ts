@@ -164,17 +164,17 @@ test('A N8: on water the capture button is unavailable in advance and Q says why
   expect(errors).toEqual([]);
 });
 
-test('A N7: an open contest season without a hall says why it cannot be entered and is not ranked as urgent', async ({ page }) => {
+test('A N7: an open contest season with no eligible entrant says why it cannot be entered and is not ranked as urgent', async ({ page }) => {
   test.setTimeout(300_000);
   const errors = errorsOf(page);
   const fixture = seasonNoHallFixture();
   await importSave(page, fixture.save);
   await openScreen(page, 'world');
   const card = page.locator('.next-card[data-card="season"]');
-  await expect(card).toContainText('不能参赛：没有大赛馆');
+  await expect(card).toContainText('不能参赛：没有合适的宝可梦');
   await expect(card).not.toHaveClass(/urgent|ready/);
   await expect(card.locator('button', { hasText: '参赛' })).toBeDisabled();
-  await expect(card.locator('button', { hasText: '参赛' })).toHaveAttribute('title', /还没有华丽大赛馆/);
+  await expect(card.locator('button', { hasText: '参赛' })).toHaveAttribute('title', /附近城市里没有可出场的宝可梦/);
   await expect(page.locator('.next-card').first()).not.toHaveAttribute('data-card', 'season');
   await card.scrollIntoViewIfNeeded();
   await page.screenshot({ path: `${SHOTS}/a-season-no-hall.png` });

@@ -3,7 +3,7 @@ import type { DoctrineDefinition } from '../core/leader-doctrines.ts';
 import { LEADER_DOCTRINES, activeDoctrine } from '../core/leader-doctrines.ts';
 import type { DoctrinePhase } from '../content/eras.ts';
 import { ERA_DEFINITIONS, eraState } from '../content/eras.ts';
-import { EXPANSION_CONTENT, contentForView } from '../content/units.ts';
+import { GAME_CONTENT } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
 import { LEADERS } from '../content/leaders.ts';
 import type { PlayerView } from '../core/model.ts';
@@ -111,7 +111,7 @@ function eraHonorMarkup(view: PlayerView, eraNames: (index: number) => string): 
     <p class="era-honor-legend"><span class="dark">${uiIcon('type:dark', { size: 14 })}黑暗线 ${dark}</span><span class="golden">${uiIcon('eraScore', { size: 14 })}黄金线 ${golden}</span></p>
     <p class="era-honor-projection">${rounds < honor.minimumRounds ? `本世代还不到 ${honor.minimumRounds} 轮：现在进入下个世代会是普通时代。` : `按现在的速度，进入下个世代时将是 <b class="age-${projected}">${ERA_AGES[projected].name}</b>。`}</p>
     ${breakdown ? `<ul class="era-honor-breakdown">${breakdown}</ul>` : '<p class="unit-note">本世代还没有得分。建城、进化、捕捉、确立规章、建设施区、清巢穴都能得分。</p>'}
-    <details><summary>怎么得分</summary><ul class="era-honor-table">${ERA_MILESTONE_IDS.filter(id => (id !== 'legendWonder' || view.expansion?.legends) && (id !== 'landmarkDiscovered' || view.expansion?.landmarks) && (id !== 'researchComplete' || view.expansion?.researchTasks) && ((id !== 'gymBadge' && id !== 'eliteFour') || view.expansion?.gymCircuit) && (id !== 'rivalDefeated' || view.expansion?.rivals) && ((id !== 'candyEvolution' && id !== 'finalEvolution') || contentForView(view).evolutionGoals) && (id !== 'raidWon' || view.expansion?.raids) && (id !== 'festival' || view.expansion?.cityProjects) && (id !== 'contestSeasonWon' || contentForView(view).contestCircuit)).map(id => `<li>${uiIcon(MILESTONE_ICONS[id], { size: 18 })}<span>${ERA_MILESTONES[id].name}</span><b>${signed(ERA_MILESTONES[id].points)}</b></li>`).join('')}</ul></details>
+    <details><summary>怎么得分</summary><ul class="era-honor-table">${ERA_MILESTONE_IDS.filter(id => (id !== 'legendWonder' || view.expansion?.legends) && (id !== 'landmarkDiscovered' || view.expansion?.landmarks) && (id !== 'researchComplete' || view.expansion?.researchTasks) && ((id !== 'gymBadge' && id !== 'eliteFour') || view.expansion?.gymCircuit) && (id !== 'rivalDefeated' || view.expansion?.rivals) && (id !== 'raidWon' || view.expansion?.raids) && (id !== 'festival' || view.expansion?.cityProjects)).map(id => `<li>${uiIcon(MILESTONE_ICONS[id], { size: 18 })}<span>${ERA_MILESTONES[id].name}</span><b>${signed(ERA_MILESTONES[id].points)}</b></li>`).join('')}</ul></details>
     ${honor.history.length ? `<details><summary>以往世代</summary><ul class="era-honor-history">${honor.history.map(item => `<li>${eraNames(item.eraIndex)} · ${item.heroic ? '英雄时代' : ERA_AGES[item.age].name} · ${item.score} 分 / ${item.rounds} 轮${item.dedications?.length ? ` · 献礼：${item.dedications.map(id => DEDICATIONS[id].name).join('、')}` : ''}</li>`).join('')}</ul></details>` : ''}
   </section>${dedicationMarkup(view)}`;
 }
@@ -202,6 +202,6 @@ export function renderEraPanel(view: PlayerView): string {
   <dl class="era-summary"><dt>已完成科技</dt><dd>${state.completedTechs} 项</dd><dt>整体进程</dt><dd>${state.overallProgressPercent}%</dd></dl>
   ${view.expansion?.eraAbilities ? `<section class="era-abilities"><strong>世代能力 · ${view.expansion.eraAbilities.night ? '夜晚' : '白天'}</strong><ul>${ERA_ABILITY_IDS.filter(id => state.mode === 'full-v1' || ERA_ABILITIES[id].generation <= 3).map(id => `<li class="${view.expansion!.eraAbilities!.unlocked.includes(id) ? 'done' : 'locked'}"><span class="era-ability-icon">${uiIcon(ABILITY_ICONS[id], { size: 26 })}${uiIcon(view.expansion!.eraAbilities!.unlocked.includes(id) ? 'check' : 'lock', { size: 12, label: view.expansion!.eraAbilities!.unlocked.includes(id) ? '已解锁' : '未解锁', className: 'era-ability-state' })}</span><span>${ERA_ABILITIES[id].era} · ${ERA_ABILITIES[id].name}</span><small>${ERA_ABILITIES[id].description}</small></li>`).join('')}</ul></section>` : ''}
   <section class="era-doctrine"><strong>${leader ? `${leader.name} · ${PHASE_LABELS[state.phase]}战术` : '无领袖战术'}</strong>${definition ? `<p>${definition.description}</p>` : '<p>此局未选择领袖，世代只推进，不提供额外战术加成。</p>'}</section>
-  ${leader ? `<details class="era-windows-toggle"><summary>查看早 / 中 / 后期战术窗口</summary><ul class="era-windows">${windows.map(item => windowMarkup(item, item.phase === state.phase, EXPANSION_CONTENT)).join('')}</ul></details>` : ''}
+  ${leader ? `<details class="era-windows-toggle"><summary>查看早 / 中 / 后期战术窗口</summary><ul class="era-windows">${windows.map(item => windowMarkup(item, item.phase === state.phase, GAME_CONTENT)).join('')}</ul></details>` : ''}
 </div>`;
 }

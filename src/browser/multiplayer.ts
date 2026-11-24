@@ -3,7 +3,7 @@ import { bindEraPanel, renderEraPanel } from './era-panel.ts';
 import { LEADERS, LEADER_IDS, type LeaderId } from '../content/leaders.ts';
 import type { EraProgression } from '../content/eras.ts';
 import { EXPANSION_ACTION_FIELDS } from '../core/expansion-commands.ts';
-import { CONTENT as BASE_CONTENT, contentForView } from '../content/units.ts';
+import { GAME_CONTENT as BASE_CONTENT, contentForView } from '../content/units.ts';
 import { hexToIndex, indexToHex } from '../core/hex.ts';
 import { reachablePaths } from '../core/movement.ts';
 import type { Command, PlayerView } from '../core/model.ts';

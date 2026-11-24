@@ -8,7 +8,6 @@ import type { CityProjectId } from '../content/pace-v27.ts';
 import { cityDistrictEffects, districtOccupiedTiles } from './districts.ts';
 import { faithCityYield } from './faith-legends.ts';
 import { rareBerryCityFood } from './rare-berries.ts';
-import { gameplayAtLeast } from '../content/eras.ts';
 import { doctrineEffects } from './leader-doctrines.ts';
 import { tileImprovementYield } from './improvements.ts';
 import { applyFeatureYield, freshWater, workableFeature } from './terrain.ts';
@@ -17,7 +16,7 @@ import { TERRAIN_RULES_V24 } from '../content/terrain.ts';
 import { playerPolicyEffects } from './policies.ts';
 import { worldCityYield } from './world-systems.ts';
 import { leaderCityYield } from './leader-systems.ts';
-import { CONTENT, contentFor } from '../content/units.ts';
+import { GAME_CONTENT, contentFor } from '../content/units.ts';
 import { leaderEffects } from '../content/leaders.ts';
 import type { Content } from '../content/units.ts';
 import type { Yield } from '../content/economy.ts';
@@ -25,26 +24,26 @@ import { hexDistance, hexToIndex, indexToHex } from './hex.ts';
 import type { Hex } from './hex.ts';
 import type { CityState, GameState, PlayerState, ProductionItem } from './model.ts';
 
-export function createCity(id: number, ownerId: number, position: Hex, headquarters = false, content: Content = CONTENT): CityState {
+export function createCity(id: number, ownerId: number, position: Hex, headquarters = false, content: Content = GAME_CONTENT): CityState {
   return { id, ownerId, position: { ...position }, hp: content.balance.city.baseHp, population: headquarters ? 2 : 1,
     food: headquarters ? 10 : 0, buildingIds: headquarters ? ['headquarters'] : [],
     queue: [], pendingDeployments: [], workedTileIds: [], lockedTileIds: [], capturedAtRound: null };
 }
 export const workRadius = (city: CityState) => 2 + Math.floor(city.population / 4);
 export const growthThreshold = (city: CityState) => 20 + 10 * city.population;
-export const maxCityHp = (city: CityState, content: Content = CONTENT) => content.balance.city.baseHp + content.balance.city.buildingHp * city.buildingIds.filter(id => id !== 'headquarters').length;
-export function cityCounterAttack(player: PlayerState | undefined, content: Content = CONTENT): number {
+export const maxCityHp = (city: CityState, content: Content = GAME_CONTENT) => content.balance.city.baseHp + content.balance.city.buildingHp * city.buildingIds.filter(id => id !== 'headquarters').length;
+export function cityCounterAttack(player: PlayerState | undefined, content: Content = GAME_CONTENT): number {
   if (!player) return 0;
   return (player.starterId === 'squirtle' ? content.balance.city.squirtleCounterAttack : content.balance.city.counterAttack)
     + leaderEffects(player.leaderId).cityCounterAttack;
 }
-export function tileYield(biome: keyof Content['biomes'], player: PlayerState, content: Content = CONTENT): Yield {
+export function tileYield(biome: keyof Content['biomes'], player: PlayerState, content: Content = GAME_CONTENT): Yield {
   const result = { ...content.biomes[biome] };
   if ((biome === 'snow' || biome === 'volcano') && player.research.unlockedIds.includes('meteorology')) result.research += content.balance.effects.meteorologyResearch;
   return result;
 }
-/** Biome yield, v24 terrain features (deep water, hills, rivers) and any completed improvement (gameplay v2); identical to tileYield otherwise. */
-export function workedTileYield(state: GameState, index: number, player: PlayerState, content: Content = CONTENT): Yield {
+/** Biome yield, terrain features (deep water, hills, rivers) and any completed improvement. */
+export function workedTileYield(state: GameState, index: number, player: PlayerState, content: Content = GAME_CONTENT): Yield {
   const result = applyLandmarkYield(state.map, index, applyFeatureYield(state.map, index, tileYield(state.map.tiles[index], player, content))), bonus = tileImprovementYield(state, index, player);
   if (bonus) for (const key of ['food', 'production', 'gold', 'research'] as const) result[key] += bonus[key];
   return result;
@@ -89,26 +88,22 @@ export function releaseWorker(state: GameState, city: CityState, content: Conten
 export function assignNewWorkers(state: GameState, city: CityState, count: number, content: Content = contentFor(state.setup)): void {
   const available = workCandidates(state, city, content).filter(id => !city.workedTileIds.includes(id));
   const slots = Math.min(count, city.population - city.workedTileIds.length);
-  if (gameplayAtLeast(state.setup, 5)) {
-    // Gameplay v5: every third worker prefers a biome (essence) the city does not work yet, if one is in range.
-    for (let i = 0; i < slots; i++) {
-      const pool = available.filter(id => !city.workedTileIds.includes(id));
-      const biomes = new Set(city.workedTileIds.map(id => state.map.tiles[id]));
-      const fresh = city.workedTileIds.length % 3 === 2 ? pool.find(id => !biomes.has(state.map.tiles[id])) : undefined;
-      const pick = fresh ?? pool[0];
-      if (pick === undefined) break;
-      city.workedTileIds.push(pick);
-    }
-  } else city.workedTileIds.push(...available.slice(0, slots));
+  for (let i = 0; i < slots; i++) {
+    const pool = available.filter(id => !city.workedTileIds.includes(id));
+    const biomes = new Set(city.workedTileIds.map(id => state.map.tiles[id]));
+    const fresh = city.workedTileIds.length % 3 === 2 ? pool.find(id => !biomes.has(state.map.tiles[id])) : undefined;
+    const pick = fresh ?? pool[0];
+    if (pick === undefined) break;
+    city.workedTileIds.push(pick);
+  }
   city.workedTileIds.sort((a, b) => a - b);
 }
 export function cityYield(state: GameState, city: CityState, content: Content = contentFor(state.setup)): Yield {
   if (city.ownerId === null || city.capturedAtRound === state.round) return { food: 0, production: 0, gold: 0, research: 0 };
   const player = state.players[city.ownerId];
   const capital = state.players[city.ownerId].headquartersCityId === city.id;
-  // v24: a fresh-water city centre (on or beside a river or lake) grows faster.
-  const result = { food: 2 + (freshWater(state.map, city.position) ? TERRAIN_RULES_V24.freshWaterFood : 0), production: 1 + (content.opening && capital ? OPENING_RULES.capitalProduction : 0), gold: 1, research: city.population - city.workedTileIds.length
-    + (content.opening ? (capital ? OPENING_RULES.capitalResearch : OPENING_RULES.cityResearch) : 0) };
+  const result = { food: 2 + (freshWater(state.map, city.position) ? TERRAIN_RULES_V24.freshWaterFood : 0), production: 1 + (capital ? OPENING_RULES.capitalProduction : 0), gold: 1, research: city.population - city.workedTileIds.length
+    + (capital ? OPENING_RULES.capitalResearch : OPENING_RULES.cityResearch) };
   for (const addition of [...city.workedTileIds.map(id => workedTileYield(state, id, player, content)),
     leaderCityYield(state, city.id), worldCityYield(state, city, content), ...city.buildingIds.map(id => content.buildings[id].yields)]) {
     for (const key of ['food', 'production', 'gold', 'research'] as const) result[key] += addition[key];
@@ -129,7 +124,7 @@ export function cityYield(state: GameState, city: CityState, content: Content = 
   return result;
 }
 /** `projectsDone` (v27 ③): the civilization's completions per city project, which raise a project's cost. */
-export function productionCost(item: ProductionItem, content: Content = CONTENT, trainingDiscountPercent = 0, settlerDiscountPercent = 0,
+export function productionCost(item: ProductionItem, content: Content = GAME_CONTENT, trainingDiscountPercent = 0, settlerDiscountPercent = 0,
   projectsDone: Partial<Record<CityProjectId, number>> = {}): number {
   if (item.kind === 'project') return cityProjectCost(content, item.defId, projectsDone[item.defId] ?? 0);
   if (item.kind === 'district') return DISTRICTS[item.defId].cost;

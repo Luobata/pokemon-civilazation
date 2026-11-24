@@ -34,15 +34,7 @@ const scoreOf = (view: PlayerView, unit: Pokemon, content: Content) => {
 };
 /** The entrant for the announced season: the best score among own Pokémon within 8 tiles of a hall (lowest id on ties). */
 function entrant(view: PlayerView, content: Content): { unit: Pokemon; hall: Hex } | null {
-  if (content.contestCircuit) return circuitEntrant(view, content);
-  const seasons = view.expansion?.contestSeasons, contests = view.expansion?.contests;
-  if (!content.contestSeasons || !seasons?.category || seasons.ownEntry || !contests?.own.halls.length || seasons.nextRound === null || view.round > seasons.nextRound) return null;
-  const halls = view.economy.cities.filter(city => contests.own.halls.includes(city.id));
-  if (!halls.length) return null;
-  const nearest = (unit: Pokemon) => [...halls].sort((a, b) => hexDistance(a.position, unit.position, view.map) - hexDistance(b.position, unit.position, view.map) || a.id - b.id)[0];
-  const unit = view.units.filter((item): item is Pokemon => item.ownerId === view.playerId && item.kind === 'pokemon' && hexDistance(nearest(item).position, item.position, view.map) <= 8)
-    .sort((a, b) => scoreOf(view, b, content) - scoreOf(view, a, content) || a.id - b.id)[0];
-  return unit ? { unit, hall: nearest(unit).position } : null;
+  return circuitEntrant(view, content);
 }
 function circuitEntrant(view: PlayerView, content: Content): { unit: Pokemon; hall: Hex } | null {
   const seasons = view.expansion?.contestSeasons, contests = view.expansion?.contests;
@@ -64,7 +56,7 @@ export function contestMoveTargets(view: PlayerView, content: Content): Map<numb
 }
 export function planContestSeasonAction(view: PlayerView, content: Content): Command['action'] | null {
   const contests = view.expansion?.contests, player = view.economy.player;
-  if (!content.contestSeasons || !contests || view.outcome) return null;
+  if (!contests || view.outcome) return null;
   const pick = entrant(view, content);
   if (pick && viewContestEntryBlocker(view, pick.unit.id, content) === null) return { type: 'EnterContest', unitId: pick.unit.id };
   const atWar = view.diplomacy.some(pair => pair.status === 'war' && (pair.a === view.playerId || pair.b === view.playerId));

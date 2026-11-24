@@ -25,7 +25,7 @@ test('fixed seed1 failed spawn only draws decision; seed30 success draws decisio
   const random = vi.spyOn(rng, 'randomBelow'); expect(spawnWild(state)).toEqual([]);
   expect(random.mock.calls.map(call => call[1])).toEqual([100]);
   random.mockClear(); state.rng = rng.createRng(30); expect(spawnWild(state)).toHaveLength(1);
-  expect(random.mock.calls.map(call => call[1])).toEqual([100, 64, 82, 64]); // D31 ocean wheel
+  expect(random.mock.calls.map(call => call[1])).toEqual([100, 64, 62, 64]); // v27 regional ocean wheel (seed 12345)
   expect(Object.values(state.units).every(unit => unit.kind === 'pokemon' && unit.speciesId !== 'dratini')).toBe(true);
 });
 
@@ -33,13 +33,13 @@ test('no candidate consumes decision/biome/species but no position', () => {
   const state = region();
   for (let i = 0; i < 64; i++) state.cities[i + 1] = createCity(i + 1, 0, indexToHex(i, state.map));
   const random = vi.spyOn(rng, 'randomBelow'); expect(spawnWild(state)).toEqual([]);
-  expect(random.mock.calls.map(call => call[1])).toEqual([100, 64, 82]);
+  expect(random.mock.calls.map(call => call[1])).toEqual([100, 64, 62]);
 });
 
 test('initial per-region attempts skip decision and consume two ordered roulettes/positions', () => {
   const state = region(); const random = vi.spyOn(rng, 'randomBelow');
   expect(spawnWild(state, true)).toHaveLength(2);
-  expect(random.mock.calls.map(call => call[1])).toEqual([64, 82, 64, 64, 82, 63]);
+  expect(random.mock.calls.map(call => call[1])).toEqual([64, 62, 64, 64, 62, 63]);
   random.mockClear(); spawnWild(state, true); expect(random).not.toHaveBeenCalled();
 });
 

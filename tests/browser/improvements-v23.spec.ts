@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { escortedBuilderFixture, pillageFixture } from './fixtures/improvements-v23.ts';
 import { CREW_SPECIALTIES, IMPROVEMENTS, crewSpecialtyFor } from '../../src/content/improvements.ts';
-import { IMPROVEMENT_CONTENT } from '../../src/content/units.ts';
+import { GAME_CONTENT } from '../../src/content/units.ts';
 import { hexToIndex } from '../../src/core/hex.ts';
 import type { GameState } from '../../src/core/model.ts';
 
@@ -20,7 +20,7 @@ test('v23: a builder trained with an escort shows its crew specialty and a repai
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(String(error)));
   const fixture = escortedBuilderFixture(), builder = fixture.state.units[fixture.unitId] as { escortId: string };
-  const crew = CREW_SPECIALTIES[crewSpecialtyFor(IMPROVEMENT_CONTENT.species[builder.escortId].typeId)];
+  const crew = CREW_SPECIALTIES[crewSpecialtyFor(GAME_CONTENT.species[builder.escortId].typeId)];
   await importSave(page, fixture.save);
   await page.locator('#unit-select').selectOption(String(fixture.unitId));
   await expect(page.locator('#crew-note')).toContainText(`特长「${crew.name}」`);

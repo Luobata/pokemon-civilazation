@@ -1,7 +1,6 @@
 import { victoryTargets } from '../content/opening.ts';
 import { FAITH_RULES, LEGENDS, LEGEND_IDS, TENETS } from '../content/faith-legends.ts';
 import type { LegendId, TenetId } from '../content/faith-legends.ts';
-import { gameplayAtLeast } from '../content/eras.ts';
 import type { Content } from '../content/units.ts';
 import { contentFor } from '../content/units.ts';
 import { faithWinCount, faithWinShareView } from './opening-safety.ts';
@@ -27,7 +26,7 @@ export type FaithView = { faiths: (Faith & { followers: number })[]; cityFaith: 
   /** v27: the exact percent (the authority's integer rule; `winShare` = percent / 100). */
   winSharePercent?: number };
 
-export const usesFaith = (state: Pick<GameState, 'setup' | 'expansion'>) => state.expansion !== undefined && gameplayAtLeast(state.setup, 9);
+export const usesFaith = (state: Pick<GameState, 'setup' | 'expansion'>) => state.expansion !== undefined;
 export function isFaithAction(action: { type: unknown }): action is FaithAction { return action.type === 'FoundFaith' || action.type === 'SpreadFaith'; }
 export function initializeFaith(state: GameState): void {
   if (usesFaith(state)) state.expansion!.faith = { faiths: {}, pressure: {}, cityFaith: {} };
@@ -114,9 +113,7 @@ export function resolveFaithRound(state: GameState, content: Content): EventPayl
   const faith = state.expansion?.faith;
   if (!faith || state.outcome) return [];
   const events: EventPayload[] = [];
-  // v25 fix 3: a city that turns neutral keeps the faith it followed (no pressure reaches it); before v25 it lost the faith.
-  const keepsNeutral = gameplayAtLeast(state.setup, 25);
-  for (const id of Object.keys(faith.cityFaith).map(Number)) if (!state.cities[id] || (state.cities[id].ownerId === null && !keepsNeutral)) { delete faith.cityFaith[id]; delete faith.pressure[id]; }
+  for (const id of Object.keys(faith.cityFaith).map(Number)) if (!state.cities[id]) { delete faith.cityFaith[id]; delete faith.pressure[id]; }
   const faithful = Object.values(state.cities).filter(city => city.ownerId !== null && faith.cityFaith[city.id] !== undefined).sort((a, b) => a.id - b.id);
   for (const source of faithful) {
     const founder = faith.cityFaith[source.id];
@@ -137,14 +134,14 @@ export function resolveFaithRound(state: GameState, content: Content): EventPayl
       state.expansion!.world.players[founder].satisfaction = Math.min(100, state.expansion!.world.players[founder].satisfaction + 1);
     }
   }
-  const owned = Object.values(state.cities).filter(city => city.ownerId !== null), counted = faithCities(state), followsAll = gameplayAtLeast(state.setup, 26);
+  const owned = Object.values(state.cities).filter(city => city.ownerId !== null), counted = faithCities(state);
   if (counted.length >= victoryTargets(state.setup).faithMinimumCities) {
     const winners = Object.keys(faith.faiths).map(Number).filter(founder => !state.players[founder].eliminated
       // v27 ① R4: 70% of the counted cities (pace-v27 §2.2; 60% before).
       && counted.filter(city => faith.cityFaith[city.id] === founder).length >= faithWinCount(counted.length, content)
       // Every living rival must follow it in at least one of their cities, so a faith cannot win by isolation. v26: every original rival —
       // an eliminated one through its former capital (whoever holds it now), so eliminating a non-follower no longer clears the condition.
-      && state.turnOrder.filter(id => id !== founder && (followsAll || !state.players[id].eliminated)).every(rival => state.players[rival].eliminated
+      && state.turnOrder.filter(id => id !== founder).every(rival => state.players[rival].eliminated
         ? faith.cityFaith[state.players[rival].headquartersCityId] === founder
         : owned.some(city => city.ownerId === rival && faith.cityFaith[city.id] === founder)));
     if (winners.length === 1) events.push(...finishGame(state, 'faith', winners, content));
@@ -157,8 +154,7 @@ export function resolveFaithRound(state: GameState, content: Content): EventPayl
  * owned cities only (an elimination dropped its cities from the count).
  */
 export function faithCities(state: Pick<GameState, 'cities' | 'setup'>): GameState['cities'][number][] {
-  const cities = Object.values(state.cities);
-  return gameplayAtLeast(state.setup, 25) ? cities : cities.filter(city => city.ownerId !== null);
+  return Object.values(state.cities);
 }
 export function observeFaith(state: GameState, playerId: number, content: Content = contentFor(state.setup)): FaithView | undefined {
   const faith = state.expansion?.faith;

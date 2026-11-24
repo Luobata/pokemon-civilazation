@@ -20,18 +20,17 @@ function setup(gameplayVersion?: GameplayVersion): GameSetup {
     ] };
 }
 
-test('rare berries exist only in gameplay v7, deterministic, on their biome, without consuming RNG', () => {
-  expect(createGame(setup(6)).expansion).not.toHaveProperty('rareBerries');
-  const a = createGame(setup(7)), b = createGame(setup(7)), v6 = createGame(setup(6));
+test('rare berries are deterministic, on their biome, without consuming RNG', () => {
+  const a = createGame(setup(27)), b = createGame(setup(27));
   expect(a.expansion!.rareBerries!.deposits).toEqual(b.expansion!.rareBerries!.deposits);
-  expect(a.rng).toEqual(v6.rng);
+  expect(a.rng).toEqual(b.rng);
   for (const [tile, berry] of Object.entries(a.expansion!.rareBerries!.deposits)) expect(a.map.tiles[Number(tile)]).toBe(RARE_BERRIES[berry].biome);
   expect(parseAuditAction({ type: 'GiftBerry', targetPlayerId: 1, berry: 'liechi' })).toEqual({ type: 'GiftBerry', targetPlayerId: 1, berry: 'liechi' });
   expect(() => parseAuditAction({ type: 'GiftBerry', targetPlayerId: 1, berry: 'oran' })).toThrow();
 });
 
 test('working deposits grants kinds, satisfaction and the festival food bonus', () => {
-  const state = createGame(setup(7));
+  const state = createGame(setup(27));
   const firstOfKind = new Map<string, number>();
   for (const [tile, berry] of Object.entries(state.expansion!.rareBerries!.deposits)) if (!firstOfKind.has(berry)) firstOfKind.set(berry, Number(tile));
   expect(firstOfKind.size).toBeGreaterThanOrEqual(RARE_BERRY_RULES.festivalTypes);
@@ -53,7 +52,7 @@ test('working deposits grants kinds, satisfaction and the festival food bonus', 
 });
 
 test('gifts need an active trade and a surplus copy; the receiver gains the kind', () => {
-  const state = createGame(setup(7));
+  const state = createGame(setup(27));
   const deposits = state.expansion!.rareBerries!.deposits;
   const kind = RARE_BERRY_IDS.find(id => Object.values(deposits).filter(berry => berry === id).length >= 2)!;
   const tiles = Object.entries(deposits).filter(([, berry]) => berry === kind).map(([tile]) => Number(tile)).slice(0, 2);
@@ -81,14 +80,14 @@ test('gifts need an active trade and a surplus copy; the receiver gains the kind
 });
 
 test('gameplay v7 keeps exact save/load and replay', () => {
-  const session = new GameSession({ ...setup(7), multiplayer: undefined, players: [
+  const session = new GameSession({ ...setup(27), multiplayer: undefined, players: [
     { id: 0, controller: 'human', starterId: 'bulbasaur', leaderId: 'oak' }, { id: 1, controller: 'ai', personality: 'expansion', leaderId: 'jasmine' }] });
   for (let turn = 0; turn < 40; turn++) {
     const current = session.getState();
     if (current.outcome) break;
     expect(session.submit({ actorId: current.activePlayerId, expectedSeq: current.commandSeq, action: { type: 'EndTurn' } }).ok).toBe(true);
   }
-  const saved = session.save(), loaded = new GameSession(setup(7));
+  const saved = session.save(), loaded = new GameSession(setup(27));
   loaded.load(saved);
   expect(loaded.save()).toBe(saved);
   expect(canonicalSerialize(replay(session.exportLog()))).toBe(canonicalSerialize(session.getState()));

@@ -1,7 +1,6 @@
 import { worldSiteAllowed } from './terrain.ts';
 import { RARE_BERRIES, RARE_BERRY_IDS, RARE_BERRY_RULES } from '../content/rare-berries.ts';
 import type { RareBerryId } from '../content/rare-berries.ts';
-import { gameplayAtLeast } from '../content/eras.ts';
 import { IMPROVEMENT_RULES_V23 } from '../content/improvements.ts';
 import { edgeDistance, hexDistance, hexToIndex, indexToHex } from './hex.ts';
 import type { EventPayload, GameState } from './model.ts';
@@ -17,7 +16,7 @@ export type RareBerryView = { deposits: { tileIndex: number; berry: RareBerryId 
   /** Own gifts only: target player ID -> round of the last gift (for the cooldown). */
   lastGiftRoundByTarget?: Record<number, number> };
 
-export const usesRareBerries = (state: Pick<GameState, 'setup' | 'expansion'>) => state.expansion !== undefined && gameplayAtLeast(state.setup, 7);
+export const usesRareBerries = (state: Pick<GameState, 'setup' | 'expansion'>) => state.expansion !== undefined;
 export function isRareBerryAction(action: { type: unknown }): action is RareBerryAction { return action.type === 'GiftBerry'; }
 /** Deterministic hash of the seed and tile; avoids consuming the shared RNG. */
 const hash = (seed: number, value: number) => (Math.imul(seed ^ 0x9e3779b9, 2654435761) ^ Math.imul(value + 1, 40503)) >>> 0;
@@ -45,7 +44,7 @@ export function ownedRareBerries(state: GameState, playerId: number): Record<Rar
   const ledger = state.expansion?.rareBerries;
   const owned = Object.fromEntries(RARE_BERRY_IDS.map(id => [id, 0])) as Record<RareBerryId, number>;
   if (!ledger) return owned;
-  const tiles = gameplayAtLeast(state.setup, 23) ? state.expansion?.improvements?.tiles : undefined;
+  const tiles = state.expansion?.improvements?.tiles;
   for (const city of Object.values(state.cities)) if (city.ownerId === playerId) for (const tile of city.workedTileIds) {
     const berry = ledger.deposits[tile];
     // v23: a worked, intact 种植园 counts two copies (the second can be gifted).

@@ -19,13 +19,13 @@ import { RULE_QUERIES } from '../../src/ai/query.ts';
 import { rememberCityRejection } from '../../src/ai/memory.ts';
 import type { RejectedCitySite } from '../../src/ai/memory.ts';
 
-const setup = (gameplayVersion: 25 | 26, seed = 31): GameSetup => ({ seed, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion,
+const setup = (gameplayVersion: 27, seed = 31): GameSetup => ({ seed, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion,
   players: [{ id: 0, controller: 'human', starterId: 'bulbasaur' }, { id: 1, controller: 'ai' }, { id: 2, controller: 'ai' }] });
-const v26 = contentFor(setup(26));
+const v26 = contentFor(setup(27));
 const order = (state: GameState, action: Command['action'], content = v26) => step(state, { actorId: 0, expectedSeq: state.commandSeq, action }, content);
 
 /** A visit under way: rival Pokémon of `rivalSpecies` on free land tiles next to a free land tile, own Pokémon around them. */
-function duelScene(rivalSpecies: SpeciesId[], ownSpecies: SpeciesId[], content = v26, version: 25 | 26 = 26) {
+function duelScene(rivalSpecies: SpeciesId[], ownSpecies: SpeciesId[], content = v26, version: 27 = 27) {
   const state = createGame(setup(version), content), rivals = state.expansion!.rivals!;
   const land = (index: number) => state.map.tiles[index] !== 'ocean' && state.map.tiles[index] !== 'mountain';
   const capital = state.cities[state.players[0].headquartersCityId];
@@ -54,7 +54,7 @@ function duelScene(rivalSpecies: SpeciesId[], ownSpecies: SpeciesId[], content =
 }
 
 describe('v26 ChallengeRival (§3.1)', () => {
-  test('equal size, in reach, once per round; refused before v26', () => {
+  test('equal size, in reach, once per round', () => {
     const { state, ownIds } = duelScene(['charmander'], ['pidgey', 'rattata']);
     const view = observe(state, 0, v26);
     expect(viewRivalDuelBlocker(view, ownIds)).toBe('invalid-team');
@@ -67,8 +67,6 @@ describe('v26 ChallengeRival (§3.1)', () => {
     expect(result.state.units[ownIds[0]]!.actionLeft).toBe(0);
     // Once per round, even with another Pokémon.
     expect(step(result.state, { actorId: 0, expectedSeq: result.state.commandSeq, action: { type: 'ChallengeRival', unitIds: [ownIds[1]], stake: 'spar' } }, v26).ok).toBe(false);
-    const v25 = contentFor(setup(25)), old = duelScene(['charmander'], ['pidgey'], v25, 25);
-    expect(order(old.state, { type: 'ChallengeRival', unitIds: old.ownIds, stake: 'spar' }, v25)).toMatchObject({ ok: false });
   });
   test('a won serious duel ends the visit with the full reward and the proof (+1 era point); full HP pays ×1.5 gold', () => {
     // A strong water Pokémon against one stage-1 fire rival: the duel is won with any seed.
@@ -103,7 +101,7 @@ describe('v26 ChallengeRival (§3.1)', () => {
     expect(result.state.units[lost.ownIds[0]]!.hp).toBeGreaterThanOrEqual(1);
   });
   test('the conference rival: after the three visits, from round 100, in the first season the civilization enters; beating it pays', () => {
-    const state = createGame(setup(26)), ledger = state.expansion!.rivals!.byPlayer[0];
+    const state = createGame(setup(27)), ledger = state.expansion!.rivals!.byPlayer[0];
     ledger.encounter = 3; ledger.outcomes = ['departed', 'departed', 'departed'];
     const power = (slot: number) => 1000 + slot;
     state.round = 99;
@@ -122,7 +120,7 @@ describe('v26 ChallengeRival (§3.1)', () => {
 });
 
 test('real AI v26 games: duels happen and no duel command is refused', () => {
-  let state = createGame({ ...setup(26, 33), players: [{ id: 0, controller: 'ai', personality: 'aggressive' }, { id: 1, controller: 'ai', personality: 'conservative' }, { id: 2, controller: 'ai', personality: 'expansion' }] });
+  let state = createGame({ ...setup(27, 33), players: [{ id: 0, controller: 'ai', personality: 'aggressive' }, { id: 1, controller: 'ai', personality: 'conservative' }, { id: 2, controller: 'ai', personality: 'expansion' }] });
   const content = contentFor(state.setup), rejected: string[] = [], memory: RejectedCitySite[] = [];
   let duels = 0;
   while (!state.outcome && state.round <= 30) {
@@ -144,20 +142,18 @@ test('real AI v26 games: duels happen and no duel command is refused', () => {
 
 // gate-v26 fix 2: the first visit is beatable for a starter-only civilization — a species neutral to the starter both ways (the relay
 // battle's best-type rule); visits 2+ and every visit before v26 keep the counters.
-describe('v26 first rival visit', () => {
-  test('visit 1 is neutral to the starter in v26; visits 2+ and v25 counter it', () => {
+describe('v27 first rival visit', () => {
+  test('visit 1 is neutral to the starter; visits 2+ counter it', () => {
     // ×1 on the plain type chart both ways (the relay's research bonus turns a ×2 × ×0.5 dual matchup into ×1.1, for both sides alike).
     const types = (id: SpeciesId) => [v26.species[id].typeId, ...(v26.species[id].secondaryTypeId ? [v26.species[id].secondaryTypeId!] : [])];
     const best = (attack: SpeciesId, defense: SpeciesId) => Math.max(...types(attack).map(type => dualEffectiveness(type, types(defense))));
     for (const seed of [31, 32, 33, 34]) {
-      const state = createGame(setup(26, seed)), starter = state.players[0].starterId;
+      const state = createGame(setup(27, seed)), starter = state.players[0].starterId;
       const [first] = rivalTeam(state, 0, 0, v26);
       expect(rivalNeutrals(v26, starter)).toContain(first);
       expect([best(first, starter), best(starter, first)]).toEqual([100, 100]);
       // Later visits still lead with a counter (the primary list).
       expect(rivalCounters(v26, starter, 'primary')).toContain(rivalTeam(state, 0, 1, v26)[0]);
-      const v25 = contentFor(setup(25, seed)), old = createGame(setup(25, seed));
-      expect(rivalCounters(v25, old.players[0].starterId, 'primary')).toContain(rivalTeam(old, 0, 0, v25)[0]);
     }
     expect(v26.world24!.rivalStrengthOffsets[0]).toBe(8);
   });

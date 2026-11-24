@@ -223,7 +223,6 @@ export type BalanceGameRecord = { schemaVersion: 1; case: BalanceCase; result: L
 const PRODUCTION_BANDS: readonly [string, number, number][] = [['40-59', 40, 59], ['60-89', 60, 89], ['90-119', 90, 119], ['120-149', 120, 149], ['150+', 150, Infinity]];
 /** The v27 record's step observer (read-only; null before v27). */
 export function createPace27Observer(content: Content) {
-  if (!content.cityProjects) return null;
   const projects = new Map<number, Record<string, number>>(), sinks: Pace27Record['sinks'] = {}, projectRushes = { count: 0, gold: 0 };
   const production = PRODUCTION_BANDS.map(([band]) => ({ band, civRounds: 0, total: 0, wasted: 0, idleCities: 0, cities: 0 }));
   const raids: Pace27Record['raids'] = [], seasons: Pace27Record['seasons'] = [];
@@ -278,11 +277,11 @@ export function createObserver(content: Content) {
   const samples: RoundSample[] = [], curves: CurvePoint[] = [];
   let lastRound = 0;
   // v24 bookkeeping (read-only): embarked own Pokémon of the previous call, Elite Four runs seen, first badge rounds.
-  const v24 = Boolean(content.gymCircuit || content.rivals);
+  const v24 = true;
   let embarked = new Set<number>(), seaKnockouts = 0, latest: GameState | null = null;
   const eliteRuns = new Map<number, number>(), eliteSeen = new Map<number, number>(), firstBadge = new Map<number, number>();
   // v26 bookkeeping (read-only): challenge rounds seen per seat and site, badge counts, duel rounds and the duel outcome counts.
-  const v26 = Boolean(content.teamBattles), gymSeen = new Map<string, number>(), guardSeen = new Map<string, number>();
+  const v26 = true, gymSeen = new Map<string, number>(), guardSeen = new Map<string, number>();
   const counts = new Map<number, { gym: number; gymWins: number; guard: number; guardWins: number; spar: number; serious: number; won: number }>();
   const tally = (seat: number) => { let row = counts.get(seat); if (!row) counts.set(seat, row = { gym: 0, gymWins: 0, guard: 0, guardWins: 0, spar: 0, serious: 0, won: 0 }); return row; };
   const track26 = (state: GameState) => {
@@ -375,8 +374,8 @@ export function createObserver(content: Content) {
         guardianWins: seats.map(seat => row(seat).guardWins), duels: seats.map(seat => ({ spar: row(seat).spar, serious: row(seat).serious, won: row(seat).won })),
         conferenceRival: seats.map(seat => state.expansion?.rivals?.byPlayer[seat]?.conference ?? null),
         seasons: history.length, seasonsWonByCivs: history.filter(season => season.championPlayerId !== null).length,
-        ...(content.leagueTrainers ? { league: history.map(season => ({ season: season.season, round: season.round, champion: season.championEntrantId,
-          entrantIds: season.entrants.map(entrant => entrant.entrantId), entrants: season.entrants.map(entrant => entrant.name ?? entrant.entrantId) })) } : {}) };
+        league: history.map(season => ({ season: season.season, round: season.round, champion: season.championEntrantId,
+          entrantIds: season.entrants.map(entrant => entrant.entrantId), entrants: season.entrants.map(entrant => entrant.name ?? entrant.entrantId) })) };
     },
     onState(state: GameState) {
       if (dex) latest = state;

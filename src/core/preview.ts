@@ -6,19 +6,15 @@ import { viewIsRivalUnit, viewRivalSpirit } from './rivals.ts';
 import { protectedCivilian } from './stacking.ts';
 import { viewIsRaidUnit } from './raids.ts';
 import { viewMaxRaidDamage } from './max-raids.ts';
-
-/** Same test as the authority (owner's headquarters is this city): a captured former capital still names its fallen founder in `headquartersOf`. */
-const isOwnCapital = (city: { ownerId: number | null; headquartersOf?: number | null } | undefined) => city?.headquartersOf != null && city.headquartersOf === city.ownerId;
 import { cityCounterBreakdown, cityFactors, cityStrengthBreakdown, strengthDamage, strikeFactors, unitStrengthBreakdown } from './strength.ts';
 import type { StrengthBreakdown } from './strength.ts';
-import { affinityPermille, classCityMultiplier, classCounterPermille, classStrikeMultiplier } from './unit-classes.ts';
+import { affinityPermille, classCounterPermille } from './unit-classes.ts';
 import { contentForView } from '../content/units.ts';
 import { leaderEffects } from '../content/leaders.ts';
-import type { Content } from '../content/units.ts';
+import type { Content, UnitIdentity } from '../content/units.ts';
 import type { BallId } from '../content/economy.ts';
 import type { CombatTarget, PlayerView } from './model.ts';
 import { hexDistance, hexToIndex } from './hex.ts';
-import { unitDamage, cityDamage, cityCounterDamage } from './combat-query.ts';
 import { captureProbability } from './combat-math.ts';
 import { cityAssaultMultiplier } from './role-tactics.ts';
 import { flankBonus } from './tactics.ts';
@@ -27,17 +23,20 @@ import { homeDefenseMultiplier } from './essences.ts';
 import { viewZealotMultiplier } from './faith-legends.ts';
 import { eraAttackMultiplier, eraDefenseMultiplier, teraTypes, viewCombatContext } from './era-abilities.ts';
 import { viewPolicyEffects } from './policies.ts';
-import { promotionCityMultiplier, promotionStrikeMultiplier, scalePermille } from './promotions.ts';
+import { promotionCityMultiplier, promotionStrikeMultiplier } from './promotions.ts';
 
-export type AttackPreview = { ok: true; damage: { min: number; max: number };
+const isOwnCapital = (city: { ownerId: number | null; headquartersOf?: number | null } | undefined) => city?.headquartersOf != null && city.headquartersOf === city.ownerId;
+
+export type AttackPreview = {
+  ok: true;
+  damage: { min: number; max: number };
   counter: { trigger: 'always' | 'possible' | 'never'; damage: number };
-  /** v20: the strength comparison behind the numbers (attacker strength, target strength, every bonus). */
-  strength?: StrengthBreakdown;
+  strength: StrengthBreakdown;
   knockdown: 'guaranteed' | 'possible' | 'none';
-  /** v27 ⑤: on a Max raid boss, the shields this hit breaks and whether it starts phase two (absent elsewhere and before v27). */
-  maxRaid?: { shields: number; phaseTwo: boolean } } | { ok: false; reason: string };
+  maxRaid?: { shields: number; phaseTwo: boolean };
+} | { ok: false; reason: string };
 export type CapturePreview = { ok: true; probability: number } | { ok: false; reason: string };
-// Queries consume only the observation, never state, RNG, or last-known entities as live targets.
+
 export function previewAttack(view: PlayerView, unitId: number, target: CombatTarget, content: Content = contentForView(view)): AttackPreview {
   const unit = view.units.find(unit => unit.id === unitId && unit.ownerId === view.playerId);
   const defender = target.kind === 'unit' ? view.units.find(unit => unit.id === target.id) : view.cities.find(city => city.id === target.id);
@@ -48,71 +47,64 @@ export function previewAttack(view: PlayerView, unitId: number, target: CombatTa
   const distance = hexDistance(unit.position, defender.position, view.map), range = content.species[unit.speciesId].range;
   const from = view.map.tiles[hexToIndex(unit.position, view.map)!], to = view.map.tiles[hexToIndex(defender.position, view.map)!];
   if (!from || !to || distance < 1 || distance > range || ('kind' in defender && defender.kind === 'logistics' && distance !== 1)) return { ok: false, reason: 'out-of-range' };
-  // v26 C2: a logistics unit sharing its tile with an own Pokémon cannot be targeted (same test as the authority).
   if ('kind' in defender && protectedCivilian(view.units, defender, view.map, content)) return { ok: false, reason: 'escorted' };
   const techs = view.economy.player.research.unlockedIds;
   const baseMultiplier = leaderEffects(view.economy.player.leaderId).activeAttackMultiplier;
   const attackMultiplier = view.economy.player.leaderId === 'lance' && (view.expansion?.leaders.activeUntilRound ?? 0) >= view.round ? Math.floor(baseMultiplier * 1150 / 1000) : baseMultiplier;
-  let min: number, max: number, counter = 0, canCounter: boolean, hp: number, strength: StrengthBreakdown | undefined;
+  let min: number, max: number, counter = 0, canCounter: boolean, hp: number, strength: StrengthBreakdown;
   if (target.kind === 'unit') {
     const defendingUnit = view.units.find(unit => unit.id === target.id)!;
     hp = defendingUnit.hp;
     const flank = flankBonus(view, unit, defendingUnit, view.units, view.map);
-    const mapView = { map: view.map as never, expansion: view.expansion ? { leaders: { players: { [view.playerId]: view.expansion.leaders } } } as never : undefined, round: view.round,
-      players: Object.fromEntries(view.civilizations.map(civ => [civ.id, { leaderId: civ.leaderId }])) as never };
-    const home = (identity: import("../content/units.ts").UnitIdentity, biome: typeof to) => homeDefenseMultiplier(view.expansion?.essences !== undefined, identity, biome, content);
+    const mapView = {
+      map: view.map as never,
+      expansion: view.expansion ? { leaders: { players: { [view.playerId]: view.expansion.leaders } } } as never : undefined,
+      round: view.round,
+      players: Object.fromEntries(view.civilizations.map(civ => [civ.id, { leaderId: civ.leaderId }])) as never,
+    };
+    const home = (identity: UnitIdentity, biome: typeof to) => homeDefenseMultiplier(true, identity, biome, content);
     const era = viewCombatContext(view);
-    const side = scalePermille(scalePermille(mistyWaterMultiplier(mapView, unit.ownerId, unit, content) * home(defendingUnit, to) / 1000
-      * eraAttackMultiplier(era, unit, content, false, false) / 1000 * eraDefenseMultiplier(era, defendingUnit) / 1000
-      * viewZealotMultiplier(view, unit.position) / 1000, promotionStrikeMultiplier(view, unit.id, defendingUnit.id, false)), classStrikeMultiplier(view, unit, defendingUnit, content));
     canCounter = defendingUnit.kind === 'pokemon' && distance <= content.species[defendingUnit.speciesId].range;
-    if (content.combat === 'strength') {
-      strength = unitStrengthBreakdown(unit, defendingUnit, from, to, techs.includes('typeResearch'), content, strikeFactors({ leader: attackMultiplier, enraged: unit.enraged, flank,
-        misty: mistyWaterMultiplier(mapView, unit.ownerId, unit, content), home: home(defendingUnit, to), eraAttack: eraAttackMultiplier(era, unit, content, false, false),
-        eraDefense: eraDefenseMultiplier(era, defendingUnit), zealot: viewZealotMultiplier(view, unit.position),
-        assault: promotionStrikeMultiplier(view, unit.id, -1, false), bulwark: promotionStrikeMultiplier(view, -1, defendingUnit.id, false),
-        classCounter: classCounterPermille(view, unit, defendingUnit, content), affinity: affinityPermille(view, unit, content) }), teraTypes(era, defendingUnit.id),
-        unitStrikeTerrain(view.map, unit, defendingUnit, false, content), { attacker: 0, defender: viewRivalSpirit(view, defendingUnit.id) });
-      min = strengthDamage(strength, 85, false, hp); max = strengthDamage(strength, 100, false, hp);
-      if (canCounter) counter = strengthDamage(unitStrengthBreakdown(defendingUnit, unit, to, from, view.combat.units[defendingUnit.id].typeResearch, content, strikeFactors({ leader: 1000,
-        enraged: defendingUnit.enraged, flank: 0, misty: mistyWaterMultiplier(mapView, defendingUnit.ownerId, defendingUnit, content), home: home(unit, from),
-        eraAttack: eraAttackMultiplier(era, defendingUnit, content, false, true), eraDefense: eraDefenseMultiplier(era, unit), zealot: 1000,
-        assault: promotionStrikeMultiplier(view, defendingUnit.id, -1, true), bulwark: promotionStrikeMultiplier(view, -1, unit.id, true),
-        classCounter: classCounterPermille(view, defendingUnit, unit, content), affinity: affinityPermille(view, defendingUnit, content) }), teraTypes(era, unit.id),
-        unitStrikeTerrain(view.map, defendingUnit, unit, true, content), { attacker: viewRivalSpirit(view, defendingUnit.id), defender: 0 }), 100, true, unit.hp);
-    } else {
-    min = unitDamage(unit, defendingUnit, from, to, techs.includes('typeResearch'), 85, false, content, attackMultiplier, Boolean(view.expansion), flank, side, teraTypes(era, defendingUnit.id));
-    max = unitDamage(unit, defendingUnit, from, to, techs.includes('typeResearch'), 100, false, content, attackMultiplier, Boolean(view.expansion), flank, side, teraTypes(era, defendingUnit.id));
-    if (canCounter) counter = unitDamage(defendingUnit, unit, to, from, view.combat.units[defendingUnit.id].typeResearch, 100, true, content, 1000, Boolean(view.expansion), 0,
-      scalePermille(scalePermille(mistyWaterMultiplier(mapView, defendingUnit.ownerId, defendingUnit, content) * home(unit, from) / 1000
-      * eraAttackMultiplier(era, defendingUnit, content, false, true) / 1000 * eraDefenseMultiplier(era, unit) / 1000 * 1000 / 1000,
-      promotionStrikeMultiplier(view, defendingUnit.id, unit.id, true)), classStrikeMultiplier(view, defendingUnit, unit, content)), teraTypes(era, unit.id));
-    }
+    strength = unitStrengthBreakdown(unit, defendingUnit, from, to, techs.includes('typeResearch'), content, strikeFactors({
+      leader: attackMultiplier, enraged: unit.enraged, flank,
+      misty: mistyWaterMultiplier(mapView, unit.ownerId, unit, content), home: home(defendingUnit, to),
+      eraAttack: eraAttackMultiplier(era, unit, content, false, false),
+      eraDefense: eraDefenseMultiplier(era, defendingUnit), zealot: viewZealotMultiplier(view, unit.position),
+      assault: promotionStrikeMultiplier(view, unit.id, -1, false), bulwark: promotionStrikeMultiplier(view, -1, defendingUnit.id, false),
+      classCounter: classCounterPermille(view, unit, defendingUnit, content), affinity: affinityPermille(view, unit, content),
+    }), teraTypes(era, defendingUnit.id), unitStrikeTerrain(view.map, unit, defendingUnit, false, content), { attacker: 0, defender: viewRivalSpirit(view, defendingUnit.id) });
+    min = strengthDamage(strength, 85, false, hp);
+    max = strengthDamage(strength, 100, false, hp);
+    if (canCounter) counter = strengthDamage(unitStrengthBreakdown(defendingUnit, unit, to, from, view.combat.units[defendingUnit.id].typeResearch, content, strikeFactors({
+      leader: 1000, enraged: defendingUnit.enraged, flank: 0,
+      misty: mistyWaterMultiplier(mapView, defendingUnit.ownerId, defendingUnit, content), home: home(unit, from),
+      eraAttack: eraAttackMultiplier(era, defendingUnit, content, false, true), eraDefense: eraDefenseMultiplier(era, unit), zealot: 1000,
+      assault: promotionStrikeMultiplier(view, defendingUnit.id, -1, true), bulwark: promotionStrikeMultiplier(view, -1, unit.id, true),
+      classCounter: classCounterPermille(view, defendingUnit, unit, content), affinity: affinityPermille(view, defendingUnit, content),
+    }), teraTypes(era, unit.id), unitStrikeTerrain(view.map, defendingUnit, unit, true, content), { attacker: viewRivalSpirit(view, defendingUnit.id), defender: 0 }), 100, true, unit.hp);
   } else {
     const city = view.combat.cities[defender.id]; hp = city.hp;
     const assault = cityAssaultMultiplier(view.economy.player, view.eraProgression, view.gameplayVersion, unit, content, distance, techs.includes('siegeCraft'));
-    const cityAttack = Math.floor(scalePermille(scalePermille(attackMultiplier * eraAttackMultiplier(viewCombatContext(view), unit, content, true, false) / 1000, promotionCityMultiplier(view, unit.id)), classCityMultiplier(view, unit, content)));
     canCounter = distance <= 2 && city.counterAttack > 0;
-    if (content.combat === 'strength') {
-      strength = cityStrengthBreakdown(unit, from, to, content, cityFactors({ assault: assault ?? (content.species[unit.speciesId].role === 'siege' && techs.includes('siegeCraft') ? content.balance.effects.siegeMultiplier : 1000),
-        leader: attackMultiplier, eraAttack: eraAttackMultiplier(viewCombatContext(view), unit, content, true, false), enraged: unit.enraged,
-        breacher: promotionCityMultiplier(view, unit.id), affinity: affinityPermille(view, unit, content) }), content.opening ? wallBonus(view.round, isOwnCapital(view.cities.find(item => item.id === defender.id))) : 0,
-        cityStrikeTerrain(view.map, unit, defender.position, content));
-      min = strengthDamage(strength, 85, false, hp); max = strengthDamage(strength, 100, false, hp);
-      if (canCounter) counter = strengthDamage(cityCounterBreakdown(city.counterAttack, unit, to, from, content, cityCounterTerrain(view.map, defender.position, unit, content)), 100, true, unit.hp);
-    } else {
-    min = cityDamage(unit, from, to, techs.includes('siegeCraft'), 85, content, cityAttack, assault);
-    max = cityDamage(unit, from, to, techs.includes('siegeCraft'), 100, content, cityAttack, assault);
-    if (canCounter) counter = cityCounterDamage(city.counterAttack, unit, to, from, content);
-    }
+    strength = cityStrengthBreakdown(unit, from, to, content, cityFactors({
+      assault: assault ?? (content.species[unit.speciesId].role === 'siege' && techs.includes('siegeCraft') ? content.balance.effects.siegeMultiplier : 1000),
+      leader: attackMultiplier, eraAttack: eraAttackMultiplier(viewCombatContext(view), unit, content, true, false), enraged: unit.enraged,
+      breacher: promotionCityMultiplier(view, unit.id), affinity: affinityPermille(view, unit, content),
+    }), wallBonus(view.round, isOwnCapital(view.cities.find(item => item.id === defender.id))), cityStrikeTerrain(view.map, unit, defender.position, content));
+    min = strengthDamage(strength, 85, false, hp);
+    max = strengthDamage(strength, 100, false, hp);
+    if (canCounter) counter = strengthDamage(cityCounterBreakdown(city.counterAttack, unit, to, from, content, cityCounterTerrain(view.map, defender.position, unit, content)), 100, true, unit.hp);
   }
-  // v27 ⑤: Max shields on a raid boss (the same arithmetic as the authority; null elsewhere and before v27).
   const shielded = target.kind === 'unit' && 'kind' in defender ? viewMaxRaidDamage(view, unit, defender, { min, max }, content) : null;
   if (shielded) { min = shielded.min; max = shielded.max; }
   const trigger = !canCounter || min >= hp ? 'never' : max >= hp ? 'possible' : 'always';
-  return { ok: true, damage: { min, max }, counter: { trigger, damage: trigger === 'never' ? 0 : counter }, ...(strength ? { strength } : {}),
-    knockdown: min >= hp ? 'guaranteed' : max >= hp ? 'possible' : 'none', ...(shielded ? { maxRaid: { shields: shielded.shields, phaseTwo: shielded.phaseTwo } } : {}) };
+  return {
+    ok: true, damage: { min, max }, counter: { trigger, damage: trigger === 'never' ? 0 : counter }, strength,
+    knockdown: min >= hp ? 'guaranteed' : max >= hp ? 'possible' : 'none',
+    ...(shielded ? { maxRaid: { shields: shielded.shields, phaseTwo: shielded.phaseTwo } } : {}),
+  };
 }
+
 export function previewCapture(view: PlayerView, unitId: number, targetUnitId: number, ballId: BallId, content: Content = contentForView(view)): CapturePreview {
   const unit = view.units.find(unit => unit.id === unitId && unit.ownerId === view.playerId), target = view.units.find(unit => unit.id === targetUnitId);
   const player = view.economy.player;
@@ -120,14 +112,14 @@ export function previewCapture(view: PlayerView, unitId: number, targetUnitId: n
     || target.ownerId !== null || hexDistance(unit.position, target.position, view.map) !== 1 || !Object.hasOwn(content.balls, ballId)
     || !player.research.unlockedIds.includes('domestication') || !player.research.unlockedIds.includes(content.balls[ballId].requiredTech)
     || player.ballInventory[ballId] < 1 || isEmbarked(unit, view.map, content)) return { ok: false, reason: 'capture-unavailable' };
-  // v24 C: a rival trainer's Pokémon cannot be caught (same test as the authority).
   if (viewIsRivalUnit(view, target.id)) return { ok: false, reason: 'capture-rival' };
-  // v26 D: a raid boss cannot be caught.
   if (viewIsRaidUnit(view, target.id)) return { ok: false, reason: 'capture-raid' };
   const definition = content.species[target.speciesId];
-  // v27 ②: the same encounter rule as the authority (the first ball certain, exhausted +25).
-  return { ok: true, probability: encounterCaptureChance(Math.min(100, captureProbability(definition.maxHp, target.hp, ballId === 'greatBall' ? 1500 : 1000,
-    player.research.unlockedIds.includes('fieldObservation'), definition.rare) + viewPolicyEffects(view).captureBonus + leaderEffects(player.leaderId).captureBonus
-    + (player.leaderId === 'giovanni' && (view.expansion?.leaders.activeUntilRound ?? 0) >= view.round ? 15 : 0) + viewResearchCaptureBonus(view, target.speciesId)),
-    isExhausted(target, view.round), viewFirstBallUsed(view), content) };
+  return {
+    ok: true,
+    probability: encounterCaptureChance(Math.min(100, captureProbability(definition.maxHp, target.hp, ballId === 'greatBall' ? 1500 : 1000,
+      player.research.unlockedIds.includes('fieldObservation'), definition.rare) + viewPolicyEffects(view).captureBonus + leaderEffects(player.leaderId).captureBonus
+      + (player.leaderId === 'giovanni' && (view.expansion?.leaders.activeUntilRound ?? 0) >= view.round ? 15 : 0) + viewResearchCaptureBonus(view, target.speciesId)),
+      isExhausted(target, view.round), viewFirstBallUsed(view), content),
+  };
 }

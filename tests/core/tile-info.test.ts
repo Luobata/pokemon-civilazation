@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { EXPANSION_CONTENT } from '../../src/content/units.ts';
+import { GAME_CONTENT } from '../../src/content/units.ts';
 import { RULE_QUERIES } from '../../src/ai/query.ts';
 import { planNext } from '../../src/ai/plan.ts';
 import { rememberCityRejection } from '../../src/ai/memory.ts';
@@ -12,19 +12,19 @@ import type { GameSetup, GameState } from '../../src/core/model.ts';
 import { describeTile, tileSummary } from '../../src/browser/tile-info.ts';
 
 function played(rounds: number): GameState {
-  const setup: GameSetup = { seed: 7, width: 30, height: 20, roundLimit: 100, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 10, players: [
+  const setup: GameSetup = { seed: 7, width: 30, height: 20, roundLimit: 100, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 27, players: [
     { id: 0, controller: 'human', starterId: 'bulbasaur', leaderId: 'brock' }, { id: 1, controller: 'ai', personality: 'expansion', leaderId: 'misty' },
     { id: 2, controller: 'ai', personality: 'aggressive', leaderId: 'lance' }] };
-  let state = createGame(setup, EXPANSION_CONTENT);
+  let state = createGame(setup, GAME_CONTENT);
   const memory: RejectedCitySite[] = [];
   while (!state.outcome && state.round < rounds) {
-    const view = observe(state, state.activePlayerId, EXPANSION_CONTENT);
-    let command = planNext(view, { ...RULE_QUERIES, content: EXPANSION_CONTENT }, memory);
-    let result = step(state, command, EXPANSION_CONTENT);
+    const view = observe(state, state.activePlayerId, GAME_CONTENT);
+    let command = planNext(view, { ...RULE_QUERIES, content: GAME_CONTENT }, memory);
+    let result = step(state, command, GAME_CONTENT);
     if (!result.ok) {
       rememberCityRejection(memory, view, command, result.reason);
       command = { actorId: view.playerId, expectedSeq: view.commandSeq, action: { type: 'EndTurn' } };
-      result = step(state, command, EXPANSION_CONTENT);
+      result = step(state, command, GAME_CONTENT);
     }
     if (!result.ok) throw new Error(result.reason);
     state = result.state;
@@ -36,7 +36,7 @@ test('tile descriptions use only what the player knows', () => {
   const state = played(50);
   const kinds = new Set<string>();
   for (const playerId of state.turnOrder) {
-    const view = observe(state, playerId, EXPANSION_CONTENT), visible = new Set(view.visibleTileIds);
+    const view = observe(state, playerId, GAME_CONTENT), visible = new Set(view.visibleTileIds);
     let units = 0;
     for (let index = 0; index < view.map.tiles.length; index++) {
       const info = describeTile(view, index);
@@ -52,7 +52,7 @@ test('tile descriptions use only what the player knows', () => {
     expect(units).toBe(view.units.length);
     for (const unit of view.units) {
       const entity = describeTile(view, hexToIndex(unit.position, view.map)!).entities.find(item => item.unitId === unit.id)!;
-      expect(entity.tone).toBe(unit.ownerId === null ? 'wild' : unit.ownerId === playerId ? 'own' : expect.stringMatching(/peace|enemy/));
+      expect(entity.tone).toEqual(unit.ownerId === null ? 'wild' : unit.ownerId === playerId ? 'own' : expect.stringMatching(/peace|enemy/));
     }
   }
   expect([...kinds]).toEqual(expect.arrayContaining(['city', 'unit', 'resource', 'improvement']));

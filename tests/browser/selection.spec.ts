@@ -3,7 +3,8 @@ import type { Page } from '@playwright/test';
 import type { GameState } from '../../src/core/model.ts';
 import type { Hex } from '../../src/core/hex.ts';
 import { canonicalSerialize } from '../../src/core/snapshot.ts';
-import { replay } from '../../src/app/session.ts';
+import { GameSession, replay } from '../../src/app/session.ts';
+import type { TechId } from '../../src/content/economy.ts';
 import { SPECIES } from '../../src/content/species.ts';
 import type { SpeciesId } from '../../src/content/species.ts';
 import { pokemonSpritePath } from '../../src/browser/sprites.ts';
@@ -87,15 +88,32 @@ test('city production trains a new settler with a replayable command history', a
 });
 
 test('a completed training ground opens unit production in its own city', async ({ page }) => {
-  await page.goto('/?seed=12345&gameplay=21');
+  test.setTimeout(120_000);
+  const session = new GameSession({ seed: 1, width: 24, height: 16, roundLimit: 200, expansionVersion: 1,
+    players: [{ id: 0, controller: 'human', starterId: 'bulbasaur', leaderId: 'oak' }, { id: 1, controller: 'ai', personality: 'conservative', leaderId: 'lance' }] });
+  for (const techId of ['berryCultivation', 'fieldObservation', 'medicine'] as TechId[]) {
+    const res = session.issue({ type: 'SetResearch', techId });
+    if (!res.ok) throw new Error(res.reason);
+    while (!session.getState().players[0].research.unlockedIds.includes(techId)) {
+      const stepRes = session.issue({ type: 'EndTurn' });
+      if (!stepRes.ok) throw new Error(stepRes.reason);
+    }
+  }
+  await page.goto('/?seed=12345');
+  await page.locator('#import-save').setInputFiles({ name: 'medicine.json', mimeType: 'application/json', buffer: Buffer.from(session.save()) });
+  await expect(page.locator('#action-notice')).toContainText('读档完成', { timeout: 60_000 });
   await page.locator('#animate').uncheck();
   const initial = await state(page), cityId = initial.players[0].headquartersCityId;
+  await page.locator('#city-select').selectOption(String(cityId));
+  await page.locator('[data-production-kind="building"]').click();
   const trainingGround = page.locator('[data-production-option="building:trainingGround"]');
   await expect(trainingGround).toContainText('宝可梦中心');
   await expect(trainingGround.locator('.production-option-cost b')).toHaveText('60');
   await expect(trainingGround.locator('img.production-icon')).toHaveAttribute('src', '/buildings/trainingGround.svg');
   await trainingGround.click();
-  for (let turn = 0; turn < 35 && !(await state(page)).cities[cityId].buildingIds.includes('trainingGround'); turn++) await page.locator('#end-turn').click({ modifiers: ['Shift'] });
+  for (let turn = 0; turn < 35 && !(await state(page)).cities[cityId].buildingIds.includes('trainingGround'); turn++) {
+    await page.locator('#end-turn').click({ modifiers: ['Shift'] });
+  }
   // P0-1: the building strip lives in the city's 详情 tab.
   await page.locator('[data-city-section="details"]').click();
   await expect(page.locator('[data-building="trainingGround"]')).toBeVisible();

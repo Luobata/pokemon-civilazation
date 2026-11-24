@@ -20,11 +20,11 @@ import { seasonRounds } from '../../src/core/contest-seasons.ts';
 import { cityProjectCandidates } from '../../src/ai/project-plan.ts';
 import { planNext } from '../../src/ai/plan.ts';
 
-const setup = (gameplayVersion: 26 | 27, seed = 31): GameSetup => ({ seed, width: 24, height: 16, roundLimit: 100 as const, expansionVersion: 1 as const,
+const setup = (gameplayVersion: 27, seed = 31): GameSetup => ({ seed, width: 24, height: 16, roundLimit: 100 as const, expansionVersion: 1 as const,
   eraProgression: 'simple-v1' as const, gameplayVersion, players: [
     { id: 0, controller: 'human' as const, starterId: 'bulbasaur' as const }, { id: 1, controller: 'ai' as const },
   ] });
-const game = (version: 26 | 27 = 27) => { const state = createGame(setup(version)); return { state, content: contentFor(state.setup) }; };
+const game = (version: 27 = 27) => { const state = createGame(setup(version)); return { state, content: contentFor(state.setup) }; };
 const order = (state: GameState, action: Command['action'], content: Content, actorId = 0) => step(state, { actorId, expectedSeq: state.commandSeq, action }, content);
 const ok = (result: ReturnType<typeof step>) => { if (!result.ok) throw new Error(result.reason); return result; };
 const capital = (state: GameState, playerId = 0) => state.cities[state.players[playerId].headquartersCityId];
@@ -56,9 +56,7 @@ describe('v27 city projects: cost and requirements', () => {
     }
   });
 
-  test('v26 refuses a project; v27 accepts a festival anywhere, one project per queue, and checks each requirement (state = view)', () => {
-    const v26 = game(26);
-    expect(queue(v26.state, v26.content, 'festival').ok).toBe(false);
+  test('v27 accepts a festival anywhere, one project per queue, and checks each requirement (state = view)', () => {
     const { state, content } = game(), city = capital(state);
     expect(ok(queue(state, content, 'festival')).state.cities[city.id].queue[0].item).toEqual({ kind: 'project', defId: 'festival' });
     expect(order(state, { type: 'SetProductionQueue', cityId: city.id, orders: [{ item: { kind: 'project', defId: 'festival' } }, { item: { kind: 'project', defId: 'festival' } }] }, content).ok).toBe(false);
@@ -174,7 +172,6 @@ describe('v27 city projects: effects', () => {
     const next = ok(result).state;
     expect(observe(next, 0, content).expansion!.cityProjects!.done.festival).toBe(1);
     expect(observe(next, 1, content).expansion!.cityProjects!.done).toEqual({});
-    expect(observe(createGame(setup(26)), 0).expansion!.cityProjects).toBeUndefined();
   });
 });
 
@@ -186,7 +183,6 @@ describe('v27 city projects: AI', () => {
     const candidates = cityProjectCandidates(view, city.id, content);
     expect(candidates).toHaveLength(1);
     expect(order(state, { type: 'SetProductionQueue', cityId: city.id, orders: [{ item: candidates[0].item }] }, content, 1).ok).toBe(true);
-    expect(cityProjectCandidates(observe(createGame(setup(26)), 1), city.id, contentFor(setup(26)))).toEqual([]);
   });
 
   test('the AI egg is reachable: offered at the training cap (planNext trains below it), not from 1.5 × the cap', () => {

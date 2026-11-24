@@ -117,7 +117,7 @@ test('icon-first panels: research tree, civics, city, era, world, unit and rail 
   if (phase !== 'before') {
     // Badge slots are named medals; observed species are named sprites.
     await expect(page.locator('#badge-box').getByRole('img', { name: /^空徽章槽|属性徽章/ })).toHaveCount(8);
-    await expect(page.locator('.dex-strip img').first()).toHaveAttribute('alt', /已(观察|对战|捕捉)/);
+    await expect(page.locator('#regional-dex .dex-entry:not(.dex-silhouette) img').first()).toHaveAttribute('alt', /已(观察|对战|捕捉)|拥有/);
     await expectNamedIcons(page);
   }
 

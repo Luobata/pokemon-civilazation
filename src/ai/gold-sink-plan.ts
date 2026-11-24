@@ -34,7 +34,7 @@ function tmAgainst(view: PlayerView, unit: Pokemon, target: TypeId, allowed: rea
 }
 export function planGoldSinkAction(view: PlayerView, content: Content): Command['action'] | null {
   const sinks = view.expansion?.goldSinks;
-  if (!content.goldSinks || !sinks || view.outcome) return null;
+  if (!sinks || view.outcome) return null;
   const player = view.economy.player, me = view.playerId;
   const own = view.units.filter((unit): unit is Pokemon => unit.ownerId === me && unit.kind === 'pokemon').sort((a, b) => a.id - b.id);
   const atWar = view.diplomacy.some(pair => pair.status === 'war' && (pair.a === me || pair.b === me));

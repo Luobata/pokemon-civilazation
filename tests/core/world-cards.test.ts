@@ -13,7 +13,7 @@ import { worldCards, worldCardsMarkup } from '../../src/browser/world-cards.ts';
 import { BANNER_HEIGHT, BANNER_IDS, BANNER_WIDTH, bannerGrid, bannerUrl } from '../../src/browser/victory-banners.ts';
 import { UI_ICON_NAMES } from '../../src/browser/ui-icons.ts';
 
-const setup: GameSetup = { seed: 3, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 24,
+const setup: GameSetup = { seed: 3, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 27,
   players: [{ id: 0, controller: 'human', starterId: 'bulbasaur', leaderId: 'oak' }, ...[1, 2, 3].map(id => ({ id, controller: 'ai' as const, personality: 'aggressive' as const }))] };
 /** AI plays every seat until seat 0's turn in `round`. */
 function playTo(round: number, game: GameSetup = setup): GameState {
@@ -50,7 +50,7 @@ test('world cards point only at tiles the viewer knows, and hidden changes do no
 }, 120_000);
 
 test('v25: gym, rival and catch cards read the regional content', () => {
-  const v25: GameSetup = { ...setup, gameplayVersion: 25 };
+  const v25: GameSetup = { ...setup, gameplayVersion: 27 };
   const state = playTo(7, v25), content = contentFor(v25), view = observe(state, 0, content);
   expect(contentForView(view)).toBe(content);
   const cards = worldCards(view);

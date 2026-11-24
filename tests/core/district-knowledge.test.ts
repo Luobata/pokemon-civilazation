@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { EXPANSION_CONTENT } from '../../src/content/units.ts';
+import { GAME_CONTENT } from '../../src/content/units.ts';
 import { createCity } from '../../src/core/city.ts';
 import { districtBlocker, districtEffects, districtInput, districtViewInput, previewDistrict } from '../../src/core/districts.ts';
 import { hexToIndex, indexToHex, neighbors } from '../../src/core/hex.ts';
@@ -12,8 +12,8 @@ function hiddenNeighborFixture(biome: 'grassland' | 'mountain' = 'grassland') {
   const target = hexToIndex({ q: 9, r: 6 }, state.map)!;
   const hidden = hexToIndex({ q: 10, r: 6 }, state.map)!;
   state.map.tiles[hidden] = biome;
-  state.units[900] = createMapUnit({ kind: 'pokemon', speciesId: 'bulbasaur' }, 900, 0, { q: 7, r: 6 }, EXPANSION_CONTENT);
-  state.units[901] = createMapUnit({ kind: 'pokemon', speciesId: 'bulbasaur' }, 901, 0, { q: 10, r: 6 }, EXPANSION_CONTENT);
+  state.units[900] = createMapUnit({ kind: 'pokemon', speciesId: 'bulbasaur' }, 900, 0, { q: 7, r: 6 }, GAME_CONTENT);
+  state.units[901] = createMapUnit({ kind: 'pokemon', speciesId: 'bulbasaur' }, 901, 0, { q: 10, r: 6 }, GAME_CONTENT);
   refreshKnowledge(state);
   delete state.units[901];
   refreshKnowledge(state);
@@ -26,7 +26,7 @@ test('R-P3-01: a city founded after exploration does not make remembered adjacen
   let { state } = hiddenNeighborFixture();
   const target = hexToIndex({ q: 9, r: 6 }, state.map)!;
   const hidden = hexToIndex({ q: 10, r: 6 }, state.map)!;
-  state.units[902] = createMapUnit({ kind: 'logistics', role: 'settler' }, 902, 1, indexToHex(hidden, state.map), EXPANSION_CONTENT, 0, 1);
+  state.units[902] = createMapUnit({ kind: 'logistics', role: 'settler' }, 902, 1, indexToHex(hidden, state.map), GAME_CONTENT, 0, 1);
   state.activePlayerId = 1;
   const founded = command(state, { type: 'FoundCity', unitId: 902 });
   expect(founded.ok).toBe(true);
@@ -71,13 +71,13 @@ for (const shrink of [false, true]) test(`R-P3-02: legal foreign reservation rem
   state.cities[3].position = { q: 10, r: 6 }; state.cities[3].population = 8;
   state.players[1].research.unlockedIds = [...state.players[0].research.unlockedIds];
   const target = hexToIndex({ q: 7, r: 6 }, state.map)!;
-  state.units[900] = createMapUnit({ kind: 'pokemon', speciesId: 'bulbasaur' }, 900, 1, indexToHex(target, state.map), EXPANSION_CONTENT);
+  state.units[900] = createMapUnit({ kind: 'pokemon', speciesId: 'bulbasaur' }, 900, 1, indexToHex(target, state.map), GAME_CONTENT);
   state.activePlayerId = 1; refreshKnowledge(state);
   const queued = command(state, { type: 'SetProductionQueue', cityId: 3, orders: [{ item: { kind: 'district', defId: 'gardenDistrict', tileIndex: target } }] });
   expect(queued.ok).toBe(true);
   if (!queued.ok) throw new Error(queued.reason);
   state = queued.state;
-  state.units[901] = createMapUnit({ kind: 'logistics', role: 'settler' }, 901, 0, { q: 5, r: 6 }, EXPANSION_CONTENT, 0, 1);
+  state.units[901] = createMapUnit({ kind: 'logistics', role: 'settler' }, 901, 0, { q: 5, r: 6 }, GAME_CONTENT, 0, 1);
   state.activePlayerId = 0;
   const founded = command(state, { type: 'FoundCity', unitId: 901 });
   expect(founded.ok).toBe(true);
@@ -119,10 +119,12 @@ test('D-P3-7: harbor target 155 requires explored adjacent land 156 in both inpu
   expect([target, hidden]).toEqual([155, 156]);
   for (const p of [position, ...neighbors(position, state.map)]) state.map.tiles[hexToIndex(p, state.map)!] = 'ocean';
   state.map.tiles[hidden] = 'grassland';
+  // Keep city vision at radius 2 (without cartography's +1) so target (dist 2) is visible and hidden (dist 3) is fogged.
+  state.players[0].research.unlockedIds = state.players[0].research.unlockedIds.filter(id => id !== 'cartography');
   state.knowledge = { 0: emptyKnowledge(), 1: emptyKnowledge() }; refreshKnowledge(state);
   for (const explored of [false, true]) {
     if (explored) {
-      state.units[900] = createMapUnit({ kind: 'pokemon', speciesId: 'bulbasaur' }, 900, 0, { q: 9, r: 6 }, EXPANSION_CONTENT);
+      state.units[900] = createMapUnit({ kind: 'pokemon', speciesId: 'bulbasaur' }, 900, 0, { q: 9, r: 6 }, GAME_CONTENT);
       refreshKnowledge(state); delete state.units[900]; refreshKnowledge(state);
     }
     const view = observe(state, 0), visible = visibleTiles(state, 0);
@@ -166,7 +168,7 @@ for (const category of ['district', 'improvement'] as const) test(`hidden ${cate
 test('A2: foreign improvement stays on the explored map after leaving vision but not in adjacency', () => {
   const { state, target, hidden } = hiddenNeighborFixture('mountain');
   state.expansion!.improvements!.tiles[hidden] = { kind: 'mine', builtBy: 1, builtAtRound: state.round };
-  state.units[901] = createMapUnit({ kind: 'pokemon', speciesId: 'bulbasaur' }, 901, 0, indexToHex(hidden, state.map), EXPANSION_CONTENT);
+  state.units[901] = createMapUnit({ kind: 'pokemon', speciesId: 'bulbasaur' }, 901, 0, indexToHex(hidden, state.map), GAME_CONTENT);
   refreshKnowledge(state);
   expect(previewDistrict(observe(state, 0), 1, 'gymDistrict', target).effects.total.trainedXp).toBe(30);
   delete state.units[901]; refreshKnowledge(state);

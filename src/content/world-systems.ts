@@ -1,4 +1,4 @@
-import { EXPANSION_CONTENT } from './units.ts';
+import { GAME_CONTENT } from './units.ts';
 import type { Content } from './units.ts';
 import type { SpeciesId } from './species.ts';
 
@@ -120,9 +120,9 @@ export const WORLD_DEFINITIONS: WorldDefinitions = {
 };
 
 export type WorldSystemContent = { base: Content; world: WorldDefinitions };
-export const WORLD_CONTENT: WorldSystemContent = { base: EXPANSION_CONTENT, world: WORLD_DEFINITIONS };
+export const WORLD_CONTENT: WorldSystemContent = { base: GAME_CONTENT, world: WORLD_DEFINITIONS };
 
-export function validateWorldDefinitions(world: WorldDefinitions, content: Content = EXPANSION_CONTENT): void {
+export function validateWorldDefinitions(world: WorldDefinitions, content: Content = GAME_CONTENT): void {
   const counts = [world.nests.count, world.overlords.count, world.berryDeposits];
   if (counts.some(value => !Number.isSafeInteger(value) || value < 1)) throw new Error('World entity counts must be positive integers.');
   if (world.nests.hp < 1 || world.nests.damage < 0 || world.nests.spawnIntervalRounds < 2 || world.nests.maxActivePerNest < 1) {
@@ -144,4 +144,4 @@ export function validateWorldDefinitions(world: WorldDefinitions, content: Conte
   }
 }
 
-validateWorldDefinitions(WORLD_DEFINITIONS, EXPANSION_CONTENT);
+validateWorldDefinitions(WORLD_DEFINITIONS, GAME_CONTENT);

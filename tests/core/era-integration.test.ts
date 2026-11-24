@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { GameSession, replay } from '../../src/app/session.ts';
-import { EXPANSION_CONTENT } from '../../src/content/units.ts';
+import { GAME_CONTENT } from '../../src/content/units.ts';
 import { TECHS } from '../../src/content/economy.ts';
 import { createGame } from '../../src/core/game.ts';
 import { cityYield } from '../../src/core/city.ts';
@@ -23,16 +23,16 @@ function setup(mode?: EraProgression, leaderId: 'oak' | 'lance' | 'jenny' | 'joy
     ] };
 }
 
-test('era rules require an explicit supported version and expansion setup', () => {
+test('era rules validate progression mode and default to simple-v1 with expansion', () => {
   expect(() => createGame({ ...setup(), eraProgression: 'bad' as EraProgression })).toThrow();
-  const legacy = setup('simple-v1'); delete legacy.expansionVersion;
-  expect(() => createGame(legacy)).toThrow();
-  const old = createGame(setup());
-  expect(old.setup).not.toHaveProperty('eraProgression');
-  expect(observe(old, 0)).not.toHaveProperty('eraProgression');
-  expect(cityYield(old, old.cities[old.players[0].headquartersCityId]).research).toBe(1);
-  const current = createGame(setup('simple-v1'));
-  expect(cityYield(current, current.cities[current.players[0].headquartersCityId]).research).toBeGreaterThan(1);
+  const defaulted = createGame(setup());
+  expect(defaulted.setup.eraProgression).toBe('simple-v1');
+  expect(defaulted.expansion?.version).toBe(1);
+  expect(observe(defaulted, 0).eraProgression).toBe('simple-v1');
+  const current = createGame(setup('simple-v1', 'oak'));
+  const plain = createGame({ ...setup('simple-v1', 'oak'), players: [{ id: 0, controller: 'human', starterId: 'bulbasaur' }, setup().players[1]] });
+  expect(cityYield(current, current.cities[current.players[0].headquartersCityId]).research)
+    .toBeGreaterThan(cityYield(plain, plain.cities[plain.players[0].headquartersCityId]).research);
 });
 
 for (const mode of ['simple-v1', 'full-v1'] as const) {
@@ -50,19 +50,19 @@ for (const mode of ['simple-v1', 'full-v1'] as const) {
   });
 }
 
-test('Joy late-era field care heals her favored Pokemon outside territory, retaining old rules elsewhere', () => {
-  for (const mode of [undefined, 'simple-v1'] as const) {
-    const state = createGame(setup(mode, 'joy'));
-    state.players[0].research.unlockedIds = Object.keys(TECHS).slice(0, 7) as (keyof typeof TECHS)[];
+test('Joy middle/late-era field care heals her favored Pokemon outside territory, inactive in early era', () => {
+  for (const [techCount, expectedHp] of [[0, 10], [7, 14], [16, 16]] as const) {
+    const state = createGame(setup('simple-v1', 'joy'));
+    state.players[0].research.unlockedIds = Object.keys(TECHS).slice(0, techCount) as (keyof typeof TECHS)[];
     const city = state.cities[state.players[0].headquartersCityId];
     const index = state.map.tiles.findIndex((_, i) => hexDistance(city.position, indexToHex(i, state.map), state.map) > 6);
     expect(index).toBeGreaterThanOrEqual(0);
     const position = indexToHex(index, state.map);
-    const favored = createMapUnit({ kind: 'pokemon', speciesId: 'bulbasaur' }, 1000, 0, position, EXPANSION_CONTENT);
-    const other = createMapUnit({ kind: 'pokemon', speciesId: 'charmander' }, 1001, 0, position, EXPANSION_CONTENT);
+    const favored = createMapUnit({ kind: 'pokemon', speciesId: 'bulbasaur' }, 1000, 0, position, GAME_CONTENT);
+    const other = createMapUnit({ kind: 'pokemon', speciesId: 'charmander' }, 1001, 0, position, GAME_CONTENT);
     favored.hp = 10; other.hp = 10; state.units = { 1000: favored, 1001: other };
     resolveRecovery(state);
-    expect(favored.hp).toBe(mode ? 16 : 10);
+    expect(favored.hp).toBe(expectedHp);
     expect(other.hp).toBe(10);
   }
 });
@@ -81,7 +81,7 @@ test('Lance mobility is accepted by authoritative movement, using the same proje
   const state = createGame(setup('simple-v1', 'lance'));
   state.players[0].research.unlockedIds = Object.keys(TECHS).slice(0, 7) as (keyof typeof TECHS)[];
   state.map.tiles.fill('grassland'); state.units = {};
-  const unit = createMapUnit({ kind: 'pokemon', speciesId: 'ponyta' }, 1000, 0, { q: 10, r: 8 }, EXPANSION_CONTENT, 0, 1);
+  const unit = createMapUnit({ kind: 'pokemon', speciesId: 'ponyta' }, 1000, 0, { q: 10, r: 8 }, GAME_CONTENT, 0, 1);
   state.units[unit.id] = unit;
   // Movement still uses player knowledge; reveal terrain through the fixture's knowledge record.
   state.knowledge[0].exploredTileIds = state.map.tiles.map((_, i) => i);
@@ -94,6 +94,6 @@ test('Lance mobility is accepted by authoritative movement, using the same proje
   const result = step(state, { actorId: 0, expectedSeq: 0, action });
   expect(result.ok).toBe(true);
   if (result.ok) expect(hexToIndex(result.state.units[unit.id].position!, result.state.map)).toBe(destination);
-  const old = structuredClone(state); delete old.setup.eraProgression;
-  expect(reachablePaths(observe(old, 0), unit.id)[destination!]).toBeUndefined();
+  const early = structuredClone(state); early.players[0].research.unlockedIds = [];
+  expect(reachablePaths(observe(early, 0), unit.id)[destination!]).toBeUndefined();
 });

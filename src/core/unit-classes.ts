@@ -13,7 +13,7 @@ import { stateCircuitBadges, viewCircuitBadges } from './gym-circuit.ts';
 import type { GymCircuitState, GymCircuitView } from './gym-circuit.ts';
 
 type Versioned = { setup?: { gameplayVersion?: number }; gameplayVersion?: number };
-export const usesUnitClasses = (source: Versioned) => ((source.setup?.gameplayVersion ?? source.gameplayVersion) ?? 0) >= 19;
+export const usesUnitClasses = (_source?: Versioned) => { void _source; return true; };
 
 const speciesOf = (identity: UnitIdentity, content: Content) => identity.kind === 'pokemon' ? content.species[identity.speciesId] : null;
 /** Whether a Pokémon's primary or secondary type is native to its class. */
@@ -61,7 +61,7 @@ export function classTrainingBlocker(version: Versioned, player: { research: { u
   if (!usesUnitClasses(version)) return null;
   const species = content.species[speciesId];
   if (!species) return null;
-  const hm = classHms(content)[species.role];
+  const hm = classHms()[species.role];
   if (hm && !player.research.unlockedIds.includes(hm.techId)) return { kind: 'hm', text: `需要秘传「${hm.hm}」（研究${techOf(content, hm.techId).name}）` };
   if (species.stage === 3) {
     if (!treeGateOpen(player, 'finalStage')) return { kind: 'tech', text: `最终形态要先研究「${techOf(content, TREE_GATES.finalStage).name}」` };

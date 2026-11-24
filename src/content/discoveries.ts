@@ -3,7 +3,7 @@ import type { TechId } from './economy.ts';
 /** Pokédex discoveries (Civilization "eureka"): one milestone per technology, 40% of its cost once. */
 export const DISCOVERY_PERCENT = 40;
 export const DISCOVERIES: Record<TechId, { name: string; hint: string }> = {
-  domestication: { name: '初次收服', hint: '成功捕捉一只野生宝可梦' },
+  domestication: { name: '初次交手', hint: '和一只野生宝可梦交战' },
   berryCultivation: { name: '树果丰收', hint: '采集树果或建成树果田' },
   stoneCraft: { name: '开山取石', hint: '采集矿脉或建成矿坑' },
   ballCraft: { name: '图鉴初成', hint: '登记 4 种宝可梦' },
@@ -36,6 +36,4 @@ export const DISCOVERIES: Record<TechId, { name: string; hint: string }> = {
   championLeague: { name: '百战之师', hint: '累计击倒 15 只宝可梦' },
 };
 
-/** Gameplay v21 hint overrides (the trigger changed). */
-export const DISCOVERY_HINTS_V21: Partial<Record<TechId, { name: string; hint: string }>> = { domestication: { name: '初次交手', hint: '和一只野生宝可梦交战' } };
-export const discoveryText = (id: TechId, opening: boolean) => (opening ? DISCOVERY_HINTS_V21[id] : undefined) ?? DISCOVERIES[id];
+export const discoveryText = (id: TechId) => DISCOVERIES[id];

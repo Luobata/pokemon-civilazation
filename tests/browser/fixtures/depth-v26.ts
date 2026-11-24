@@ -17,7 +17,7 @@ import type { CommandLog } from '../../../src/app/session.ts';
 import type { AiPersonality, Command, GameSetup, GameState, PlayerView } from '../../../src/core/model.ts';
 
 type Options = { seed: number; personality: AiPersonality };
-const setupFor = ({ seed, personality }: Options): GameSetup => ({ seed, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 26,
+const setupFor = ({ seed, personality }: Options): GameSetup => ({ seed, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 27,
   players: [{ id: 0, controller: 'human', starterId: 'bulbasaur', leaderId: 'oak' }, ...[1, 2, 3].map(id => ({ id, controller: 'ai' as const, personality }))] });
 export type DepthFixture = { state: GameState; save: string; id: number };
 
@@ -60,7 +60,7 @@ const GAMES: Options[] = [{ seed: 2, personality: 'aggressive' }, { seed: 3, per
 export const gymFixture = () => first('gym', GAMES, view => {
   const circuit = view.expansion?.gymCircuit;
   if (!circuit) return undefined;
-  const won = circuit.badges[view.playerId] ?? [], size = leaderTeamFor(won.length, contentFor({ expansionVersion: 1, gameplayVersion: 26 })).members;
+  const won = circuit.badges[view.playerId] ?? [], size = leaderTeamFor(won.length, contentFor({ expansionVersion: 1, gameplayVersion: 27 })).members;
   for (const gym of circuit.gyms) {
     if (won.includes(gym.id) || (circuit.readyAt[gym.id] ?? 0) > view.round) continue;
     const near = ownReady(view).filter(unit => hexDistance(unit.position, gym.position, view.map) <= 2);

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { GYM_RULES_V24 } from '../../src/content/gym-circuit.ts';
-import { WORLD24_CONTENT, contentFor } from '../../src/content/units.ts';
+import { contentFor } from '../../src/content/units.ts';
 import type { SpeciesId } from '../../src/content/species.ts';
 import { CIVILIZATION_CONTENT } from '../../src/content/civilization-systems.ts';
 import { applyCivilizationAction, resolveCivilizationRound } from '../../src/core/civilization-systems.ts';
@@ -13,12 +13,11 @@ import { createMapUnit } from '../../src/core/unit.ts';
 import { observe, refreshKnowledge } from '../../src/core/vision.ts';
 import { challengeReplay, effectTone, finalHp, leagueMatchReplay, multiplierText, snapshotChallenge } from '../../src/browser/battle-replay.ts';
 import type { ChallengeAction } from '../../src/browser/battle-replay.ts';
-import type { BattleTrace } from '../../src/core/civilization-systems.ts';
 
 // depth-v26 §2.5 (presentation only): replays rebuilt from real authority results add up strike by strike.
-const content = WORLD24_CONTENT;
-const setup = (seed = 31): GameSetup => ({ seed, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 24,
+const setup = (seed = 31): GameSetup => ({ seed, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 27,
   players: [{ id: 0, controller: 'human', starterId: 'bulbasaur' }, { id: 1, controller: 'ai' }] });
+const content = contentFor(setup());
 function teamAt(state: GameState, gymId: number, species: SpeciesId[]): number[] {
   const gym = state.expansion!.gymCircuit!.gyms.find(item => item.id === gymId)!;
   const spots = [gym.position, ...neighbors(gym.position, state.map)].filter(hex => hexToIndex(hex, state.map) !== null);
@@ -41,17 +40,19 @@ const challenge = (state: GameState, action: ChallengeAction) => {
 
 describe('battle replay model', () => {
   test('a gym challenge (one challenger hurt) replays every strike from the snapshot and ends at the HP the authority wrote back', () => {
-    const state = createGame(setup()), gym = state.expansion!.gymCircuit!.gyms[0]!;
+    const state = createGame(setup()), circuit = state.expansion!.gymCircuit!, gym = circuit.gyms[0]!;
+    // With 2 badges held the leader fields 2 Pokémon, matching a 2-Pokémon challenger lineup.
+    circuit.badges[0] = circuit.gyms.filter(item => item.id !== gym.id).slice(0, 2).map(item => item.id);
     const ids = teamAt(state, gym.id, ['ivysaur', 'pikachu']);
     state.units[ids[1]!]!.hp = 20;
     const { snapshot, payload, view } = challenge(state, { type: 'ChallengeGym', gymId: gym.id, unitIds: ids });
-    if (payload.type !== 'GymChallenged') throw new Error('expected a gym result');
+    if (payload.type !== 'GymChallenged' || !('turns' in payload.battle)) throw new Error('expected a relay gym result');
     const replay = challengeReplay(view, snapshot, payload)!;
     expect(replay).not.toBeNull();
     expect(replay.kind).toBe('gym');
     const battle = replay.battles[0]!;
     expect(battle.home.map(item => item.hp)).toEqual([content.species.ivysaur.maxHp, 20]);
-    expect(battle.strikes).toHaveLength((payload.battle as BattleTrace).rounds.reduce((sum, round) => sum + round.strikes.length, 0));
+    expect(battle.strikes).toHaveLength(payload.battle.turns.flatMap(turn => turn.acts).filter(act => act.kind === 'strike').length);
     expect(battle.winner === 'home').toBe(payload.victory);
     // The authority keeps at least 1 HP; the replay's last HP is the battle's.
     const after = finalHp(battle);
@@ -62,8 +63,8 @@ describe('battle replay model', () => {
     const state = createGame(setup(32)), gym = state.expansion!.gymCircuit!.gyms[0]!;
     const ids = teamAt(state, gym.id, ['charmeleon']);
     const { snapshot, payload, view } = challenge(state, { type: 'ChallengeGym', gymId: gym.id, unitIds: ids });
-    if (payload.type !== 'GymChallenged') throw new Error('expected a gym result');
-    const struck = (payload.battle as BattleTrace).rounds.some(round => round.strikes.some(strike => strike.defenderId === 'challenger-0-0' && strike.defenderHpAfter > 0));
+    if (payload.type !== 'GymChallenged' || !('turns' in payload.battle)) throw new Error('expected a relay gym result');
+    const struck = payload.battle.turns.some(turn => turn.acts.some(act => act.kind === 'strike' && act.defenderId === 'challenger-0-0' && act.hpAfter > 0));
     if (struck) expect(challengeReplay(view, { ...snapshot, team: snapshot.team.map(member => ({ ...member, hp: member.hp - 7 })) }, payload)).toBeNull();
   });
 
@@ -117,7 +118,7 @@ describe('battle replay model', () => {
 
 // Gameplay v26: relay traces (turns of send / switch / strike / faint) replay one Pokémon per side.
 describe('battle replay model: v26 relay battles', () => {
-  const v26Setup = (seed = 31): GameSetup => ({ ...setup(seed), gameplayVersion: 26 });
+  const v26Setup = (seed = 31): GameSetup => ({ ...setup(seed), gameplayVersion: 27 });
   const v26 = contentFor(v26Setup());
   const relayChallenge = (state: GameState, action: ChallengeAction) => {
     const snapshot = snapshotChallenge(observe(state, 0, v26), action)!;
@@ -166,7 +167,7 @@ describe('battle replay model: v26 relay battles', () => {
   });
 
   test('a v26 guardian challenge and every relay match of a conference season replay', () => {
-    const civilization: GameSetup = { seed: 9001, width: 24, height: 16, expansionVersion: 1, multiplayer: true, gameplayVersion: 26, roundLimit: 100, eraProgression: 'simple-v1',
+    const civilization: GameSetup = { seed: 9001, width: 24, height: 16, expansionVersion: 1, multiplayer: true, gameplayVersion: 27, roundLimit: 100, eraProgression: 'simple-v1',
       players: [{ id: 0, controller: 'human', starterId: 'bulbasaur' }, { id: 1, controller: 'human', starterId: 'charmander' }] };
     const world = contentFor(civilization), content = { ...CIVILIZATION_CONTENT, world };
     const state = createGame(civilization), civ = state.expansion!.civilization, site = civ.sanctuaries[0]!;

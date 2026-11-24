@@ -6,7 +6,6 @@
 //   random draws; the move is an ordinary `Moved` (seen like any move) plus `CivilianFled` for the owner.
 // - Faith compensation (R4): the faith victory needs `faithWinSharePercent` (70) percent of the counted cities (v26: 60%).
 // The AI's near city sites (R2) live in src/ai/query.ts.
-import { FAITH_RULES } from '../content/faith-legends.ts';
 import { openingTuning } from '../content/pace-v27.ts';
 import type { Content } from '../content/units.ts';
 import type { SpeciesId } from '../content/species.ts';
@@ -20,7 +19,7 @@ export type OpeningSafetyEvent = { type: 'CivilianFled'; playerId: number; unitI
 
 /** The tile a civilian flees to from `wild`, or null (strike as before). */
 export function fleeTile(state: GameState, wild: MapUnit, civilian: MapUnit, content: Content): Hex | null {
-  if (!content.openingSafety || civilian.kind !== 'logistics' || wild.ownerId !== null) return null;
+  if (civilian.kind !== 'logistics' || wild.ownerId !== null) return null;
   const taken = new Set([...Object.values(state.units).filter(isMapUnit), ...Object.values(state.cities)].map(item => hexToIndex(item.position, state.map)));
   return neighbors(civilian.position, state.map).map(hex => ({ hex, index: hexToIndex(hex, state.map) }))
     .filter((item): item is { hex: Hex; index: number } => item.index !== null && !taken.has(item.index) && canEnterTile(civilian, state.map, item.index, content)
@@ -39,12 +38,10 @@ export function startleCivilian(state: GameState, wild: MapUnit, civilian: MapUn
 
 /** Followers a faith needs among `counted` cities (integers in v27; the v26 share before). */
 export function faithWinCount(counted: number, content: Content): number {
-  if (!content.openingSafety) return Math.ceil(counted * FAITH_RULES.winShare);
   return Math.floor((counted * openingTuning(content).faithWinSharePercent + 99) / 100);
 }
-/** The share the view shows (a fraction, as before) and, in v27, the exact percent the authority uses. */
+/** The share the view shows (a fraction) and the exact percent the authority uses. */
 export function faithWinShareView(content: Content): { winShare: number; winSharePercent?: number } {
-  if (!content.openingSafety) return { winShare: FAITH_RULES.winShare };
   const percent = openingTuning(content).faithWinSharePercent;
   return { winShare: percent / 100, winSharePercent: percent };
 }

@@ -26,9 +26,5 @@ test('v21: new games show the opening objectives card and visible item balls; v2
   await page.mouse.click(point!.x, point!.y);
   await expect(page.locator('#tile-info')).toContainText('道具球');
   await page.screenshot({ path: `${reports}/opening-v21.png` });
-
-  await page.goto('/?seed=4&gameplay=20');
-  await expect(page.locator('#map')).toBeVisible();
-  await expect(goals).toBeHidden();
   expect(errors).toEqual([]);
 });

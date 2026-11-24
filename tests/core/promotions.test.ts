@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { EXPANSION_CONTENT } from '../../src/content/units.ts';
+import { GAME_CONTENT, contentFor } from '../../src/content/units.ts';
 import type { SpeciesId } from '../../src/content/units.ts';
 import { PROMOTION_RULES } from '../../src/content/promotions.ts';
 import type { PromotionTrait } from '../../src/content/promotions.ts';
@@ -28,14 +28,14 @@ const duel = (gameplayVersion: GameplayVersion): GameSetup => ({ seed: 12345, wi
   players: [{ id: 0, controller: 'human', starterId: 'bulbasaur', leaderId: 'oak' }, { id: 1, controller: 'human', starterId: 'charmander', leaderId: 'oak' }] });
 const act = (state: GameState, action: Command['action']) => step(state, { actorId: state.activePlayerId, expectedSeq: state.commandSeq, action });
 /** Two Pokémon facing each other on open grassland at war; unit 9000 (player 0) attacks 9001 (player 1). */
-function arena(attacker: SpeciesId, defender: SpeciesId, version: GameplayVersion = 13): GameState {
-  const state = createGame(duel(version), EXPANSION_CONTENT);
+function arena(attacker: SpeciesId, defender: SpeciesId, version: GameplayVersion = 27): GameState {
+  const state = createGame(duel(version), GAME_CONTENT);
   state.map.tiles.fill('grassland'); state.units = {};
   state.diplomacy[0].status = 'war';
   state.cities[state.players[0].headquartersCityId].position = { q: 3, r: 3 };
   state.cities[state.players[1].headquartersCityId].position = { q: 20, r: 12 };
-  state.units[9000] = createMapUnit({ kind: 'pokemon', speciesId: attacker }, 9000, 0, { q: 9, r: 6 }, EXPANSION_CONTENT, 0, 1);
-  state.units[9001] = createMapUnit({ kind: 'pokemon', speciesId: defender }, 9001, 1, { q: 10, r: 6 }, EXPANSION_CONTENT, 0, 1);
+  state.units[9000] = createMapUnit({ kind: 'pokemon', speciesId: attacker }, 9000, 0, { q: 9, r: 6 }, GAME_CONTENT, 0, 1);
+  state.units[9001] = createMapUnit({ kind: 'pokemon', speciesId: defender }, 9001, 1, { q: 10, r: 6 }, GAME_CONTENT, 0, 1);
   refreshKnowledge(state);
   return state;
 }
@@ -44,15 +44,14 @@ const promote = (state: GameState, unitId: number, traits: PromotionTrait[]) => 
   return state;
 };
 const preview = (state: GameState, target: { kind: 'unit' | 'city'; id: number } = { kind: 'unit', id: 9001 }) => {
-  const result = previewAttack(observe(state, 0, EXPANSION_CONTENT), 9000, target, EXPANSION_CONTENT);
+  const result = previewAttack(observe(state, 0, GAME_CONTENT), 9000, target, GAME_CONTENT);
   if (!result.ok) throw new Error(result.reason);
   return result;
 };
 
-test('promotions exist only from gameplay v13; the command parses strictly', () => {
-  expect(Object.keys(createGame(duel(12), EXPANSION_CONTENT).expansion!)).not.toContain('promotions');
-  expect(createGame(duel(13), EXPANSION_CONTENT).expansion!.promotions).toEqual({ units: {} });
-  expect(gameVersions({ gameplayVersion: 13 })).toEqual({ schemaVersion: 8, rulesVersion: 'promotions-v13' });
+test('promotions initialize on v27; the command parses strictly', () => {
+  expect(createGame(duel(27), GAME_CONTENT).expansion!.promotions).toEqual({ units: {} });
+  expect(gameVersions({ gameplayVersion: 27 })).toEqual({ schemaVersion: 22, rulesVersion: 'pace-v27' });
   expect(parseAuditAction({ type: 'PromoteUnit', unitId: 3, trait: 'swift' })).toEqual({ type: 'PromoteUnit', unitId: 3, trait: 'swift' });
   expect(() => parseAuditAction({ type: 'PromoteUnit', unitId: 3, trait: 'flying' })).toThrow();
   expect([0, 5, 6, 13, 14, 24, 99].map(promotionsEarned)).toEqual([0, 0, 1, 1, 2, 3, 3]);
@@ -85,8 +84,8 @@ test('battles award merit; a promotion is chosen once per threshold and never re
   expect(act(second.state, { type: 'PromoteUnit', unitId: 9001, trait: 'bulwark' }).ok).toBe(false);
   // The owner sees the event; the rival sees the traits of the visible unit only through the view.
   // Rivals see the public traits of a visible unit, never its merit.
-  expect(observe(second.state, 1, EXPANSION_CONTENT).expansion!.promotions!.units[9000]).toEqual({ traits: ['assault', 'swift'] });
-  expect(observe(second.state, 0, EXPANSION_CONTENT).expansion!.promotions!.units[9000]).toEqual({ merit: 14, traits: ['assault', 'swift'] });
+  expect(observe(second.state, 1, GAME_CONTENT).expansion!.promotions!.units[9000]).toEqual({ traits: ['assault', 'swift'] });
+  expect(observe(second.state, 0, GAME_CONTENT).expansion!.promotions!.units[9000]).toEqual({ merit: 14, traits: ['assault', 'swift'] });
 });
 
 test('recovering units wait to be promoted, and battles started by wild Pokémon award no merit', () => {
@@ -141,33 +140,34 @@ test('疾行 adds one movement and 再生 heals 5 HP outside territory', () => {
   const reach = (state: GameState) => {
     state.units[9001].position = { q: 20, r: 1 };
     state.map.tiles.forEach((biomeId, index) => { state.knowledge[0].rememberedTiles[index] = { biomeId }; });
-    return Object.keys(reachablePaths(observe(state, 0, EXPANSION_CONTENT), 9000, EXPANSION_CONTENT)).length;
+    return Object.keys(reachablePaths(observe(state, 0, GAME_CONTENT), 9000, GAME_CONTENT)).length;
   };
   expect(reach(promote(arena('rattata', 'snorlax'), 9000, ['swift']))).toBeGreaterThan(reach(arena('rattata', 'snorlax')));
   const heal = (traits: PromotionTrait[]) => {
     const state = promote(arena('machoke', 'snorlax'), 9000, traits);
     state.units[9000].hp = 10;
-    resolveRecovery(state, EXPANSION_CONTENT);
+    resolveRecovery(state, GAME_CONTENT);
     return state.units[9000].hp;
   };
   expect(heal(['regenerate']) - heal([])).toBe(PROMOTION_RULES.regenerateHealing);
 });
 
-test('a real v13 AI game promotes veterans and replays exactly', () => {
-  const setup: GameSetup = { seed: 31, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 13, players: [
+test('a real v27 AI game promotes veterans and replays exactly', () => {
+  const setup: GameSetup = { seed: 31, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 27, players: [
     { id: 0, controller: 'ai', personality: 'aggressive', leaderId: 'lance' }, { id: 1, controller: 'ai', personality: 'aggressive', leaderId: 'giovanni' },
     { id: 2, controller: 'ai', personality: 'expansion', leaderId: 'oak' }] };
-  let state = createGame(setup, EXPANSION_CONTENT);
+  const content = contentFor(setup);
+  let state = createGame(setup, content);
   const commands: Command[] = [], memory: RejectedCitySite[] = [];
   let promoted = 0;
   while (!state.outcome && state.round < 80) {
-    const view = observe(state, state.activePlayerId, EXPANSION_CONTENT);
-    let command = planNext(view, { ...RULE_QUERIES, content: EXPANSION_CONTENT }, memory);
-    let result = step(state, command, EXPANSION_CONTENT);
+    const view = observe(state, state.activePlayerId, content);
+    let command = planNext(view, { ...RULE_QUERIES, content }, memory);
+    let result = step(state, command, content);
     if (!result.ok) {
       rememberCityRejection(memory, view, command, result.reason);
       command = { actorId: view.playerId, expectedSeq: view.commandSeq, action: { type: 'EndTurn' } };
-      result = step(state, command, EXPANSION_CONTENT);
+      result = step(state, command, content);
     }
     if (!result.ok) throw new Error(result.reason);
     promoted += result.events.filter(event => event.payload.type === 'UnitPromoted').length;
@@ -179,6 +179,6 @@ test('a real v13 AI game promotes veterans and replays exactly', () => {
     expect(new Set(record.traits).size).toBe(record.traits.length);
   }
   const log: CommandLog = { version: 1, ...gameVersions(state.setup), contentVersion: state.contentVersion, setup: state.setup, commands };
-  expect(state.schemaVersion).toBe(8);
+  expect(state.schemaVersion).toBe(22);
   expect(canonicalSerialize(replay(log))).toBe(canonicalSerialize(state));
 }, 120_000);

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { contentFor } from '../../src/content/units.ts';
 import type { GameplayVersion } from '../../src/content/eras.ts';
 import { createGame } from '../../src/core/game.ts';
-import { generateMap } from '../../src/core/map.ts';
+import { generateWorldMap } from '../../src/core/map-v24.ts';
 import { createMapUnit } from '../../src/core/unit.ts';
 import { canonicalHex, edgeDistance, hexDistance, hexToIndex, hexToOffset, indexToHex, nearestCopy, neighbors, offsetToHex, HEX_DIRECTIONS } from '../../src/core/hex.ts';
 import type { GridSize, Hex } from '../../src/core/hex.ts';
@@ -107,17 +107,15 @@ function seam(version: GameplayVersion, attacker: 'ponyta' | 'charmander', defen
   return state;
 }
 
-describe('v22 rules across the seam', () => {
-  it('v22 games and their views carry wrap; v21 games do not', () => {
-    const v22 = createGame(duel(22)), v21 = createGame(duel(21));
-    expect(v22.map.wrap).toBe(true);
-    expect(observe(v22, 0).map.wrap).toBe(true);
-    expect('wrap' in v21.map).toBe(false);
-    expect('wrap' in observe(v21, 0).map).toBe(false);
+describe('v27 rules across the seam', () => {
+  it('v27 games and their views carry wrap', () => {
+    const v27 = createGame(duel(27));
+    expect(v27.map.wrap).toBe(true);
+    expect(observe(v27, 0).map.wrap).toBe(true);
   });
 
   it('a unit walks east off the last column onto the first, paying each tile once', () => {
-    const state = seam(22, 'ponyta', 5);
+    const state = seam(27, 'ponyta', 5);
     const target = hexToIndex(at(1, 6), state.map)!;
     expect(reachablePaths(observe(state, 0), 9000)[target]).toEqual([at(23, 6), at(0, 6), at(1, 6)]);
     const moved = act(state, { type: 'Move', unitId: 9000, to: at(1, 6) });
@@ -128,7 +126,7 @@ describe('v22 rules across the seam', () => {
     const event = moved.events.find(item => item.payload.type === 'Moved');
     expect(event?.payload.type === 'Moved' && event.payload.path).toEqual([at(23, 6), at(0, 6), at(1, 6)]);
     // The tile across the seam costs its own biome: forest (2) on the first column.
-    const forest = seam(22, 'ponyta', 5);
+    const forest = seam(27, 'ponyta', 5);
     forest.map.tiles[hexToIndex(at(0, 6), forest.map)!] = 'forest';
     forest.knowledge[0].rememberedTiles[hexToIndex(at(0, 6), forest.map)!] = { biomeId: 'forest' };
     refreshKnowledge(forest);
@@ -136,14 +134,16 @@ describe('v22 rules across the seam', () => {
     expect(into.ok && into.state.units[9000].position).toEqual(at(0, 6));
     expect(into.ok && into.state.units[9000].movesSpent).toBe(2);
     // A command naming an off-canonical copy of the tile resolves to the canonical tile.
-    const copy = act(seam(22, 'ponyta', 5), { type: 'Move', unitId: 9000, to: at(25, 6) });
+    const copy = act(seam(27, 'ponyta', 5), { type: 'Move', unitId: 9000, to: at(25, 6) });
     expect(copy.ok && copy.state.units[9000].position).toEqual(at(1, 6));
-    // v21: the same column is 22 steps away; the far side is unreachable.
-    expect(reachablePaths(observe(seam(21, 'ponyta', 5), 0), 9000)[target]).toBeUndefined();
+    // On a flat map (no wrap): the same column is 22 steps away; the far side is unreachable.
+    const flat = seam(27, 'ponyta', 5);
+    delete flat.map.wrap;
+    expect(reachablePaths(observe(flat, 0), 9000)[target]).toBeUndefined();
   });
 
   it('vision and attack range reach across the seam; preview matches the authority', () => {
-    const state = seam(22, 'charmander');
+    const state = seam(27, 'charmander');
     expect(contentFor(state.setup).species.charmander.range).toBe(2);
     const visible = visibleTiles(state, 0);
     expect(visible.has(hexToIndex(at(0, 6), state.map)!)).toBe(true);
@@ -162,17 +162,19 @@ describe('v22 rules across the seam', () => {
     expect(dealt).toBeLessThanOrEqual(preview.damage.max);
     expect(attackerHp - attack.state.units[9000].hp).toBe(preview.counter.trigger === 'never' ? 0 : preview.counter.damage);
     // resolveAttack directly agrees too (same RNG draw as the command).
-    const again = seam(22, 'charmander');
+    const again = seam(27, 'charmander');
     resolveAttack(again, 9000, { kind: 'unit', id: 9001 });
     expect(again.units[9001].hp).toBe(attack.state.units[9001].hp);
-    // v21: two columns apart on a flat map is 22 tiles; out of sight and out of range.
-    const flat = seam(21, 'charmander');
+    // On a flat map (no wrap): two columns apart is 22 tiles; out of sight and out of range.
+    const flat = seam(27, 'charmander');
+    delete flat.map.wrap;
+    refreshKnowledge(flat);
     expect(visibleTiles(flat, 0).has(hexToIndex(at(1, 6), flat.map)!)).toBe(false);
     expect(observe(flat, 0).units.map(unit => unit.id)).not.toContain(9001);
   });
 
   it('zone of control and flanking count neighbours across the seam', () => {
-    const state = seam(22, 'ponyta', 1);
+    const state = seam(27, 'ponyta', 1);
     state.units[9002] = createMapUnit({ kind: 'pokemon', speciesId: 'machop' }, 9002, 1, at(0, 4), contentFor(state.setup), 0, 1);
     refreshKnowledge(state);
     // (0,5) touches machop's tile (0,4); entering it from (23,6) ends the move.
@@ -185,31 +187,17 @@ describe('v22 rules across the seam', () => {
   });
 });
 
-describe('v22 generation', () => {
-  it('poles at the top and bottom rows, no east/west wall, wrapped start spacing', () => {
+describe('wrapping world generation', () => {
+  it('poles at the top and bottom rows, wrapped start spacing', () => {
     for (const seed of [1, 7, 31, 12345]) {
-      const map = generateMap({ seed, width: 24, height: 16, playerCount: 4, wrap: true });
+      const map = generateWorldMap({ seed, width: 24, height: 16, playerCount: 4 });
       expect(map.wrap).toBe(true);
       for (let col = 0; col < 24; col++) for (const row of [0, 15]) expect(['snow', 'ocean', 'volcano']).toContain(map.tiles[row * 24 + col]);
-      // East/west edge columns are ordinary terrain, not a forced wall of ocean or volcano.
-      const edge = Array.from({ length: 12 }, (_, i) => i + 2).flatMap(row => [map.tiles[row * 24], map.tiles[row * 24 + 23]]);
-      expect(edge.filter(biome => biome === 'ocean' || biome === 'volcano').length).toBeLessThan(edge.length);
-      expect(new Set(edge).size).toBeGreaterThan(1);
       for (const [i, start] of map.starts.entries()) {
         expect(edgeDistance(indexToHex(start.tileIndex, map), map)).toBeGreaterThanOrEqual(2);
         for (const other of map.starts.slice(i + 1)) expect(hexDistance(indexToHex(start.tileIndex, map), indexToHex(other.tileIndex, map), map)).toBeGreaterThanOrEqual(map.startDistance);
       }
     }
-    // Starts may sit in the outer columns on a wrapping map (they never could on a flat one).
-    const outer = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].flatMap(seed => generateMap({ seed, width: 24, height: 16, playerCount: 4, wrap: true }).starts)
-      .filter(start => [0, 1, 22, 23].includes(start.tileIndex % 24));
-    expect(outer.length).toBeGreaterThan(0);
-  });
-
-  it('flat generation is unchanged and has no wrap key', () => {
-    const map = generateMap({ seed: 12345, width: 24, height: 16, playerCount: 4 });
-    expect('wrap' in map).toBe(false);
-    expect(map.starts.every(start => edgeDistance(indexToHex(start.tileIndex, map), map) >= 2)).toBe(true);
   });
 });
 

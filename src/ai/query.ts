@@ -1,5 +1,5 @@
 import type { AiThresholds } from './thresholds.ts';
-import { CONTENT, contentForView } from '../content/units.ts';
+import { GAME_CONTENT, contentForView } from '../content/units.ts';
 import { openingTuning } from '../content/pace-v27.ts';
 import type { Content } from '../content/units.ts';
 import { canResearch } from '../core/economy-commands.ts';
@@ -19,11 +19,11 @@ export function knownCities(view: PlayerView) {
 const siteRadii = new WeakMap<object, number>();
 /** v27 ① R2 (pace-v27 §2.2): the explored radius a city site needs — 2 with opening safety, else 3 (cached per view). */
 function siteRadius(view: PlayerView, content?: Content): number {
-  if (content) return content.openingSafety ? openingTuning(content).aiSiteRadius : 3;
+  if (content) return openingTuning(content).aiSiteRadius;
   let radius = siteRadii.get(view);
   if (radius === undefined) {
     const own = contentForView(view);
-    siteRadii.set(view, radius = own.openingSafety ? openingTuning(own).aiSiteRadius : 3);
+    siteRadii.set(view, radius = openingTuning(own).aiSiteRadius);
   }
   return radius;
 }
@@ -43,5 +43,5 @@ export function isCitySite(view: PlayerView, position: Hex, content?: Content): 
   return true;
 }
 // Each query takes its observation explicitly; no closure captures authoritative state.
-export const RULE_QUERIES = { content: CONTENT, paths: reachablePaths, attack: previewAttack, capture: previewCapture, research: canResearch, citySite: isCitySite };
+export const RULE_QUERIES = { content: GAME_CONTENT, paths: reachablePaths, attack: previewAttack, capture: previewCapture, research: canResearch, citySite: isCitySite };
 export type RuleQueries = Omit<typeof RULE_QUERIES, 'content'> & { content: Content; ai?: AiThresholds };

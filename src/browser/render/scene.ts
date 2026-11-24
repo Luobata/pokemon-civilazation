@@ -260,7 +260,7 @@ export function buildScene(input: MapRenderInput): MapScene {
       ...(promotion?.traits.length ? { rank: promotion.traits.length } : {}),
       ...(unit.ownerId === view.playerId && pendingPromotions(promotion) ? { promotable: true } : {}),
       ...(unit.hp < maxHp ? { hp: { current: Math.max(0, unit.hp), max: maxHp } } : {}),
-      ...(content.wildEncounters && unit.ownerId === null && isExhausted(unit, view.round) ? { exhausted: true as const } : {}),
+      ...(unit.ownerId === null && isExhausted(unit, view.round) ? { exhausted: true as const } : {}),
       ...(boss ? { max: boss, hp: { current: Math.max(0, unit.hp), max: raid!.maxHp } } : {}) };
   });
 

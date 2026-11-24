@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { ROSTER_CONTENT } from '../../src/content/units.ts';
+import { GAME_CONTENT, contentFor } from '../../src/content/units.ts';
 import type { GameplayVersion } from '../../src/content/eras.ts';
 import { CITY_NETWORK_RULES } from '../../src/content/city-network.ts';
 import { RULE_QUERIES } from '../../src/ai/query.ts';
@@ -24,27 +24,26 @@ const duel = (gameplayVersion: GameplayVersion): GameSetup => ({ seed: 12345, wi
   players: [{ id: 0, controller: 'human', starterId: 'bulbasaur', leaderId: 'oak' }, { id: 1, controller: 'human', starterId: 'charmander', leaderId: 'misty' }] });
 const act = (state: GameState, action: Command['action']) => step(state, { actorId: state.activePlayerId, expectedSeq: state.commandSeq, action });
 /** Open grassland; player 0 owns its capital at (4,4) and a second city at (10,4). */
-function network(version: GameplayVersion = 17): GameState {
+function network(version: GameplayVersion = 27): GameState {
   const state = createGame(duel(version));
   state.map.tiles.fill('grassland'); state.units = {};
   const capital = state.cities[state.players[0].headquartersCityId];
   capital.position = { q: 4, r: 4 }; capital.workedTileIds = []; capital.lockedTileIds = [];
   state.cities[state.players[1].headquartersCityId].position = { q: 20, r: 12 };
-  state.cities[500] = createCity(500, 0, { q: 10, r: 4 }, false, ROSTER_CONTENT);
+  state.cities[500] = createCity(500, 0, { q: 10, r: 4 }, false, GAME_CONTENT);
   refreshKnowledge(state);
   return state;
 }
 const capitalId = (state: GameState) => state.players[0].headquartersCityId;
 
-test('the city network exists only from v17', () => {
-  expect(createGame(duel(16)).expansion).not.toHaveProperty('cityNetwork');
-  expect(createGame(duel(17)).expansion!.cityNetwork).toEqual({ routes: [] });
-  expect(gameVersions({ gameplayVersion: 17 })).toEqual({ schemaVersion: 12, rulesVersion: 'cities-v17' });
+test('the city network is initialized on v27 games', () => {
+  expect(createGame(duel(27)).expansion!.cityNetwork).toEqual({ routes: [] });
+  expect(gameVersions()).toEqual({ schemaVersion: 22, rulesVersion: 'pace-v27' });
 });
 
-test('a settler’s escort gives the new city its head start; traders need the market and only v17 allows them', () => {
+test('a settler’s escort gives the new city its head start; traders need the market and registered escorts', () => {
   const state = network();
-  state.units[900] = { ...createMapUnit({ kind: 'logistics', role: 'settler', escortId: 'geodude' }, 900, 0, { q: 4, r: 10 }, ROSTER_CONTENT, 0, 1) };
+  state.units[900] = { ...createMapUnit({ kind: 'logistics', role: 'settler', escortId: 'geodude' }, 900, 0, { q: 4, r: 10 }, GAME_CONTENT, 0, 1) };
   const founded = act(state, { type: 'FoundCity', unitId: 900 });
   expect(founded.ok).toBe(true);
   if (!founded.ok) return;
@@ -57,17 +56,16 @@ test('a settler’s escort gives the new city its head start; traders need the m
   const market = network(); market.cities[capitalId(market)].buildingIds.push('meetingHall');
   expect(queue(market, { kind: 'logistics', defId: 'trader', escortId: 'bulbasaur' }).ok).toBe(true);
   expect(queue(market, { kind: 'logistics', defId: 'trader', escortId: 'dragonite' }).ok).toBe(false);
-  expect(queue(network(16), { kind: 'logistics', defId: 'settler', escortId: 'bulbasaur' }).ok).toBe(false);
   // A trader cannot found a city.
   const trader = network();
-  trader.units[901] = createMapUnit({ kind: 'logistics', role: 'trader', homeCityId: capitalId(trader) }, 901, 0, { q: 4, r: 10 }, ROSTER_CONTENT, 0, 1);
+  trader.units[901] = createMapUnit({ kind: 'logistics', role: 'trader', homeCityId: capitalId(trader) }, 901, 0, { q: 4, r: 10 }, GAME_CONTENT, 0, 1);
   expect(act(trader, { type: 'FoundCity', unitId: 901 }).ok).toBe(false);
 });
 
 test('a trader that reaches another own city opens a route; the route pays both cities and ends if a city is lost', () => {
   const state = network();
   const home = capitalId(state);
-  state.units[901] = createMapUnit({ kind: 'logistics', role: 'trader', escortId: 'pidgey', homeCityId: home }, 901, 0, { q: 7, r: 4 }, ROSTER_CONTENT, 0, 1);
+  state.units[901] = createMapUnit({ kind: 'logistics', role: 'trader', escortId: 'pidgey', homeCityId: home }, 901, 0, { q: 7, r: 4 }, GAME_CONTENT, 0, 1);
   refreshKnowledge(state);
   expect(act(state, { type: 'EstablishTradeRoute', unitId: 901, toCityId: 500 }).ok).toBe(false); // not arrived
   (state.units[901] as MapUnit).position = { q: 9, r: 4 };
@@ -86,15 +84,15 @@ test('a trader that reaches another own city opens a route; the route pays both 
   expect(next.expansion!.cityNetwork!.routes).toEqual([]);
 });
 
-test('v17 districts reward neighbouring districts and themed combos; v16 does not', () => {
+test('districts reward neighbouring districts and themed combos', () => {
   const state = network();
   const research = hexToIndex({ q: 5, r: 4 }, state.map)!, power = hexToIndex({ q: 6, r: 4 }, state.map)!;
   const completed = [{ cityId: capitalId(state), kind: 'powerPlantDistrict' as const, tileIndex: power, builtAtRound: 0 }];
   const input = { map: state.map, cities: Object.values(state.cities), improvements: [], completed };
-  const v17 = districtEffects({ ...input, gameplayVersion: 17 }, 'researchDistrict', research);
-  const v16 = districtEffects({ ...input, gameplayVersion: 16 }, 'researchDistrict', research);
-  expect(v17.total.research - v16.total.research).toBe(2); // +1 adjacent district, +1 供电实验室
-  expect(v17.adjacency.map(item => item.id)).toEqual(expect.arrayContaining(['district', 'combo-powerPlantDistrict']));
+  const withNeighbor = districtEffects({ ...input, gameplayVersion: 27 }, 'researchDistrict', research);
+  const withoutNeighbor = districtEffects({ ...input, completed: [], gameplayVersion: 27 }, 'researchDistrict', research);
+  expect(withNeighbor.total.research - withoutNeighbor.total.research).toBe(2); // +1 adjacent district, +1 供电实验室
+  expect(withNeighbor.adjacency.map(item => item.id)).toEqual(expect.arrayContaining(['district', 'combo-powerPlantDistrict']));
 });
 
 test('regional districts, type-city alliances and the Pokémon Center network reach own cities within range', () => {
@@ -110,27 +108,28 @@ test('regional districts, type-city alliances and the Pokémon Center network re
   state.expansion!.essences!.gyms[500] = 'sylvan';
   expect(cityNetworkBonuses(state, capital).map(bonus => bonus.label)).toContain('属性城市联盟（同属性 1 城）');
   // 宝可梦中心 heals own Pokémon near any own city that has one.
-  const pokemon = createMapUnit({ kind: 'pokemon', speciesId: 'rattata' }, 950, 0, { q: 12, r: 6 }, ROSTER_CONTENT);
+  const pokemon = createMapUnit({ kind: 'pokemon', speciesId: 'rattata' }, 950, 0, { q: 12, r: 6 }, GAME_CONTENT);
   expect(networkHealing(state, pokemon)).toBe(0);
   state.cities[500].buildingIds.push('trainingGround');
   expect(networkHealing(state, pokemon)).toBe(CITY_NETWORK_RULES.centreHealing);
 });
 
-test('a real v17 AI game uses escorts and trade routes and replays exactly', () => {
-  const setup: GameSetup = { seed: 31, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 17, players: [
+test('a real v27 AI game uses escorts and trade routes and replays exactly', () => {
+  const setup: GameSetup = { seed: 31, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 27, players: [
     { id: 0, controller: 'ai', personality: 'expansion', leaderId: 'oak' }, { id: 1, controller: 'ai', personality: 'conservative', leaderId: 'joy' },
     { id: 2, controller: 'ai', personality: 'aggressive', leaderId: 'lance' }] };
-  let state = createGame(setup);
+  const content = contentFor(setup);
+  let state = createGame(setup, content);
   const commands: Command[] = [], memory: RejectedCitySite[] = [];
   let escorts = 0, routes = 0;
   while (!state.outcome && state.round < 80) {
-    const view = observe(state, state.activePlayerId);
-    let command = planNext(view, { ...RULE_QUERIES, content: ROSTER_CONTENT }, memory);
-    let result = step(state, command);
+    const view = observe(state, state.activePlayerId, content);
+    let command = planNext(view, { ...RULE_QUERIES, content }, memory);
+    let result = step(state, command, content);
     if (!result.ok) {
       rememberCityRejection(memory, view, command, result.reason);
       command = { actorId: view.playerId, expectedSeq: view.commandSeq, action: { type: 'EndTurn' } };
-      result = step(state, command);
+      result = step(state, command, content);
     }
     if (!result.ok) throw new Error(result.reason);
     escorts += result.events.filter(event => event.payload.type === 'EscortBonus').length;
@@ -140,6 +139,6 @@ test('a real v17 AI game uses escorts and trade routes and replays exactly', () 
   expect(escorts).toBeGreaterThan(0);
   expect(routes).toBeGreaterThan(0);
   const log: CommandLog = { version: 1, ...gameVersions(state.setup), contentVersion: state.contentVersion, setup: state.setup, commands };
-  expect(state.schemaVersion).toBe(12);
+  expect(state.schemaVersion).toBe(22);
   expect(canonicalSerialize(replay(log))).toBe(canonicalSerialize(state));
 }, 120_000);

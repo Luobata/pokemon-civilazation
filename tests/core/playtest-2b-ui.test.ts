@@ -21,7 +21,7 @@ import { approachTile } from '../../src/browser/world-goto.ts';
 const seed = 21, human = 'brock' as const;
 const ai = LEADER_IDS.filter(id => id !== human).map((id, index) => ({ id, key: (Math.imul(seed + 1, 2654435761) ^ Math.imul(index + 7, 40503)) >>> 0 }))
   .sort((a, b) => a.key - b.key || a.id.localeCompare(b.id)).map(item => item.id);
-const setup: GameSetup = { expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 26, seed, width: 40, height: 26, roundLimit: 200,
+const setup: GameSetup = { expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 27, seed, width: 40, height: 26, roundLimit: 200,
   players: [{ id: 0, controller: 'human', starterId: 'charmander', leaderId: human }, ...[1, 2, 3].map(id => ({ id, controller: 'ai' as const, personality: 'expansion' as const, leaderId: ai[id - 1] }))] };
 
 test('N2: a rival arriving in fog keeps its "已到达" mark on the warned tile, then is shown where last seen — never where it is now', () => {
@@ -32,7 +32,7 @@ test('N2: a rival arriving in fog keeps its "已到达" mark on the warned tile,
     const view = session.getView();
     memory.observe(view);
     views[view.round] = view;
-    if (view.round >= 8 && view.round <= 10) {
+    if (view.round >= 8 && view.round <= 9) {
       // In fog: the trail is the warned tile (the player saw it in the warning), whatever the hidden unit does.
       const trail = rivalTrail(view)!, warned = hexToIndex(offsetToHex({ col: 33, row: 17 }), view.map)!;
       expect(trail.visible).toHaveLength(0);

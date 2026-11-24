@@ -9,7 +9,7 @@
 import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { DEPTH_CONTENT, REGIONAL_CONTENT } from '../src/content/units.ts';
+import { GAME_CONTENT } from '../src/content/units.ts';
 import type { SpeciesId } from '../src/content/units.ts';
 import { deriveRosterTables, dexMaxGeneration, drawRegionalDex, evolutionLines, REGIONAL_DEX_RULES } from '../src/content/regional-dex.ts';
 import type { RegionalDexDraw } from '../src/content/regional-dex.ts';
@@ -28,8 +28,8 @@ const ROLES = ['melee', 'ranged', 'fast', 'scout', 'siege', 'air', 'naval'] as c
 const ROLE_NAMES: Record<string, string> = { melee: '近战', ranged: '远程', fast: '快速', scout: '侦察', siege: '攻城', air: '飞行', naval: '水面' };
 const SOURCE_NAMES: Record<string, string> = { anchor: '锚定', leader: '领袖专属', repair: '修补约束', draw: '抽取' };
 /** The species a report draws from: v25 (default) or v26 (v25 plus the roster-v26 batch). Names and types read the superset (shared ids agree). */
-const speciesOf = (roster: RegionalDexOptions['roster']) => roster === 'v26' ? DEPTH_CONTENT.species : REGIONAL_CONTENT.species;
-const allSpecies = DEPTH_CONTENT.species;
+const speciesOf = (_roster?: RegionalDexOptions['roster']) => { void _roster; return GAME_CONTENT.species; };
+const allSpecies = GAME_CONTENT.species;
 const name = (id: string) => allSpecies[id]?.name ?? id;
 const typesOf = (id: string): TypeId[] => allSpecies[id].secondaryTypeId ? [allSpecies[id].typeId, allSpecies[id].secondaryTypeId!] : [allSpecies[id].typeId];
 /** Rotating seats: seed s seats leaders s, s+1, s+2, s+3 (mod 9), like the balance gate's rotations. */

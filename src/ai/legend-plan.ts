@@ -16,7 +16,7 @@ const FAVOR_OWNED = 4, FAVOR_ROUNDS = 12;
 export function planLegendWonder(view: PlayerView, threatened: ReadonlySet<number>): { cityId: number | null; legendId: LegendWonderId | null } {
   const legends = view.expansion?.legends;
   if (!legends || legends.building.length) return { cityId: null, legendId: null };
-  const content = contentForView(view), favour = Boolean(content.legendFavor) && viewOwnedLegends(view) >= FAVOR_OWNED;
+  const content = contentForView(view), favour = viewOwnedLegends(view) >= FAVOR_OWNED;
   const cities = [...view.economy.cities].filter(city => !threatened.has(city.id)).sort((a, b) => b.yields.production - a.yields.production || a.id - b.id);
   for (const city of cities) {
     const quick = (id: LegendWonderId) => !favour || (city.yields.production > 0 && Math.ceil(viewLegendCost(view, id, content) / city.yields.production) <= FAVOR_ROUNDS);

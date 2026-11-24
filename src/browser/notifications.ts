@@ -118,7 +118,7 @@ export function toastFor(payload: VisibleEvent['payload'], view: PlayerView, mem
           decision(undefined, `famine:${payload.cityId}`));
     case 'DiscoveryMade':
       if (payload.playerId !== me) return null;
-      return toast('research', '✦', `图鉴发现「${discoveryText(payload.techId, Boolean(content.opening)).name}」`, `${techOf(content, payload.techId).name} 研究进度 +${payload.bonus}。`, { kind: 'screen', screen: 'research' }, '查看');
+      return toast('research', '✦', `图鉴发现「${discoveryText(payload.techId).name}」`, `${techOf(content, payload.techId).name} 研究进度 +${payload.bonus}。`, { kind: 'screen', screen: 'research' }, '查看');
     case 'EraAgeBegan':
       if (payload.playerId !== me) return null;
       // v22: the new era asks for dedication cards; the notification stays until they are chosen.

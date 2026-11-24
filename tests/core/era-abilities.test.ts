@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { GameSession, replay } from '../../src/app/session.ts';
-import { EXPANSION_CONTENT } from '../../src/content/units.ts';
+import { GAME_CONTENT } from '../../src/content/units.ts';
 import type { SpeciesId } from '../../src/content/units.ts';
 import { TECHS } from '../../src/content/economy.ts';
 import type { TechId } from '../../src/content/economy.ts';
@@ -33,8 +33,8 @@ function arena(version: GameplayVersion | undefined, techCount: number, attacker
   state.diplomacy[0].status = 'war';
   state.players[0].research.unlockedIds = techs(techCount);
   const city = state.cities[state.players[0].headquartersCityId]; city.position = { q: 8, r: 6 };
-  state.units[9000] = createMapUnit({ kind: 'pokemon', speciesId: attacker }, 9000, 0, { q: 9, r: 6 }, EXPANSION_CONTENT, 0, 1);
-  state.units[9001] = createMapUnit({ kind: 'pokemon', speciesId: defender }, 9001, 1, { q: 10, r: 6 }, EXPANSION_CONTENT, 0, 1);
+  state.units[9000] = createMapUnit({ kind: 'pokemon', speciesId: attacker }, 9000, 0, { q: 9, r: 6 }, GAME_CONTENT, 0, 1);
+  state.units[9001] = createMapUnit({ kind: 'pokemon', speciesId: defender }, 9001, 1, { q: 10, r: 6 }, GAME_CONTENT, 0, 1);
   if (state.expansion?.essences) for (const id of Object.keys(state.expansion.essences.stock[0]) as (keyof typeof state.expansion.essences.stock[0])[]) state.expansion.essences.stock[0][id] = 50;
   refreshKnowledge(state);
   return state;
@@ -45,24 +45,23 @@ test('generations map to abilities; simple mode stops at weather', () => {
   expect(unlockedAbilities(1)).toEqual([]);
   expect(unlockedAbilities(3)).toEqual(['dayNight', 'weather']);
   expect(unlockedAbilities(9)).toEqual(['dayNight', 'weather', 'mega', 'zMove', 'dynamax', 'tera']);
-  expect(generationOf({ research: { unlockedIds: techs(12) } }, 'simple-v1')).toBe(3);
-  expect(generationOf({ research: { unlockedIds: techs(12) } }, 'full-v1')).toBe(9);
+  expect(generationOf({ research: { unlockedIds: techs(16) } }, 'simple-v1')).toBe(3);
+  expect(generationOf({ research: { unlockedIds: techs(28) } }, 'full-v1')).toBe(9);
   expect(isNight(1)).toBe(false); expect(isNight(3)).toBe(true); expect(isNight(5)).toBe(false);
 });
 
-test('era abilities exist only in gameplay v5 and commands parse strictly', () => {
-  expect(createGame(setup(4)).expansion).not.toHaveProperty('eraAbilities');
-  expect(createGame(setup(5)).expansion?.eraAbilities?.players[0]).toMatchObject({ megaUnitId: null, teraUnitId: null });
+test('era abilities initialize on games and commands parse strictly', () => {
+  expect(createGame(setup(27)).expansion?.eraAbilities?.players[0]).toMatchObject({ megaUnitId: null, teraUnitId: null });
   expect(parseAuditAction({ type: 'SummonWeather', cityId: 1, weather: 'rain' })).toEqual({ type: 'SummonWeather', cityId: 1, weather: 'rain' });
   expect(() => parseAuditAction({ type: 'SummonWeather', cityId: 1, weather: 'fog' })).toThrow();
   expect(() => parseAuditAction({ type: 'Terastallize', unitId: 1, typeId: 'shadow' })).toThrow();
 });
 
 test('weather boosts and weakens by type, preview matches authority', () => {
-  // Full mode: generation 3 (weather) needs 2 techs; with 1 tech the ability is locked.
-  const early = arena(5, 1, 'squirtle', 'snorlax');
+  // Full mode (30-tech tree): generation 3 (weather) needs 4 techs; with 3 techs the ability is locked.
+  const early = arena(27, 3, 'squirtle', 'snorlax');
   expect(act(early, { type: 'SummonWeather', cityId: early.players[0].headquartersCityId, weather: 'rain' }).ok).toBe(false);
-  const state = arena(5, 2, 'squirtle', 'snorlax');
+  const state = arena(27, 4, 'squirtle', 'snorlax');
   const before = damageMax(state);
   const cityId = state.players[0].headquartersCityId;
   const rained = act(state, { type: 'SummonWeather', cityId, weather: 'rain' });
@@ -75,14 +74,14 @@ test('weather boosts and weakens by type, preview matches authority', () => {
   resolveAttack(next, 9000, { kind: 'unit', id: 9001 });
   if (preview.ok) { expect(hp - next.units[9001].hp).toBeLessThanOrEqual(preview.damage.max); expect(hp - next.units[9001].hp).toBeGreaterThanOrEqual(Math.min(hp, preview.damage.min)); }
   expect(act(next, { type: 'SummonWeather', cityId, weather: 'sun' }).ok).toBe(false); // cooldown
-  const sun = arena(5, 2, 'charmander', 'snorlax'); sun.expansion!.eraAbilities!.fields = [{ ownerId: 1, weather: 'rain', center: { q: 8, r: 6 }, untilRound: 5 }];
-  expect(damageMax(sun)).toBeLessThan(damageMax(arena(5, 2, 'charmander', 'snorlax')));
+  const sun = arena(27, 4, 'charmander', 'snorlax'); sun.expansion!.eraAbilities!.fields = [{ ownerId: 1, weather: 'rain', center: { q: 8, r: 6 }, untilRound: 5 }];
+  expect(damageMax(sun)).toBeLessThan(damageMax(arena(27, 4, 'charmander', 'snorlax')));
 });
 
 test('Mega, Z-Move, Dynamax and Tera follow unlocks, costs and limits', () => {
-  const locked = arena(5, 4, 'blastoise', 'snorlax');
+  const locked = arena(27, 13, 'blastoise', 'snorlax');
   expect(act(locked, { type: 'MegaEvolve', unitId: 9000 }).ok).toBe(false);
-  const state = arena(5, 12, 'blastoise', 'snorlax');
+  const state = arena(27, 28, 'blastoise', 'snorlax');
   const plain = damageMax(state);
   expect(act(state, { type: 'MegaEvolve', unitId: 9001 }).ok).toBe(false);
   const mega = act(state, { type: 'MegaEvolve', unitId: 9000 });
@@ -97,35 +96,38 @@ test('Mega, Z-Move, Dynamax and Tera follow unlocks, costs and limits', () => {
   expect(damageMax(z.state)).toBeGreaterThanOrEqual(damageMax(mega.state) * 1.9);
   resolveAttack(z.state, 9000, { kind: 'unit', id: 9001 });
   expect(z.state.expansion!.eraAbilities!.units[9000].zPrimed).toBeUndefined();
-  const non = arena(5, 12, 'squirtle', 'snorlax');
+  const non = arena(27, 28, 'squirtle', 'snorlax');
   expect(act(non, { type: 'MegaEvolve', unitId: 9000 }).ok).toBe(false);
-  const tera = act(arena(5, 12, 'squirtle', 'pikachu'), { type: 'Terastallize', unitId: 9000, typeId: 'grass' });
+  const tera = act(arena(27, 28, 'squirtle', 'pikachu'), { type: 'Terastallize', unitId: 9000, typeId: 'grass' });
   expect(tera.ok && tera.state.expansion!.eraAbilities!.units[9000].tera).toBe('grass');
-  const dyn = act(arena(5, 12, 'squirtle', 'snorlax'), { type: 'Dynamax', unitId: 9000 });
+  const dyn = act(arena(27, 28, 'squirtle', 'snorlax'), { type: 'Dynamax', unitId: 9000 });
   expect(dyn.ok && dyn.state.expansion!.eraAbilities!.units[9000].dynamaxUntilRound).toBe(1 + ERA_ABILITY_RULES.dynamaxRounds - 1);
 });
 
 test('night boosts dark/ghost attacks; friendship grants territory XP after Gold/Silver', () => {
-  // Clefairy (fairy) takes neutral ghost damage; normal types would be immune.
-  const day = arena(5, 1, 'gastly', 'clefairy'), night = arena(5, 1, 'gastly', 'clefairy');
+  // Clefairy (fairy) takes neutral ghost damage; normal types would be immune. Full mode gen 2 needs 2 techs.
+  const day = arena(27, 2, 'gastly', 'clefairy'), night = arena(27, 2, 'gastly', 'clefairy');
   night.round = 3;
   expect(damageMax(night)).toBeGreaterThan(damageMax(day));
   const xp = night.units[9000].xp;
   resolveEraAbilityRound(night);
   expect(night.units[9000].xp).toBe(xp + ERA_ABILITY_RULES.friendshipXp);
-  const v4 = arena(4, 1, 'gastly', 'clefairy'); v4.round = 3;
-  expect(damageMax(v4)).toBe(damageMax(arena(4, 1, 'gastly', 'clefairy')));
+  // Generation 1 (1 tech) does not grant Gold/Silver friendship XP.
+  const gen1 = arena(27, 1, 'gastly', 'clefairy');
+  const gen1Xp = gen1.units[9000].xp;
+  resolveEraAbilityRound(gen1);
+  expect(gen1.units[9000].xp).toBe(gen1Xp);
 });
 
 test('gameplay v5 keeps exact save/load and replay', () => {
-  const session = new GameSession({ ...setup(5), multiplayer: undefined, players: [
+  const session = new GameSession({ ...setup(27), multiplayer: undefined, players: [
     { id: 0, controller: 'human', starterId: 'bulbasaur', leaderId: 'oak' }, { id: 1, controller: 'ai', personality: 'aggressive', leaderId: 'misty' }] });
   for (let turn = 0; turn < 40; turn++) {
     const current = session.getState();
     if (current.outcome) break;
     expect(session.submit({ actorId: current.activePlayerId, expectedSeq: current.commandSeq, action: { type: 'EndTurn' } }).ok).toBe(true);
   }
-  const saved = session.save(), loaded = new GameSession(setup(5));
+  const saved = session.save(), loaded = new GameSession(setup(27));
   loaded.load(saved);
   expect(loaded.save()).toBe(saved);
   expect(canonicalSerialize(replay(session.exportLog()))).toBe(canonicalSerialize(session.getState()));

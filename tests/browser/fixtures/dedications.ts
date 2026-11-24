@@ -14,7 +14,7 @@ import type { Command, GameSetup } from '../../../src/core/model.ts';
  */
 export function dedicationFixture() {
   const setup: GameSetup = { seed: 1, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, multiplayer: true,
-    eraProgression: 'simple-v1', gameplayVersion: 22, players: [
+    eraProgression: 'simple-v1', gameplayVersion: 27, players: [
       { id: 0, controller: 'human', starterId: 'bulbasaur', leaderId: 'oak' }, { id: 1, controller: 'human', starterId: 'squirtle', leaderId: 'lance' }] };
   const content = contentFor(setup);
   let state = createGame(setup, content);

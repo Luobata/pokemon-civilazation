@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { ROSTER_CONTENT } from '../../src/content/units.ts';
+import { GAME_CONTENT } from '../../src/content/units.ts';
 import type { SpeciesId } from '../../src/content/units.ts';
 import type { GameplayVersion } from '../../src/content/eras.ts';
 import { CLASS_RULES } from '../../src/content/unit-classes.ts';
@@ -22,66 +22,65 @@ function arena(version: GameplayVersion, attacker: SpeciesId, defender: SpeciesI
   state.map.tiles.fill('grassland'); state.units = {}; state.diplomacy[0].status = 'war';
   state.cities[state.players[0].headquartersCityId].position = { q: 3, r: 3 };
   state.cities[state.players[1].headquartersCityId].position = { q: 20, r: 12 };
-  state.units[9000] = createMapUnit({ kind: 'pokemon', speciesId: attacker }, 9000, 0, { q: 9, r: 6 }, ROSTER_CONTENT, 0, 1);
-  state.units[9001] = createMapUnit({ kind: 'pokemon', speciesId: defender }, 9001, 1, { q: 10, r: 6 }, ROSTER_CONTENT, 0, 1);
+  state.units[9000] = createMapUnit({ kind: 'pokemon', speciesId: attacker }, 9000, 0, { q: 9, r: 6 }, GAME_CONTENT, 0, 1);
+  state.units[9001] = createMapUnit({ kind: 'pokemon', speciesId: defender }, 9001, 1, { q: 10, r: 6 }, GAME_CONTENT, 0, 1);
   refreshKnowledge(state);
   return state;
 }
-const maxDamage = (state: GameState) => { const preview = previewAttack(observe(state, 0), 9000, { kind: 'unit', id: 9001 }); if (!preview.ok) throw new Error(preview.reason); return preview.damage.max; };
+const preview = (state: GameState) => { const result = previewAttack(observe(state, 0), 9000, { kind: 'unit', id: 9001 }); if (!result.ok) throw new Error(result.reason); return result; };
 const pokemon = (speciesId: SpeciesId) => ({ kind: 'pokemon' as const, speciesId });
 
-test('class counters and type affinity are neutral before v19', () => {
-  expect(gameVersions({ gameplayVersion: 19 })).toEqual({ schemaVersion: 14, rulesVersion: 'classes-v19' });
-  expect(classStrikeMultiplier({ gameplayVersion: 18 }, pokemon('sandshrew'), pokemon('ponyta'), ROSTER_CONTENT)).toBe(1000);
-  expect(maxDamage(arena(18, 'sandshrew', 'ponyta'))).toBe(maxDamage(arena(17, 'sandshrew', 'ponyta')));
+test('v27 envelope and neutral non-counter, non-affinity matchups stay at 1000', () => {
+  expect(gameVersions({ gameplayVersion: 27 })).toEqual({ schemaVersion: 22, rulesVersion: 'pace-v27' });
+  expect(classStrikeMultiplier({ gameplayVersion: 27 }, pokemon('sandshrew'), pokemon('rattata'), GAME_CONTENT)).toBe(1000);
+  expect(preview(arena(27, 'sandshrew', 'rattata')).strength.factors.some(f => f.label === '兵种克制' || f.label === '属性契合')).toBe(false);
 });
 
-test('v19: melee counters fast, siege is weak in the field, affinity adds 15%; the authority stays inside the preview', () => {
+test('v27: melee counters fast, siege is weak in the field, affinity adds 15%; the authority stays inside the preview', () => {
   // 穿山鼠 (melee, ground: no affinity) against 小火马 (fast).
-  expect(hasAffinity(pokemon('sandshrew'), ROSTER_CONTENT)).toBe(false);
-  expect(classStrikeMultiplier({ gameplayVersion: 19 }, pokemon('sandshrew'), pokemon('ponyta'), ROSTER_CONTENT)).toBe(CLASS_RULES.counter);
-  expect(maxDamage(arena(19, 'sandshrew', 'ponyta'))).toBeGreaterThan(maxDamage(arena(18, 'sandshrew', 'ponyta')));
+  expect(hasAffinity(pokemon('sandshrew'), GAME_CONTENT)).toBe(false);
+  expect(classStrikeMultiplier({ gameplayVersion: 27 }, pokemon('sandshrew'), pokemon('ponyta'), GAME_CONTENT)).toBe(CLASS_RULES.counter);
+  expect(preview(arena(27, 'sandshrew', 'ponyta')).strength.factors).toContainEqual({ side: 'attack', label: '兵种克制', value: 5 });
   // 小拳石 (siege, rock: affinity) striking a Pokémon: ×0.8 × 1.15.
-  expect(classStrikeMultiplier({ gameplayVersion: 19 }, pokemon('geodude'), pokemon('rattata'), ROSTER_CONTENT)).toBe(CLASS_RULES.siegeVsUnits * CLASS_RULES.affinity / 1000);
+  expect(classStrikeMultiplier({ gameplayVersion: 27 }, pokemon('geodude'), pokemon('rattata'), GAME_CONTENT)).toBe(CLASS_RULES.siegeVsUnits * CLASS_RULES.affinity / 1000);
   // 腕力 (melee, fighting: affinity) against 小拉达 (scout: no counter).
-  expect(hasAffinity(pokemon('machop'), ROSTER_CONTENT)).toBe(true);
-  expect(maxDamage(arena(19, 'machop', 'rattata'))).toBeGreaterThan(maxDamage(arena(18, 'machop', 'rattata')));
+  expect(hasAffinity(pokemon('machop'), GAME_CONTENT)).toBe(true);
+  expect(preview(arena(27, 'machop', 'rattata')).strength.factors).toContainEqual({ side: 'attack', label: '属性契合', value: 3 });
   for (const [a, d] of [['sandshrew', 'ponyta'], ['machop', 'rattata'], ['ponyta', 'sandshrew']] as [SpeciesId, SpeciesId][]) {
-    const state = arena(19, a, d), preview = previewAttack(observe(state, 0), 9000, { kind: 'unit', id: 9001 });
-    if (!preview.ok) throw new Error(preview.reason);
+    const state = arena(27, a, d), expected = preview(state);
     const hp = state.units[9001].hp, attackerHp = state.units[9000].hp;
     resolveAttack(state, 9000, { kind: 'unit', id: 9001 });
-    expect(hp - state.units[9001].hp).toBeGreaterThanOrEqual(preview.damage.min);
-    expect(hp - state.units[9001].hp).toBeLessThanOrEqual(preview.damage.max);
-    expect(attackerHp - state.units[9000].hp).toBe(preview.counter.trigger === 'never' ? 0 : preview.counter.damage);
+    expect(hp - state.units[9001].hp).toBeGreaterThanOrEqual(expected.damage.min);
+    expect(hp - state.units[9001].hp).toBeLessThanOrEqual(expected.damage.max);
+    expect(attackerHp - state.units[9000].hp).toBe(expected.counter.trigger === 'never' ? 0 : expected.counter.damage);
   }
 });
 
-test('v19: HMs gate classes, final forms need the Gold/Silver era and the type badge', () => {
+test('v27: HMs gate classes, final forms need eliteTraining, the Gold/Silver era and the type badge', () => {
   const queue = (state: GameState, speciesId: SpeciesId) => act(state, { type: 'SetProductionQueue', cityId: hq(state).id, orders: [{ item: { kind: 'pokemon', defId: speciesId } }] }).ok;
-  const state = createGame(duel(19)), player = state.players[0];
+  const state = createGame(duel(27)), player = state.players[0];
   player.registeredSpeciesIds.push('golbat', 'venusaur');
-  expect(queue(state, 'golbat')).toBe(false); // 飞翔 comes from 气象观测
-  player.research.unlockedIds.push('meteorology');
+  expect(queue(state, 'golbat')).toBe(false); // 飞翔 comes from 飞行训练
+  player.research.unlockedIds.push('aviation');
   expect(queue(state, 'golbat')).toBe(true);
-  expect(queue(state, 'venusaur')).toBe(false); // generation 1
-  player.research.unlockedIds.push('domestication', 'stoneCraft');
-  expect(queue(state, 'venusaur')).toBe(false); // generation 2, but no 森灵 badge
+  expect(queue(state, 'venusaur')).toBe(false); // missing eliteTraining + generation 2 + badge
+  player.research.unlockedIds.push('eliteTraining');
+  expect(queue(state, 'venusaur')).toBe(false); // still generation 1 (< 7 techs)
+  player.research.unlockedIds.push('domestication', 'berryCultivation', 'stoneCraft', 'seafaring', 'ballCraft');
+  expect(queue(state, 'venusaur')).toBe(false); // generation 2 (7 techs), but no 森灵 badge
   state.expansion!.essences!.gyms[hq(state).id] = 'sylvan';
   expect(queue(state, 'venusaur')).toBe(true);
-  const old = createGame(duel(18));
-  old.players[0].registeredSpeciesIds.push('venusaur');
-  expect(queue(old, 'venusaur')).toBe(true);
 });
 
-test('v19: Rare Candy evolves a stage-1 Pokémon without XP from generation 2, for three times the gold', () => {
-  const state = arena(19, 'bulbasaur', 'rattata'), player = state.players[0];
+test('v27: Rare Candy evolves a stage-1 Pokémon without XP from generation 2, for three times the gold', () => {
+  const state = arena(27, 'bulbasaur', 'rattata'), player = state.players[0];
   player.gold = 300;
   expect(act(state, { type: 'Evolve', unitId: 9000, intoSpeciesId: 'ivysaur' }).ok).toBe(false); // generation 1
-  player.research.unlockedIds.push('domestication', 'berryCultivation', 'stoneCraft');
+  player.research.unlockedIds.push('domestication', 'berryCultivation', 'stoneCraft', 'seafaring', 'ballCraft', 'riding', 'typeResearch');
+  state.expansion!.opening!.objectives[0].push('firstTech'); // avoid +15 opening objective gold mixing with Rare Candy cost
   const evolved = act(state, { type: 'Evolve', unitId: 9000, intoSpeciesId: 'ivysaur' });
   expect(evolved.ok).toBe(true);
   if (!evolved.ok) return;
   expect(evolved.state.units[9000]).toMatchObject({ speciesId: 'ivysaur' });
-  expect(player.gold - evolved.state.players[0].gold).toBe(ROSTER_CONTENT.species.bulbasaur.evolution!.gold * CLASS_RULES.candyGoldMultiplier);
+  expect(player.gold - evolved.state.players[0].gold).toBe(GAME_CONTENT.species.bulbasaur.evolution!.gold * CLASS_RULES.candyGoldMultiplier);
 });

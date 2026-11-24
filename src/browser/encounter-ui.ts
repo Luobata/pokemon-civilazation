@@ -30,13 +30,13 @@ export function encounterToast(payload: VisibleEvent['payload'], view: PlayerVie
 }
 /** The tile-card line of an exhausted wild Pokémon (null otherwise). */
 export function exhaustedLine(view: PlayerView, unit: MapUnit, content: Content = contentForView(view)): string | null {
-  if (!content.wildEncounters || unit.ownerId !== null || !isExhausted(unit, view.round)) return null;
+  if (unit.ownerId !== null || !isExhausted(unit, view.round)) return null;
   const left = unit.exhaustedUntilRound! - view.round + 1;
   return `力竭：不攻击、不移动，捕捉率 +${openingTuning(content).exhaustCaptureBonus}% · 还剩 ${left} 轮`;
 }
 /** The capture-preview note for a target (the certain first ball, or the exhausted bonus); '' when none applies. */
 export function captureNote(view: PlayerView, target: MapUnit | undefined, content: Content = contentForView(view)): string {
-  if (!target || !content.wildEncounters || target.ownerId !== null) return '';
+  if (!target || target.ownerId !== null) return '';
   if (!viewFirstBallUsed(view)) return '（第一颗球必中）';
   return isExhausted(target, view.round) ? `（力竭 +${openingTuning(content).exhaustCaptureBonus}%）` : '';
 }

@@ -1,7 +1,7 @@
 import { tileCoords } from './tile-coords.ts';
 import { DISTRICTS, DISTRICT_IDS, districtTech } from '../content/districts.ts';
 import type { DistrictEffects, DistrictId } from '../content/districts.ts';
-import { EXPANSION_CONTENT, WORLD_CONTENT, techOf } from '../content/units.ts';
+import { GAME_CONTENT, techOf } from '../content/units.ts';
 import { cityDistrictDetails, districtSites } from '../core/districts.ts';
 import type { DistrictBreakdown, DistrictSite } from '../core/districts.ts';
 import type { PlayerView } from '../core/model.ts';
@@ -13,9 +13,10 @@ import { civHint } from './civ-hint.ts';
 const EFFECT_LABELS: Record<keyof DistrictEffects, string> = {
   food: '食物', production: '生产', gold: '金币', research: '科研', trainedXp: '宝可梦出场经验', bondPressure: '每轮羁绊压力',
 };
-export function districtReason(reason: string | null, kind: DistrictId, gameplayVersion?: number): string {
+export function districtReason(reason: string | null, kind: DistrictId, _gameplayVersion?: number): string {
+  void _gameplayVersion;
   if (!reason) return '';
-  const tree = (gameplayVersion ?? 0) >= 22, definition = DISTRICTS[kind], tech = techOf(tree ? WORLD_CONTENT : EXPANSION_CONTENT, districtTech(kind, tree)).name;
+  const definition = DISTRICTS[kind], tech = techOf(GAME_CONTENT, districtTech(kind)).name;
   const biomes = definition.biomes.map(biome => BIOME_DISPLAY[biome].label).join('、');
   const messages: Record<string, string> = {
     'districts-unavailable': '当前对局未启用设施区，需要显式 gameplay v10。',

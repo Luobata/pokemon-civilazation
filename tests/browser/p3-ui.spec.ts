@@ -5,6 +5,9 @@ import type { CombatScenario } from './fixtures/combat.ts';
 import { generateRealGame, realGameLog } from './fixtures/real-game.ts';
 import { replay } from '../../src/app/session.ts';
 import { serializeSave } from '../../src/app/save.ts';
+import { contentFor } from '../../src/content/units.ts';
+import { observe } from '../../src/core/vision.ts';
+import { turnReminders } from '../../src/browser/turn-button.ts';
 import { isMapUnit } from '../../src/core/model.ts';
 import type { Hex } from '../../src/core/hex.ts';
 import { openScreen, closeScreen } from './ui.ts';
@@ -16,15 +19,23 @@ let dangerSave: string | undefined;
 function exposedSettlerSave() {
   if (dangerSave) return dangerSave;
   const game = generateRealGame({ seed: 1, width: 24, height: 16, personalities: ['conservative', 'aggressive'] });
-  const log = realGameLog(game, game.commands.slice(0, 12));
-  dangerSave = serializeSave(replay(log), log);
-  return dangerSave;
+  const content = contentFor(game.finalState.setup);
+  for (let cut = 1; cut <= game.commands.length; cut++) {
+    const log = realGameLog(game, game.commands.slice(0, cut));
+    const state = replay(log);
+    if (state.activePlayerId !== 0) continue;
+    if (turnReminders(observe(state, 0, content), content).some(item => item.target.startsWith('danger:'))) {
+      dangerSave = serializeSave(state, log);
+      return dangerSave;
+    }
+  }
+  throw new Error('No exposed civilian state found in p3-ui fixture');
 }
 
 async function importSave(page: Page, save: string) {
   await page.goto('/?seed=12345');
   await page.locator('#import-save').setInputFiles({ name: 'p3-ui.json', mimeType: 'application/json', buffer: Buffer.from(save) });
-  await expect(page.locator('#action-notice')).toContainText('读档完成');
+  await expect(page.locator('#action-notice')).toContainText('读档完成', { timeout: 60_000 });
   await page.locator('#animate').uncheck();
 }
 
@@ -32,9 +43,10 @@ async function clickHex(page: Page, hex: Hex) {
   await page.locator('#map').scrollIntoViewIfNeeded();
   const point = await page.evaluate(async hex => {
     const mainPath = '/src/browser/main.ts', cameraPath = '/src/browser/camera.ts';
-    const { camera } = await import(mainPath);
-    const { hexToWorld, toScreen } = await import(cameraPath);
-    const screen = toScreen(hexToWorld(hex), camera), rect = document.querySelector('#map')!.getBoundingClientRect();
+    const { camera, session } = await import(mainPath);
+    const { tileToScreen } = await import(cameraPath);
+    const canvas = document.querySelector<HTMLCanvasElement>('#map')!, rect = canvas.getBoundingClientRect();
+    const screen = tileToScreen(hex, camera, session.getView().map, canvas.clientWidth);
     return { x: rect.x + screen.x, y: rect.y + screen.y };
   }, hex);
   await page.mouse.click(point.x, point.y);
@@ -90,10 +102,10 @@ for (const width of widths) {
     const danger = exposedSettlerSave();
     await importSave(page, danger);
     const dangerButton = page.locator('[data-reminder^="danger:"]');
-    await expect(dangerButton).toHaveText('开拓队有危险');
+    await expect(dangerButton).toHaveText(/^(开拓队|工匠|商队)有危险$/);
     await dangerButton.click();
     await expect(page.locator('#action-notice')).toContainText('让宝可梦护送，或先撤回城市');
-    await expect(page.locator('#selection')).toContainText('开拓队');
+    await expect(page.locator('#selection')).toContainText(/开拓队|工匠|商队/);
     await screenshot(page, `p3-ui-danger-${width}`);
 
     const attack = await importCombat(page, 'attack');
@@ -135,27 +147,26 @@ for (const width of widths) {
 }
 
 test('capture targets follow the selected ball inventory', async ({ page }) => {
+  test.setTimeout(120_000);
   const fixture = combatFixture('capture-success');
   if (fixture.action?.type !== 'Capture') throw new Error('Expected capture');
-  const save = JSON.parse(fixture.save);
-  save.state.players[0].ballInventory.pokeBall = 0;
-  save.state.players[0].ballInventory.greatBall = 1;
-  save.state.players[0].research.unlockedIds.push('ballCraft');
-  await importSave(page, JSON.stringify(save));
+  // The legal capture-success fixture has ballCraft researched with Poké Balls in stock and 0 Great Balls.
+  await importSave(page, fixture.save);
   const actor = fixture.state.units[fixture.action.unitId], target = fixture.state.units[fixture.action.targetUnitId];
   if (!isMapUnit(actor) || !isMapUnit(target)) throw new Error('Expected deployed capture units');
   await page.locator('#fit').click();
   await page.locator('#unit-select').selectOption(String(actor.id));
   await page.locator('#capture-unit').click();
   await expect(page.locator('#capture-ball')).toHaveValue('pokeBall');
+  await page.locator('#capture-ball').selectOption('greatBall');
   await screenshot(page, 'p3-ui-capture-ball-filter-after');
-  // Playtest 2026-11 U5: the notice names the reason (no Poké Balls left for the chosen ball).
-  await expect(page.locator('#action-notice')).toContainText('没有精灵球了');
+  // Playtest 2026-11 U5: the notice names the reason (no Great Balls left for the chosen ball).
+  await expect(page.locator('#action-notice')).toContainText('没有超级球了');
   await clickHex(page, target.position);
   await expect(page.locator('#capture-preview')).toContainText('选择野生宝可梦查看成功率');
-  await expect(page.locator('#action-notice')).toContainText('无法捕捉：没有精灵球了');
+  await expect(page.locator('#action-notice')).toContainText('无法捕捉：没有超级球了');
   await expect(page.locator('#confirm-action')).toBeDisabled();
-  await page.locator('#capture-ball').selectOption('greatBall');
+  await page.locator('#capture-ball').selectOption('pokeBall');
   await expect(page.locator('#action-notice')).toContainText('捕捉模式：点相邻的野生宝可梦看捕捉率，再点一次即捕捉');
   await clickHex(page, target.position);
   await expect(page.locator('#capture-preview')).toContainText('捕捉成功率');
@@ -190,14 +201,13 @@ test('attack clicks reject peaceful and out-of-range targets', async ({ page }) 
 });
 
 test('faith progress requires a converted city for every living rival', async ({ page }) => {
-  // Pinned to v20: from v21 a 200-round game needs 8 owned cities instead of 6 (see opening.spec / opening.test).
-  await page.goto('/?seed=12345&gameplay=20');
+  await page.goto('/?seed=12345');
   const result = await page.evaluate(async () => {
     const mainPath = '/src/browser/main.ts', panelPath = '/src/browser/victory-panel.ts';
     const { session } = await import(mainPath), { renderVictoryPanel } = await import(panelPath);
     const view = session.getView(), faith = view.expansion!.faith!;
-    faith.faiths = [{ founderId: view.playerId, legend: 'hooh', tenets: [], foundedRound: 1, followers: 6 }];
-    faith.totalCities = 6;
+    faith.faiths = [{ founderId: view.playerId, legend: 'hooh', tenets: [], foundedRound: 1, followers: 8 }];
+    faith.totalCities = 8;
     faith.cityFaith = { [view.economy.player.headquartersCityId]: view.playerId };
     renderVictoryPanel(view);
     const panel = () => document.querySelector('#victory-panel [data-victory="faith"]')!;

@@ -8,7 +8,7 @@ import type { Content } from '../content/units.ts';
 import { estimatedRaidStrike, raidRole } from '../core/max-raids.ts';
 import type { RaidRole } from '../core/max-raids.ts';
 
-const RAID_REACH = 10, RAID_TEAM = 3;
+const RAID_TEAM = 3;
 type Pokemon = Extract<MapUnit, { kind: 'pokemon' }>;
 function raidTeam(view: PlayerView): { den: Hex; team: Pokemon[] } | null {
   // The open den, or the announced one (5 rounds of notice to walk there).
@@ -17,14 +17,9 @@ function raidTeam(view: PlayerView): { den: Hex; team: Pokemon[] } | null {
   // At war only while no enemy Pokémon is in sight within 5 tiles of an own city (the spec's "not fighting a neighbour").
   const enemies = new Set(view.diplomacy.filter(pair => pair.status === 'war' && (pair.a === view.playerId || pair.b === view.playerId)).map(pair => pair.a === view.playerId ? pair.b : pair.a));
   const den = indexToHex(active.tileIndex, view.map), content = contentForView(view);
-  // v27 ⑤: only an enemy within 3 of an own city keeps the team home (5 before v27).
-  const homeFront = content.maxRaids ? 3 : 5;
+  const homeFront = 3;
   if (view.units.some(unit => unit.ownerId !== null && enemies.has(unit.ownerId) && view.economy.cities.some(city => hexDistance(city.position, unit.position, view.map) <= homeFront))) return null;
-  if (content.maxRaids) return maxRaidTeam(view, den, content);
-  const team = view.units.filter((unit): unit is Pokemon => unit.ownerId === view.playerId && unit.kind === 'pokemon'
-    && unit.hp * 2 >= content.species[unit.speciesId].maxHp && hexDistance(unit.position, den, view.map) <= RAID_REACH)
-    .sort((a, b) => hexDistance(a.position, den, view.map) - hexDistance(b.position, den, view.map) || a.id - b.id).slice(0, RAID_TEAM);
-  return team.length >= 2 ? { den, team } : null;
+  return maxRaidTeam(view, den, content);
 }
 /**
  * v27 ⑤ (pace-v27 §6.3): the team by role — the nearest breaker, then damage dealers, one support when there is a scout (a fourth member

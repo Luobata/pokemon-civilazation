@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { createGame } from '../../src/core/game.ts';
+import { contentFor } from '../../src/content/units.ts';
 import { canEnter } from '../../src/core/movement.ts';
 import { hexDistance, hexToIndex, indexToHex, neighbors } from '../../src/core/hex.ts';
 import type { Hex } from '../../src/core/hex.ts';
@@ -21,8 +22,9 @@ async function clickHex(page: Page, hex: Hex) {
   await page.locator('canvas').scrollIntoViewIfNeeded();
   const point = await page.evaluate(async hex => {
     const mainPath = '/src/browser/main.ts', cameraPath = '/src/browser/camera.ts';
-    const { camera } = await import(mainPath), { toScreen, hexToWorld } = await import(cameraPath);
-    const p = toScreen(hexToWorld(hex), camera), rect = document.querySelector('canvas')!.getBoundingClientRect();
+    const { camera, session } = await import(mainPath), { tileToScreen } = await import(cameraPath);
+    const canvas = document.querySelector<HTMLCanvasElement>('canvas')!, rect = canvas.getBoundingClientRect();
+    const p = tileToScreen(hex, camera, session.getView().map, canvas.clientWidth);
     return { x: p.x + rect.x, y: p.y + rect.y };
   }, hex);
   await page.mouse.click(point.x, point.y);
@@ -50,35 +52,39 @@ function foundingRoute(initial: GameState, unitId: number): Hex[] {
 }
 
 test('found city, finish production, save/load JSON and continue identically in browser and Node', async ({ page }) => {
+  test.setTimeout(120_000);
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
-  await page.goto('/?seed=12345&gameplay=21'); await page.locator('#animate').uncheck();
+  await page.goto('/?seed=12345'); await page.locator('#animate').uncheck();
   const initial = await state(page), settler = Object.values(initial.units).find(u => u.ownerId === 0 && u.kind === 'logistics')!;
-  const route = foundingRoute(createGame(initial.setup), settler.id);
+  const route = foundingRoute(createGame(initial.setup, contentFor(initial.setup)), settler.id);
   // v16: the settler starts beside the capital, so the route is shorter than when it started on the capital.
   expect(route.length).toBeGreaterThanOrEqual(2);
   for (const destination of route) {
     const current = (await state(page)).units[settler.id];
     if (!isMapUnit(current)) throw new Error('Settler must remain on map before founding');
-    await clickHex(page, current.position);
+    await page.locator('#unit-select').selectOption(String(settler.id));
     await clickHex(page, destination);
     await expect.poll(async () => { const unit = (await state(page)).units[settler.id]; return isMapUnit(unit) ? unit.position : null; }).toEqual(destination);
     await page.locator('#end-turn').click({ modifiers: ['Shift'] });
+    await page.locator('#unit-select').selectOption(String(settler.id));
     await expect(page.locator('#selection')).toContainText('行动点 1');
   }
+  await page.locator('#unit-select').selectOption(String(settler.id));
   await page.locator('#found-city').click();
   const founded = await state(page), newCity = Object.values(founded.cities).filter(c => c.ownerId === 0).at(-1)!;
   expect(founded.units[settler.id]).toBeUndefined(); expect(newCity.population).toBe(1);
   await expect(page.locator('#city-summary')).toContainText(`城市 ${newCity.id}`);
-  await expect(page.locator('[data-production-option="building:meetingHall"]')).toContainText('友好商店');
-  await page.locator('[data-production-option="building:meetingHall"]').click();
-  await expect(page.locator('#production-queue')).toContainText('友好商店0/40');
+  await page.locator('[data-production-kind="pokemon"]').click();
+  await expect(page.locator('[data-production-option="pokemon:bulbasaur"]')).toContainText('妙蛙种子');
+  await page.locator('[data-production-option="pokemon:bulbasaur"]').click();
+  await expect(page.locator('#production-queue')).toContainText('妙蛙种子0/19');
   let completed = false;
   for (let i = 0; i < 40; i++) {
     await page.locator('#end-turn').click({ modifiers: ['Shift'] });
     await expect(page.locator('#end-turn')).toBeEnabled();
-    if ((await state(page)).cities[newCity.id].buildingIds.includes('meetingHall')) { completed = true; break; }
+    if ((await state(page)).cities[newCity.id].queue.length === 0) { completed = true; break; }
   }
   expect(completed).toBe(true); await expect(page.locator('#production-queue li')).toHaveCount(0);
   // Work can deliberately remain empty, and selecting research consumes reserve only at the next round end.

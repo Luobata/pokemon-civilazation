@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { GameSession, replay } from '../../src/app/session.ts';
-import { EXPANSION_CONTENT } from '../../src/content/units.ts';
+import { GAME_CONTENT } from '../../src/content/units.ts';
 import { FAITH_RULES } from '../../src/content/faith-legends.ts';
 import { createGame } from '../../src/core/game.ts';
 import { cityYield, createCity } from '../../src/core/city.ts';
@@ -21,7 +21,7 @@ function setup(gameplayVersion?: GameplayVersion): GameSetup {
 }
 const act = (state: GameState, actorId: number, action: Command['action']) => step(state, { actorId, expectedSeq: state.commandSeq, action });
 function founded(): GameState {
-  const state = createGame(setup(9));
+  const state = createGame(setup(27));
   const civ = state.expansion!.civilization.players[0];
   civ.lifetimeOfferings = FAITH_RULES.foundLifetime; civ.offeringPoints = FAITH_RULES.foundCost + 100;
   const result = act(state, 0, { type: 'FoundFaith', legend: 'lugia', tenets: ['missionaries', 'shrineGold'] });
@@ -29,11 +29,10 @@ function founded(): GameState {
   return result.state;
 }
 
-test('faith exists only in gameplay v9; founding needs lifetime offerings and a free legend', () => {
-  expect(createGame(setup(8)).expansion).not.toHaveProperty('faith');
+test('faith initializes on games; founding needs lifetime offerings and a free legend', () => {
   expect(parseAuditAction({ type: 'FoundFaith', legend: 'kyogre', tenets: ['zealots', 'harmony'] })).toEqual({ type: 'FoundFaith', legend: 'kyogre', tenets: ['zealots', 'harmony'] });
   expect(() => parseAuditAction({ type: 'FoundFaith', legend: 'kyogre', tenets: ['zealots'] })).toThrow();
-  const state = createGame(setup(9));
+  const state = createGame(setup(27));
   expect(act(state, 0, { type: 'FoundFaith', legend: 'lugia', tenets: ['missionaries', 'shrineGold'] }).ok).toBe(false);
   const next = founded();
   const hq = next.players[0].headquartersCityId;
@@ -45,7 +44,7 @@ test('faith exists only in gameplay v9; founding needs lifetime offerings and a 
 });
 
 test('faithful cities receive the legend blessing and tenet yields', () => {
-  const plain = createGame(setup(9)), next = founded();
+  const plain = createGame(setup(27)), next = founded();
   const id = next.players[0].headquartersCityId;
   const before = cityYield(plain, plain.cities[id]), after = cityYield(next, next.cities[id]);
   expect(after.research - before.research).toBe(1);
@@ -65,7 +64,7 @@ test('spreading builds pressure and converts at the threshold; passive spread re
   expect(next.expansion!.civilization.players[0].offeringPoints).toBe(before - (FAITH_RULES.spreadCost - 5));
   expect(next.expansion!.faith!.pressure[950][0]).toBe(FAITH_RULES.spreadPressure + 10);
   next.expansion!.faith!.pressure[950][0] = FAITH_RULES.convertAt - FAITH_RULES.passivePressure;
-  const events = resolveFaithRound(next, EXPANSION_CONTENT);
+  const events = resolveFaithRound(next, GAME_CONTENT);
   expect(events).toContainEqual(expect.objectContaining({ type: 'CityConverted', cityId: 950, playerId: 0 }));
   expect(observe(next, 1).expansion!.faith!.cityFaith[950]).toBe(0);
 });
@@ -75,19 +74,19 @@ test('majority faith with a follower in every rival wins the faith victory', () 
   const hq = state.cities[state.players[0].headquartersCityId];
   for (let i = 0; i < 5; i++) state.cities[960 + i] = createCity(960 + i, i < 3 ? 0 : 1, { q: hq.position.q + 2 + i, r: hq.position.r + 4 }, false);
   for (const id of [960, 961, 962, 963]) state.expansion!.faith!.cityFaith[id] = 0;
-  resolveFaithRound(state, EXPANSION_CONTENT);
+  resolveFaithRound(state, GAME_CONTENT);
   expect(state.outcome).toMatchObject({ kind: 'faith', winners: [0] });
 });
 
 test('gameplay v9 keeps exact save/load and replay', () => {
-  const session = new GameSession({ ...setup(9), multiplayer: undefined, players: [
+  const session = new GameSession({ ...setup(27), multiplayer: undefined, players: [
     { id: 0, controller: 'human', starterId: 'bulbasaur', leaderId: 'oak' }, { id: 1, controller: 'ai', personality: 'conservative', leaderId: 'joy' }] });
   for (let turn = 0; turn < 50; turn++) {
     const current = session.getState();
     if (current.outcome) break;
     expect(session.submit({ actorId: current.activePlayerId, expectedSeq: current.commandSeq, action: { type: 'EndTurn' } }).ok).toBe(true);
   }
-  const saved = session.save(), loaded = new GameSession(setup(9));
+  const saved = session.save(), loaded = new GameSession(setup(27));
   loaded.load(saved);
   expect(loaded.save()).toBe(saved);
   expect(canonicalSerialize(replay(session.exportLog()))).toBe(canonicalSerialize(session.getState()));

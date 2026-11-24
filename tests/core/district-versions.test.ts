@@ -13,35 +13,36 @@ const setup = { seed: 31, width: 24, height: 16, roundLimit: 100 as const, expan
     { id: 0, controller: 'human' as const, starterId: 'bulbasaur' as const }, { id: 1, controller: 'human' as const, starterId: 'bulbasaur' as const },
   ] };
 
-test('v10 explicit setup, room and CLI are supported; new games default to the latest version (v27)', () => {
-  expect(LATEST_GAMEPLAY_VERSION).toBe(27); expect(isGameplayVersion(10)).toBe(true); expect(isGameplayVersion(24)).toBe(true); expect(isGameplayVersion(25)).toBe(true); expect(isGameplayVersion(26)).toBe(true); expect(isGameplayVersion(27)).toBe(true); expect(isGameplayVersion(28)).toBe(false);
-  expect(validateRoomCreateRequest({ seed: 31, gameplayVersion: 10 })?.gameplayVersion).toBe(10);
+test('v27 is the single gameplay baseline across setup, room and CLI', () => {
+  expect(LATEST_GAMEPLAY_VERSION).toBe(27);
+  expect(isGameplayVersion(27)).toBe(true);
+  expect(isGameplayVersion(26)).toBe(false);
+  expect(isGameplayVersion(28)).toBe(false);
   expect(validateRoomCreateRequest({ seed: 31 })?.gameplayVersion).toBe(27);
-  expect(validateRoomCreateRequest({ seed: 31, gameplayVersion: 10 })?.gameplayVersion).toBe(10);
-  expect(validateRoomCreateRequest({ seed: 31, gameplayVersion: 9 })?.gameplayVersion).toBe(9);
-  expect(parseLeaderBalanceArgs(['--expansion', 'true', '--eras', 'simple', '--gameplay', '10']).config.gameplayVersion).toBe(10);
+  expect(validateRoomCreateRequest({ seed: 31, gameplayVersion: 27 })?.gameplayVersion).toBe(27);
+  expect(validateRoomCreateRequest({ seed: 31, gameplayVersion: 10 })).toBeNull();
   expect(parseLeaderBalanceArgs(['--expansion', 'true', '--eras', 'simple']).config.gameplayVersion).toBe(27);
 });
 
-test.each([9, 10] as const)('v%s save and replay preserve state, envelope and event determinism', version => {
-  const session = new GameSession({ ...setup, gameplayVersion: version });
+test('v27 save and replay preserve state, envelope and event determinism', () => {
+  const session = new GameSession({ ...setup, gameplayVersion: 27 });
   expect(session.issue({ type: 'EndTurn' }).ok).toBe(true);
   const log = session.exportLog(), state = session.getState();
-  expect(state.schemaVersion).toBe(version === 10 ? 5 : 4);
-  expect(state.rulesVersion).toBe(version === 10 ? 'districts-v10' : 'm5-v1');
-  expect(state.expansion?.districts === undefined).toBe(version === 9);
+  expect(state.schemaVersion).toBe(22);
+  expect(state.rulesVersion).toBe('pace-v27');
+  expect(state.expansion?.districts).toBeDefined();
   expect(canonicalSerialize(replay(log))).toBe(canonicalSerialize(state));
   expect(canonicalSerialize(deserializeSave(serializeSave(state, log)).state)).toBe(canonicalSerialize(state));
   const first = createGame(log.setup), command = log.commands[0];
   expect(step(first, command)).toEqual(step(createGame(log.setup), command));
-  expect(() => replay({ ...log, schemaVersion: version === 10 ? 4 : 5 })).toThrow();
-  expect(() => deserializeSave(serializeSave(state, { ...log, rulesVersion: version === 10 ? 'm5-v1' : 'districts-v10' }))).toThrow();
+  expect(() => replay({ ...log, schemaVersion: 21 as unknown as 22 })).toThrow();
+  expect(() => deserializeSave(serializeSave(state, { ...log, rulesVersion: 'depth-v26' as unknown as 'pace-v27' }))).toThrow();
 });
 
-test('a real v10 research/build command log replays a completed district and survives save loading', async () => {
+test('a real v27 research/build command log replays a completed district and survives save loading', async () => {
   const { districtSites } = await import('../../src/core/districts.ts');
   const { observe } = await import('../../src/core/vision.ts');
-  let state = createGame({ ...setup, gameplayVersion: 10 });
+  let state = createGame({ ...setup, gameplayVersion: 27 });
   const log = { version: 1 as const, schemaVersion: state.schemaVersion, rulesVersion: state.rulesVersion,
     contentVersion: state.contentVersion, setup: state.setup, commands: [] as import('../../src/core/model.ts').Command[] };
   const issue = (action: import('../../src/core/model.ts').Command['action']) => {

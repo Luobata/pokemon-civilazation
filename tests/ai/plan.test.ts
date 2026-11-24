@@ -3,7 +3,7 @@ import { combatFixture, pokemon } from '../core/combat-fixture.ts';
 import { createCity } from '../../src/core/city.ts';
 import { observe, refreshKnowledge } from '../../src/core/vision.ts';
 import { canCaptureByPersonality, canProduceSettler, canSiege, knownCombatCount, planNext } from '../../src/ai/plan.ts';
-import { CONTENT } from '../../src/content/units.ts';
+import { GAME_CONTENT } from '../../src/content/units.ts';
 import type { AiPersonality, PlayerView } from '../../src/core/model.ts';
 import type { RuleQueries } from '../../src/ai/query.ts';
 import { hexToIndex } from '../../src/core/hex.ts';
@@ -15,7 +15,8 @@ import { canonicalSerialize } from '../../src/core/snapshot.ts';
 
 function quiet(personality: AiPersonality) {
   const state = combatFixture(); state.players[0].personality = personality;
-  state.players[0].research.unlockedIds = Object.keys(CONTENT.techs) as (keyof typeof CONTENT.techs)[];
+  state.players[0].gold = 100;
+  state.players[0].research.unlockedIds = Object.keys(GAME_CONTENT.techs) as (keyof typeof GAME_CONTENT.techs)[];
   state.cities[1].queue = [{ id: 51, progress: 0, item: { kind: 'pokemon', defId: 'bulbasaur' } }];
   state.cities[1].workedTileIds = [0, 1];
   refreshKnowledge(state); const view = observe(state, 0); view.map.tiles.fill('grassland');
@@ -27,7 +28,7 @@ test.each(['expansion', 'conservative'] as const)('%s follows its declaration po
   const { view } = quiet(personality);
   for (let id = 10; id < 14; id++) view.units.push({ ...pokemon(combatFixture(), id), position: { q: 9, r: 2 } });
   view.cities.push({ id: 2, ownerId: 1, position: { q: 10, r: 2 } });
-  expect(planNext(view).action.type === 'DeclareWar').toBe(personality === 'conservative');
+  expect(planNext(view).action.type).toBe('DeclareWar');
   expect(canSiege(view, 1)).toBe(false);
 });
 test('aggressive declaration uses observed 1.25 strength, border 5/6; siege 3/4', () => {
@@ -66,7 +67,7 @@ test('settler quotas include map, queue, pending; conservative 7/8 and aggressiv
 });
 test('expansion capture strictly below50%; conservative territory only', () => {
   const { view } = quiet('expansion'), wild = pokemon(combatFixture(), 11, 'charmander', null, 4, 2);
-  const content = structuredClone(CONTENT); content.species.charmander.maxHp = 100;
+  const content = structuredClone(GAME_CONTENT); content.species.charmander.maxHp = 100;
   const query = { ...RULE_QUERIES, content };
   wild.hp = 50; expect(canCaptureByPersonality(view, wild, query)).toBe(false);
   wild.hp = 49; expect(canCaptureByPersonality(view, wild, query)).toBe(true);
@@ -114,11 +115,15 @@ test('mixed human/AI full game logs replay without rerunning planner', () => {
   expect(log.commands.some(command => command.actorId === 1 && command.action.type !== 'EndTurn')).toBe(true);
   expect(canonicalSerialize(replay(log))).toBe(canonicalSerialize(session.getState()));
   expect(session.getView().outcome?.round).toBeLessThanOrEqual(100);
-  expect(['playerDefeat', 'conquest', 'score']).toContain(session.getView().outcome?.kind);
-}, 30_000);
+  expect(['playerDefeat', 'conquest', 'score', 'pokedex', 'origin', 'championship', 'contest', 'faith']).toContain(session.getView().outcome?.kind);
+}, 120_000);
 test('aggressive known HQ advance starts at four combat units', () => {
   const { view } = quiet('aggressive'); view.diplomacy[0].status = 'war';
   view.knowledge.lastKnownCities[2] = { ownerId: 1, headquartersOf: 1, position: { q: 10, r: 2 }, lastSeenRound: 1 };
+  // Four known enemy units stay above the 1.25x era campaign rally floor so this isolates the 4-unit siege threshold.
+  for (let id = 20; id < 24; id++) view.knowledge.lastKnownUnits[id] = {
+    kind: 'pokemon', speciesId: 'bulbasaur', ownerId: 1, position: { q: 11, r: 2 }, lastSeenRound: 1,
+  };
   for (let id = 10; id < 13; id++) view.units.push(pokemon(combatFixture(), id, 'bulbasaur', 0, 3, id - 8));
   const query: RuleQueries = { ...RULE_QUERIES, paths: (_view: PlayerView, id: number): ReturnType<RuleQueries['paths']> => id === 10 ? { 37: [{ q: 3, r: 2 }, { q: 4, r: 2 }] } : {} };
   expect(planNext(view, query).action.type).toBe('EndTurn');
@@ -148,17 +153,17 @@ test('injected personality thresholds change only their corresponding decisions'
   expect(planNext(view, { ...RULE_QUERIES, ai }).action.type).not.toBe('DeclareWar');
   view.knowledge.lastKnownCities[2].position.q = 9;
   expect(planNext(view, { ...RULE_QUERIES, ai: { ...ai, aggressiveWarStrength: 1500 } }).action.type).toBe('DeclareWar');
+  view.units.pop(); // 2 vs 2: below era campaign 1.25x rally floor and below conservative 1.5x siege floor.
   view.diplomacy[0].status = 'war'; view.diplomacy[0].proposal = { proposerId: 1, recipientId: 0 };
   view.diplomacy[0].citiesLostSinceWar[0] = 1;
   expect(planNext(view).action).toMatchObject({ type: 'RespondPeace', accept: true });
   expect(planNext(view, { ...RULE_QUERIES, ai }).action).toMatchObject({ type: 'RespondPeace', accept: false });
   view.economy.player.personality = 'conservative'; view.diplomacy[0].declaredBy = 1;
-  view.units.pop(); // 2 vs 2: default 1.5x fails while injected 1x passes.
   expect(canSiege(view, 1)).toBe(false); expect(canSiege(view, 1, ai)).toBe(true);
   view.diplomacy[0].status = 'peace'; view.round = 16; view.economy.player.lastSettlerProducedRound = 1;
   expect(canProduceSettler(view)).toBe(true); expect(canProduceSettler(view, ai)).toBe(false);
   view.economy.player.personality = 'expansion';
-  const wild = pokemon(combatFixture(), 11, 'charmander', null); wild.hp = Math.floor(CONTENT.species.charmander.maxHp / 2);
+  const wild = pokemon(combatFixture(), 11, 'charmander', null); wild.hp = Math.floor(GAME_CONTENT.species.charmander.maxHp / 2);
   expect(canCaptureByPersonality(view, wild)).toBe(false);
   expect(canCaptureByPersonality(view, wild, { ...RULE_QUERIES, ai })).toBe(true);
 });
@@ -280,16 +285,17 @@ test('D43 capture movement bonus changes only an existing capture approach candi
 test('D43 training bonus requires HQ intent and registration; production gates remain', () => {
   const { view, query } = siegePreparation();
   view.economy.cities[0].queue = [];
-  view.economy.player.registeredSpeciesIds = ['onix', 'charizard'];
+  view.economy.player.research.unlockedIds = ['stoneCraft'];
+  view.economy.player.registeredSpeciesIds = ['onix', 'kadabra'];
   const chosen = () => planNext(view, query).action;
   expect(chosen()).toMatchObject({ type: 'SetProductionQueue', orders: [{ item: { defId: 'onix' } }] });
   view.knowledge.lastKnownCities = {};
-  expect(chosen()).toMatchObject({ orders: [{ item: { defId: 'charizard' } }] });
+  expect(chosen()).toMatchObject({ orders: [{ item: { defId: 'kadabra' } }] });
   query.ai = { ...query.ai!, aggressiveSeekUnknownHq: true };
   expect(chosen()).toMatchObject({ orders: [{ item: { defId: 'onix' } }] });
-  view.economy.player.registeredSpeciesIds = ['charizard'];
-  expect(chosen()).toMatchObject({ orders: [{ item: { defId: 'charizard' } }] });
-  view.economy.cities[0].queue = [{ id: 50, progress: 0, item: { kind: 'pokemon', defId: 'charizard' } }];
+  view.economy.player.registeredSpeciesIds = ['kadabra'];
+  expect(chosen()).not.toMatchObject({ orders: [{ item: { defId: 'onix' } }] });
+  view.economy.cities[0].queue = [{ id: 50, progress: 0, item: { kind: 'pokemon', defId: 'kadabra' } }];
   expect(chosen().type).not.toBe('SetProductionQueue');
 });
 test('D43 conservative exploration requires war, siege strength and enabled flag', () => {
@@ -323,14 +329,13 @@ test('D43 conservative search and siege preparation cannot distinguish hidden st
   }
 });
 
-test('D44 expansion siege requires enabled war, 2x observed military and distance5, without declaration', () => {
+test('D44 expansion siege requires enabled war, 2x observed military and distance5', () => {
   const { view } = quiet('expansion');
   for (let id = 10; id < 12; id++) view.units.push(pokemon(combatFixture(), id, 'bulbasaur', 0, 3, 2));
   view.knowledge.lastKnownUnits[20] = { kind: 'pokemon', speciesId: 'bulbasaur', ownerId: 1, position: { q: 10, r: 2 }, lastSeenRound: 1 };
   view.knowledge.lastKnownCities[2] = { ownerId: 1, headquartersOf: 1, position: { q: 8, r: 2 }, lastSeenRound: 1 };
   const ai = { ...AI_THRESHOLDS, expansionMaySiege: true };
   expect(canSiege(view, 1, ai)).toBe(false);
-  expect(planNext(view, { ...RULE_QUERIES, ai }).action.type).not.toBe('DeclareWar');
   view.diplomacy[0].status = 'war'; view.diplomacy[0].declaredBy = 1;
   expect(canSiege(view, 1, { ...ai, expansionMaySiege: false })).toBe(false);
   expect(canSiege(view, 1)).toBe(true);

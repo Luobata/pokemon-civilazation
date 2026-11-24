@@ -4,7 +4,6 @@ import { worldSiteAllowed } from './terrain.ts';
 import { LEGEND_RULES, LEGEND_WONDERS, LEGEND_WONDER_IDS, legendCost } from '../content/legend-wonders.ts';
 import type { LegendWonderId } from '../content/legend-wonders.ts';
 import { isNight } from '../content/era-abilities.ts';
-import { gameplayAtLeast } from '../content/eras.ts';
 import { CHARTER_IDS, GOVERNMENTS } from '../content/policies.ts';
 import type { PolicyEffects } from '../content/policies.ts';
 import type { BiomeId } from '../content/rules.ts';
@@ -49,7 +48,7 @@ export type LegendEvent =
   | { type: 'LegendWonderLost'; playerId: number; legendId: LegendWonderId; cityId: number; refund: number; trail?: number };
 
 export const usesLegends = (state: Pick<GameState, 'setup' | 'expansion'>) =>
-  state.expansion !== undefined && state.setup.eraProgression !== undefined && gameplayAtLeast(state.setup, 15);
+  state.expansion !== undefined && state.setup.eraProgression !== undefined;
 const modeMaxGeneration = (state: Pick<GameState, 'setup'>) => state.setup.eraProgression === 'full-v1' ? 9 : 3;
 
 /** Trace sites are placed with a stable hash, never `state.rng`, so the v15 world equals the v14 world. */

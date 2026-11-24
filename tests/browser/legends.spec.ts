@@ -10,13 +10,14 @@ const reports = process.env.E2E_SCREENSHOT_DIR ?? 'test-results/screenshots';
 async function importSave(page: Page, save: string) {
   await page.goto('/?seed=1');
   await page.locator('#import-save').setInputFiles({ name: 'legends.json', mimeType: 'application/json', buffer: Buffer.from(save) });
-  await expect(page.locator('#action-notice')).toContainText('读档完成');
+  await expect(page.locator('#action-notice')).toContainText('读档完成', { timeout: 60_000 });
   await page.locator('#animate').uncheck();
 }
 const ownWonder = (fixture: ReturnType<typeof legendFixture>) => (Object.entries(fixture.state.expansion!.legends!.wonders) as [LegendWonderId, { cityId: number; builderId: number }][])
   .find(([, wonder]) => fixture.state.cities[wonder.cityId].ownerId === 0)!;
 
 test('v15: the 传说 screen shows built wonders, rivals’ wonders, clues and the unlocked story chapters', async ({ page }) => {
+  test.setTimeout(120_000);
   const fixture = legendFixture(), [mine, record] = ownWonder(fixture);
   await importSave(page, fixture.save);
   await openScreen(page, 'legends');
@@ -35,6 +36,7 @@ test('v15: the 传说 screen shows built wonders, rivals’ wonders, clues and t
 });
 
 test('v15: the production tab offers 传说奇观 with each clue’s status, without page errors', async ({ page }) => {
+  test.setTimeout(120_000);
   const fixture = legendFixture(), [, record] = ownWonder(fixture), errors: string[] = [];
   page.on('pageerror', error => errors.push(String(error)));
   await importSave(page, fixture.save);

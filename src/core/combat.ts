@@ -1,14 +1,12 @@
 import { wallBonus } from './opening.ts';
 import { cityCounterBreakdown, cityFactors, cityStrengthBreakdown, strengthDamage, strikeFactors, unitStrengthBreakdown } from './strength.ts';
-import { affinityPermille, candyGold, classCityMultiplier, classCounterPermille, classStrikeMultiplier } from './unit-classes.ts';
+import { affinityPermille, candyGold, classCounterPermille } from './unit-classes.ts';
 import { stoneEvolutionsFor } from '../content/roster.ts';
 import { evolutionBlocker, evolutionOptions, playerGeneration, tileBiome } from './roster.ts';
 import { eliminateCivilization } from './victory.ts';
 import { leaderAttackMultiplier, leaderCaptureBonus, evolutionGold, mistyWaterMultiplier } from './leader-systems.ts';
 import { leaderEffects } from '../content/leaders.ts';
-import { WORLD_DEFINITIONS } from '../content/world-systems.ts';
 import { relationFor } from './diplomacy.ts';
-import { unitDamage, cityDamage, cityCounterDamage } from './combat-query.ts';
 import { contentFor } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
 import type { TechId } from '../content/economy.ts';
@@ -19,12 +17,12 @@ import { assignNewWorkers, cityCounterAttack, cleanWork } from './city.ts';
 import { cityAssaultMultiplier } from './role-tactics.ts';
 import { flankBonus } from './tactics.ts';
 import { playerPolicyEffects } from './policies.ts';
-import { clearGym, homeDefenseMultiplier, usesEssences } from './essences.ts';
+import { clearGym, homeDefenseMultiplier } from './essences.ts';
 import { zealotMultiplier } from './faith-legends.ts';
 import { combatContext, consumeZMove, eraAttackMultiplier, eraDefenseMultiplier, teraTypes } from './era-abilities.ts';
-import { captureProbability, dualEffectiveness, effectiveness } from './combat-math.ts';
+import { captureProbability, dualEffectiveness } from './combat-math.ts';
 import { randomBelow } from './rng.ts';
-import { promotionCityMultiplier, promotionStrikeMultiplier, scalePermille } from './promotions.ts';
+import { promotionCityMultiplier, promotionStrikeMultiplier } from './promotions.ts';
 import { registerSpecies } from './unit.ts';
 import { visibleTiles } from './vision.ts';
 import { researchCaptureBonus } from './research-tasks.ts';
@@ -46,8 +44,7 @@ export function validateCombatAction(state: GameState, actor: number, action: Co
   if (!unit.actionLeft) return 'no-action';
   const definition = content.species[unit.speciesId], player = state.players[actor];
   if (action.type === 'Evolve') {
-    if (state.expansion && stoneEvolutionsFor(content).some(path => path.fromSpeciesId === unit.speciesId && path.intoSpeciesId === action.intoSpeciesId)) return 'evolution-unavailable';
-    if (state.expansion && !content.roster && WORLD_DEFINITIONS.stoneEvolutions.some(path => path.fromSpeciesId === unit.speciesId)) return 'evolution-unavailable';
+    if (stoneEvolutionsFor(content).some(path => path.fromSpeciesId === unit.speciesId && path.intoSpeciesId === action.intoSpeciesId)) return 'evolution-unavailable';
     const evolution = evolutionOptions(content, unit.speciesId).find(option => option.speciesId === action.intoSpeciesId);
     if (evolution && evolutionBlocker(content, evolution, { generation: playerGeneration(player, state.setup.eraProgression), round: state.round, biome: tileBiome(state, unit.position) })) return 'evolution-unavailable';
     // v19 Rare Candy: a stage-1 Pokémon short of XP may evolve for extra gold from generation 2.
@@ -106,37 +103,27 @@ function unitStrike(state: GameState, attacker: MapUnit, defender: MapUnit, coun
   const roll = counter ? 100 : 85 + randomBelow(state.rng, 16);
   const era = combatContext(state);
   const fromBiome = state.map.tiles[hexToIndex(attacker.position, state.map)!], toBiome = state.map.tiles[hexToIndex(defender.position, state.map)!];
-  // v20: combat strength — the same labelled factors the preview shows.
-  const rawHit = content.combat === 'strength' ? strengthDamage(unitStrengthBreakdown(attacker, defender, fromBiome, toBiome, hasTech(state, attacker.ownerId, 'typeResearch'), content,
+  const rawHit = strengthDamage(unitStrengthBreakdown(attacker, defender, fromBiome, toBiome, hasTech(state, attacker.ownerId, 'typeResearch'), content,
     strikeFactors({ leader: counter ? 1000 : leaderAttackMultiplier(state, attacker.ownerId, leaderEffects(attacker.ownerId === null ? undefined : state.players[attacker.ownerId].leaderId).activeAttackMultiplier),
       enraged: attacker.enraged, flank: counter ? 0 : flankBonus(state.setup, attacker, defender, Object.values(state.units).filter(isMapUnit), state.map),
-      misty: mistyWaterMultiplier(state, attacker.ownerId, attacker, content), home: homeDefenseMultiplier(usesEssences(state), defender, toBiome, content),
+      misty: mistyWaterMultiplier(state, attacker.ownerId, attacker, content), home: homeDefenseMultiplier(true, defender, toBiome, content),
       eraAttack: eraAttackMultiplier(era, attacker, content, false, counter), eraDefense: eraDefenseMultiplier(era, defender),
       zealot: counter ? 1000 : zealotMultiplier(state, attacker.ownerId, attacker.position),
       assault: promotionStrikeMultiplier(state, attacker.id, -1, counter), bulwark: promotionStrikeMultiplier(state, -1, defender.id, counter),
       classCounter: classCounterPermille(state, attacker, defender, content), affinity: affinityPermille(state, attacker, content) }),
-    teraTypes(era, defender.id), unitStrikeTerrain(state.map, attacker, defender, counter, content), { attacker: rivalSpirit(state, attacker.id), defender: rivalSpirit(state, defender.id) }), roll, counter, defender.hp) : unitDamage(attacker, defender, state.map.tiles[hexToIndex(attacker.position, state.map)!],
-    state.map.tiles[hexToIndex(defender.position, state.map)!], hasTech(state, attacker.ownerId, 'typeResearch'), roll, counter, content,
-    leaderAttackMultiplier(state, attacker.ownerId, leaderEffects(attacker.ownerId === null ? undefined : state.players[attacker.ownerId].leaderId).activeAttackMultiplier), Boolean(state.expansion),
-    counter ? 0 : flankBonus(state.setup, attacker, defender, Object.values(state.units).filter(isMapUnit), state.map),
-    scalePermille(scalePermille(mistyWaterMultiplier(state, attacker.ownerId, attacker, content)
-      * homeDefenseMultiplier(usesEssences(state), defender, state.map.tiles[hexToIndex(defender.position, state.map)!], content) / 1000
-      * eraAttackMultiplier(era, attacker, content, false, counter) / 1000 * eraDefenseMultiplier(era, defender) / 1000
-      * (counter ? 1000 : zealotMultiplier(state, attacker.ownerId, attacker.position)) / 1000,
-      promotionStrikeMultiplier(state, attacker.id, defender.id, counter)), classStrikeMultiplier(state, attacker, defender, content)),
-    teraTypes(era, defender.id));
-  // v27 ⑤ (pace-v27 §6): Max shields on a raid boss (the raw hit before v27).
+    teraTypes(era, defender.id), unitStrikeTerrain(state.map, attacker, defender, counter, content), { attacker: rivalSpirit(state, attacker.id), defender: rivalSpirit(state, defender.id) }), roll, counter, defender.hp);
+  // v27 ⑤ (pace-v27 §6): Max shields on a raid boss.
   const hit = maxRaidHit(state, attacker, defender, rawHit, content);
   if (!counter) consumeZMove(state, attacker.id);
   attacker.enraged = false;
   defender.hp = Math.max(0, defender.hp - hit);
   experience(state, attacker, (hit > 0 ? 10 : 0) + (defender.hp === 0 && d ? 40 * d.stage : 0));
-  // v27 ② (pace-v27 §3.1): a wild Pokémon struck down to 40% is exhausted (null before v27).
+  // v27 ② (pace-v27 §3.1): a wild Pokémon struck down to 40% is exhausted.
   const exhausted = exhaustAfterStrike(state, attacker, defender, content);
   if (exhausted) events.push(exhausted);
   if (defender.hp === 0) {
     knockdowns.push({ source: combatant(attacker, content), target: combatant(defender, content), counter,
-      effectiveness: d ? (state.expansion ? dualEffectiveness(content.species[attacker.speciesId].typeId, teraTypes(era, defender.id) ?? [d.typeId, ...(d.secondaryTypeId ? [d.secondaryTypeId] : [])], hasTech(state, attacker.ownerId, 'typeResearch')) : effectiveness(content.species[attacker.speciesId].typeId, d.typeId, d.immunities, hasTech(state, attacker.ownerId, 'typeResearch'))) : 100 });
+      effectiveness: d ? dualEffectiveness(content.species[attacker.speciesId].typeId, teraTypes(era, defender.id) ?? [d.typeId, ...(d.secondaryTypeId ? [d.secondaryTypeId] : [])], hasTech(state, attacker.ownerId, 'typeResearch')) : 100 });
     knockedDown(state, defender, attacker.ownerId, wildPhase, events, attacker, content);
   }
   return hit;
@@ -163,18 +150,12 @@ export function resolveAttack(state: GameState, unitId: number, target: CombatTa
     const city = state.cities[target.id];
     const fromBiome = state.map.tiles[hexToIndex(attacker.position, state.map)!], cityBiome = state.map.tiles[hexToIndex(city.position, state.map)!];
     const owner = attacker.ownerId === null ? undefined : state.players[attacker.ownerId];
-    if (content.combat === 'strength') hit = strengthDamage(cityStrengthBreakdown(attacker, fromBiome, cityBiome, content, cityFactors({
+    hit = strengthDamage(cityStrengthBreakdown(attacker, fromBiome, cityBiome, content, cityFactors({
       assault: cityAssaultMultiplier(owner, state.setup.eraProgression, state.setup.gameplayVersion, attacker, content, hexDistance(attacker.position, city.position, state.map), hasTech(state, attacker.ownerId, 'siegeCraft'))
         ?? (content.species[attacker.speciesId].role === 'siege' && hasTech(state, attacker.ownerId, 'siegeCraft') ? content.balance.effects.siegeMultiplier : 1000),
       leader: leaderAttackMultiplier(state, attacker.ownerId, leaderEffects(owner?.leaderId).activeAttackMultiplier), eraAttack: eraAttackMultiplier(combatContext(state), attacker, content, true, false),
-      enraged: attacker.enraged, breacher: promotionCityMultiplier(state, attacker.id), affinity: affinityPermille(state, attacker, content) }), content.opening ? wallBonus(state.round, city.ownerId !== null && state.players[city.ownerId].headquartersCityId === city.id) : 0,
+      enraged: attacker.enraged, breacher: promotionCityMultiplier(state, attacker.id), affinity: affinityPermille(state, attacker, content) }), wallBonus(state.round, city.ownerId !== null && state.players[city.ownerId].headquartersCityId === city.id),
       cityStrikeTerrain(state.map, attacker, city.position, content)), 85 + randomBelow(state.rng, 16), false, city.hp);
-    else hit = cityDamage(attacker, state.map.tiles[hexToIndex(attacker.position, state.map)!],
-      state.map.tiles[hexToIndex(city.position, state.map)!], hasTech(state, attacker.ownerId, 'siegeCraft'), 85 + randomBelow(state.rng, 16), content,
-      Math.floor(scalePermille(scalePermille(leaderAttackMultiplier(state, attacker.ownerId, leaderEffects(attacker.ownerId === null ? undefined : state.players[attacker.ownerId].leaderId).activeAttackMultiplier)
-        * eraAttackMultiplier(combatContext(state), attacker, content, true, false) / 1000, promotionCityMultiplier(state, attacker.id)), classCityMultiplier(state, attacker, content))),
-      cityAssaultMultiplier(attacker.ownerId === null ? undefined : state.players[attacker.ownerId], state.setup.eraProgression, state.setup.gameplayVersion, attacker, content,
-        hexDistance(attacker.position, city.position, state.map), hasTech(state, attacker.ownerId, 'siegeCraft')));
     attacker.enraged = false;
     consumeZMove(state, attacker.id);
     city.hp = Math.max(0, city.hp - hit); experience(state, attacker, hit > 0 ? 10 : 0);
@@ -197,11 +178,8 @@ export function resolveAttack(state: GameState, unitId: number, target: CombatTa
       }
     } else if (city.ownerId !== null && hexDistance(attacker.position, city.position, state.map) <= 2) {
       const attack = cityCounterAttack(state.players[city.ownerId], content);
-      counterDamage = content.combat === 'strength'
-        ? strengthDamage(cityCounterBreakdown(attack, attacker, state.map.tiles[hexToIndex(city.position, state.map)!], state.map.tiles[hexToIndex(attacker.position, state.map)!], content,
-          cityCounterTerrain(state.map, city.position, attacker, content)), 100, true, attacker.hp)
-        : cityCounterDamage(attack, attacker, state.map.tiles[hexToIndex(city.position, state.map)!],
-        state.map.tiles[hexToIndex(attacker.position, state.map)!], content);
+      counterDamage = strengthDamage(cityCounterBreakdown(attack, attacker, state.map.tiles[hexToIndex(city.position, state.map)!], state.map.tiles[hexToIndex(attacker.position, state.map)!], content,
+        cityCounterTerrain(state.map, city.position, attacker, content)), 100, true, attacker.hp);
       attacker.hp = Math.max(0, attacker.hp - counterDamage);
       if (attacker.hp === 0) {
         knockdowns.push({ source: { id: city.id, ownerId: city.ownerId, kind: 'city', typeId: null }, target: combatant(attacker, content), effectiveness: 100, counter: true });

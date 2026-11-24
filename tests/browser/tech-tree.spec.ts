@@ -6,7 +6,7 @@ test.use({ viewport: { width: 1280, height: 720 } });
 test('v22 research screen: a connected tree, locked reasons, research from a node, wheel and keys reach the last column', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(String(error)));
-  await page.goto('/?seed=7&gameplay=22');
+  await page.goto('/?seed=7');
   await page.locator('[data-open-screen="research"]').first().click();
   const tree = page.locator('.tech-tree-v22');
   await expect(tree).toBeVisible();
@@ -80,12 +80,4 @@ test('v22 research screen: a connected tree, locked reasons, research from a nod
   await page.locator('[data-tree-pan="last"]').click();
   await expect.poll(() => scroller.evaluate(element => element.scrollLeft + element.clientWidth >= element.scrollWidth - 2)).toBe(true);
   expect(errors).toEqual([]);
-});
-
-test('older games keep the three-tier research page', async ({ page }) => {
-  await page.goto('/?seed=7&gameplay=21');
-  await page.locator('[data-open-screen="research"]').first().click();
-  await expect(page.locator('.tech-tree .tech-tier')).toHaveCount(3);
-  await expect(page.locator('.tech-tree-v22')).toHaveCount(0);
-  await expect(page.locator('[data-tech-card]')).toHaveCount(12);
 });

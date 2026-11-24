@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { CONTENT } from '../src/content/units.ts';
+import { GAME_CONTENT as CONTENT } from '../src/content/units.ts';
 import type { Content } from '../src/content/units.ts';
 import { AI_THRESHOLDS } from '../src/ai/thresholds.ts';
 import type { AiThresholds } from '../src/ai/thresholds.ts';

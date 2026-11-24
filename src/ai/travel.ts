@@ -126,7 +126,7 @@ export function travelCloser(view: PlayerView, unit: MapUnit, to: Hex, target: H
 const LAND_WALKER: UnitIdentity = { kind: 'logistics', role: 'settler' };
 /** Whether `to` is a boarding step for `unit` (a land unit leaving land for water; v24 only). */
 export function isBoarding(view: PlayerView, unit: MapUnit, to: Hex, content: Content = contentForView(view)): boolean {
-  if (!content.embark || !view.map.features || moverOf(view, unit, content).kind !== 'land') return false;
+  if (!view.map.features || moverOf(view, unit, content).kind !== 'land') return false;
   const here = hexToIndex(unit.position, view.map), there = hexToIndex(to, view.map);
   return here !== null && there !== null && view.map.tiles[here] !== 'ocean' && view.map.tiles[there] === 'ocean';
 }
@@ -155,7 +155,7 @@ export function safeToBoard(view: PlayerView, unit: MapUnit, to: Hex, content: C
  * known cities can be reached over land and shallow water. 0 before v24. `citySite` is the planner's own site test.
  */
 export function embarkResearchBonus(view: PlayerView, techId: string, content: Content, citySite: (position: Hex) => boolean): number {
-  if (!content.embark || !view.map.features || (techId !== 'seafaring' && techId !== 'oceanography')) return 0;
+  if (!view.map.features || (techId !== 'seafaring' && techId !== 'oceanography')) return 0;
   const capital = view.economy.cities.find(city => city.id === view.economy.player.headquartersCityId) ?? view.economy.cities[0];
   if (!capital) return 0;
   const reachable = (access: 0 | 1, positions: readonly Hex[]) => {

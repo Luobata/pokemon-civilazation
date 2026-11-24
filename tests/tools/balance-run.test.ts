@@ -22,14 +22,14 @@ test('arguments: gate preset by default, explicit flags override, bad input is r
   expect(parsed).toMatchObject({ preset: 'gate', workers: 32, patch: null, out: '/tmp/x' });
   expect(parsed.config).toEqual({ gameplay: LATEST_GAMEPLAY_VERSION, width: 40, height: 26, rounds: 200, eras: 'simple', seeds: [31, 32, 33, 34, 35, 36, 37, 38], players: 4, mix: 'same' });
   expect(parseBalanceArgs(['--out', '/tmp/x'], 8).workers).toBe(4);
-  const custom = parseBalanceArgs(['--preset', 'full-spot', '--gameplay', '22', '--size', '24x16', '--rounds', '100', '--seeds', '1-3,7', '--players', '3',
+  const custom = parseBalanceArgs(['--preset', 'full-spot', '--gameplay', '27', '--size', '24x16', '--rounds', '100', '--seeds', '1-3,7', '--players', '3',
     '--mix', 'mixed', '--workers', '6', '--patch', 'p.json', '--out', '/tmp/y'], 64);
-  expect(custom.config).toEqual({ gameplay: 22, width: 24, height: 16, rounds: 100, eras: 'full', seeds: [1, 2, 3, 7], players: 3, mix: 'mixed' });
+  expect(custom.config).toEqual({ gameplay: 27, width: 24, height: 16, rounds: 100, eras: 'full', seeds: [1, 2, 3, 7], players: 3, mix: 'mixed' });
   expect(custom).toMatchObject({ preset: 'full-spot', workers: 6, patch: 'p.json' });
   expect(parseSeeds('31-38')).toEqual([31, 32, 33, 34, 35, 36, 37, 38]);
   expect(formatSeeds([1, 2, 3, 7, 9, 10])).toBe('1-3,7,9-10');
   for (const args of [[], ['--seeds', '1'], ['--out', 'a', '--out', 'b'], ['--out', 'a', '--bogus', '1'], ['--out', 'a', '--eras', 'none'],
-    ['--out', 'a', '--gameplay', '3'], ['--out', 'a', '--gameplay', '99'], ['--out', 'a', '--rounds', '150'], ['--out', 'a', '--players', '5'],
+    ['--out', 'a', '--gameplay', '3'], ['--out', 'a', '--gameplay', '22'], ['--out', 'a', '--gameplay', '99'], ['--out', 'a', '--rounds', '150'], ['--out', 'a', '--players', '5'],
     ['--out', 'a', '--size', '40'], ['--out', 'a', '--seeds', '3-1'], ['--out', 'a', '--seeds', '1,1'], ['--out', 'a', '--workers', '0'],
     ['--out', 'a', '--workers', '65'], ['--out', 'a', '--mix', 'random'], ['--out', 'a', '--preset', 'nope'], ['--out']]) {
     expect(() => parseBalanceArgs(args, 64), args.join(' ')).toThrow();

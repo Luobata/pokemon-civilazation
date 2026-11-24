@@ -5,7 +5,7 @@ import { expect, test } from '@playwright/test';
 import type { Locator, Page } from '@playwright/test';
 import { conferenceFixture } from '../browser/fixtures/depth-v26.ts';
 import { guardianFixture } from '../browser/fixtures/battle-evo.ts';
-import { openScreen } from '../browser/ui.ts';
+import { closeScreen, openScreen } from '../browser/ui.ts';
 
 const dir = `${process.env.E2E_SCREENSHOT_DIR ?? 'test-results/screenshots'}/fixes-2-cd`;
 const VIEWPORT = { width: 1280, height: 900 };
@@ -79,24 +79,27 @@ test('conference: the World page next-action cards sit inside the screen; the li
   expect(errors).toEqual([]);
 });
 
-test('sanctuary guardian: the challenge card opens centred on screen; its replay viewer opens inside the viewport', async ({ page }) => {
+test('sanctuary guardian: the lineup picker opens centred on screen; its replay viewer opens inside the viewport', async ({ page }) => {
   test.setTimeout(600_000);
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(String(error)));
   const fixture = guardianFixture();
-  await importSave(page, fixture.save, 24);
+  await importSave(page, fixture.save, 27);
   await openScreen(page, 'world');
   const sanctuaries = page.locator('details[data-system="s24-sanctuaries"]');
   await sanctuaries.locator('summary').click();
-  await sanctuaries.getByRole('button', { name: '挑战守卫' }).first().click();
-  const card = page.locator('#challenge-card');
-  await expectFixedOverlay(card, 'the challenge card', { width: 500 });
-  await expect(card.locator('#challenge-card-confirm')).toBeInViewport({ ratio: 1 });
+  await sanctuaries.getByRole('button', { name: /挑战守卫/ }).first().click();
+  const picker = page.locator('#lineup-picker');
+  await expectFixedOverlay(picker, 'the guardian lineup picker', { width: Math.min(920, VIEWPORT.width * 0.96) });
+  await expect(picker.locator('#lineup-confirm')).toBeInViewport({ ratio: 1 });
   await page.screenshot({ path: `${dir}/prod-challenge-card.png` });
 
-  await card.locator('#challenge-card-confirm').click();
-  await expect(card.locator('#challenge-card-outcome')).toBeVisible({ timeout: 60_000 });
-  await card.locator('#challenge-card-watch').click();
+  await picker.locator('#lineup-confirm').click();
+  await expect(picker).toBeHidden();
+  await closeScreen(page);
+  const toast = page.locator('#toast-host [data-toast]').filter({ has: page.locator('.toast-action', { hasText: '观看对战' }) }).first();
+  await expect(toast).toBeVisible({ timeout: 60_000 });
+  await toast.locator('.toast-icon').click();
   const viewer = page.locator('#battle-viewer');
   await expectFixedOverlay(viewer, 'the battle viewer');
   await expect(viewer.locator('#bv-skip')).toBeInViewport({ ratio: 1 });

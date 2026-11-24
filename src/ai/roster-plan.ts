@@ -58,7 +58,7 @@ const nemesisTypes = new WeakMap<readonly ChampionshipSeason[], TypeId | null>()
 /** v27 ⑥ (pace-v27 §7.3): +10 for a species that hits the own league nemesis's primary type super-effectively (0 without a nemesis). */
 export function nemesisTrainingBonus(view: PlayerView, speciesId: SpeciesId, content: Content): number {
   const history = view.expansion?.civilization?.championship.history;
-  if (!content.leagueTrainers || !history?.length) return 0;
+  if (!history?.length) return 0;
   let type = nemesisTypes.get(history);
   if (type === undefined) {
     const nemesis = leagueNemesis(history, view.playerId);

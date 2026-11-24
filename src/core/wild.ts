@@ -41,7 +41,7 @@ export function spawnWild(state: GameState, initial = false, content: Content = 
     if (!initial && randomBelow(state.rng, 100) >= 5) continue;
     const tiles = state.map.tiles.flatMap((_, i) => regionOf(i) === region ? [i] : []);
     // v24 A3 (world-v24 §2.6): pick the tile first, then a species from that tile's habitat.
-    if (content.landmarks && state.map.features) { const spawned = spawnOnHabitat(state, tiles, starts, content); if (spawned) events.push(spawned); continue; }
+    if (state.map.features) { const spawned = spawnOnHabitat(state, tiles, starts, content); if (spawned) events.push(spawned); continue; }
     const counts: Partial<Record<BiomeId, number>> = {};
     for (const i of tiles) { const biome = state.map.tiles[i]; counts[biome] = (counts[biome] ?? 0) + 1; }
     const biome = roulette(state, Object.entries(counts) as [BiomeId, number][]);

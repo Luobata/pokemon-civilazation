@@ -20,7 +20,7 @@ import { CIVILIZATION_CONTENT } from '../content/civilization-systems.ts';
 export type CommandLog = { version: 1; schemaVersion: GameState['schemaVersion']; rulesVersion: GameState['rulesVersion']; contentVersion: string; setup: GameSetup; commands: Command[]; aiRejectedCitySites?: RejectedCitySite[] };
 
 export function replay(log: CommandLog, through = log.commands.length, checkpoint?: GameState, content: Content = contentFor(log.setup)): GameState {
-  const versions = gameVersions(log.setup);
+  const versions = gameVersions();
   if (log.version !== 1 || log.schemaVersion !== versions.schemaVersion || log.rulesVersion !== versions.rulesVersion || log.contentVersion !== content.version
     || !Number.isInteger(through) || through < 0 || through > log.commands.length) throw new Error('Unsupported log or replay sequence.');
   let state = createGame(log.setup, content);
@@ -97,7 +97,7 @@ export class GameSession {
       } };
   }
   exportLog(): CommandLog {
-    return { version: 1, ...gameVersions(this.state.setup), contentVersion: this.content.version, setup: this.getState().setup,
+    return { version: 1, ...gameVersions(), contentVersion: this.content.version, setup: this.getState().setup,
       commands: JSON.parse(JSON.stringify(this.commands)) as Command[],
       aiRejectedCitySites: JSON.parse(JSON.stringify(this.aiRejectedCitySites)) as RejectedCitySite[] };
   }

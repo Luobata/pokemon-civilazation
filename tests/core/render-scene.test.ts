@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { EXPANSION_CONTENT } from '../../src/content/units.ts';
+import { GAME_CONTENT } from '../../src/content/units.ts';
 import { RULE_QUERIES } from '../../src/ai/query.ts';
 import { planNext } from '../../src/ai/plan.ts';
 import { rememberCityRejection } from '../../src/ai/memory.ts';
@@ -17,19 +17,19 @@ import type { AnimationFrame, Track } from '../../src/browser/render/animation.t
 import { hexToWorld } from '../../src/browser/camera.ts';
 
 function playedV10(rounds: number): GameState {
-  const setup: GameSetup = { seed: 7, width: 30, height: 20, roundLimit: 100, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 10, players: [
+  const setup: GameSetup = { seed: 7, width: 30, height: 20, roundLimit: 100, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 27, players: [
     { id: 0, controller: 'human', starterId: 'bulbasaur', leaderId: 'brock' }, { id: 1, controller: 'ai', personality: 'expansion', leaderId: 'misty' },
     { id: 2, controller: 'ai', personality: 'aggressive', leaderId: 'lance' }] };
-  let state = createGame(setup, EXPANSION_CONTENT);
+  let state = createGame(setup, GAME_CONTENT);
   const memory: RejectedCitySite[] = [];
   while (!state.outcome && state.round < rounds) {
-    const view = observe(state, state.activePlayerId, EXPANSION_CONTENT);
-    let command = planNext(view, { ...RULE_QUERIES, content: EXPANSION_CONTENT }, memory);
-    let result = step(state, command, EXPANSION_CONTENT);
+    const view = observe(state, state.activePlayerId, GAME_CONTENT);
+    let command = planNext(view, { ...RULE_QUERIES, content: GAME_CONTENT }, memory);
+    let result = step(state, command, GAME_CONTENT);
     if (!result.ok) {
       rememberCityRejection(memory, view, command, result.reason);
       command = { actorId: view.playerId, expectedSeq: view.commandSeq, action: { type: 'EndTurn' } };
-      result = step(state, command, EXPANSION_CONTENT);
+      result = step(state, command, GAME_CONTENT);
     }
     if (!result.ok) throw new Error(result.reason);
     state = result.state;
@@ -41,7 +41,7 @@ test('scenes built from a PlayerView only mark tiles the player can see or remem
   const state = playedV10(50);
   let marks = 0, hiddenLive = 0;
   for (const playerId of state.turnOrder) {
-    const view = observe(state, playerId, EXPANSION_CONTENT);
+    const view = observe(state, playerId, GAME_CONTENT);
     const scene = buildScene({ view, selectedCity: view.economy.cities[0]?.id ?? null });
     const visible = new Set(view.visibleTileIds);
     // Units are live information: only on tiles in sight right now, and only those the view lists.
@@ -62,7 +62,7 @@ test('scenes built from a PlayerView only mark tiles the player can see or remem
 }, 60_000);
 
 test('the yield layer only lists the selected city when turned off', () => {
-  const state = playedV10(20), view = observe(state, 0, EXPANSION_CONTENT);
+  const state = playedV10(20), view = observe(state, 0, GAME_CONTENT);
   expect(buildScene({ view, layers: { yields: false } }).yields).toEqual([]);
   const focused = buildScene({ view, layers: { yields: false }, selectedCity: view.economy.cities[0].id });
   expect(focused.yields.length).toBeGreaterThan(0);

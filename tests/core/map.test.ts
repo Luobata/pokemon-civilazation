@@ -1,54 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { generateMap, selectStarts } from '../../src/core/map.ts';
+import { selectStarts } from '../../src/core/map.ts';
+import { generateWorldMap } from '../../src/core/map-v24.ts';
 import type { MapTerrain } from '../../src/core/map.ts';
-import { edgeDistance, hexDistance, hexToIndex, indexToHex, neighbors } from '../../src/core/hex.ts';
 import { createRng } from '../../src/core/rng.ts';
 import { canonicalSerialize, stateDigest } from '../../src/core/snapshot.ts';
 
-it('generates identical full state and digest twice in Node, with a frozen seed fixture', () => {
-  const first = generateMap({ seed: 12345 });
-  const second = generateMap({ seed: 12345 });
+it('generates identical full world map state and digest twice in Node', () => {
+  const first = generateWorldMap({ seed: 12345, width: 24, height: 16, playerCount: 4 });
+  const second = generateWorldMap({ seed: 12345, width: 24, height: 16, playerCount: 4 });
   expect(second).toEqual(first);
   expect(canonicalSerialize(second)).toBe(canonicalSerialize(first));
-  expect(stateDigest(first)).toBe('3381a0de');
-  expect(stateDigest(second)).toBe('3381a0de');
-  expect(stateDigest(generateMap({ seed: 12346 }))).not.toBe(stateDigest(first));
-});
-
-it('enforces volcano and four-player start constraints for seeds 0..199', () => {
-  const distances = { 8: 0, 6: 0, 4: 0 };
-  for (let seed = 0; seed < 200; seed++) {
-    const map = generateMap({ seed }); // Any rejection fails this batch.
-    distances[map.startDistance]++;
-    expect(new Set(map.tiles).size).toBe(7);
-    const boundary = map.tiles.flatMap((_, i) => edgeDistance(indexToHex(i, map), map) === 0 ? [indexToHex(i, map)] : []);
-    const volcanoes = map.tiles.flatMap((biome, i) => biome === 'volcano' ? [i] : []);
-    expect(volcanoes.length).toBeGreaterThan(0);
-    expect(volcanoes.length * 100).toBeLessThanOrEqual(map.tiles.length * 3);
-    for (const i of volcanoes) expect(edgeDistance(indexToHex(i, map), map)).toBe(0);
-    const reached = new Set([volcanoes[0]]);
-    const pending = [volcanoes[0]];
-    for (let i = 0; i < pending.length; i++) {
-      for (const hex of neighbors(indexToHex(pending[i], map), map)) {
-        const index = hexToIndex(hex, map);
-        if (index !== null && map.tiles[index] === 'volcano' && !reached.has(index)) {
-          reached.add(index); pending.push(index);
-        }
-      }
-    }
-    expect(reached.size).toBe(volcanoes.length);
-    expect(map.starts).toHaveLength(4);
-    for (const [i, start] of map.starts.entries()) {
-      expect(['grassland', 'forest']).toContain(map.tiles[start.tileIndex]);
-      const hex = indexToHex(start.tileIndex, map);
-      // Independent geometric check against every boundary tile.
-      expect(Math.min(...boundary.map(edge => hexDistance(hex, edge, map)))).toBeGreaterThanOrEqual(2);
-      for (const other of map.starts.slice(i + 1)) {
-        expect(hexDistance(hex, indexToHex(other.tileIndex, map), map)).toBeGreaterThanOrEqual(map.startDistance);
-      }
-    }
-  }
-  expect(Object.values(distances).reduce((a, b) => a + b, 0)).toBe(200);
+  expect(stateDigest(generateWorldMap({ seed: 12346, width: 24, height: 16, playerCount: 4 }))).not.toBe(stateDigest(first));
 });
 
 function grassStrip(width: number): MapTerrain {
@@ -70,12 +32,11 @@ describe('start-distance fallback only when no stronger solution exists', () => 
 
   it('rejects a truly unsatisfiable map without weakening distance or edge rules', () => {
     expect(() => selectStarts(grassStrip(5), 2, createRng(1))).toThrow('No legal starting positions');
-    expect(() => generateMap({ seed: 1, width: 4, height: 4, playerCount: 4 })).toThrow('No legal starting positions');
   });
 });
 
 it.each([[24, 16, 2], [30, 20, 3], [40, 26, 4]])('supports map %s×%s with %s civilizations', (width, height, playerCount) => {
-  const map = generateMap({ seed: 12345, width, height, playerCount });
+  const map = generateWorldMap({ seed: 12345, width, height, playerCount });
   expect(map.tiles).toHaveLength(width * height);
   expect(map.starts).toHaveLength(playerCount);
 });

@@ -1,6 +1,6 @@
 import { createCity } from '../../src/core/city.ts';
 import { describe, expect, test } from 'vitest';
-import { CONTENT, STARTER_IDS } from '../../src/content/units.ts';
+import { GAME_CONTENT, STARTER_IDS } from '../../src/content/units.ts';
 import type { StarterId } from '../../src/content/units.ts';
 import { createGame } from '../../src/core/game.ts';
 import { hexDistance, hexToIndex, indexToHex, neighbors } from '../../src/core/hex.ts';
@@ -20,8 +20,9 @@ const at = (q: number): Hex => ({ q, r: 4 });
 function fixture(speciesId: StarterId = 'bulbasaur'): GameState {
   const state = createGame(setup);
   state.map = { width: 12, height: 9, tiles: Array(108).fill('grassland') };
+  delete state.expansion;
   state.turnOrder = [0, 1]; state.cities = {};
-  state.units = { 1: { id: 1, kind: 'pokemon', speciesId, ownerId: 0, location: 'map', hp: 30, enraged: false, wildHome: null, position: at(2), actionLeft: 1, xp: 0 } };
+  state.units = { 1: { id: 1, kind: 'pokemon', speciesId, ownerId: 0, location: 'map', hp: 100, enraged: false, wildHome: null, position: at(2), actionLeft: 1, xp: 0 } };
   state.knowledge = { 0: emptyKnowledge(), 1: emptyKnowledge() };
   refreshKnowledge(state);
   return state;
@@ -47,12 +48,13 @@ describe('D28 creation and placement', () => {
     expect(stateDigest(createGame(config))).toBe(stateDigest(state));
     expect(Object.values(state.units).filter(unit => unit.ownerId !== null)).toHaveLength(8); expect(Object.keys(state.cities)).toHaveLength(4);
     const city = Object.values(state.cities).find(city => city.ownerId === 0)!;
-    expect(hexToIndex(city.position, state.map)).toBe(295);
+    expect(hexToIndex(city.position, state.map)).toBe(300);
     const starter = Object.values(state.units).find(unit => unit.ownerId === 0 && unit.kind === 'pokemon')!;
-    expect(hexToIndex(starter.position!, state.map)).toBe(speciesId === 'squirtle' ? 270 : 296);
+    expect(hexToIndex(starter.position!, state.map)).toBe(276);
     for (const unit of Object.values(state.units)) expect(canEnter(unit, state.map.tiles[hexToIndex(unit.position!, state.map)!])).toBe(true);
     const settler = Object.values(state.units).find(unit => unit.ownerId === 0 && unit.kind === 'logistics')!;
-    expect(settler.position).toEqual(city.position);
+    expect(hexToIndex(settler.position!, state.map)).toBe(275);
+    expect(hexDistance(settler.position!, city.position, state.map)).toBe(1);
     expect(new Set(Object.values(state.units).map(unit => hexToIndex(unit.position!, state.map))).size).toBe(Object.keys(state.units).length);
   });
   test('B3 searches beyond an impassable first ring, using distance then tile index', () => {
@@ -66,14 +68,17 @@ describe('D28 creation and placement', () => {
 });
 
 describe('atomic Move', () => {
-  test('legal multi-tile path costs one AP and leaves input untouched', () => {
+  test('legal multi-tile path spends movement points and leaves input untouched', () => {
     const state = fixture(); const original = canonicalSerialize(state);
     const result = move(state, at(4)); expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.state.units[1].position!).toEqual(at(4)); expect(result.state.units[1].actionLeft).toBe(0);
+    // Bulbasaur has move 3: moving 2 tiles spends 2 points and leaves 1 action/point remaining.
+    expect(result.state.units[1].position!).toEqual(at(4)); expect(result.state.units[1].movesSpent).toBe(2); expect(result.state.units[1].actionLeft).toBe(1);
     expect(result.state.commandSeq).toBe(1); expect(result.state.rng).toEqual(state.rng);
     expect(canonicalSerialize(state)).toBe(original);
     expect(result.events[0].payload).toEqual({ type: 'Moved', unitId: 1, path: [at(2), at(3), at(4)] });
+    const finished = move(result.state, at(5)); expect(finished.ok).toBe(true);
+    if (finished.ok) expect(finished.state.units[1].actionLeft).toBe(0);
   });
   test.each(['no-action', 'unit-unavailable', 'unreachable', 'stale-command', 'not-your-turn'] as const)('%s is atomic', reason => {
     const state = fixture();
@@ -85,9 +90,15 @@ describe('atomic Move', () => {
     if (reason === 'not-your-turn') command.actorId = 1;
     rejectUnchanged(state, command, reason);
   });
-  test.each([0, 1])('visible unit owned by %i blocks entry', ownerId => {
-    const state = fixture(); blocker(state, ownerId, 3);
-    expect(move(state, at(3))).toEqual({ ok: false, reason: 'unreachable' });
+  test('enemy unit and same-layer own Pokemon block stopping; own settler shares tile', () => {
+    const foreign = fixture(); blocker(foreign, 1, 3);
+    expect(move(foreign, at(3))).toEqual({ ok: false, reason: 'unreachable' });
+    const ownPokemon = fixture();
+    ownPokemon.units[2] = { id: 2, kind: 'pokemon', speciesId: 'charmander', ownerId: 0, location: 'map', hp: 100, enraged: false, wildHome: null, position: at(3), actionLeft: 1, xp: 0 };
+    refreshKnowledge(ownPokemon);
+    expect(move(ownPokemon, at(3))).toEqual({ ok: false, reason: 'unreachable' });
+    const ownSettler = fixture(); blocker(ownSettler, 0, 3);
+    expect(move(ownSettler, at(3)).ok).toBe(true);
   });
   test.each([
     ['bulbasaur', 'ocean', false], ['bulbasaur', 'volcano', false],
@@ -96,7 +107,7 @@ describe('atomic Move', () => {
   ] as const)('B1/B4 %s enters %s = %s', (species, biome, allowed) => {
     const state = fixture(species); state.map.tiles[hexToIndex(at(3), state.map)!] = biome;
     refreshKnowledge(state); const result = move(state, at(3)); expect(result.ok).toBe(allowed);
-    expect(CONTENT.moveCosts.ocean).toBe(1); expect(CONTENT.moveCosts.volcano).toBe(2);
+    expect(GAME_CONTENT.moveCosts.ocean).toBe(1); expect(GAME_CONTENT.moveCosts.volcano).toBe(2);
   });
   test('terrain cost, not tile count, limits the route', () => {
     const state = fixture('charmander'); state.map.tiles.fill('volcano'); refreshKnowledge(state);
@@ -106,13 +117,15 @@ describe('atomic Move', () => {
     state.knowledge[0].rememberedTiles[hexToIndex(at(5), state.map)!] = { biomeId: 'ocean' };
     expect(move(state, at(5)).ok).toBe(true);
   });
-  test('B2 own city can be entered, traversed and stopped on; other city blocks', () => {
+  test('B2 own city can be entered, traversed and stopped on; other city and own Pokemon block', () => {
     const state = fixture(); state.cities[2] = createCity(2, 0, at(3)); refreshKnowledge(state);
     expect(move(state, at(3)).ok).toBe(true);
     const through = move(state, at(4)); expect(through.ok && through.events[0].payload).toMatchObject({ path: [at(2), at(3), at(4)] });
     state.map.tiles.fill('mountain'); refreshKnowledge(state); expect(move(state, at(4)).ok).toBe(false);
     state.cities[2].ownerId = 1; refreshKnowledge(state); expect(move(state, at(3)).ok).toBe(false);
-    state.cities[2].ownerId = 0; blocker(state, 0, 3); expect(move(state, at(3)).ok).toBe(false);
+    state.cities[2].ownerId = 0;
+    state.units[2] = { id: 2, kind: 'pokemon', speciesId: 'charmander', ownerId: 0, location: 'map', hp: 100, enraged: false, wildHome: null, position: at(3), actionLeft: 1, xp: 0 };
+    refreshKnowledge(state); expect(move(state, at(3)).ok).toBe(false);
   });
   test('planning ignores hidden occupancy; execution stops without a blocker payload', () => {
     const state = fixture(); blocker(state, 1, 5);
@@ -122,7 +135,7 @@ describe('atomic Move', () => {
     expect(reachablePaths(view, 1)[target]).toEqual([at(2), at(3), at(4), at(5)]);
     const result = move(state, at(5)); expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.state.units[1].position!).toEqual(at(4)); expect(result.state.units[1].actionLeft).toBe(0);
+    expect(result.state.units[1].position!).toEqual(at(4)); expect(result.state.units[1].movesSpent).toBe(2); expect(result.state.units[1].actionLeft).toBe(1);
     expect(result.events[0].payload).toEqual({ type: 'Moved', unitId: 1, path: [at(2), at(3), at(4)] });
     expect(projectEvents(state, result.state, result.events, 0)[0].payload).toMatchObject({ path: [at(2), at(3), at(4)] });
     expect(move(state, at(3), 2)).toEqual(move(state, at(3), 999));

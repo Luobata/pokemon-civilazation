@@ -23,8 +23,9 @@ export type WildEncounterEvent =
   /** To the striking civilization: the wild Pokémon is exhausted until the end of `untilRound`; `firstEncounter` = the species reward was paid. */
   | { type: 'WildExhausted'; playerId: number; unitId: number; targetUnitId: number; speciesId: SpeciesId; untilRound: number; firstEncounter: boolean; xp: number; science: number };
 
-export function initializeWildEncounters(state: GameState, content: Content): void {
-  if (content.wildEncounters && state.expansion) state.expansion.wildEncounters = { encountered: {}, firstBall: {} };
+export function initializeWildEncounters(state: GameState, _content?: Content): void {
+  void _content;
+  if (state.expansion) state.expansion.wildEncounters = { encountered: {}, firstBall: {} };
 }
 /** A wild Pokémon the encounter rules apply to (not a rival's, not a raid boss, not rampaging). */
 export function isEncounterWild(state: GameState, unit: UnitState): boolean {
@@ -39,7 +40,7 @@ export const isExhausted = (unit: Pick<MapUnit, 'exhaustedUntilRound'>, round: n
  * pay the first-encounter reward. Returns the event for the striker's owner, or null.
  */
 export function exhaustAfterStrike(state: GameState, attacker: MapUnit, defender: MapUnit, content: Content): WildEncounterEvent | null {
-  if (!content.wildEncounters || attacker.ownerId === null || defender.hp <= 0 || defender.kind !== 'pokemon' || defender.exhaustedUntilRound !== undefined
+  if (attacker.ownerId === null || defender.hp <= 0 || defender.kind !== 'pokemon' || defender.exhaustedUntilRound !== undefined
     || !isEncounterWild(state, defender)) return null;
   const tuning = openingTuning(content);
   if (defender.hp * 100 > tuning.exhaustHpPercent * content.species[defender.speciesId].maxHp) return null;
@@ -57,7 +58,7 @@ export function exhaustAfterStrike(state: GameState, attacker: MapUnit, defender
 }
 /** End of round, before the wild act: an exhausted wild Pokémon skips its turn; on its last exhausted round its HP returns to the floor. */
 export function exhaustedWildRests(state: GameState, unit: MapUnit, content: Content): boolean {
-  if (!content.wildEncounters || !isExhausted(unit, state.round)) return false;
+  if (!isExhausted(unit, state.round)) return false;
   if (state.round === unit.exhaustedUntilRound && unit.kind === 'pokemon') {
     const tuning = openingTuning(content), maxHp = content.species[unit.speciesId].maxHp;
     if (unit.hp * 100 <= tuning.exhaustHpPercent * maxHp) unit.hp = Math.min(maxHp, Math.ceil(maxHp * tuning.exhaustRecoverPercent / 100));
@@ -69,25 +70,25 @@ export function exhaustedWildRests(state: GameState, unit: MapUnit, content: Con
  * first ball is certain (100) on any target; afterwards an exhausted target adds the bonus (capped, never lowering `base`).
  */
 export function encounterCaptureChance(base: number, exhausted: boolean, firstBallUsed: boolean, content: Content): number {
-  if (!content.wildEncounters) return base;
   if (!firstBallUsed) return 100;
   if (!exhausted) return base;
   const tuning = openingTuning(content);
   return Math.max(base, Math.min(tuning.exhaustCaptureCap, base + tuning.exhaustCaptureBonus));
 }
 /** Whether this capture uses the civilization's first ball (certain, no random draw); marks it used. */
-export function useFirstBall(state: GameState, playerId: number, content: Content): boolean {
+export function useFirstBall(state: GameState, playerId: number, _content?: Content): boolean {
+  void _content;
   const ledger = state.expansion?.wildEncounters;
-  if (!content.wildEncounters || !ledger || ledger.firstBall[playerId]) return false;
+  if (!ledger || ledger.firstBall[playerId]) return false;
   ledger.firstBall[playerId] = true;
   return true;
 }
-export const firstBallUsed = (state: GameState, playerId: number): boolean => Boolean(state.expansion?.wildEncounters?.firstBall[playerId]);
+export const firstBallUsed = (state: GameState, playerId: number): boolean => state.expansion?.wildEncounters ? Boolean(state.expansion.wildEncounters.firstBall[playerId]) : true;
 export const viewFirstBallUsed = (view: Pick<PlayerView, 'expansion'>): boolean => view.expansion?.wildEncounters?.firstBallUsed ?? true;
 
 /** Newbie protection: the recovery of a Pokémon knocked out by `source` (null = not protected). */
 export function protectedRecovery(state: GameState, source: MapUnit | null, content: Content): { roundsLeft: number; hpPercent: number } | null {
-  if (!content.wildEncounters || !source || !isEncounterWild(state, source)) return null;
+  if (!source || !isEncounterWild(state, source)) return null;
   const tuning = openingTuning(content);
   return state.round <= tuning.protectionLastRound ? { roundsLeft: tuning.protectionRounds, hpPercent: tuning.protectionHpPercent } : null;
 }

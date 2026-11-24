@@ -1,6 +1,7 @@
-import { EXPANSION_CONTENT } from '../../../src/content/units.ts';
+import { contentFor } from '../../../src/content/units.ts';
 import { createGame } from '../../../src/core/game.ts';
 import { districtSites } from '../../../src/core/districts.ts';
+import { workRadius } from '../../../src/core/city.ts';
 import { observe } from '../../../src/core/vision.ts';
 import { step } from '../../../src/core/step.ts';
 import { reachablePaths } from '../../../src/core/movement.ts';
@@ -15,34 +16,36 @@ import type { Command, GameSetup } from '../../../src/core/model.ts';
 export type DistrictUiScenario = 'ready' | 'built' | 'harbor';
 
 export function districtUiFixture(scenario: DistrictUiScenario) {
-  const setup: GameSetup = { seed: 1, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, multiplayer: true,
-    eraProgression: 'simple-v1', gameplayVersion: 10, players: [
+  const setup: GameSetup = { seed: scenario === 'harbor' ? 289 : 4, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, multiplayer: true,
+    eraProgression: 'simple-v1', gameplayVersion: 27, players: [
       { id: 0, controller: 'human', starterId: 'bulbasaur' }, { id: 1, controller: 'human', starterId: 'squirtle' },
     ] };
-  let state = createGame(setup, EXPANSION_CONTENT);
-  const log: CommandLog = { version: 1, ...gameVersions(setup), contentVersion: state.contentVersion, setup, commands: [] };
+  const content = contentFor(setup);
+  let state = createGame(setup, content);
+  const log: CommandLog = { version: 1, ...gameVersions(state.setup), contentVersion: state.contentVersion, setup: state.setup, commands: [] };
   const issue = (action: Command['action']) => {
     const command = { actorId: state.activePlayerId, expectedSeq: state.commandSeq, action };
-    const result = step(state, command, EXPANSION_CONTENT);
+    const result = step(state, command, content);
     if (!result.ok) throw new Error(`District UI fixture rejected ${action.type}: ${result.reason}`);
     state = result.state; log.commands.push(command);
   };
   const endRound = () => { const round = state.round; do issue({ type: 'EndTurn' }); while (state.round === round); };
   const cityId = state.players[0].headquartersCityId, originalWork = [...state.cities[cityId].workedTileIds];
-  issue({ type: 'AssignWork', cityId, workedTileIds: originalWork.slice(0, 1), lockedTileIds: [] });
-  const techId = scenario === 'harbor' ? 'domestication' : 'berryCultivation';
-  issue({ type: 'SetResearch', techId });
-  for (let guard = 0; guard < 30 && !state.players[0].research.unlockedIds.includes(techId); guard++) endRound();
-  issue({ type: 'AssignWork', cityId, workedTileIds: originalWork, lockedTileIds: [] });
   if (scenario === 'harbor') {
-    const site = districtSites(observe(state, 0, EXPANSION_CONTENT), cityId, 'harborDistrict').find(item => item.reason === 'harbor-needs-coast');
+    issue({ type: 'SetResearch', techId: 'seafaring' });
+    for (let guard = 0; guard < 40 && (!state.players[0].research.unlockedIds.includes('seafaring') || workRadius(state.cities[cityId]) < 2); guard++) endRound();
+    const site = districtSites(observe(state, 0, content), cityId, 'harborDistrict').find(item => item.reason === 'harbor-needs-coast');
     if (!site) throw new Error('No unexplored coast in browser fixture');
     if (canonicalSerialize(replay(log)) !== canonicalSerialize(state)) throw new Error('Harbor fixture does not replay');
     return { state, log, save: serializeSave(state, log), cityId, tileIndex: site.tileIndex };
   }
-  const legal = districtSites(observe(state, 0, EXPANSION_CONTENT), cityId, 'gardenDistrict')
+  issue({ type: 'AssignWork', cityId, workedTileIds: originalWork.slice(0, 1), lockedTileIds: [] });
+  issue({ type: 'SetResearch', techId: 'berryCultivation' });
+  for (let guard = 0; guard < 30 && !state.players[0].research.unlockedIds.includes('berryCultivation'); guard++) endRound();
+  issue({ type: 'AssignWork', cityId, workedTileIds: originalWork, lockedTileIds: [] });
+  const legal = districtSites(observe(state, 0, content), cityId, 'gardenDistrict')
     .filter(site => site.reason === null)
-    .sort((a, b) => Number(b.releasesWork) - Number(a.releasesWork) || b.effects.total.food - a.effects.total.food || a.tileIndex - b.tileIndex);
+    .sort((a, b) => Number(b.effects.incomplete) - Number(a.effects.incomplete) || Number(b.releasesWork) - Number(a.releasesWork) || b.effects.total.food - a.effects.total.food || a.tileIndex - b.tileIndex);
   const site = legal[0];
   if (!site) throw new Error('No legal garden district site in browser fixture');
   if (scenario === 'built') {
@@ -56,27 +59,17 @@ export function districtUiFixture(scenario: DistrictUiScenario) {
   return { state, log, save: serializeSave(state, log), cityId, tileIndex: site.tileIndex };
 }
 
-/** A fresh explicit v9 save: new games default to v10, so v9 behaviour is only reachable by loading one. */
-export function v9SaveFixture() {
-  const setup: GameSetup = { seed: 1, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, multiplayer: true,
-    eraProgression: 'simple-v1', gameplayVersion: 9, players: [
-      { id: 0, controller: 'human', starterId: 'bulbasaur' }, { id: 1, controller: 'human', starterId: 'squirtle' },
-    ] };
-  const state = createGame(setup, EXPANSION_CONTENT);
-  const log: CommandLog = { version: 1, ...gameVersions(setup), contentVersion: state.contentVersion, setup, commands: [] };
-  return { state, log, save: serializeSave(state, log) };
-}
-
 export function foreignConstructionFixture(hidden = false) {
   const setup: GameSetup = { seed: 1, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, multiplayer: true,
-    eraProgression: 'simple-v1', gameplayVersion: 10, players: [
+    eraProgression: 'simple-v1', gameplayVersion: 27, players: [
       { id: 0, controller: 'human', starterId: 'bulbasaur' }, { id: 1, controller: 'human', starterId: 'squirtle' },
     ] };
-  let state = createGame(setup, EXPANSION_CONTENT);
-  const log: CommandLog = { version: 1, ...gameVersions(setup), contentVersion: state.contentVersion, setup, commands: [] };
+  const content = contentFor(setup);
+  let state = createGame(setup, content);
+  const log: CommandLog = { version: 1, ...gameVersions(state.setup), contentVersion: state.contentVersion, setup: state.setup, commands: [] };
   const issue = (action: Command['action']) => {
     const command = { actorId: state.activePlayerId, expectedSeq: state.commandSeq, action };
-    const result = step(state, command, EXPANSION_CONTENT);
+    const result = step(state, command, content);
     if (!result.ok) throw new Error(`Foreign construction fixture rejected ${action.type}: ${result.reason}`);
     state = result.state; log.commands.push(command);
   };
@@ -90,14 +83,14 @@ export function foreignConstructionFixture(hidden = false) {
   if (!scout) throw new Error('Missing foreign construction scout');
   const scoutId = scout.id;
   const moveToward = (target: { q: number; r: number }) => {
-    const view = observe(state, 0, EXPANSION_CONTENT), paths = reachablePaths(view, scoutId);
+    const view = observe(state, 0, content), paths = reachablePaths(view, scoutId);
     const destination = Object.values(paths).sort((a, b) => hexDistance(a.at(-1)!, target, state.map) - hexDistance(b.at(-1)!, target, state.map)
       || b.length - a.length || hexDistance(a.at(-1)!, target, state.map) - hexDistance(b.at(-1)!, target, state.map))[0]?.at(-1);
     if (destination) issue({ type: 'Move', unitId: scoutId, to: destination });
   };
   let tileIndex = -1;
   for (let guard = 0; guard < 100; guard++) {
-    const foreignView = observe(state, 1, EXPANSION_CONTENT), ownView = observe(state, 0, EXPANSION_CONTENT);
+    const foreignView = observe(state, 1, content), ownView = observe(state, 0, content);
     const visible = new Set(ownView.visibleTileIds), city = state.cities[foreignCityId];
     const site = districtSites(foreignView, foreignCityId, 'gardenDistrict')
       .find(item => item.reason === null && visible.has(item.tileIndex));
@@ -111,16 +104,16 @@ export function foreignConstructionFixture(hidden = false) {
     moveToward(state.cities[foreignCityId].position);
     issue({ type: 'EndTurn' }); issue({ type: 'EndTurn' });
   }
-  if (tileIndex < 0 || !observe(state, 0, EXPANSION_CONTENT).expansion?.districts?.constructionSites?.length) {
+  if (tileIndex < 0 || !observe(state, 0, content).expansion?.districts?.constructionSites?.length) {
     throw new Error('Foreign construction never became visible');
   }
   if (hidden) {
-    for (let guard = 0; guard < 30 && observe(state, 0, EXPANSION_CONTENT).expansion?.districts?.constructionSites?.length; guard++) {
+    for (let guard = 0; guard < 30 && observe(state, 0, content).expansion?.districts?.constructionSites?.length; guard++) {
       if (!state.cities[foreignCityId].queue.some(order => order.item.kind === 'district')) throw new Error('Foreign construction completed before hiding');
       moveToward(state.cities[ownCityId].position);
       issue({ type: 'EndTurn' }); issue({ type: 'EndTurn' });
     }
-    if (observe(state, 0, EXPANSION_CONTENT).expansion?.districts?.constructionSites?.length) throw new Error('Foreign construction stayed visible after retreat');
+    if (observe(state, 0, content).expansion?.districts?.constructionSites?.length) throw new Error('Foreign construction stayed visible after retreat');
   }
   if (canonicalSerialize(replay(log)) !== canonicalSerialize(state)) throw new Error('Foreign construction fixture does not replay');
   return { state, log, save: serializeSave(state, log), cityId: foreignCityId, tileIndex, scoutId };

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 import * as rng from '../../src/core/rng.ts';
 import { combatFixture, pokemon, accepted, issue } from './combat-fixture.ts';
 import { resolveAttack } from '../../src/core/combat.ts';
+import { createGame } from '../../src/core/game.ts';
 import { canonicalSerialize } from '../../src/core/snapshot.ts';
 import { hexToIndex } from '../../src/core/hex.ts';
 import { createMapUnit } from '../../src/core/unit.ts';
@@ -21,17 +22,17 @@ describe('Attack transactions', () => {
     expect(issue(state, attack)).toMatchObject({ ok: false, reason: 'attack-unavailable' }); expect(random).not.toHaveBeenCalled();
     state.diplomacy[0].status = 'war';
     const next = accepted(state, attack);
-    expect(next.units[11].hp).toBe(66); expect(next.units[10].hp).toBe(62);
+    expect(next.units[11].hp).toBe(90); expect(next.units[10].hp).toBe(89);
     expect(next.units[10].xp).toBe(10); expect(next.units[11].xp).toBe(10);
     expect(next.units[10].actionLeft).toBe(0); expect(next.units[11].actionLeft).toBe(1);
     expect(random.mock.calls.map(call => call[1])).toEqual([16]);
   });
   test('immunity still allows a counter; defender out of range cannot counter', () => {
     const state = combatFixture(); pokemon(state, 10, 'pikachu'); pokemon(state, 11, 'geodude', null, 4); maxRoll();
-    const next = accepted(state, attack); expect(next.units[11].hp).toBe(50); expect(next.units[10].hp).toBeLessThan(45);
+    const next = accepted(state, attack); expect(next.units[11].hp).toBe(100); expect(next.units[10].hp).toBeLessThan(100);
     expect(next.units[10].xp).toBe(0);
     pokemon(state, 11, 'machop', null, 5);
-    const distant = accepted(state, attack); expect(distant.units[10].hp).toBe(45);
+    const distant = accepted(state, attack); expect(distant.units[10].hp).toBe(100);
   });
   test('D33 XP combines damage and knockout before both multipliers; defender recovers', () => {
     const state = combatFixture(); pokemon(state); pokemon(state, 11, 'bulbasaur', 1, 4).hp = 1;
@@ -47,7 +48,7 @@ describe('Attack transactions', () => {
     state.diplomacy[0].status = 'war';
     state.units[11] = createMapUnit({ kind: 'logistics', role: 'settler' }, 11, 1, { q: 4, r: 3 });
     const next = accepted(state, attack);
-    expect(next.units[11]).toBeUndefined(); expect(next.units[10].hp).toBe(50); expect(next.units[10].xp).toBe(10);
+    expect(next.units[11]).toBeUndefined(); expect(next.units[10].hp).toBe(100); expect(next.units[10].xp).toBe(10);
     expect(next.players[0].knockdownCount).toBe(1);
     state.units[11].position = { q: 5, r: 3 }; expect(issue(state, attack).ok).toBe(false);
   });
@@ -55,8 +56,8 @@ describe('Attack transactions', () => {
     const state = combatFixture(); pokemon(state, 10, 'gastly', 0, 9, 2); state.diplomacy[0].status = 'war';
     state.players[1].starterId = starter; const random = maxRoll();
     const next = accepted(state, { ...attack, target: { kind: 'city', id: 2 } });
-    expect(next.cities[2].hp).toBe(39); // ghost attack city E100, no normal immunity
-    expect(next.units[10].hp).toBe(48 - (starter === 'squirtle' ? 3 : 2));
+    expect(next.cities[2].hp).toBe(87); // ghost attack city E100, no normal immunity
+    expect(next.units[10].hp).toBe(100 - (starter === 'squirtle' ? 5 : 4));
     expect(random.mock.calls.map(call => call[1])).toEqual([16]);
   });
   test('city cover T80; range3 siege attack cannot be countered; siege tech multiplier', () => {
@@ -66,7 +67,7 @@ describe('Attack transactions', () => {
     pokemon(state, 12, 'pidgey', 0, 10, 3);
     state.players[0].research.unlockedIds.push('siegeCraft');
     const next = accepted(state, { ...attack, target: { kind: 'city', id: 2 } });
-    expect(next.cities[2].hp).toBe(24); expect(next.units[10].hp).toBe(85);
+    expect(next.cities[2].hp).toBe(61); expect(next.units[10].hp).toBe(100);
   });
   test('city counter knockout credits city owner without XP to a unit', () => {
     const state = combatFixture(); pokemon(state, 10, 'charmander', 0, 9, 2).hp = 1;
@@ -84,7 +85,7 @@ describe('Attack transactions', () => {
     const next = accepted(state, { ...attack, target: { kind: 'city', id: 2 } });
     expect(next.cities[2]).toMatchObject({ ownerId: 0, hp: 50, population: 2, buildingIds: ['headquarters', 'pasture'], capturedAtRound: 1, lockedTileIds: [] });
     expect(next.cities[2].workedTileIds).toHaveLength(2); expect(next.units[11]).toBeUndefined();
-    expect(next.players[1].eliminated).toBe(true); expect(next.turnOrder).toEqual([0]); expect(next.outcome?.kind).toBe('conquest'); expect(next.units[10].hp).toBe(50);
+    expect(next.players[1].eliminated).toBe(true); expect(next.turnOrder).toEqual([0]); expect(next.outcome?.kind).toBe('conquest'); expect(next.units[10].hp).toBe(100);
     resolveEconomy(next); expect(next.cities[2].food).toBe(10); expect(next.cities[2].queue[0].progress).toBe(4);
     next.round++; resolveEconomy(next); expect(next.cities[2].queue[0].progress).toBeGreaterThan(4);
   });
@@ -98,13 +99,19 @@ describe('Attack transactions', () => {
 
 describe('Capture and Evolve', () => {
   test('failure consumes ball/action; enrage boosts next attack once, including counter', () => {
-    const state = combatFixture(); pokemon(state); pokemon(state, 11, 'machop', null, 4);
+    const state = createGame({ seed: 12345, width: 24, height: 16, players: [
+      { id: 0, controller: 'human', starterId: 'bulbasaur' }, { id: 1, controller: 'ai' },
+    ] });
+    state.map.tiles.fill('grassland'); delete state.map.features; state.units = {};
+    state.expansion!.wildEncounters!.firstBall[0] = true;
+    pokemon(state); pokemon(state, 11, 'machop', null, 4);
     state.players[0].research.unlockedIds.push('domestication'); state.players[0].ballInventory.pokeBall = 2;
+    vi.spyOn(rng, 'randomBelow').mockReturnValue(99);
     const next = accepted(state, { type: 'Capture', unitId: 10, targetUnitId: 11, ballId: 'pokeBall' });
     expect(next.units[11].enraged).toBe(true); expect(next.players[0].ballInventory.pokeBall).toBe(1); expect(next.units[10].actionLeft).toBe(0);
-    maxRoll(); const event = resolveAttack(next, 11, { kind: 'unit', id: 10 })[0];
-    expect(event).toMatchObject({ damage: 12 }); expect(next.units[11].enraged).toBe(false);
-    expect(resolveAttack(next, 11, { kind: 'unit', id: 10 })[0]).toMatchObject({ damage: 10 });
+    vi.restoreAllMocks(); maxRoll(); const event = resolveAttack(next, 11, { kind: 'unit', id: 10 })[0];
+    expect(event).toMatchObject({ damage: 21 }); expect(next.units[11].enraged).toBe(false);
+    expect(resolveAttack(next, 11, { kind: 'unit', id: 10 })[0]).toMatchObject({ damage: 17 });
   });
   test('successful capture preserves HP, registers species and gives no XP/AP', () => {
     const state = combatFixture(); pokemon(state); pokemon(state, 11, 'machoke', null, 4).hp = 15;
@@ -115,14 +122,15 @@ describe('Capture and Evolve', () => {
     expect(next.players[0].registeredSpeciesIds).toContain('machoke'); expect(next.units[10].xp).toBe(0);
   });
   test('evolution thresholds, gold, second-stage tech, proportional minimum HP, XP/AP reset', () => {
-    const state = combatFixture(); const unit = pokemon(state); unit.xp = 100; unit.hp = 25;
-    const next = accepted(state, { type: 'Evolve', unitId: 10, intoSpeciesId: 'charmeleon' });
-    expect(next.units[10]).toMatchObject({ speciesId: 'charmeleon', hp: 36, xp: 0, actionLeft: 0 }); expect(next.players[0].gold).toBe(970);
+    // machop -> machoke -> machamp is a non-stone 3-stage XP line (requiresTraining on stage 3).
+    const state = combatFixture(); const unit = pokemon(state, 10, 'machop'); unit.xp = 100; unit.hp = 25;
+    const next = accepted(state, { type: 'Evolve', unitId: 10, intoSpeciesId: 'machoke' });
+    expect(next.units[10]).toMatchObject({ speciesId: 'machoke', hp: 25, xp: 0, actionLeft: 0 }); expect(next.players[0].gold).toBe(970);
     next.units[10].xp = 250; next.units[10].hp = 1; next.units[10].actionLeft = 1;
-    expect(issue(next, { type: 'Evolve', unitId: 10, intoSpeciesId: 'charizard' })).toMatchObject({ ok: false, reason: 'evolution-unavailable' });
+    expect(issue(next, { type: 'Evolve', unitId: 10, intoSpeciesId: 'machamp' })).toMatchObject({ ok: false, reason: 'evolution-unavailable' });
     next.players[0].research.unlockedIds.push('training');
-    const evolved = accepted(next, { type: 'Evolve', unitId: 10, intoSpeciesId: 'charizard' });
-    expect(evolved.units[10]).toMatchObject({ speciesId: 'charizard', hp: 1, xp: 0, actionLeft: 0 }); expect(evolved.players[0].gold).toBe(890);
+    const evolved = accepted(next, { type: 'Evolve', unitId: 10, intoSpeciesId: 'machamp' });
+    expect(evolved.units[10]).toMatchObject({ speciesId: 'machamp', hp: 1, xp: 0, actionLeft: 0 }); expect(evolved.players[0].gold).toBe(890);
   });
 });
 
@@ -179,16 +187,16 @@ test('attack rejects out-of-range and unseen entities without RNG or seq mutatio
 test('enrage is consumed by counterattack too and does not persist to the next attack', () => {
   const state = combatFixture(); pokemon(state); pokemon(state, 11, 'machop', null, 4).enraged = true; maxRoll();
   const next = accepted(state, attack);
-  expect(next.units[10].hp).toBe(44); expect(next.units[11].enraged).toBe(false);
-  expect(resolveAttack(next, 11, { kind: 'unit', id: 10 })[0]).toMatchObject({ damage: 10 });
+  expect(next.units[10].hp).toBe(90); expect(next.units[11].enraged).toBe(false);
+  expect(resolveAttack(next, 11, { kind: 'unit', id: 10 })[0]).toMatchObject({ damage: 17 });
 });
 
-test('damage modifiers are multiplied before a single floor (enrage and siege)', () => {
+test('strength combat modifiers apply cleanly (enrage and siege)', () => {
   const state = combatFixture(); pokemon(state).enraged = true; pokemon(state, 11, 'bulbasaur', null, 4); maxRoll();
-  expect(resolveAttack(state, 10, { kind: 'unit', id: 11 })[0]).toMatchObject({ damage: 26 }); // floor(60*10*200/55/100*1.2), not floor(21*1.2)
+  expect(resolveAttack(state, 10, { kind: 'unit', id: 11 })[0]).toMatchObject({ damage: 32 });
   vi.restoreAllMocks(); vi.spyOn(rng, 'randomBelow').mockReturnValue(0);
   pokemon(state, 10, 'geodude', 0, 9, 2); state.players[0].research.unlockedIds.push('siegeCraft');
-  expect(resolveAttack(state, 10, { kind: 'city', id: 2 })[0]).toMatchObject({ damage: 16 }); // floor(9.35*1.75), not floor(9*1.75)
+  expect(resolveAttack(state, 10, { kind: 'city', id: 2 })[0]).toMatchObject({ damage: 12 });
 });
 
 test('visible wild unit does not expose its hidden original spawn coordinates', () => {

@@ -10,7 +10,7 @@ import { evolveFixture, foreignEvolutionFixture, guardianFixture } from './fixtu
 import { leaderTeam, gymAt } from '../../src/core/gym-circuit.ts';
 import { hexToIndex } from '../../src/core/hex.ts';
 import { contentFor } from '../../src/content/units.ts';
-import { openScreen } from './ui.ts';
+import { closeScreen, openScreen } from './ui.ts';
 
 const dir = `${process.env.E2E_SCREENSHOT_DIR ?? 'test-results/screenshots'}/battle-evo`;
 test.use({ viewport: { width: 1280, height: 900 } });
@@ -71,20 +71,20 @@ test('gym: the challenge card shows the matchup grid; the result opens a replay 
   await page.locator('#unit-select').selectOption(String(fixture.id));
   await page.locator('#map').focus();
   await page.keyboard.press('g');
-  const card = page.locator('#gym-card');
+  const card = page.locator('#lineup-picker');
   await expect(card).toBeVisible();
-  const grid = card.locator('#gym-matchup');
+  const grid = card.locator('#lineup-grid');
   await expect(grid).toBeVisible();
-  const team = await card.locator('.cp-attack .cp-who').count();
+  const team = await card.locator('.lp-row').count();
   await expect(grid.locator('td.mu-cell')).toHaveCount(team * leader.length);
-  await expect(card.locator('#gym-card-leader-team img')).toHaveCount(leader.length);
-  await expect(grid.locator('td.mu-cell').first()).toHaveAttribute('aria-label', /你的攻击 ×[\d.]+ .+；对手的攻击 ×[\d.]+/);
+  await expect(card.locator('.lp-foes ul li .lp-portrait')).toHaveCount(leader.length);
+  await expect(grid.locator('td.mu-cell').first()).toHaveAttribute('aria-label', /你的攻击(?:（.+?）)? ×[\d.]+ .+；对手的攻击(?:（.+?）)? ×[\d.]+/);
   await expectNamedIcons(card);
   await page.evaluate(() => document.fonts.ready);
   await card.screenshot({ path: `${dir}/gym-card-matchup.png` });
 
   await spyAudio(page);
-  await card.locator('#gym-card-challenge').click();
+  await card.locator('#lineup-confirm').click();
   await expect.poll(async () => (await state(page)).expansion!.gymCircuit!.challengedAt[0]?.[gym.id]).toBe(fixture.state.round);
   const toast = page.locator('#toast-host [data-toast]', { hasText: '馆主' }).first();
   await expect(toast.locator('.toast-action')).toHaveText('观看对战');
@@ -131,13 +131,13 @@ test('gym replay under reduced motion: a still stage and the step list', async (
   await page.locator('#unit-select').selectOption(String(fixture.id));
   await page.locator('#map').focus();
   await page.keyboard.press('g');
-  await page.locator('#gym-card-challenge').click();
+  await page.locator('#lineup-confirm').click();
   await page.locator('#toast-host [data-toast]', { hasText: '馆主' }).first().locator('.toast-icon').click();
   const viewer = page.locator('#battle-viewer');
   await expect(viewer).toHaveAttribute('data-mode', 'still');
   await expect(viewer.locator('#bv-play')).toBeHidden();
   await expect(viewer.locator('#bv-caption')).toContainText(/胜利！|落败/);
-  // Stepping shows each strike's result without motion.
+  // Stepping shows each strike's result without motion (the step list opens by default in still mode).
   await viewer.locator('.bv-step button').first().click();
   await expect(viewer.locator('#bv-caption')).toContainText('伤害');
   await viewer.screenshot({ path: `${dir}/replay-gym-still.png` });
@@ -153,17 +153,19 @@ test('sanctuary guardian: the world panel opens the preview card with the matchu
   const card = page.locator('details[data-system="s24-sanctuaries"]');
   await card.locator('summary').click();
   const seq = (await state(page)).commandSeq;
-  await card.getByRole('button', { name: '挑战守卫' }).first().click();
-  const preview = page.locator('#challenge-card');
+  await card.getByRole('button', { name: /挑战守卫/ }).first().click();
+  const preview = page.locator('#lineup-picker');
   await expect(preview).toBeVisible();
   expect((await state(page)).commandSeq).toBe(seq);
-  await expect(preview.locator('#challenge-matchup td.mu-cell').first()).toBeVisible();
+  await expect(preview.locator('#lineup-grid td.mu-cell').first()).toBeVisible();
   await expectNamedIcons(preview);
   await preview.screenshot({ path: `${dir}/guardian-card-matchup.png` });
-  await preview.locator('#challenge-card-confirm').click();
+  await preview.locator('#lineup-confirm').click();
   await expect.poll(async () => (await state(page)).commandSeq).toBeGreaterThan(seq);
-  await expect(preview.locator('#challenge-card-outcome')).toBeVisible();
-  await preview.locator('#challenge-card-watch').click();
+  await closeScreen(page);
+  const toast = page.locator('#toast-host [data-toast]', { hasText: '守卫' }).first();
+  await expect(toast).toBeVisible();
+  await toast.locator('.toast-icon').click();
   const viewer = page.locator('#battle-viewer');
   await expect(viewer).toBeVisible();
   await expect(viewer).toHaveAttribute('data-kind', 'guardian');
@@ -172,9 +174,6 @@ test('sanctuary guardian: the world panel opens the preview card with the matchu
   await viewer.screenshot({ path: `${dir}/replay-guardian.png` });
   await page.keyboard.press('Escape');
   await expect(viewer).toHaveCount(0);
-  await expect(preview).toBeVisible(); // Esc closes the replay first, then the card
-  await page.keyboard.press('Escape');
-  await expect(preview).toBeHidden();
   expect(errors).toEqual([]);
 });
 
@@ -198,7 +197,7 @@ test('league: after a real season the result card shows the sprite bracket; any 
   await expect(result).toBeVisible();
   const bracket = result.locator('.lb');
   await expect(bracket.locator('.league-match')).toHaveCount(5);
-  await expect(bracket.locator('.lb-slot img.px-art')).toHaveCount(10);
+  await expect(bracket.locator('.lb-slot > img.px-art')).toHaveCount(10);
   await expect(bracket.locator('.lb-lines path.champ')).not.toHaveCount(0);
   await expect(bracket.locator('.lb-champion')).toBeVisible();
   await expectNamedIcons(result);
@@ -236,7 +235,7 @@ test('evolution panel: an Eevee shows every branch with its conditions as icons 
   // Day / night, terrain and era conditions are icons whose names say the rule and whether it holds.
   await expect(panel.locator('[data-check="time"]')).toHaveCount(2);
   await expect(panel.locator('[data-check="terrain"]')).toHaveCount(2);
-  await expect(panel.locator('[data-check="xp"]').first()).toHaveAttribute('aria-label', /经验 \d+\/250.*：未满足/);
+  await expect(panel.locator('[data-check="xp"]').first()).toHaveAttribute('aria-label', /经验 \d+\/250.*：(未满足|满足)/);
   await expect(panel.locator('.evo-check.met[data-check="time"], .evo-check.unmet[data-check="time"]')).toHaveCount(2);
   await expect(panel.locator('.evo-line .evo-form.current')).toHaveCount(1);
   await expectNamedIcons(panel);

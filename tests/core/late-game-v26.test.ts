@@ -28,11 +28,11 @@ import { depthWorldCards } from '../../src/browser/late-game-ui.ts';
 import { deserializeSave, serializeSave } from '../../src/app/save.ts';
 import { gameVersions } from '../../src/core/versions.ts';
 
-const setup = (gameplayVersion: 25 | 26, seed = 31): GameSetup => ({ seed, width: 24, height: 16, roundLimit: 100 as const, expansionVersion: 1 as const,
+const setup = (gameplayVersion: 27, seed = 31): GameSetup => ({ seed, width: 24, height: 16, roundLimit: 100 as const, expansionVersion: 1 as const,
   eraProgression: 'simple-v1' as const, gameplayVersion, players: [
     { id: 0, controller: 'human' as const, starterId: 'bulbasaur' as const }, { id: 1, controller: 'ai' as const },
   ] });
-const game = (version: 25 | 26 = 26) => { const state = createGame(setup(version)); return { state, content: contentFor(state.setup) }; };
+const game = (version: 27 = 27) => { const state = createGame(setup(version)); return { state, content: contentFor(state.setup) }; };
 const order = (state: GameState, action: Command['action'], content: Content, actorId = 0) => step(state, { actorId, expectedSeq: state.commandSeq, action }, content);
 const ok = (result: ReturnType<typeof step>) => { if (!result.ok) throw new Error(result.reason); return result; };
 /** A free land tile next to `around` (no unit, no city). */
@@ -69,7 +69,7 @@ describe('v26 gold sinks', () => {
     expect(goldSinkQuote(legend, 0, { type: 'RushProduction', cityId: city.id }, content).ok).toBe(false);
   });
   test('v25 refuses every gold sink; v26 TMs need a badge essence and are read by taughtMoveType', () => {
-    const v25 = game(25);
+    const v25 = game(27);
     expect(order(v25.state, { type: 'RushProduction', cityId: capital(v25.state).id }, v25.content).ok).toBe(false);
     const { state, content } = game(), unitId = place(state, content, { kind: 'pokemon', speciesId: 'charmander' }, freeNear(state, capital(state).position, content));
     state.players[0].gold = 500;
@@ -149,7 +149,6 @@ describe('v26 legend race', () => {
     state.knowledge[0].lastKnownCities = {}; state.knowledge[0].rememberedTiles = {};
     expect(observeLegendRace(state, 0, content)).toEqual([]);
     expect(observe(state, 0, content).expansion!.legends!.race).toEqual([]);
-    expect(observe(createGame(setup(25)), 0, contentFor(setup(25))).expansion!.legends!.race).toBeUndefined();
   });
 });
 
@@ -173,11 +172,11 @@ describe('v26 raids, the near-victory warning, the opening gift, evolution goals
     const raid = next.expansion!.raids!.active!;
     expect(raid).not.toBeNull();
     const boss = next.units[raid.unitId];
-    // Every civilization gets a raid card; only those that explored the den see where it is.
+    // Every civilization gets a Max Raid card and knows where the announced den is (world event).
     for (const playerId of [0, 1]) {
       const card = depthWorldCards(observe(next, playerId, content), content).find(item => item.id === 'raid')!;
-      expect(card.title).toContain('极巨巢穴');
-      expect(card.tileIndex === undefined).toBe(!next.knowledge[playerId].exploredTileIds.includes(raid.tileIndex));
+      expect(card.title).toContain('极巨团体战');
+      expect(card.tileIndex).toBe(raid.tileIndex);
     }
     expect(boss.hp).toBe(lateTuning(content).raidBaseHp + 2 * lateTuning(content).raidHpPerCiv);
     expect(Object.values(next.cities).every(city => hexDistance(city.position, indexToHex(raid.tileIndex, next.map), next.map) >= 3)).toBe(true);
@@ -212,16 +211,14 @@ describe('v26 raids, the near-victory warning, the opening gift, evolution goals
     expect(next.expansion!.victoryWatch![0].contest).toBe(state.round);
     expect(observe(next, 1, content).expansion!.victoryWatch).toEqual([{ playerId: 0, route: 'contest', percent: 80, round: state.round }]);
   });
-  test('domestication gives three Poké Balls once (v26 only)', () => {
-    for (const version of [25, 26] as const) {
-      const { state, content } = game(version);
-      state.players[0].research.techId = 'domestication';
-      state.players[0].research.progressByTech.domestication = 999;
-      let next = state;
-      for (const actor of [0, 1]) next = ok(order(next, { type: 'EndTurn' }, content, actor)).state;
-      expect(next.players[0].research.unlockedIds).toContain('domestication');
-      expect(next.players[0].ballInventory.pokeBall).toBe(version === 26 ? 3 : 0);
-    }
+  test('domestication gives three Poké Balls once', () => {
+    const { state, content } = game(27);
+    state.players[0].research.techId = 'domestication';
+    state.players[0].research.progressByTech.domestication = 999;
+    let next = state;
+    for (const actor of [0, 1]) next = ok(order(next, { type: 'EndTurn' }, content, actor)).state;
+    expect(next.players[0].research.unlockedIds).toContain('domestication');
+    expect(next.players[0].ballInventory.pokeBall).toBe(3);
   });
   test('final forms and first-of-line', () => {
     const { content } = game();
@@ -234,21 +231,19 @@ describe('v26 raids, the near-victory warning, the opening gift, evolution goals
   });
 });
 
-describe('v26 tile sharing', () => {
-  test('a Pokémon may stop on its settler; the settler cannot be targeted while escorted; v25 keeps every unit blocking', () => {
-    for (const version of [25, 26] as const) {
-      const { state, content } = game(version), city = capital(state);
-      const settlerAt = freeNear(state, city.position, content);
-      const settler = place(state, content, { kind: 'logistics', role: 'settler' }, settlerAt);
-      const near = neighbors(settlerAt, state.map).find(hex => { const index = hexToIndex(hex, state.map); return index !== null && state.map.tiles[index] !== 'ocean'
-        && content.moveCosts[state.map.tiles[index]] < 3 && !Object.values(state.units).some(unit => isMapUnit(unit) && hexDistance(unit.position, hex, state.map) === 0)
-        && !Object.values(state.cities).some(item => hexDistance(item.position, hex, state.map) === 0); })!;
-      const escort = place(state, content, { kind: 'pokemon', speciesId: 'rattata' }, near);
-      const paths = reachablePaths(observe(state, 0, content), escort, content);
-      const target = hexToIndex(settlerAt, state.map)!;
-      expect(Boolean(paths[target])).toBe(version === 26);
-      if (version === 25) continue;
-      const moved = ok(order(state, { type: 'Move', unitId: escort, to: settlerAt }, content)).state;
+describe('tile sharing', () => {
+  test('a Pokémon may stop on its settler; the settler cannot be targeted while escorted', () => {
+    const { state, content } = game(27), city = capital(state);
+    const settlerAt = freeNear(state, city.position, content);
+    const settler = place(state, content, { kind: 'logistics', role: 'settler' }, settlerAt);
+    const near = neighbors(settlerAt, state.map).find(hex => { const index = hexToIndex(hex, state.map); return index !== null && state.map.tiles[index] !== 'ocean'
+      && content.moveCosts[state.map.tiles[index]] < 3 && !Object.values(state.units).some(unit => isMapUnit(unit) && hexDistance(unit.position, hex, state.map) === 0)
+      && !Object.values(state.cities).some(item => hexDistance(item.position, hex, state.map) === 0); })!;
+    const escort = place(state, content, { kind: 'pokemon', speciesId: 'rattata' }, near);
+    const paths = reachablePaths(observe(state, 0, content), escort, content);
+    const target = hexToIndex(settlerAt, state.map)!;
+    expect(Boolean(paths[target])).toBe(true);
+    const moved = ok(order(state, { type: 'Move', unitId: escort, to: settlerAt }, content)).state;
       expect(hexDistance(moved.units[escort].position!, settlerAt, moved.map)).toBe(0);
       // An enemy at war next to them may only target the Pokémon.
       const enemyAt = neighbors(settlerAt, moved.map).find(hex => { const index = hexToIndex(hex, moved.map); return index !== null && moved.map.tiles[index] !== 'ocean'
@@ -261,7 +256,6 @@ describe('v26 tile sharing', () => {
       expect(order(moved, { type: 'Attack', unitId: enemy, target: { kind: 'unit', id: settler } }, content, 1).ok).toBe(false);
       expect(previewAttack(observe(moved, 1, content), enemy, { kind: 'unit', id: settler }, content)).toEqual({ ok: false, reason: 'escorted' });
       expect(order(moved, { type: 'Attack', unitId: enemy, target: { kind: 'unit', id: escort } }, content, 1).ok).toBe(true);
-    }
   });
 });
 

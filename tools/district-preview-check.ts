@@ -59,7 +59,7 @@ export function checkDistrictGames(matches: readonly LeaderBalanceCase[]) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   if (!process.argv[2] || process.argv.length !== 3) throw new Error('Usage: node tools/district-preview-check.ts <output.json>');
   const config = { seeds: 4, seedStart: 31, expansionVersion: 1 as const, eraProgression: 'simple-v1' as const,
-    gameplayVersion: 10 as const, roundLimit: 100 as const, width: 24, height: 16 };
+    gameplayVersion: 27 as const, roundLimit: 100 as const, width: 24, height: 16 };
   const report = checkDistrictGames(leaderBalanceCases(config).filter(match => match.rotation < 4));
   const destination = resolve(process.argv[2]);
   mkdirSync(dirname(destination), { recursive: true });

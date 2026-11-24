@@ -16,8 +16,7 @@ async function expectInFirstScreen(page: Page, element: Locator): Promise<void> 
 test('P0-1/P0-2: the capital shows its queue and a clickable production list in the drawer\'s first screen', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(String(error)));
-  // Pinned to v21, where buildings are available from the start (v22 locks them behind the tech tree; see below).
-  await page.goto('/?seed=12345&gameplay=21');
+  await page.goto('/?seed=12345');
   await page.locator('#animate').uncheck();
   const initial = await state(page), cityId = initial.players[0].headquartersCityId;
   await page.locator('#city-select').selectOption(String(cityId));
@@ -30,7 +29,7 @@ test('P0-1/P0-2: the capital shows its queue and a clickable production list in 
   const list = page.locator('#production-list');
   const firstRow = list.locator('[data-production-option]').first();
   await expect(firstRow).toBeVisible();
-  await expect(firstRow.locator('img.production-icon')).toHaveAttribute('src', /^\/buildings\//);
+  await expect(firstRow.locator('img.production-icon')).toHaveAttribute('src', /^\/sprites\//);
   await expect(firstRow).toContainText(/≈\d+ 轮/);
   expect(await page.locator('#context-drawer').evaluate(element => element.scrollTop)).toBe(0);
   await expectInFirstScreen(page, page.locator('.production-current'));
@@ -54,14 +53,14 @@ test('P0-1/P0-2: the capital shows its queue and a clickable production list in 
   await expect(page.locator('#production-queue li').first()).toHaveClass(/is-current/);
 
   // With three items queued, the list still starts on the first screen.
-  await page.locator('[data-production-kind="building"]').click();
   await expectInFirstScreen(page, page.locator('.production-current'));
   await expectInFirstScreen(page, page.locator('#production-list [data-production-option]').first());
   await page.screenshot({ path: `${reports}/city-panel.png` });
 
   // Reorder and cancel still work from the queue rows.
+  const [firstKind, firstDef] = optionId!.split(':');
   await page.locator('[data-down="0"]').click();
-  await expect.poll(async () => (await state(page)).cities[cityId].queue[1].item).toEqual({ kind: 'building', defId: optionId!.split(':')[1] });
+  await expect.poll(async () => (await state(page)).cities[cityId].queue[1].item).toEqual({ kind: firstKind, defId: firstDef });
   await page.locator('[data-remove="2"]').click();
   await expect(page.locator('#production-queue li')).toHaveCount(2);
 

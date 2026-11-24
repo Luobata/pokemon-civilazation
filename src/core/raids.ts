@@ -40,8 +40,9 @@ export type RaidEvent =
 
 export const isRaidUnit = (state: Pick<GameState, 'expansion'>, unitId: number) => state.expansion?.raids?.active?.unitId === unitId;
 export const viewIsRaidUnit = (view: Pick<PlayerView, 'expansion'>, unitId: number) => view.expansion?.raids?.active?.unitId === unitId;
-export function initializeRaids(state: GameState, content: Content): void {
-  if (content.raids && state.expansion) state.expansion.raids = { active: null, held: 0, pending: null };
+export function initializeRaids(state: GameState, _content?: Content): void {
+  void _content;
+  if (state.expansion) state.expansion.raids = { active: null, held: 0, pending: null };
 }
 /** Raid rounds of a game: `raidFirstRound`, then every `raidInterval`, within the round limit. */
 export function raidRounds(content: Content, roundLimit: number): number[] {
@@ -80,7 +81,7 @@ function raidSite(state: GameState, index: number, content: Content): { tileInde
 /** Round end: strike the units next to the boss, let an expired boss leave, open the next den on the round before a raid round. */
 export function resolveRaidRound(state: GameState, content: Content): EventPayload[] {
   const raids = state.expansion?.raids;
-  if (!raids || !content.raids || state.outcome) return [];
+  if (!raids || state.outcome) return [];
   const events: EventPayload[] = [];
   const boss = raids.active;
   if (boss && state.units[boss.unitId]) {
@@ -127,7 +128,7 @@ export function resolveRaidRound(state: GameState, content: Content): EventPaylo
       const id = state.nextEntityId++, position = indexToHex(tile, state.map);
       state.units[id] = { ...createMapUnit({ kind: 'pokemon', speciesId: den.speciesId }, id, null, position, content), hp: tuning.raidBaseHp + tuning.raidHpPerCiv * alive(state).length };
       raids.active = { unitId: id, tileIndex: tile, endsAtRound: den.round + tuning.raidRounds - 1, damage: {}, speciesId: den.speciesId, maxHp: state.units[id].hp, index: den.index,
-        ...(content.maxRaids ? { max: initialMaxLedger(alive(state).length, content) } : {}) };
+        max: initialMaxLedger(alive(state).length, content) };
       raids.held++;
       for (const playerId of [...alive(state)].sort((a, b) => a - b)) {
         events.push({ type: 'RaidAppeared', playerId, speciesId: den.speciesId, tileIndex: explored(playerId, tile) ? tile : null, endsAtRound: raids.active.endsAtRound, hp: state.units[id].hp });

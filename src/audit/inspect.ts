@@ -531,7 +531,7 @@ function inspectPersistence(state: GameState): AuditSystemInspection {
       metric('Schema', state.schemaVersion), metric('规则版本', state.rulesVersion),
       metric('内容版本', state.contentVersion), metric('玩家一致', `${setupIds.join(',')} → ${stateIds.join(',')}`),
     ],
-    data: { supported: { ...gameVersions(state.setup), contentVersion: contentOf(state).version },
+    data: { supported: { ...gameVersions(), contentVersion: contentOf(state).version },
       setupPlayerIds: setupIds, statePlayerIds: stateIds, commandSeq: state.commandSeq,
       playerSeats: state.setup.players.map(player => ({ id: player.id, controller: player.controller, leaderId: player.leaderId ?? null })),
       limitation: 'GameState inspection cannot prove localStorage save/load success; that is exercised by save/session tests.' },
@@ -730,14 +730,14 @@ export function inspectSystem(systemId: string, state: GameState): AuditSystemIn
   }
   if (system.id === 's-rival-duels') {
     const content = contentOf(state), rivals = state.expansion?.rivals;
-    if (!content.rivalDuels || !rivals) return { metrics: [metric('当前规则', '未启用（需 v26）')], data: {} };
+    if (!rivals) return { metrics: [metric('当前规则', '未启用')], data: {} };
     return { metrics: [metric('当前规则', '劲敌对决 v26'), metric('气势偏移', (content.world24?.rivalStrengthOffsets ?? []).join(' / ')),
       ...Object.entries(rivals.byPlayer).map(([id, ledger]) => metric(`玩家 ${id} 对决`, ledger.duels ? `切磋 ${ledger.duels.spar} · 真剑 ${ledger.duels.serious} · 胜 ${ledger.duels.won}` : '无'))],
       data: { byPlayer: Object.fromEntries(Object.entries(rivals.byPlayer).map(([id, ledger]) => [id, { duels: ledger.duels ?? null, conference: ledger.conference ?? null, outcomes: ledger.outcomes }])) } };
   }
   if (system.id === 's-league-trainers') {
     const content = contentOf(state), civ = state.expansion?.civilization;
-    if (!content.leagueTrainers || !civ) return { metrics: [metric('当前规则', '未启用（需 v27，之前每届重抽）')], data: {} };
+    if (!civ) return { metrics: [metric('当前规则', '未启用')], data: {} };
     const roster = leagueRoster(state.setup.seed, content), records = leagueRecords(civ.championship.history);
     return { metrics: [metric('当前规则', '联盟训练家 v27'), metric('名册', roster.map(trainer => `${trainer.title} ${trainer.name}`).join('、')),
       metric('训练家基础战力', trainersTuning(content).npcBasePower), metric('联盟大会已举办', civ.championship.history.length),
@@ -747,7 +747,6 @@ export function inspectSystem(systemId: string, state: GameState): AuditSystemIn
   }
   if (system.id === 's-team-battles') {
     const content = contentOf(state);
-    if (!content.teamBattles) return { metrics: [metric('当前规则', '未启用（需 v26，之前是 v24 混战）')], data: {} };
     const tuning = content.depth26!, circuit = state.expansion?.gymCircuit, civ = state.expansion?.civilization;
     return { metrics: [metric('当前规则', '单打接力 v26'), metric('馆主强度', `${tuning.gymPowerPercent}%`), metric('四天王强度', `${tuning.eliteFourPowerPercent}%`),
       metric('守卫 HP', `${tuning.guardianHpPercent[0]}%–${tuning.guardianHpPercent[1]}%`), metric('大会 NPC 基础战力', tuning.npcBasePower),
@@ -764,7 +763,6 @@ export function inspectSystem(systemId: string, state: GameState): AuditSystemIn
   // v27 opening lane (pace-v27 §2, §3).
   if (system.id === 's-opening-safety') {
     const content = contentFor(state.setup);
-    if (!content.openingSafety) return { metrics: [metric('当前规则', '未启用（需 v27）')], data: {} };
     return { metrics: [metric('当前规则', '开局安全 v27'), metric('信仰门槛', `${content.pace27!.opening.faithWinSharePercent}%`), metric('AI 城址探索半径', content.pace27!.opening.aiSiteRadius)],
       data: { opening: content.pace27!.opening } };
   }
@@ -858,7 +856,7 @@ export function inspectSystem(systemId: string, state: GameState): AuditSystemIn
       data: { landmarks: features.landmarks, discovered: state.expansion?.landmarks?.discovered ?? {}, firstDiscovery: state.expansion?.landmarks?.first ?? {} } };
   }
   if (system.id === 's-tech-tree') {
-    const tree = contentOf(state).techTree === true;
+    const tree = true;
     return { metrics: [metric('当前规则', tree ? '分支科技树 v22' : '三层科技（v≤21）'), metric('科技定义', Object.keys(contentOf(state).techs).length),
       ...Object.values(state.players).map(player => metric(`玩家 ${player.id} 已完成`, `${player.research.unlockedIds.length}/${Object.keys(contentOf(state).techs).length}`))],
       data: { tree, players: Object.values(state.players).map(player => ({ playerId: player.id, tree: player.research.tree === true, unlockedIds: player.research.unlockedIds, techId: player.research.techId })) } };

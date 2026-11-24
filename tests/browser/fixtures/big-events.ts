@@ -12,7 +12,7 @@ import type { GameSetup } from '../../../src/core/model.ts';
 // era progression (so era forms unlock). The AI plays every seat through the normal GameSession, so each save replays
 // exactly; nothing is patched. Each situation is saved at player 0's turn, before the command (or end turn) that the
 // test then issues with real input.
-const setupFor = (seed: number): GameSetup => ({ seed, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, eraProgression: 'full-v1', gameplayVersion: 23,
+const setupFor = (seed: number): GameSetup => ({ seed, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, eraProgression: 'full-v1', gameplayVersion: 27,
   players: [{ id: 0, controller: 'human', starterId: 'charmander', leaderId: 'oak' },
     { id: 1, controller: 'ai', personality: 'aggressive', leaderId: 'lance' }, { id: 2, controller: 'ai', personality: 'aggressive', leaderId: 'giovanni' }] });
 
@@ -29,7 +29,7 @@ export type NightFixture = Base;
 export type EndingFixture = Base & { won: boolean };
 type Found = { found?: FoundFixture; form?: FormFixture; wonder?: WonderFixture; night?: NightFixture; ending?: EndingFixture };
 /** Seeds known to reach each situation early (searched first; the search falls back to seeds 1–10). */
-const PREFERRED: Record<keyof Found, number> = { found: 1, form: 2, wonder: 8, night: 1, ending: 6 };
+const PREFERRED: Record<keyof Found, number> = { found: 1, form: 3, wonder: 8, night: 1, ending: 1 };
 const FORMS = new Set(['MegaEvolve', 'Dynamax', 'PrimeZMove', 'Terastallize']);
 
 function search(seed: number, found: Found, need: keyof Found) {
@@ -84,4 +84,22 @@ export const foundFixture = (): FoundFixture => find('found');
 export const formFixture = (): FormFixture => find('form');
 export const wonderFixture = (): WonderFixture => find('wonder');
 export const nightFixture = (): NightFixture => find('night');
-export const endingFixture = (): EndingFixture => find('ending');
+/** Real fast-ending game: player 0 passes while aggressive AIs conquer its capital (battle + GameEnded in ~30 rounds). */
+export function endingFixture(): EndingFixture {
+  if (found.ending) return found.ending;
+  for (let seed = 1; seed <= 10; seed++) {
+    const driver = new GameSession(setupFor(seed));
+    while (!driver.getState().outcome && driver.getState().round < 50) {
+      const save = driver.save(), round = driver.getState().round;
+      const res = driver.issue({ type: 'EndTurn' });
+      if (!res.ok) break;
+      const queue = driver.presentationQueue.map(event => event.payload);
+      const ended = queue.find(payload => payload.type === 'GameEnded');
+      if (ended && ended.type === 'GameEnded' && queue.some(payload => payload.type === 'BattleResolved')) {
+        return found.ending = { save, seed, round, won: ended.outcome.winners.includes(0) };
+      }
+      driver.skipAnimations();
+    }
+  }
+  return find('ending');
+}

@@ -50,7 +50,7 @@ export function rivalTrainingBonus(view: PlayerView, speciesId: SpeciesId, conte
 export const RESPONSE_REACH = 10;
 export function rivalResponseTeam(view: PlayerView, content: Content, busy: (unit: MapUnit) => boolean): Map<number, MapUnit> {
   const team = new Map<number, MapUnit>();
-  if (!content.rivals || !view.map.features || content.combat !== 'strength' || !view.economy.cities.length) return team;
+  if (!view.map.features || !view.economy.cities.length) return team;
   const homes = view.economy.cities.map(city => city.position), map = view.map;
   const rivals = ownSightings(view).flatMap(sighting => view.units.filter(unit => unit.id === sighting.unitId && unit.kind === 'pokemon').map(unit => ({ unit, spirit: sighting.spirit })))
     .filter(rival => walkerTravel(view, rival.unit, rival.unit.position, homes, content) <= RIVAL_RULES_V24.threatRadius + 6);

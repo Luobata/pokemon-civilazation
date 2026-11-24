@@ -13,7 +13,7 @@ const ESCORT_REACH = 6;
 /** Pokémon id -> the settler it escorts (empty before v26 or from `escortMaxCities` cities). */
 export function stackEscorts(view: PlayerView, content: Content, busy: (unit: MapUnit) => boolean): Map<number, StackEscort> {
   const escorts = new Map<number, StackEscort>();
-  if (!content.stacking || view.economy.cities.length >= lateTuning(content).escortMaxCities) return escorts;
+  if (view.economy.cities.length >= lateTuning(content).escortMaxCities) return escorts;
   const own = view.units.filter(unit => unit.ownerId === view.playerId);
   const settlers = own.filter(unit => unit.kind === 'logistics' && unit.role === 'settler').sort((a, b) => a.id - b.id);
   const ready = (settler: MapUnit) => settler.actionLeft === 1 && !(settler.movesSpent ?? 0);

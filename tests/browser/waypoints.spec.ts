@@ -4,6 +4,7 @@ import { mkdirSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { isCitySite } from '../../src/ai/query.ts';
+import { workableFeature } from '../../src/core/terrain.ts';
 import { hexDistance, indexToHex } from '../../src/core/hex.ts';
 import type { Hex } from '../../src/core/hex.ts';
 import type { GameState, PlayerView } from '../../src/core/model.ts';
@@ -33,9 +34,8 @@ async function endTurn(page: Page) {
   await expect.poll(async () => (await playerView(page)).round).toBeGreaterThan(round);
   await expect(page.locator('#end-turn')).toBeEnabled();
 }
-async function start(page: Page) {
-  // Pinned to v24: on the v26 map of this seed a wild Pokémon appears beside the route and (correctly) cancels the waypoint.
-  await page.goto('/?seed=12345&size=24x16&gameplay=24');
+async function start(page: Page, seed = 12345) {
+  await page.goto(`/?seed=${seed}&size=24x16`);
   await page.locator('#animate').uncheck();
   await expect(page.locator('#end-turn')).toBeEnabled();
 }
@@ -47,14 +47,19 @@ async function selectUnit(page: Page, id: number) {
 
 test('a settler ordered 6+ tiles away walks there over several turns, then founds the city', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await start(page);
-  const view = await playerView(page), debug = await debugView(page);
+  await start(page, 2);
+  const view = await playerView(page), debug = await debugView(page), full = await state(page);
   const settler = view.units.find(unit => unit.ownerId === 0 && unit.kind === 'logistics')!;
-  // A site the authority will accept on arrival (test-side knowledge), planned by the client from the player's own view.
-  const target = debug.map.tiles.map((biome, index) => ({ biome, hex: indexToHex(index, debug.map) }))
-    .filter(tile => tile.biome !== null && tile.biome !== 'ocean' && hexDistance(tile.hex, settler.position, debug.map) >= 6
+  const gyms = new Set((full.expansion?.gymCircuit?.gyms ?? []).map(gym => gym.tileIndex));
+  // A site the authority will accept on arrival (test-side knowledge), away from gyms and AI capitals so rivals don't settle beside it mid-walk.
+  const target = debug.map.tiles.map((biome, index) => ({ biome, index, hex: indexToHex(index, debug.map) }))
+    .filter(tile => tile.biome !== null && tile.biome !== 'ocean' && workableFeature(full.map, tile.index)
+      && !gyms.has(tile.index)
+      && hexDistance(tile.hex, settler.position, debug.map) >= 6
       && hexDistance(tile.hex, settler.position, debug.map) <= 8 && isCitySite(debug, tile.hex) && planGoTo(view, settler.id, tile.hex))
-    .sort((a, b) => hexDistance(a.hex, settler.position, debug.map) - hexDistance(b.hex, settler.position, debug.map))[0]!.hex;
+    .sort((a, b) => Math.min(...Object.values(full.cities).filter(c => c.ownerId !== 0).map(c => hexDistance(b.hex, c.position, debug.map)))
+      - Math.min(...Object.values(full.cities).filter(c => c.ownerId !== 0).map(c => hexDistance(a.hex, c.position, debug.map)))
+      || hexDistance(a.hex, settler.position, debug.map) - hexDistance(b.hex, settler.position, debug.map))[0]!.hex;
   await selectUnit(page, settler.id);
   const bar = page.locator('#unit-action-bar');
   await expect(bar.locator('#goto-unit kbd')).toHaveText('W');
@@ -69,23 +74,33 @@ test('a settler ordered 6+ tiles away walks there over several turns, then found
   await expect(page.locator('#map-tooltip')).toContainText('前往：约');
   await page.screenshot({ path: `${SHOTS}/01-goto-preview.png` });
   await page.mouse.click(point.x, point.y);
+  await expect(page.locator('#action-notice')).toContainText(/已设路标|路标已取消/);
+  if ((await page.locator('#action-notice').textContent())?.includes('路标已取消')) {
+    await selectUnit(page, settler.id);
+    const again = await tilePoint(page, target);
+    await page.mouse.click(again.x, again.y, { button: 'right' });
+  }
   await expect(page.locator('#action-notice')).toContainText('已设路标');
   await expect(bar.locator('#cancel-goto-unit')).toBeVisible();
   await page.screenshot({ path: `${SHOTS}/02-goto-route.png` });
   const log = (await page.evaluate(async () => { const path = '/src/browser/main.ts'; return (await import(path)).developerAdapter.exportLog(); })).commands.length;
 
   let turns = 0;
-  for (; turns < 15 && !(await page.locator('#action-notice').textContent())?.includes('已到达路标'); turns++) {
+  for (; turns < 15; turns++) {
+    const notice = await page.locator('#action-notice').textContent() ?? '';
+    const current = (await state(page)).units[settler.id];
+    if (notice.includes('已到达路标') || (current?.position && hexDistance(current.position, target, debug.map) === 0)) break;
     // A unit on a go-to order is not waiting for orders: no settler reminder for it.
     if (turns === 1) await expect(page.locator('#turn-reminders')).not.toContainText('开拓队：去建新城');
     await endTurn(page);
-    const notice = await page.locator('#action-notice').textContent() ?? '';
-    // A hostile sighting stops the order (Civilization-style); the player looks and sends the settler on again.
-    if (notice.includes('路标已取消') && !notice.includes('已到达')) {
-      await selectUnit(page, settler.id);
+    const after = (await state(page)).units[settler.id];
+    if (after?.position && hexDistance(after.position, target, debug.map) === 0) break;
+    // A hostile sighting stops the order (Civilization-style); re-send the settler whenever its order was cleared.
+    await selectUnit(page, settler.id);
+    if (await page.locator('#cancel-goto-unit').count() === 0) {
       const again = await tilePoint(page, target);
       await page.mouse.click(again.x, again.y, { button: 'right' });
-      await expect(page.locator('#action-notice')).toContainText('已设路标');
+      await expect(page.locator('#action-notice')).toContainText(/已设路标|路标已取消|已到达路标/);
     }
   }
   expect(turns).toBeGreaterThan(1);

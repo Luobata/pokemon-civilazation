@@ -15,7 +15,7 @@ async function state(page: import('@playwright/test').Page): Promise<GameState> 
 }
 
 function researchedSave(mode: EraProgression, count: number): string {
-  const session = new GameSession({ seed: 12345, width: 24, height: 16, expansionVersion: 1, eraProgression: mode,
+  const session = new GameSession({ seed: 12345, width: 24, height: 16, roundLimit: 200, expansionVersion: 1, eraProgression: mode,
     multiplayer: true, players: [
       { id: 0, controller: 'human', starterId: 'bulbasaur', leaderId: 'oak' },
       { id: 1, controller: 'human', starterId: 'charmander', leaderId: 'lance' },
@@ -25,9 +25,7 @@ function researchedSave(mode: EraProgression, count: number): string {
     const result = session.submit({ actorId: current.activePlayerId, expectedSeq: current.commandSeq, action });
     if (!result.ok) throw new Error(result.reason);
   };
-  issue({ type: 'SetProductionQueue', cityId: session.getView().economy.player.headquartersCityId,
-    orders: [{ item: { kind: 'building', defId: 'observatory' } }] });
-  const techs: TechId[] = ['domestication', 'berryCultivation', 'stoneCraft', 'ballCraft', 'typeResearch', 'riding', 'fieldObservation'];
+  const techs: TechId[] = ['domestication', 'berryCultivation', 'stoneCraft', 'seafaring', 'ballCraft', 'riding', 'fieldObservation'];
   for (const techId of techs.slice(0, count)) {
     issue({ type: 'SetResearch', techId });
     while (!session.getState().players[0].research.unlockedIds.includes(techId)) {
@@ -91,24 +89,15 @@ test('multiplayer submits selected eras and leaders and restores its panel after
   }
 });
 
-for (const count of [3, 7]) test(`legal research history restores compact era ${count}`, async ({ page }) => {
-  await page.goto('/');
-  await page.locator('#import-save').setInputFiles({ name: 'era.json', mimeType: 'application/json', buffer: Buffer.from(researchedSave('simple-v1', count)) });
-  await expect(page.locator('#action-notice')).toContainText('读档完成');
-  await expect(page.locator('#era-panel')).toContainText(count === 3 ? '金银世代' : '宝石世代');
-  expect((await state(page)).players[0].research.unlockedIds).toHaveLength(count);
-});
-
-test('legacy expansion save keeps its original rules and hides the era panel', async ({ page }) => {
-  const old = new GameSession({ seed: 12345, width: 24, height: 16, expansionVersion: 1,
-    players: [{ id: 0, controller: 'human', starterId: 'bulbasaur', leaderId: 'oak' }, { id: 1, controller: 'ai' }] });
-  await page.goto('/');
-  await page.locator('#import-save').setInputFiles({ name: 'old.json', mimeType: 'application/json', buffer: Buffer.from(old.save()) });
-  await expect(page.locator('#action-notice')).toContainText('读档完成');
-  expect((await state(page)).setup).not.toHaveProperty('eraProgression');
-  await expect(page.locator('#era-panel')).toBeEmpty();
-  await expect(page.locator('#hud-research')).toContainText('1');
-});
+for (const [mode, count, label] of [['simple-v1', 7, '金银世代'], ['full-v1', 4, '宝石世代']] as const) {
+  test(`legal research history restores ${mode} era after ${count} techs`, async ({ page }) => {
+    await page.goto('/');
+    await page.locator('#import-save').setInputFiles({ name: 'era.json', mimeType: 'application/json', buffer: Buffer.from(researchedSave(mode, count)) });
+    await expect(page.locator('#action-notice')).toContainText('读档完成');
+    await expect(page.locator('#era-panel')).toContainText(label);
+    expect((await state(page)).players[0].research.unlockedIds).toHaveLength(count);
+  });
+}
 
 for (const width of [390, 768]) test(`era panel and multiplayer leader settings fit ${width}px`, async ({ page }) => {
   await page.setViewportSize({ width, height: 900 });

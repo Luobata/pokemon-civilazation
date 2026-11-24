@@ -1,5 +1,4 @@
 import { victoryTargets } from '../content/opening.ts';
-import { gameplayAtLeast } from '../content/eras.ts';
 import type { Content } from '../content/units.ts';
 import { finishGame } from './victory.ts';
 import { treeGateOpen } from './tech-tree.ts';
@@ -36,7 +35,7 @@ export function contestMinimum(setup: Parameters<typeof victoryTargets>[0], cont
   const base = victoryTargets(setup).contestMinimum;
   return content?.depth26 ? Math.round(base * content.depth26.contestTargetPercent / 100) : base;
 }
-export const usesContests = (state: Pick<GameState, 'setup' | 'expansion'>) => state.expansion !== undefined && gameplayAtLeast(state.setup, 8);
+export const usesContests = (state: Pick<GameState, 'setup' | 'expansion'>) => state.expansion !== undefined;
 export function isContestAction(action: { type: unknown }): action is ContestAction { return action.type === 'BuildContestHall' || action.type === 'HoldContest'; }
 export function initializeContests(state: GameState): void {
   if (usesContests(state)) state.expansion!.contests = Object.fromEntries(state.turnOrder.map(id => [id, { appeal: 0, halls: [], building: {}, showReadyAtRound: 1 }]));

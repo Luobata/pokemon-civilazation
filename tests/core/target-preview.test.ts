@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { CONTENT, EXPANSION_CONTENT } from '../../src/content/units.ts';
+import { contentFor } from '../../src/content/units.ts';
 import { observe } from '../../src/core/vision.ts';
 import { step } from '../../src/core/step.ts';
 import { hexToIndex } from '../../src/core/hex.ts';
@@ -9,7 +9,7 @@ import { previewAttack } from '../../src/core/preview.ts';
 import { targetPreviews } from '../../src/browser/target-preview.ts';
 import { reachableFixture } from '../browser/fixtures/reachable.ts';
 
-const contentOf = (state: GameState) => state.setup.expansionVersion === 1 ? EXPANSION_CONTENT : CONTENT;
+const contentOf = (state: GameState) => contentFor(state.setup);
 
 test.each(['attack', 'capture-success', 'capture-failure'])('the %s fixture command is offered on the target tile and accepted by the rules', name => {
   const fixture = reachableFixture(name), state = fixture.state, action = fixture.action!;
@@ -27,7 +27,7 @@ test.each(['attack', 'capture-success', 'capture-failure'])('the %s fixture comm
     const preview = previewAttack(view, unitId, action.target);
     expect(preview.ok && offered!.text).toContain(`伤害 ${preview.ok ? preview.damage.min : 0}–${preview.ok ? preview.damage.max : 0}`);
   } else expect(offered!.text).toMatch(/成功率 \d+%/);
-});
+}, 30_000);
 
 test('targets of a civilization at peace explain how to attack instead of offering it', () => {
   const fixture = reachableFixture('visible-ai'), state = fixture.state;

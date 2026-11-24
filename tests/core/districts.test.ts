@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { DISTRICT_IDS, DISTRICTS, emptyDistrictEffects } from '../../src/content/districts.ts';
 import type { DistrictId } from '../../src/content/districts.ts';
-import { EXPANSION_CONTENT } from '../../src/content/units.ts';
+import { GAME_CONTENT } from '../../src/content/units.ts';
 import { districtBlocker, districtEffects, districtInput, districtSites, cityDistrictEffects, cityDistrictDetails, previewDistrict, districtOccupiedTiles } from '../../src/core/districts.ts';
 import { observe, refreshKnowledge, visibleTiles } from '../../src/core/vision.ts';
 import { createCity, cityYield, maxCityHp } from '../../src/core/city.ts';
@@ -32,10 +32,9 @@ function built(state: GameState, kind: DistrictId, tileIndex: number, cityId = 1
 }
 
 for (const kind of DISTRICT_IDS) describe(kind, () => {
-  test('requires v10, technology, allowed terrain, own city radius, visibility and a non-center tile', () => {
+  test('requires technology, allowed terrain, own city radius, visibility and a non-center tile', () => {
     const { state, city, tile } = districtFixture(kind);
     expect(districtBlocker(input(state), 1, kind, tile)).toBeNull();
-    expect(districtBlocker({ ...input(state), gameplayVersion: 9 }, 1, kind, tile)).toBe('districts-unavailable');
     expect(districtBlocker({ ...input(state), techs: [] }, 1, kind, tile)).toBe('district-tech-locked');
     state.map.tiles[tile] = kind === 'harborDistrict' ? 'grassland' : 'ocean';
     expect(districtBlocker(input(state), 1, kind, tile)).toBe('wrong-biome');
@@ -85,7 +84,7 @@ for (const kind of DISTRICT_IDS) describe(kind, () => {
     expect(queued.cities[1].workedTileIds).toEqual([]); expect(queued.cities[1].lockedTileIds).toEqual([]);
     expect(queued.cities[1].population).toBe(city.population);
     expect(command(queued, { type: 'AssignWork', cityId: 1, workedTileIds: [tile], lockedTileIds: [] }).ok).toBe(false);
-    queued.units[900] = createMapUnit({ kind: 'pokemon', speciesId: 'bulbasaur' }, 900, 0, indexToHex(tile, state.map), EXPANSION_CONTENT, 0, 1);
+    queued.units[900] = createMapUnit({ kind: 'pokemon', speciesId: 'bulbasaur' }, 900, 0, indexToHex(tile, state.map), GAME_CONTENT, 0, 1);
     expect(command(queued, { type: 'ImproveTile', unitId: 900, tileIndex: tile, kind: kind === 'harborDistrict' ? 'fishery' : 'berryFarm' }).ok).toBe(false);
     const canceled = command(queued, { type: 'SetProductionQueue', cityId: 1, orders: [] });
     expect(canceled.ok).toBe(true);
@@ -121,8 +120,8 @@ test('research adjacency independently caps terrain at two and completed observa
   adjacent.slice(0, 3).forEach(index => { state.map.tiles[index] = 'mountain'; });
   adjacent.slice(3, 5).forEach(index => { state.expansion!.improvements!.tiles[index] = { kind: 'observatoryCamp', builtBy: 1, builtAtRound: 0 }; });
   const result = districtEffects(input(state), 'researchDistrict', tile);
-  expect(result.total.research).toBe(5); expect(result.adjacency.map(part => part.value)).toEqual([2, 1]);
-  expect(result.adjacency.map(part => part.tileIndices.length)).toEqual([3, 2]);
+  expect(result.total.research).toBe(5); expect(result.adjacency.map(part => part.value)).toEqual([2, 1, 0, 0]);
+  expect(result.adjacency.map(part => part.tileIndices.length)).toEqual([3, 2, 0, 0]);
 });
 
 test('harbor rejects landlocked ocean and caps fisheries separately from coastal forest food', () => {
@@ -155,7 +154,7 @@ test('garden has capped food and one bond point, keeps HQ fixed, and neutral cit
   state.players[0].headquartersCityId = 99;
   const parts = bondPressure(state, state.cities[1]).parts.filter(part => part.label === '花园');
   expect(parts).toEqual([{ label: '花园', value: 1 }]);
-  state.units[900] = createMapUnit({ kind: 'pokemon', speciesId: 'bulbasaur' }, 900, 0, indexToHex(tile, state.map), EXPANSION_CONTENT);
+  state.units[900] = createMapUnit({ kind: 'pokemon', speciesId: 'bulbasaur' }, 900, 0, indexToHex(tile, state.map), GAME_CONTENT);
   state.cities[1].ownerId = null;
   expect(cityDistrictDetails(observe(state, 0), 1)).toHaveLength(1);
   expect(cityDistrictEffects(state, 1)).toEqual(emptyDistrictEffects());
@@ -172,7 +171,8 @@ test('gym XP stacks with center and matching gym at actual deployment; district 
   expect(cityDistrictEffects(state, 1).trainedXp).toBe(50);
   city.pendingDeployments = [{ enteredAtRound: 0, sourceOrderId: 10, item: { kind: 'pokemon', defId: 'bulbasaur' } }];
   const events = resolveEconomy(state), trained = events.find(event => event.type === 'UnitTrained');
-  expect(trained?.type === 'UnitTrained' && trained.unit.xp).toBe(90);
+  // 50 gymDistrict + 20 trainingGround + 20 matching gym + 10 eliteTraining tech.
+  expect(trained?.type === 'UnitTrained' && trained.unit.xp).toBe(100);
   const noDistrict = structuredClone(state); noDistrict.expansion!.districts!.tiles = {};
   expect(maxCityHp(city)).toBe(maxCityHp(noDistrict.cities[1]));
   expect(resolveEssenceRound(structuredClone(state))).toEqual(resolveEssenceRound(noDistrict));
@@ -189,11 +189,12 @@ test('gym XP stacks with center and matching gym at actual deployment; district 
 test('gym pending deployments gain district XP only on the eventual successful deployment', () => {
   const { state, city, tile } = districtFixture('gymDistrict');
   city.pendingDeployments = [{ enteredAtRound: 1, sourceOrderId: 20, item: { kind: 'pokemon', defId: 'bulbasaur' } }];
-  neighbors(city.position, state.map).forEach((position, index) => { state.units[100 + index] = createMapUnit({ kind: 'pokemon', speciesId: 'bulbasaur' }, 100 + index, 0, position, EXPANSION_CONTENT); });
+  neighbors(city.position, state.map).forEach((position, index) => { state.units[100 + index] = createMapUnit({ kind: 'pokemon', speciesId: 'bulbasaur' }, 100 + index, 0, position, GAME_CONTENT); });
   resolveEconomy(state); expect(city.pendingDeployments).toHaveLength(1);
   built(state, 'gymDistrict', tile); delete state.units[100];
   const result = resolveEconomy(state).find(event => event.type === 'UnitTrained');
-  expect(result?.type === 'UnitTrained' && result.unit.xp).toBe(30);
+  // 30 gymDistrict (base 20 + adjacent city center 10) + 10 eliteTraining tech.
+  expect(result?.type === 'UnitTrained' && result.unit.xp).toBe(40);
 });
 
 test('overlap releases all own workers without reassignment, but never changes foreign worked tiles', () => {
@@ -217,9 +218,9 @@ test('capture keeps completed districts, removes only unfinished district orders
   city.queue = [{ id: 95, progress: 20, item: item('gymDistrict', tile + 1) }, { id: 96, progress: 7, item: { kind: 'building', defId: 'meetingHall' } }];
   state.players[0].headquartersCityId = 999;
   city.hp = 1;
-  state.units[91] = createMapUnit({ kind: 'pokemon', speciesId: 'geodude' }, 91, 1, { q: 5, r: 6 }, EXPANSION_CONTENT, 0, 1);
+  state.units[91] = createMapUnit({ kind: 'pokemon', speciesId: 'geodude' }, 91, 1, { q: 5, r: 6 }, GAME_CONTENT, 0, 1);
   state.diplomacy[0].status = 'war';
-  resolveAttack(state, 91, { kind: 'city', id: 1 }, EXPANSION_CONTENT);
+  resolveAttack(state, 91, { kind: 'city', id: 1 }, GAME_CONTENT);
   expect(city.ownerId).toBe(1); expect(city.queue).toEqual([{ id: 96, progress: 7, item: { kind: 'building', defId: 'meetingHall' } }]);
   expect(state.expansion!.districts!.tiles[tile].cityId).toBe(1);
   expect(cityDistrictEffects(state, 1)).toEqual(emptyDistrictEffects());
@@ -251,7 +252,7 @@ test('unknown districts and foreign projects stay hidden; memory cannot reveal l
   let view = observe(state, 0);
   expect(view.expansion!.districts!.tiles.map(item => item.tileIndex)).toEqual([tile]);
   expect(view.expansion!.districts!.projects).toEqual([]);
-  state.units[900] = createMapUnit({ kind: 'pokemon', speciesId: 'bulbasaur' }, 900, 0, { q: 6, r: 6 }, EXPANSION_CONTENT, 0, 1);
+  state.units[900] = createMapUnit({ kind: 'logistics', role: 'builder' }, 900, 0, { q: 6, r: 6 }, GAME_CONTENT, 0, 1);
   expect(validateImprovementAction(state, 0, { type: 'ImproveTile', unitId: 900, tileIndex: hidden, kind: 'berryFarm' })).toBe('unknown-tile');
   delete state.units[900];
   state.cities[1].ownerId = null;

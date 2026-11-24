@@ -20,8 +20,8 @@ import { depthWorldCards } from '../../src/browser/late-game-ui.ts';
 import { maxRaidPanelMarkup } from '../../src/browser/max-raid-ui.ts';
 import { buildScene } from '../../src/browser/render/scene.ts';
 
-type Version = 26 | 27;
-const setup = (gameplayVersion: Version, players = 2): GameSetup => ({ seed: 31, width: 24, height: 16, roundLimit: 100 as const, expansionVersion: 1 as const,
+type Version = 27;
+const setup = (gameplayVersion: Version = 27, players = 2): GameSetup => ({ seed: 31, width: 24, height: 16, roundLimit: 100 as const, expansionVersion: 1 as const,
   eraProgression: 'simple-v1' as const, gameplayVersion, players: [
     { id: 0, controller: 'human' as const, starterId: 'bulbasaur' as const }, ...Array.from({ length: players - 1 }, (_, index) => ({ id: index + 1, controller: 'ai' as const })),
   ] });
@@ -78,14 +78,10 @@ describe('shield arithmetic (pure, shared by authority and preview)', () => {
 });
 
 describe('v27 Max raid in a game', () => {
-  test('the boss starts with shieldBase + ⌈living / 2⌉ shields in phase one; v26 has no Max ledger; v27 dens are public to every civilization', () => {
+  test('the boss starts with shieldBase + ⌈living / 2⌉ shields in phase one; dens are public to every civilization', () => {
     const { raid, state, content } = openRaid(27), shields = EVENTS_TUNING.shieldBase + 1;
     expect(raid.max).toEqual({ shields, shieldMax: shields, phase: 1, broken: {}, healed: {}, dynamax: {} });
     expect(observe(state, 0, content).expansion!.raids!.active!.max).toMatchObject({ shields, shieldMax: shields, phase: 1, dynamaxUsed: false });
-    expect(openRaid(26).raid.max).toBeUndefined();
-    expect(observe(openRaid(26).state, 0, contentFor(setup(26))).expansion!.raids!.active!.max).toBeUndefined();
-    // Integration fog follow-up: a v27 den is public like a world event — every civilization sees the site, the boss id and the shields
-    // without having explored the tile (the tile itself stays unexplored); v26 still hides the site from non-explorers.
     const hidden = openRaid(27, 2, false);
     for (const id of [0, 1]) {
       expect(hidden.state.knowledge[id].exploredTileIds.includes(hidden.raid.tileIndex)).toBe(false);
@@ -93,10 +89,6 @@ describe('v27 Max raid in a game', () => {
       expect(view.expansion!.raids!.active).toMatchObject({ tileIndex: hidden.raid.tileIndex, unitId: hidden.raid.unitId });
       expect(view.expansion!.raids!.active!.max).toMatchObject({ shields, shieldMax: shields, phase: 1 });
       expect(view.map.tiles[hidden.raid.tileIndex]).toBeNull();
-    }
-    const v26 = openRaid(26, 2, false);
-    for (const id of [0, 1]) if (!v26.state.knowledge[id].exploredTileIds.includes(v26.raid.tileIndex)) {
-      expect(observe(v26.state, id, v26.content).expansion!.raids!.active).toMatchObject({ tileIndex: null, unitId: null });
     }
   });
   test('an attack breaks shields and deals the previewed damage; the ledger and the preview card follow', () => {
@@ -140,9 +132,6 @@ describe('v27 Max raid in a game', () => {
     expect(order(used.state, { type: 'RaidDynamax', unitId: second }, content).ok).toBe(false);
     expect(viewRaidDynamaxBlocker(observe(used.state, 0, content), second, content)).toBe('raid-dynamax-used');
     expect(planMaxRaidAction(observe(used.state, 0, content), content)).toBeNull();
-    // v26: the command does not exist for the den.
-    const old = openRaid(26), unit = place(old.state, old.content, 'pidgeot', freeAt(old.state, old.boss.position, 1, old.content));
-    expect(order(old.state, { type: 'RaidDynamax', unitId: unit }, old.content).ok).toBe(false);
   });
   test('round end: phase two strikes 2 tiles away; support heals neighbours and counts as contribution', () => {
     const { state, content, raid, boss } = openRaid(27);

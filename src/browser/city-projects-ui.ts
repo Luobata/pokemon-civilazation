@@ -52,7 +52,6 @@ export const PROJECT_HELP = '城市计划可以重复做，把用不完的产能
 
 /** Wonder tab chip: the cost multiplier of the viewer's next legend and, on hover, the rule (nothing before v27). */
 export function legendFavorChip(view: PlayerView, content: Content): string {
-  if (!content.legendFavor) return '';
   const owned = viewOwnedLegends(view), percent = viewLegendFavorPercent(view, content), step = economyTuning(content).legendFavorPercent;
   const tip = `传说不会全都青睐同一个训练家：你每拥有一座传说奇观，下一座的成本 +${step}%。\n你拥有 ${owned} 座，下一座（第 ${owned + 1} 座）成本 ${percentText(percent)}。在建时又建成一座，剩余部分按新成本计，进度不丢。\n别人先建成同一座时：退还一半进度的金币，另把 ${economyTuning(content).legendTrailPercent}% 的进度留给这座城的下一座传说（传说踪迹）。`;
   return `<span class="legend-favor-chip" data-tip="${esc(tip)}" data-tip-title="传说的青睐" tabindex="0" role="img" aria-label="${esc(`第 ${owned + 1} 座传说：成本 ${percentText(percent)}`)}">${uiIcon('wonder', { size: 14 })}第 ${owned + 1} 座：成本 <b>${percentText(percent)}</b></span>`;

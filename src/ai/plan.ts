@@ -14,7 +14,7 @@ import { planLeaderAction } from '../core/leader-systems.ts';
 import type { Command, MapUnit, PlayerView, ProductionItem } from '../core/model.ts';
 import { hexDistance, hexToIndex, indexToHex, neighbors } from '../core/hex.ts';
 import { workRadius } from '../core/city.ts';
-import { CONTENT, unitDefinition, contentForView, techOf } from '../content/units.ts';
+import { GAME_CONTENT, unitDefinition, contentForView } from '../content/units.ts';
 import type { BallId, BuildingId, TechId } from '../content/economy.ts';
 import { knownCities, RULE_QUERIES } from './query.ts';
 import type { RuleQueries } from './query.ts';
@@ -27,7 +27,7 @@ import type { AiThresholds } from './thresholds.ts';
 import { seekUnknownHeadquarters } from './targets.ts';
 import { AI_STRATEGIES } from './strategies.ts';
 import { campaignPlan, eraCivilizationPolicy, hasEraProgression } from './war-plan.ts';
-import { captureRoleBonus, leaderResearchBonus, recruitResearchBonus, roleTrainingBonus, treeResearchBenefit } from './role-plan.ts';
+import { captureRoleBonus, recruitResearchBonus, roleTrainingBonus, treeResearchBenefit } from './role-plan.ts';
 import { trainableSpeciesIds } from '../core/role-tactics.ts';
 import { designatedWorkers, improvementSuggestions, wantsBuilder } from './improvement-plan.ts';
 import { usesTactics } from '../core/tactics.ts';
@@ -69,11 +69,11 @@ export function knownCombatCount(view: PlayerView, ownerId: number): number {
 export function canCaptureByPersonality(view: PlayerView, target: MapUnit, query: RuleQueries = RULE_QUERIES): boolean {
   if (target.kind !== 'pokemon' || target.ownerId !== null || viewIsRivalUnit(view, target.id)) return false;
   const strategy = AI_STRATEGIES[view.economy.player.personality], ai = query.ai ?? AI_THRESHOLDS;
-  const content = query.content === CONTENT ? contentForView(view) : query.content;
+  const content = query.content === GAME_CONTENT ? contentForView(view) : query.content;
   // v27 ② (pace-v27 §3.3, §13.4): an exhausted target is low enough for every personality; the certain first ball takes any wild Pokémon anywhere.
-  const firstBall = Boolean(content.wildEncounters) && !viewFirstBallUsed(view);
+  const firstBall = !viewFirstBallUsed(view);
   if (firstBall) return true;
-  if (strategy.captureHpPercent !== null && !(content.wildEncounters && isExhausted(target, view.round)) && target.hp * 100 >= content.species[target.speciesId].maxHp * ai[strategy.captureHpPercent]) return false;
+  if (strategy.captureHpPercent !== null && !isExhausted(target, view.round) && target.hp * 100 >= content.species[target.speciesId].maxHp * ai[strategy.captureHpPercent]) return false;
   if (strategy.captureTerritoryOnly !== null && ai[strategy.captureTerritoryOnly]) {
     const tile = hexToIndex(target.position, view.map);
     return tile !== null && (view.territoryOwnerIds[tile]?.includes(view.playerId) ?? false);
@@ -124,7 +124,7 @@ export function siegeObjectives(view: PlayerView, ai: AiThresholds = AI_THRESHOL
   return { hqs, searching };
 }
 export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, memory: readonly RejectedCitySite[] = []): Command {
-  const actorId = view.playerId, player = view.economy.player, content = query.content === CONTENT ? contentForView(view) : query.content, ai = query.ai ?? AI_THRESHOLDS;
+  const actorId = view.playerId, player = view.economy.player, content = query.content === GAME_CONTENT ? contentForView(view) : query.content, ai = query.ai ?? AI_THRESHOLDS;
   const strategy = AI_STRATEGIES[player.personality], declaration = strategy.declareWar;
   const citySite = (position: MapUnit['position']) => !rejectedCitySite(memory, view, position) && query.citySite(view, position, content);
   const result = (action: Command['action']): Command => ({ actorId, expectedSeq: view.commandSeq, action });
@@ -232,7 +232,7 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
   if (player.research.techId === null) for (const [i, techId] of (Object.keys(content.techs) as TechId[]).entries()) {
     const unlocksLeaderUnit = view.expansion && player.leaderId && techId === 'training' && view.expansion.leaders.recruited === 0;
     if (query.research(player, techId, content)) add({ type: 'SetResearch', techId }, 'research', unlocksLeaderUnit ? 1000
-      : content.techTree ? treeResearchBenefit(view, techId, content) + embarkResearchBonus(view, techId, content, citySite) + recruitResearchBonus(view, techId, content) : 100 - techOf(content, techId).cost + leaderResearchBonus(view, techId), 0, i);
+      : treeResearchBenefit(view, techId, content) + embarkResearchBonus(view, techId, content, citySite) + recruitResearchBonus(view, techId, content), 0, i);
   }
   // Known city sites (computed once per plan; settlers and the v24 overseas checks share the list).
   let siteCache: MapUnit['position'][] | null = null;
@@ -240,8 +240,8 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
   // v24 AI (expansion): during the opening the settler is the city's first choice, whatever the personality's goal order — it is queued
   // under the personality's first goal after diplomacy, in the most productive idle city, while a known site waits for it (not in a city
   // under a bond threat). Before v24 the settler keeps the 'found' goal everywhere.
-  const v24Ai = Boolean(content.terrain && view.map.features);
-  const openingRush = v24Ai && Boolean(content.opening) && cities.length < 3;
+  const v24Ai = Boolean(view.map.features);
+  const openingRush = v24Ai && cities.length < 3;
   const openingSites = openingRush ? allSites().length : null;
   const settlerCity = openingRush && openingSites ? cities.filter(city => !city.queue.length && !city.pendingDeployments.length && !bondThreatened.has(city.id))
     .sort((a, b) => b.yields.production - a.yields.production || a.id - b.id)[0]?.id ?? null : null;
@@ -259,7 +259,7 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
     if (wonderCity === city.id && wonder && !openingRush) queue({ kind: 'legend', defId: wonder }, 'economy', 260, LEGEND_WONDERS[wonder].dex);
     const district = openingRush ? undefined : districtCandidates(view, city.id, content)[0];
     if (district) queue({ kind: 'district', defId: district.kind, tileIndex: district.tileIndex }, 'economy', district.score, district.tileIndex);
-    if (canProduceSettler(view, ai, Boolean(content.opening), openingSites)) { const escortId = pickEscort(view, content); queue({ kind: 'logistics', defId: 'settler', ...(escortId ? { escortId } : {}) }, settlerCity === city.id ? strategy.priorities.find(goal => goal !== 'diplomacy')! : 'found', content.opening && cities.length < 3 ? 900 : 50); }
+    if (canProduceSettler(view, ai, true, openingSites)) { const escortId = pickEscort(view, content); queue({ kind: 'logistics', defId: 'settler', ...(escortId ? { escortId } : {}) }, settlerCity === city.id ? strategy.priorities.find(goal => goal !== 'diplomacy')! : 'found', cities.length < 3 ? 900 : 50); }
     // The first 工匠 early (improvements compound); later ones only after the army is fed.
     if (wantsBuilder(view) && !bondThreatened.has(city.id)) { const escortId = pickBuilderEscort(view, city.id, content); queue({ kind: 'logistics', defId: 'builder', ...(escortId ? { escortId } : {}) }, 'economy', units.some(unit => unit.kind === 'logistics' && unit.role === 'builder') ? 70 : 400); }
     if (wantsTrader(view, city.id)) { const escortId = pickEscort(view, content); queue({ kind: 'logistics', defId: 'trader', ...(escortId ? { escortId } : {}) }, 'economy', 140); }
@@ -301,7 +301,7 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
   const raidTargets = raidMoveTargets(view), contestTargets = contestMoveTargets(view, content);
   // v24 integration fix (crowded continent): with no known site reachable over land from the capital and water access, Pokémon may board
   // to explore and stay out instead of heading home; a settler whose sites all lie across water gets the nearest Pokémon as its escort.
-  const seaPlans = Boolean(content.embark && view.map.features) && waterAccess(player, content) >= 1 && cities.length > 0;
+  const seaPlans = Boolean(view.map.features) && waterAccess(player, content) >= 1 && cities.length > 0;
   const landSettler = { kind: 'logistics', role: 'settler' } as const;
   const crowded = seaPlans && walkerTravel(view, landSettler, cities[0].position, allSites(), content) === Infinity;
   const escortTargets = new Map<number, MapUnit['position']>();
@@ -319,7 +319,7 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
   const wanderers = wanderersFor(content);
   // v27 ②: an exhausted wild Pokémon does not strike, so civilians may pass it.
   const strikers = v24Ai ? view.units.filter(other => other.kind === 'pokemon' && (other.ownerId === null ? !wanderers.includes(other.speciesId) && !viewIsRivalUnit(view, other.id)
-    && !(content.wildEncounters && isExhausted(other, view.round)) : warEnemies.has(other.ownerId))) : [];
+    && !isExhausted(other, view.round) : warEnemies.has(other.ownerId))) : [];
   const exposed = (position: MapUnit['position']) => strikers.some(other => hexDistance(other.position, position, view.map) <= (other.ownerId === null ? 1 : 3));
   // v24 AI (rival chasing): a response team — favourable matchups only, at most half of the Pokémon, none from another front (an enemy
   // at war within 3), escorts and the sanctuary team stay — goes after the own rival's Pokémon, under the personality's first of
@@ -354,7 +354,7 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
       if (evolution && !needsStone && (unit.xp >= evolution.xp ? player.gold >= evolution.gold : candy !== null && player.gold >= candy + 60) && (!evolution.requiresTraining || player.research.unlockedIds.includes('training'))) add({ type: 'Evolve', unitId: unit.id, intoSpeciesId: evolution.speciesId }, 'military', 200, unit.id);
       for (const target of view.units.filter(target => target.ownerId !== actorId).sort((a, b) => a.id - b.id)) {
         // v27 ② (pace-v27 §3.3, §13.4): an exhausted target (it lasts 2 rounds) or the certain first ball is caught now, under the personality's first goal.
-        const exhaustedTarget = Boolean(content.wildEncounters) && target.ownerId === null && (isExhausted(target, view.round) || !viewFirstBallUsed(view));
+        const exhaustedTarget = target.ownerId === null && (isExhausted(target, view.round) || !viewFirstBallUsed(view));
         let catchable = false;
         if (canCaptureByPersonality(view, target, query)) for (const ballId of ['pokeBall', 'greatBall'] as BallId[]) {
           const preview = query.capture(view, unit.id, target.id, ballId, content);
@@ -435,7 +435,7 @@ export function planNext(view: PlayerView, query: RuleQueries = RULE_QUERIES, me
       const hall = contestTargets.get(unit.id);
       if (hall && travelCloser(view, unit, to, hall)) add(action, 'economy', 95 - travelDistance(view, unit, to, hall), unit.id, index);
       const raid = raidTargets.get(unit.id);
-      if (raid && travelCloser(view, unit, to, raid)) add(action, 'military', (content.maxRaids ? 160 : 80) - travelDistance(view, unit, to, raid), unit.id, index);
+      if (raid && travelCloser(view, unit, to, raid)) add(action, 'military', 160 - travelDistance(view, unit, to, raid), unit.id, index);
       if (seek && far(to, seek) < far(unit.position, seek)) {
         add(action, 'military', 100 - far(to, seek), unit.id, index);
       }

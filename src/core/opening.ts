@@ -17,7 +17,7 @@ export type OpeningEvent =
   | { type: 'ObjectiveCompleted'; playerId: number; objectiveId: ObjectiveId }
   | { type: 'ItemBallClaimed'; playerId: number; tileIndex: number; kind: ItemBallKind; unitId: number };
 
-export const usesOpening = (state: Pick<GameState, 'setup' | 'expansion'>) => state.expansion !== undefined && (state.setup.gameplayVersion ?? 0) >= 21;
+export const usesOpening = (state: Pick<GameState, 'setup' | 'expansion'>) => state.expansion !== undefined;
 
 /** Item balls are placed with a stable hash, never `state.rng`, so the world matches v20 for the same seed. */
 export function initializeOpening(state: GameState): void {

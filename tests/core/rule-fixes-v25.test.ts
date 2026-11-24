@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { contentFor, EXPANSION_CONTENT } from '../../src/content/units.ts';
+import { contentFor, GAME_CONTENT } from '../../src/content/units.ts';
 import { FAITH_RULES } from '../../src/content/faith-legends.ts';
 import { createGame } from '../../src/core/game.ts';
 import { createCity } from '../../src/core/city.ts';
@@ -12,7 +12,7 @@ import { isMapUnit } from '../../src/core/model.ts';
 import type { Command, GameSetup, GameState } from '../../src/core/model.ts';
 
 /** Gameplay v25 rule fixes from docs/design/balance/gate-v24-ai.md ("needs a rule change"); v24 keeps the old behaviour. */
-const setup = (gameplayVersion: 24 | 25): GameSetup => ({ seed: 12345, width: 24, height: 16, expansionVersion: 1, multiplayer: true, eraProgression: 'simple-v1',
+const setup = (gameplayVersion: 27): GameSetup => ({ seed: 12345, width: 24, height: 16, expansionVersion: 1, multiplayer: true, eraProgression: 'simple-v1',
   gameplayVersion, players: [
     { id: 0, controller: 'human', starterId: 'bulbasaur', leaderId: 'misty' },
     { id: 1, controller: 'human', starterId: 'charmander', leaderId: 'lance' },
@@ -33,20 +33,18 @@ function inlandCapital(state: GameState) {
   return city;
 }
 
-test.each([[24, true], [25, false]] as const)('fix 1: v%s queueing a water-only species in an inland city is accepted: %s', (version, accepted) => {
-  const state = createGame(setup(version)), city = inlandCapital(state), player = state.players[0];
+test('fix 1: queueing a water-only species in an inland city is refused', () => {
+  const state = createGame(setup(27)), city = inlandCapital(state), player = state.players[0];
   player.registeredSpeciesIds.push('magikarp'); player.research.unlockedIds.push('seafaring');
   const result = act(state, 0, { type: 'SetProductionQueue', cityId: city.id, orders: [{ item: { kind: 'pokemon', defId: 'magikarp' } }] });
-  expect(result.ok).toBe(accepted);
+  expect(result.ok).toBe(false);
   if (!result.ok) expect(result.reason).toBe('invalid-production');
-  // A land species is still fine in v25.
   expect(act(state, 0, { type: 'SetProductionQueue', cityId: city.id, orders: [{ item: { kind: 'pokemon', defId: 'bulbasaur' } }] }).ok).toBe(true);
 });
 
-test.each([24, 25] as const)('fix 2: v%s new units avoid the tiles beside a striking wild Pokémon when another tile is free', version => {
-  const state = createGame(setup(version)), city = inlandCapital(state), content = contentFor(state.setup);
+test('fix 2: new units avoid the tiles beside a striking wild Pokémon when another tile is free', () => {
+  const state = createGame(setup(27)), city = inlandCapital(state), content = contentFor(state.setup);
   const free = neighbors(city.position, state.map).sort((a, b) => hexToIndex(a, state.map)! - hexToIndex(b, state.map)!);
-  // A non-wandering wild geodude two tiles out, beside the lowest free tile (the v24 placement).
   const beside = neighbors(free[0], state.map).find(hex => hexDistance(hex, city.position, state.map) === 2)!;
   state.units[900] = createMapUnit({ kind: 'pokemon', speciesId: 'geodude' }, 900, null, beside, content);
   city.queue = []; city.pendingDeployments = [{ enteredAtRound: 1, sourceOrderId: 77, item: { kind: 'pokemon', defId: 'bulbasaur' } }];
@@ -55,11 +53,10 @@ test.each([24, 25] as const)('fix 2: v%s new units avoid the tiles beside a stri
     && hexDistance(unit.position, city.position, state.map) === 1 && unit.id !== 900);
   expect(trained && isMapUnit(trained)).toBe(true);
   const position = (trained as { position: { q: number; r: number } }).position;
-  if (version === 24) expect(position).toEqual(free[0]);
-  else expect(hexDistance(position, beside, state.map)).toBeGreaterThan(1);
+  expect(hexDistance(position, beside, state.map)).toBeGreaterThan(1);
 });
 
-function faithTable(version: 24 | 25): GameState {
+function faithTable(version: 27): GameState {
   const state = createGame(setup(version));
   const civ = state.expansion!.civilization.players[0];
   civ.lifetimeOfferings = FAITH_RULES.foundLifetime; civ.offeringPoints = FAITH_RULES.foundCost + 100;
@@ -72,17 +69,14 @@ function faithTable(version: 24 | 25): GameState {
   for (let i = 0; i < 3; i++) { next.cities[970 + i] = createCity(970 + i, 1, { q: hq.position.q + 2 + i, r: hq.position.r + 6 }, false); next.cities[970 + i].ownerId = null; }
   return next;
 }
-test('fix 3: v25 faith victory counts neutral cities, so an elimination no longer lowers the bar', () => {
-  const v24 = faithTable(24), v25 = faithTable(25);
-  expect(faithCities(v24)).toHaveLength(7);
-  expect(faithCities(v25)).toHaveLength(10);
-  resolveFaithRound(v24, EXPANSION_CONTENT);
-  resolveFaithRound(v25, EXPANSION_CONTENT);
-  expect(v24.outcome).toMatchObject({ kind: 'faith', winners: [0] });
-  expect(v25.outcome).toBeNull();
+test('fix 3: v27 faith victory counts neutral cities, so an elimination no longer lowers the bar', () => {
+  const v27 = faithTable(27);
+  expect(faithCities(v27)).toHaveLength(10);
+  resolveFaithRound(v27, GAME_CONTENT);
+  expect(v27.outcome).toBeNull();
   // Neutral cities that kept following the faith still count for it.
-  const following = faithTable(25);
+  const following = faithTable(27);
   for (const id of [970, 971, 972]) following.expansion!.faith!.cityFaith[id] = 0;
-  resolveFaithRound(following, EXPANSION_CONTENT);
+  resolveFaithRound(following, GAME_CONTENT);
   expect(following.outcome).toMatchObject({ kind: 'faith', winners: [0] });
 });

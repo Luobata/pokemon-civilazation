@@ -8,12 +8,12 @@ import type { Hex } from '../../src/core/hex.ts';
 import type { GameSetup, GameState, MapUnit } from '../../src/core/model.ts';
 import { safeToBoard, travelCloser, travelDistance } from '../../src/ai/travel.ts';
 
-const setup = (gameplayVersion: 23 | 24): GameSetup => ({ seed: 12345, width: 24, height: 16, expansionVersion: 1, multiplayer: true, eraProgression: 'simple-v1', gameplayVersion,
+const setup = (gameplayVersion: 27): GameSetup => ({ seed: 12345, width: 24, height: 16, expansionVersion: 1, multiplayer: true, eraProgression: 'simple-v1', gameplayVersion,
   players: [{ id: 0, controller: 'human', starterId: 'bulbasaur', leaderId: 'oak' }, { id: 1, controller: 'human', starterId: 'charmander', leaderId: 'misty' }] });
 const at = (col: number, row: number): Hex => ({ q: col - Math.floor(row / 2), r: row });
 /** Land at columns ≤ 10 and 16–22, shallow straits at 11–15 and 23 (the map wraps); a peak wall at column 5 except row 12. */
-function strait(version: 23 | 24 = 24, techs: string[] = []): GameState {
-  const state = createGame(setup(version));
+function strait(techs: string[] = []): GameState {
+  const state = createGame(setup(27));
   state.units = {};
   const peaks: number[] = [];
   for (let i = 0; i < state.map.tiles.length; i++) {
@@ -21,8 +21,7 @@ function strait(version: 23 | 24 = 24, techs: string[] = []): GameState {
     state.map.tiles[i] = (col >= 11 && col <= 15) || col === 23 ? 'ocean' : 'grassland';
     if (col === 5 && row !== 12) { state.map.tiles[i] = 'mountain'; peaks.push(i); }
   }
-  state.map.features = version === 24 ? { hills: [], peaks, rivers: [], lakes: [], deep: [], landmarks: [] } : undefined;
-  if (version !== 24) delete state.map.features;
+  state.map.features = { hills: [], peaks, rivers: [], lakes: [], deep: [], landmarks: [] };
   state.cities[state.players[0].headquartersCityId].position = at(8, 2);
   state.cities[state.players[1].headquartersCityId].position = at(20, 13);
   state.players[0].research.unlockedIds.push(...techs as never[]);
@@ -35,7 +34,7 @@ function strait(version: 23 | 24 = 24, techs: string[] = []): GameState {
   return state;
 }
 
-test('travel field: walls of peaks are walked around, water needs 近海航行; before v24 it is the hex distance', () => {
+test('travel field: walls of peaks are walked around, water needs 近海航行', () => {
   const state = strait(), view = observe(state, 0), unit = view.units.find(item => item.id === 9000) as MapUnit;
   const west = at(2, 6);
   // Straight it is 5 steps; around the peak wall (gap at row 12) it is much longer.
@@ -43,10 +42,8 @@ test('travel field: walls of peaks are walked around, water needs 近海航行; 
   expect(travelDistance(view, unit, unit.position, west)).toBeGreaterThan(10);
   expect(travelDistance(view, unit, unit.position, at(20, 6))).toBe(Infinity);
   expect(travelCloser(view, unit, at(8, 6), at(20, 6))).toBe(false);
-  const sailing = strait(24, ['seafaring']), sailView = observe(sailing, 0);
+  const sailing = strait(['seafaring']), sailView = observe(sailing, 0);
   expect(travelDistance(sailView, sailView.units.find(item => item.id === 9000) as MapUnit, at(7, 6), at(20, 6))).toBeLessThan(Infinity);
-  const old = strait(23), oldView = observe(old, 0);
-  expect(travelDistance(oldView, oldView.units[0] as MapUnit, at(7, 6), west)).toBe(5);
 });
 
 test('travel field: unexplored tiles are assumed passable (no hidden terrain leaks)', () => {
@@ -60,7 +57,7 @@ test('travel field: unexplored tiles are assumed passable (no hidden terrain lea
 });
 
 test('boarding: escorts for settlers, no sea monsters within 3', () => {
-  const state = strait(24, ['seafaring']), content = contentFor(state.setup);
+  const state = strait(['seafaring']), content = contentFor(state.setup);
   state.units[9002] = createMapUnit({ kind: 'logistics', role: 'settler' }, 9002, 0, at(10, 8), content, 0, 1);
   refreshKnowledge(state);
   let view = observe(state, 0);
@@ -75,7 +72,7 @@ test('boarding: escorts for settlers, no sea monsters within 3', () => {
 });
 
 test('boarding in peace: a Pokémon needs company within 2 tiles, and no hostile Pokémon may stand next to the boarding tile', () => {
-  const state = strait(24, ['seafaring']), content = contentFor(state.setup);
+  const state = strait(['seafaring']), content = contentFor(state.setup);
   state.units[9010] = createMapUnit({ kind: 'pokemon', speciesId: 'rattata' }, 9010, 0, at(10, 4), content, 0, 1);
   for (const unit of Object.values(state.units)) if (unit.id !== 9010 && unit.ownerId === 0 && 'position' in unit && unit.position) unit.position = at(1, 1);
   refreshKnowledge(state);

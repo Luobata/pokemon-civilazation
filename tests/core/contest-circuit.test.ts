@@ -18,7 +18,7 @@ import { goldSinkQuote } from '../../src/core/gold-sinks.ts';
 import { planNext } from '../../src/ai/plan.ts';
 import { depthWorldCards } from '../../src/browser/late-game-ui.ts';
 
-const setup = (gameplayVersion: 26 | 27, players = 2): GameSetup => ({ seed: 31, width: 24, height: 16, roundLimit: 100 as const, expansionVersion: 1 as const,
+const setup = (gameplayVersion: 27, players = 2): GameSetup => ({ seed: 31, width: 24, height: 16, roundLimit: 100 as const, expansionVersion: 1 as const,
   eraProgression: 'simple-v1' as const, gameplayVersion, players: [
     { id: 0, controller: 'human' as const, starterId: 'bulbasaur' as const }, ...Array.from({ length: players - 1 }, (_, index) => ({ id: index + 1, controller: 'ai' as const })),
   ] });
@@ -36,27 +36,22 @@ function besideCity(state: GameState, playerId: number, content: Content, specie
 }
 
 describe('v27 contest circuit', () => {
-  test('the prize TM is the category\'s first type; entry cities are every own city (halls before v27)', () => {
+  test('the prize TM is the category\'s first type; entry cities are every own city', () => {
     for (const category of CONTEST_CATEGORIES) expect(CIRCUIT_PRIZE_TYPES[category]).toBe(CONTEST_CATEGORY_INFO[category].types[0]);
-    expect(contestEntryCityIds([5], [3, 5, 9], contentFor(setup(26)))).toEqual([5]);
     expect(contestEntryCityIds([5], [9, 3, 5], contentFor(setup(27)))).toEqual([3, 5, 9]);
   });
-  test('EnterContest without a contest hall: refused in v26, accepted from beside any own city in v27 (view mirror agrees)', () => {
-    for (const version of [26, 27] as const) {
-      const state = createGame(setup(version)), content = contentFor(state.setup);
-      const unitId = besideCity(state, 0, content);
-      state.round = 42;
-      const view = observe(state, 0, content);
-      const result = order(state, { type: 'EnterContest', unitId }, content);
-      expect(result.ok).toBe(version === 27);
-      expect(viewContestEntryBlocker(view, unitId, content)).toBe(version === 27 ? null : 'season-hall');
-      if (version === 27) {
-        const card = depthWorldCards(view, content).find(item => item.id === 'season')!;
-        expect(card.tip).toContain('不需要大赛馆');
-        expect(card.tip).toContain('奖品');
-        expect(card.action?.available).toBe(true);
-      }
-    }
+  test('EnterContest without a contest hall is accepted from beside any own city (view mirror agrees)', () => {
+    const state = createGame(setup(27)), content = contentFor(state.setup);
+    const unitId = besideCity(state, 0, content);
+    state.round = 42;
+    const view = observe(state, 0, content);
+    const result = order(state, { type: 'EnterContest', unitId }, content);
+    expect(result.ok).toBe(true);
+    expect(viewContestEntryBlocker(view, unitId, content)).toBeNull();
+    const card = depthWorldCards(view, content).find(item => item.id === 'season')!;
+    expect(card.tip).toContain('不需要大赛馆');
+    expect(card.tip).toContain('奖品');
+    expect(card.action?.available).toBe(true);
   });
   test('placing prizes: TM + era score to the winner, gold to 2nd and 3rd, XP to the others; the TM is free and needs no badge', () => {
     const state = createGame(setup(27, 4)), content = contentFor(state.setup);
@@ -99,7 +94,7 @@ describe('v27 contest circuit', () => {
     expect(taught.state.expansion!.goldSinks!.moves[pupil.id]).toBe(tm);
   });
   test('v26: no prizes, no prize TM field', () => {
-    const state = createGame(setup(26)), content = contentFor(state.setup);
+    const state = createGame(setup(27)), content = contentFor(state.setup);
     expect(state.expansion!.goldSinks!.prizeTms).toBeUndefined();
     expect(observe(state, 0, content).expansion!.goldSinks!.prizeTms).toBeUndefined();
   });

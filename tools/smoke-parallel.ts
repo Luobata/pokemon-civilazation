@@ -1,9 +1,9 @@
 /**
  * Parallel tools/district-smoke.ts with a byte-for-byte comparison against a base commit (docs/tech/testing.md).
  *
- *   node tools/smoke-parallel.ts --versions 24-26 [--base <ref>] [--head <ref>] [--out <dir>] [--workers N] [--allow-diff 27] [--no-base]
+ *   node tools/smoke-parallel.ts --versions 27 [--base <ref>] [--head <ref>] [--out <dir>] [--workers N] [--allow-diff 27] [--no-base]
  *
- * Every version runs the same 48 cases as `node tools/district-smoke.ts <version> <dir>` and writes the same files with the same
+ * Runs the same 48 cases as `node tools/district-smoke.ts 27 <dir>` and writes the same files with the same
  * bytes (config.json + one JSON per game); the cases are split over child processes. The base commit (default: merge-base with
  * main) is exported with `git archive` and run the same way; its results are cached per commit under
  * $XDG_CACHE_HOME/pokemon-civilization/smoke/<sha>/v<N> (default ~/.cache/…), so a base is computed once for every branch on
@@ -11,16 +11,12 @@
  * (exported and cached the same way), e.g. to check one historical commit against its parent.
  *
  * Fails (exit 1) when a game does not complete, a child process fails, or a version's files differ from the base — except
- * versions newer than LATEST_GAMEPLAY_VERSION (still in development) and versions listed in --allow-diff, whose differences
- * are reported but expected. A version the base does not support is run without comparison.
+ * versions listed in --allow-diff, whose differences are reported but expected. A version the base does not support is run
+ * without comparison.
  *
  * `--cases quick` runs the 8-case sample QUICK_CASES (every rotation, so every smoke leader in two seats; every seed and personality)
  * instead of all 48 — the quick tier of `npm run check`, NOT merge-proof. `--cases 0,5,…` picks indices by hand. A full cached base
  * serves a subset run too (only the subset's files are compared).
- *
- * Every worker runs under the content read tracer (tools/content-trace.ts; `--no-trace` turns it off): it records which traced tuning
- * values the games read, writes `trace-c<first case>.txt` next to the results and, after the run, the trace store entry for the tree's
- * rule shape — the data tools/test-plan.ts uses to prove that a values-only tuning change cannot reach a version.
  */
 import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
@@ -49,11 +45,11 @@ export const QUICK_CASES = [0, 5, 15, 22, 28, 33, 38, 43];
 export const SMOKE_SIGNATURE = ['seeds: 4, seedStart: 31, expansionVersion: 1 as const, eraProgression: \'simple-v1\' as const,', 'roundLimit: 100 as const, width: 24, height: 16 }',
   'filter(match => match.rotation < 4)', 'JSON.stringify(result, null, 2)', 'JSON.stringify(config, null, 2)'];
 
-/** Versions tools/district-smoke.ts accepts in a tree (its `[9, 10, …].includes(version)` list). */
+/** Versions tools/district-smoke.ts accepts in a tree (its `[27].includes(version)` list). */
 export function supportedVersions(tree: string): number[] {
   const text = readFileSync(join(tree, 'tools/district-smoke.ts'), 'utf8');
   const match = /\[([\d,\s]+)\]\.includes\(version\)/.exec(text);
-  if (!match) throw new Error(`${tree}/tools/district-smoke.ts: cannot find the supported-version list ([9, 10, …].includes(version))`);
+  if (!match) throw new Error(`${tree}/tools/district-smoke.ts: cannot find the supported-version list ([27].includes(version))`);
   return match[1].split(',').map(item => Number(item.trim())).filter(Number.isFinite);
 }
 export function checkSignature(tree: string): void {
@@ -83,26 +79,17 @@ export function statuses(dir: string): Record<string, number> {
 
 // ---------------------------------------------------------------- worker
 
-async function worker(tree: string, version: number, destination: string, indices: number[], trace: boolean): Promise<void> {
-  // The tracer loads the traced modules, then src/content/units.ts (whose stock-content copies it instruments), before the rest of the rules.
-  const tracing = trace ? await import('./content-trace.ts') : null;
-  const tracer = tracing ? await tracing.installTracer(tree) : null;
-  if (tracing && tracer) await tracing.instrumentTreeContents(tree, tracer);
+async function worker(tree: string, version: number, destination: string, indices: number[]): Promise<void> {
   const { leaderBalanceCases, simulateLeaderCase } = await import(pathToFileURL(join(tree, 'tools/leader-balance.ts')).href) as typeof import('./leader-balance.ts');
   const config = smokeConfig(version);
   const cases = leaderBalanceCases(config as Parameters<typeof leaderBalanceCases>[0]).filter(match => match.rotation < SMOKE_ROTATIONS);
   mkdirSync(destination, { recursive: true });
-  if (tracer) tracer.phase = 'game';
   for (const index of indices) {
     const match = cases[index];
     const result = simulateLeaderCase(match);
     writeFileSync(join(destination, `${match.id}.json`), JSON.stringify(result, null, 2));
     console.log(match.id, result.status, result.round, result.outcomeKind);
     if (result.status !== 'completed') process.exitCode = 1;
-  }
-  if (tracer) {
-    tracer.phase = 'off';
-    writeFileSync(join(destination, `trace-c${indices[0]}.txt`), JSON.stringify({ cases: indices, record: tracer.record() }));
   }
 }
 
@@ -121,13 +108,13 @@ export function exportTree(sha: string): string {
   const archive = execFileSync('git', ['archive', '--format=tar', sha, 'src', 'tools', 'package.json'], { cwd: REPO_ROOT, maxBuffer: 1 << 30 });
   execFileSync('tar', ['-x', '-C', staging], { input: archive });
   writeFileSync(join(staging, '.complete'), sha);
-  try { renameSync(staging, tree); } catch { rmSync(staging, { recursive: true, force: true }); } // another process won the race
+  try { renameSync(staging, tree); } catch { rmSync(staging, { recursive: true, force: true }); }
   return tree;
 }
 
 type Job = { label: string; tree: string; version: number; destination: string; indices: number[] };
 
-function runPool(jobs: Job[], workers: number, trace: boolean): Promise<{ failed: string[] }> {
+function runPool(jobs: Job[], workers: number): Promise<{ failed: string[] }> {
   const failed: string[] = [];
   let next = 0, running = 0, done = 0;
   const started = Date.now();
@@ -137,7 +124,7 @@ function runPool(jobs: Job[], workers: number, trace: boolean): Promise<{ failed
       while (running < workers && next < jobs.length) {
         const job = jobs[next++];
         running++;
-        const child = spawn(process.execPath, [SCRIPT, '--worker', job.tree, String(job.version), job.destination, job.indices.join(','), trace ? 'trace' : 'no-trace'],
+        const child = spawn(process.execPath, [SCRIPT, '--worker', job.tree, String(job.version), job.destination, job.indices.join(',')],
           { cwd: job.tree, stdio: ['ignore', 'pipe', 'pipe'] });
         let output = '';
         child.stdout.on('data', chunk => { output += chunk; });
@@ -154,14 +141,12 @@ function runPool(jobs: Job[], workers: number, trace: boolean): Promise<{ failed
   });
 }
 
-
 export type SmokeArgs = { versions: number[] | 'all'; base: string | null; head: string | null; out: string | null; workers: number; allowDiff: number[]; chunk: number;
   /** Case indices (0–47) to run, or every case. */
-  cases: number[] | 'all';
-  trace: boolean };
+  cases: number[] | 'all' };
 export function parseSmokeArgs(args: string[], cpus = availableParallelism()): SmokeArgs {
   const parsed: SmokeArgs = { versions: 'all', base: 'main', head: null, out: null, workers: Math.min(16, Math.max(2, Math.floor(cpus / 4))), allowDiff: [], chunk: 4,
-    cases: 'all', trace: true };
+    cases: 'all' };
   const list = (text: string): number[] => text.split(',').flatMap(part => {
     const range = /^(\d+)-(\d+)$/.exec(part);
     if (range) return Array.from({ length: Number(range[2]) - Number(range[1]) + 1 }, (_, i) => Number(range[1]) + i);
@@ -184,18 +169,9 @@ export function parseSmokeArgs(args: string[], cpus = availableParallelism()): S
       if (parsed.cases !== 'all' && parsed.cases.some(index => index >= SMOKE_CASES)) throw new Error(`--cases: indices 0–${SMOKE_CASES - 1}`);
       if (parsed.cases !== 'all' && parsed.cases.length === SMOKE_CASES) parsed.cases = 'all';
     }
-    else if (arg === '--no-trace') parsed.trace = false;
-    else throw new Error(`unknown argument ${arg}. Usage: node tools/smoke-parallel.ts --versions 24-26|all [--cases quick|all|0,5,…] [--base ref | --no-base] [--head ref] [--out dir] [--workers N] [--allow-diff 27] [--no-trace]`);
+    else throw new Error(`unknown argument ${arg}. Usage: node tools/smoke-parallel.ts --versions 27|all [--cases quick|all|0,5,…] [--base ref | --no-base] [--head ref] [--out dir] [--workers N] [--allow-diff 27]`);
   }
   return parsed;
-}
-
-/** Rule shape of a tree (tools/test-plan.ts `ruleShape`, in a child process: test-plan imports this file, and a top-level-await cycle would deadlock). */
-function shapeOf(tree: string): string {
-  return execFileSync(process.execPath, [join(dirname(SCRIPT), 'test-plan.ts'), '--shape', tree], { encoding: 'utf8' }).trim();
-}
-function valuesOf(tree: string): Record<string, unknown> {
-  return JSON.parse(execFileSync(process.execPath, [join(dirname(SCRIPT), 'content-trace.ts'), '--values', tree], { encoding: 'utf8', maxBuffer: 64 << 20 })) as Record<string, unknown>;
 }
 
 async function main(args: SmokeArgs): Promise<number> {
@@ -211,7 +187,6 @@ async function main(args: SmokeArgs): Promise<number> {
   const baseSha = args.base === null ? null : git(['rev-parse', args.base === 'main' ? git(['merge-base', 'main', headSha]) : args.base]);
   const out = resolve(args.out ?? join(tmpdir(), `smoke-${Date.now().toString(36)}`));
   mkdirSync(out, { recursive: true });
-  const headShape = args.trace ? shapeOf(headRoot) : null;
 
   let baseTree: string | null = null, baseVersions: number[] = [];
   if (baseSha && !(clean && baseSha === headSha)) {
@@ -221,7 +196,6 @@ async function main(args: SmokeArgs): Promise<number> {
   }
   const indices = args.cases === 'all' ? Array.from({ length: SMOKE_CASES }, (_, i) => i) : args.cases;
   const subset = indices.length < SMOKE_CASES;
-  // Subset runs are cached apart (v26-c0.5.15…); a complete cached run serves a subset run's base too.
   const cached = (sha: string, version: number, part = subset) => join(cacheRoot(), sha, `v${version}${part ? `-c${indices.join('.')}` : ''}`);
   const isCached = (sha: string, version: number, part = subset) => existsSync(join(cached(sha, version, part), '.complete'));
   const cachedBase = (sha: string, version: number): string | null => isCached(sha, version, false) ? cached(sha, version, false) : isCached(sha, version) ? cached(sha, version) : null;
@@ -235,7 +209,6 @@ async function main(args: SmokeArgs): Promise<number> {
 
   const jobs: Job[] = [];
   const headDirs = new Map<number, string>(), baseDirs = new Map<number, string>(), staging: { dir: string; sha: string; version: number }[] = [];
-  const ran: { dir: string; tree: string; sha: string; version: number }[] = [];
   for (const version of [...versions].sort((a, b) => b - a)) {
     if (clean && isCached(headSha, version)) headDirs.set(version, cached(headSha, version));
     else {
@@ -243,7 +216,6 @@ async function main(args: SmokeArgs): Promise<number> {
       headDirs.set(version, dir);
       for (const part of chunks()) jobs.push({ label: `head v${version}`, tree: headRoot, version, destination: dir, indices: part });
       if (clean) staging.push({ dir, sha: headSha, version });
-      ran.push({ dir, tree: headRoot, sha: clean ? headSha : `${headSha.slice(0, 10)}+worktree`, version });
     }
     if (baseTree && baseSha && baseVersions.includes(version)) {
       const hit = cachedBase(baseSha, version);
@@ -253,15 +225,13 @@ async function main(args: SmokeArgs): Promise<number> {
         baseDirs.set(version, dir);
         for (const part of chunks()) jobs.push({ label: `base v${version}`, tree: baseTree, version, destination: dir, indices: part });
         staging.push({ dir, sha: baseSha, version });
-        ran.push({ dir, tree: baseTree, sha: baseSha, version });
       }
     }
   }
   console.log(`smoke: gameplay ${versions.join(', ')} · ${subset ? `${indices.length} of ${SMOKE_CASES} cases (QUICK — not merge-proof)` : `all ${SMOKE_CASES} cases`}`
     + ` · head ${headSha.slice(0, 7)}${args.head ? ' (exported)' : clean ? '' : ' + working tree'} · base ${baseSha ? baseSha.slice(0, 7) : 'none'}`
-    + `${baseSha && !baseTree ? ' (= head)' : ''} · ${jobs.length} jobs of ≤${args.chunk} games on ${args.workers} workers${args.trace ? ' · traced' : ''} · ${out}`);
-  const { failed } = await runPool(jobs, args.workers, args.trace);
-  const failedVersion = (label: string, version: number) => failed.some(item => item.startsWith(`${label} v${version} `));
+    + `${baseSha && !baseTree ? ' (= head)' : ''} · ${jobs.length} jobs of ≤${args.chunk} games on ${args.workers} workers · ${out}`);
+  const { failed } = await runPool(jobs, args.workers);
 
   // Cache complete, successful runs (copied, so --out stays a full record).
   for (const { dir, sha, version } of staging) {
@@ -274,24 +244,6 @@ async function main(args: SmokeArgs): Promise<number> {
     for (const name of readdirSync(dir)) writeFileSync(join(tmp, name), readFileSync(join(dir, name)));
     writeFileSync(join(tmp, '.complete'), `${sha} v${version}`);
     try { renameSync(tmp, target); } catch { rmSync(tmp, { recursive: true, force: true }); }
-  }
-
-  // Trace store: one entry per version and tree that ran here (the working tree only if its rules did not change during the run).
-  if (args.trace && ran.length) {
-    const { mergeChunkTraces, storeTrace } = await import('./content-trace.ts');
-    const shapes = new Map<string, string>(), values = new Map<string, Record<string, unknown>>();
-    let stored = 0;
-    for (const { dir, tree, sha, version } of ran) {
-      if (failedVersion(tree === baseTree ? 'base' : 'head', version)) continue;
-      const merged = mergeChunkTraces(dir);
-      if (!merged || indices.some(index => !merged.cases.includes(index))) continue;
-      if (!shapes.has(tree)) shapes.set(tree, shapeOf(tree));
-      if (tree === headRoot && shapes.get(tree) !== headShape) { console.log('trace: the working tree\'s rules changed during the run; its traces are not stored'); continue; }
-      if (!values.has(tree)) values.set(tree, valuesOf(tree));
-      storeTrace({ shape: shapes.get(tree)!, version, values: values.get(tree)!, cases: merged.cases, record: merged.record, sha, node: process.version });
-      stored++;
-    }
-    console.log(`trace: stored ${stored} version trace(s) (node tools/content-trace.ts --list)`);
   }
 
   let exit = failed.length ? 1 : 0;
@@ -324,6 +276,6 @@ async function main(args: SmokeArgs): Promise<number> {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const argv = process.argv.slice(2);
-  if (argv[0] === '--worker') await worker(argv[1], Number(argv[2]), argv[3], argv[4].split(',').map(Number), argv[5] !== 'no-trace');
+  if (argv[0] === '--worker') await worker(argv[1], Number(argv[2]), argv[3], argv[4].split(',').map(Number));
   else process.exitCode = await main(parseSmokeArgs(argv));
 }

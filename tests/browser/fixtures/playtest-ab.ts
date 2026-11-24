@@ -17,7 +17,7 @@ import type { CommandLog } from '../../../src/app/session.ts';
 import type { AiPersonality, Command, GameSetup, GameState, PlayerView } from '../../../src/core/model.ts';
 
 type Options = { seed: number; personality: AiPersonality };
-const setupFor = ({ seed, personality }: Options): GameSetup => ({ seed, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 24,
+const setupFor = ({ seed, personality }: Options): GameSetup => ({ seed, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 27,
   players: [{ id: 0, controller: 'human', starterId: 'bulbasaur', leaderId: 'oak' }, ...[1, 2, 3].map(id => ({ id, controller: 'ai' as const, personality }))] });
 export type PlaytestFixture = { state: GameState; save: string; id: number };
 
@@ -82,7 +82,7 @@ export const leagueFixture = () => first('league', LEAGUE_GAMES, view => {
   const peaceful = !view.diplomacy.some(pair => pair.status === 'war' && (pair.a === view.playerId || pair.b === view.playerId));
   return peaceful && own(view).filter(unit => unit.kind === 'pokemon').length >= 6 ? league.nextRound : undefined;
 });
-const LEAGUE_GAMES: Options[] = [{ seed: 2, personality: 'aggressive' }];
+const LEAGUE_GAMES: Options[] = [{ seed: 1, personality: 'conservative' }, { seed: 2, personality: 'conservative' }, { seed: 2, personality: 'aggressive' }];
 
 // ---------- batch B ----------
 /** U8: the turn before the first league season (any registration; id = the season's round). */

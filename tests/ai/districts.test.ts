@@ -2,19 +2,19 @@ import { expect, test } from 'vitest';
 import { compareDistrictCandidates, districtCandidates } from '../../src/ai/district-plan.ts';
 import { planNext } from '../../src/ai/plan.ts';
 import { RULE_QUERIES } from '../../src/ai/query.ts';
-import { EXPANSION_CONTENT } from '../../src/content/units.ts';
+import { GAME_CONTENT } from '../../src/content/units.ts';
 import { createCity, tileYield } from '../../src/core/city.ts';
 import { observe } from '../../src/core/vision.ts';
 import { districtFixture } from '../core/fixtures/districts.ts';
 
-const candidates = (state: ReturnType<typeof districtFixture>['state']) => districtCandidates(observe(state, 0), 1, EXPANSION_CONTENT);
+const candidates = (state: ReturnType<typeof districtFixture>['state']) => districtCandidates(observe(state, 0), 1, GAME_CONTENT);
 test('district AI uses the exact resource, XP, bond, cost, opportunity and personality terms', () => {
   const { state, city, tile } = districtFixture();
   state.players[0].personality = 'expansion';
   const garden = () => candidates(state).find(item => item.kind === 'gardenDistrict' && item.tileIndex === tile)!;
   expect(garden()).toMatchObject({ resourceValue: 6, personalityBonus: 100, opportunityCost: 0, sameKindCount: 0, score: 680 });
   city.workedTileIds = [tile];
-  const y = tileYield('grassland', state.players[0], EXPANSION_CONTENT);
+  const y = tileYield('grassland', state.players[0], GAME_CONTENT);
   const lost = 100 * (2 * y.food + 3 * y.production + 2 * y.gold + 3 * y.research);
   expect(garden().score).toBe(680 - lost);
   expect(garden().opportunityCost).toBe(lost);
@@ -42,7 +42,7 @@ test('AI empire penalty counts owned completed and queued districts and tie orde
   ]);
 });
 
-test('AI uses only observed state, excludes contested land and does not offer districts in v9 or occupied queues', () => {
+test('AI uses only observed state, excludes contested land and does not offer districts in occupied queues or without expansion', () => {
   const { state, city, tile } = districtFixture();
   const before = candidates(state);
   state.map.tiles[state.map.tiles.length - 1] = 'volcano';
@@ -51,9 +51,11 @@ test('AI uses only observed state, excludes contested land and does not offer di
   state.cities[90] = createCity(90, 1, { q: 9, r: 6 });
   expect(candidates(state).some(item => item.tileIndex === tile)).toBe(false);
   city.queue = [{ id: 901, progress: 1, item: { kind: 'building', defId: 'meetingHall' } }];
-  const command = planNext(observe(state, 0), { ...RULE_QUERIES, content: EXPANSION_CONTENT });
+  const command = planNext(observe(state, 0), { ...RULE_QUERIES, content: GAME_CONTENT });
   expect(command.action.type).not.toBe('SetProductionQueue');
-  expect(candidates(districtFixture('gardenDistrict', 9).state)).toEqual([]);
+  const withoutExpansion = districtFixture().state;
+  delete withoutExpansion.expansion;
+  expect(candidates(withoutExpansion)).toEqual([]);
 });
 
 test('own completed facilities outside vision still block duplicate kinds in AI', () => {

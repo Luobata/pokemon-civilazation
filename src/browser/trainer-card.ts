@@ -17,8 +17,7 @@ const history = (view: PlayerView): readonly ChampionshipSeason[] => view.expans
 
 /** The game's league roster as the viewer knows it (empty before v27). */
 export function viewLeagueRoster(view: PlayerView): LeagueTrainer[] {
-  const content = contentForView(view);
-  return content.leagueTrainers ? leagueRoster(view.seed, content) : [];
+  return leagueRoster(view.seed, contentForView(view));
 }
 /** The roster trainer behind an entrant id (null for civilizations, rivals and the v26 NPC teams). */
 export function viewLeagueTrainer(view: PlayerView, entrantId: string): LeagueTrainer | null {

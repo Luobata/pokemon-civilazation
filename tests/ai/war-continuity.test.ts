@@ -4,7 +4,7 @@ import { observe, refreshKnowledge } from '../../src/core/vision.ts';
 import { createGame } from '../../src/core/game.ts';
 import { createCity } from '../../src/core/city.ts';
 import { createMapUnit } from '../../src/core/unit.ts';
-import { EXPANSION_CONTENT } from '../../src/content/units.ts';
+import { GAME_CONTENT } from '../../src/content/units.ts';
 import { canSiege, planNext } from '../../src/ai/plan.ts';
 import { eraCivilizationPolicy } from '../../src/ai/war-plan.ts';
 import { AI_THRESHOLDS } from '../../src/ai/thresholds.ts';
@@ -17,10 +17,11 @@ import { hexToIndex } from '../../src/core/hex.ts';
 type EraView = PlayerView & { eraProgression?: 'simple-v1' | 'full-v1' };
 function quiet(personality: AiPersonality, expansion = false) {
   const state = expansion
-    ? createGame({ seed: 12345, width: 16, height: 8, expansionVersion: 1,
-      players: [{ id: 0, controller: 'ai', personality, leaderId: 'oak' }, { id: 1, controller: 'ai', leaderId: 'lance' }] }, EXPANSION_CONTENT)
+    ? createGame({ seed: 12345, width: 24, height: 16, expansionVersion: 1,
+      players: [{ id: 0, controller: 'ai', personality, leaderId: 'oak' }, { id: 1, controller: 'ai', leaderId: 'lance' }] }, GAME_CONTENT)
     : combatFixture();
   state.players[0].personality = personality;
+  state.players[0].gold = 100;
   state.players[0].research.unlockedIds = Object.keys(state.players[0].research.progressByTech) as never[];
   refreshKnowledge(state);
   const view = observe(state, 0);
@@ -42,7 +43,7 @@ function rememberEnemyUnits(view: EraView, count: number) {
   }
 }
 
-test('era progression lets expansion declare only at its 2x border advantage; legacy expansion never declares', () => {
+test('era progression lets expansion declare only at its 2x border advantage and never against an ally', () => {
   const allied = quiet('expansion', true);
   allied.state.expansion!.civilization.relations['0:1']!.allianceSinceRound = 1;
   const alliedView = observe(allied.state, 0) as EraView;
@@ -58,7 +59,6 @@ test('era progression lets expansion declare only at its 2x border advantage; le
   for (let id = 10; id < 14; id++) view.units.push(pokemon(combatFixture(), id, 'bulbasaur', 0, 3, 2));
   rememberEnemyUnits(view, 2);
   rememberEnemyHeadquarters(view, 8);
-  expect(planNext(view).action.type).not.toBe('DeclareWar');
   enableEra(view);
   expect(planNext(view).action).toEqual({ type: 'DeclareWar', targetPlayerId: 1 });
   rememberEnemyHeadquarters(view, 9);
@@ -73,21 +73,24 @@ test('era rally continues toward one target below the unchanged siege threshold'
   view.diplomacy[0].status = 'war';
   view.diplomacy[0].declaredBy = 1;
   for (let id = 10; id < 14; id++) view.units.push(pokemon(combatFixture(), id, 'bulbasaur', 0, 3, 2));
-  rememberEnemyUnits(view, 3);
+  rememberEnemyUnits(view, 4);
   rememberEnemyHeadquarters(view, 10);
   const ai = { ...AI_THRESHOLDS, aggressiveSiegeUnits: 5, aggressiveSeekUnknownHq: false, aggressiveSiegeCaptureBonus: 0, aggressiveSiegeTrainingBonus: 0 };
   const to = { q: 4, r: 2 };
   view.visibleTileIds.push(hexToIndex(to, view.map)!);
   const query: RuleQueries = { ...RULE_QUERIES, ai, attack: () => ({ ok: false as const, reason: 'test' }),
     paths: (_view, id) => id === 10 ? { [hexToIndex(to, view.map)!]: [to] } : {} };
-  expect(canSiege(view, 1, ai)).toBe(false);
-  expect(planNext(view, query).action.type).not.toBe('Move');
   enableEra(view);
+  expect(canSiege(view, 1, ai)).toBe(false);
+  // 4 vs 4 is below the 1.25x campaign rally floor.
+  expect(planNext(view, query).action.type).not.toBe('Move');
+  delete view.knowledge.lastKnownUnits[23];
+  // 4 vs 3 meets 1.25x and rallies even while canSiege stays false.
   expect(planNext(view, query).action).toEqual({ type: 'Move', unitId: 10, to });
   expect(planNext(structuredClone(view), query)).toEqual(planNext(view, query));
 });
 
-test('an active era campaign rejects a one-city-loss peace exit; legacy behavior and no-target fallback remain', () => {
+test('an active era campaign rejects a one-city-loss peace exit while no-target fallback accepts', () => {
   const { view } = quiet('aggressive');
   view.diplomacy[0].status = 'war';
   view.diplomacy[0].proposal = { proposerId: 1, recipientId: 0 };
@@ -95,7 +98,6 @@ test('an active era campaign rejects a one-city-loss peace exit; legacy behavior
   for (let id = 10; id < 14; id++) view.units.push(pokemon(combatFixture(), id, 'bulbasaur', 0, 3, 2));
   rememberEnemyUnits(view, 2);
   rememberEnemyHeadquarters(view);
-  expect(planNext(view).action).toMatchObject({ type: 'RespondPeace', accept: true });
   enableEra(view);
   expect(planNext(view).action).toMatchObject({ type: 'RespondPeace', accept: false });
   view.knowledge.lastKnownCities = {};
@@ -167,19 +169,19 @@ function allianceView(mode?: EraProgression) {
       { id: 2, controller: 'ai', leaderId: 'jenny' },
       { id: 3, controller: 'ai', leaderId: 'joy' },
     ] };
-  const state = createGame(setup, EXPANSION_CONTENT);
+  const state = createGame(setup, GAME_CONTENT);
   state.activePlayerId = 0;
   state.players[0].gold = 0;
   const headquarters = state.cities[state.players[0].headquartersCityId]!;
-  state.cities[900] = createCity(900, 0, { q: headquarters.position.q + 1, r: headquarters.position.r }, false, EXPANSION_CONTENT);
-  state.cities[901] = createCity(901, 0, { q: headquarters.position.q + 2, r: headquarters.position.r }, false, EXPANSION_CONTENT);
+  state.cities[900] = createCity(900, 0, { q: headquarters.position.q + 1, r: headquarters.position.r }, false, GAME_CONTENT);
+  state.cities[901] = createCity(901, 0, { q: headquarters.position.q + 2, r: headquarters.position.r }, false, GAME_CONTENT);
   const enemyHeadquarters = state.cities[state.players[1].headquartersCityId]!;
   enemyHeadquarters.position = { q: headquarters.position.q + 5, r: headquarters.position.r };
   const starter = Object.values(state.units).find(unit => unit.ownerId === 0 && unit.kind === 'pokemon')!;
   starter.position = { ...enemyHeadquarters.position };
   state.units[902] = createMapUnit({ kind: 'pokemon', speciesId: 'bulbasaur' }, 902, 0,
-    { q: enemyHeadquarters.position.q + 1, r: enemyHeadquarters.position.r }, EXPANSION_CONTENT, 0, 1);
-  refreshKnowledge(state, EXPANSION_CONTENT);
+    { q: enemyHeadquarters.position.q + 1, r: enemyHeadquarters.position.r }, GAME_CONTENT, 0, 1);
+  refreshKnowledge(state, GAME_CONTENT);
   const observed = observe(state, 0) as EraView;
   observed.map.tiles.fill('grassland');
   observed.knowledge.exploredTileIds = observed.map.tiles.map((_, index) => index);
@@ -196,22 +198,19 @@ test('era strategic alliance blocking ignores own cities and selects the enemy h
   });
 });
 
-test('era alliance policy keeps one ally, avoids its strategic target, and leaves undefined progression unchanged', () => {
+test('era alliance policy keeps one ally and avoids its strategic target', () => {
   const { state } = allianceView();
   state.expansion!.civilization.relations['0:1']!.trust = 20;
   state.expansion!.civilization.relations['0:2']!.allianceSinceRound = 1;
   state.expansion!.civilization.relations['0:3']!.trust = 20;
-  const legacy = observe(state, 0) as EraView;
-  legacy.expansion!.world.nests = [];
-  legacy.expansion!.world.resources = [];
-  legacy.expansion!.world.overlords = [];
-  legacy.map.tiles.fill('grassland');
-  legacy.knowledge.exploredTileIds = legacy.map.tiles.map((_, index) => index);
-  expect(legacy).not.toHaveProperty('eraProgression');
-  expect(planNext(legacy).action).toEqual({ type: 'ProposeAlliance', targetPlayerId: 1 });
-
-  const era = structuredClone(legacy);
-  era.eraProgression = 'simple-v1';
+  const era = observe(state, 0) as EraView;
+  delete era.expansion!.policies;
+  era.expansion!.world.nests = [];
+  era.expansion!.world.resources = [];
+  era.expansion!.world.overlords = [];
+  era.map.tiles.fill('grassland');
+  era.knowledge.exploredTileIds = era.map.tiles.map((_, index) => index);
+  expect(era.eraProgression).toBe('simple-v1');
   expect(planNext(era).action).toEqual({ type: 'ProposeTrade', targetPlayerId: 1 });
   expect(eraCivilizationPolicy(era)).toEqual({
     maximumAllies: 1,

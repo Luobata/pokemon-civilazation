@@ -2,7 +2,6 @@ import { landmarkEssences } from './landmarks.ts';
 import type { MapFeatures } from './terrain.ts';
 import { BIOME_ESSENCE, ESSENCE_IDS, ESSENCE_RULES, ESSENCES, TYPE_ESSENCE } from '../content/essences.ts';
 import type { EssenceId } from '../content/essences.ts';
-import { gameplayAtLeast } from '../content/eras.ts';
 import type { LeaderId } from '../content/leaders.ts';
 import type { BiomeId } from '../content/rules.ts';
 import type { Content, SpeciesId, UnitIdentity } from '../content/units.ts';
@@ -23,7 +22,7 @@ export type EssenceView = { stock: Record<EssenceId, number>; gyms: { cityId: nu
 export const LEADER_ESSENCE: Record<LeaderId, EssenceId> = {
   oak: 'mind', lance: 'mind', jenny: 'life', joy: 'sylvan', brock: 'earth', misty: 'tide', steven: 'spark', jasmine: 'spark', giovanni: 'earth',
 };
-export const usesEssences = (state: Pick<GameState, 'setup' | 'expansion'>) => state.expansion !== undefined && gameplayAtLeast(state.setup, 4);
+export const usesEssences = (state: Pick<GameState, 'setup' | 'expansion'>) => state.expansion !== undefined;
 export const emptyEssences = (): Record<EssenceId, number> => Object.fromEntries(ESSENCE_IDS.map(id => [id, 0])) as Record<EssenceId, number>;
 export function isEssenceAction(action: { type: unknown }): action is EssenceAction { return action.type === 'BuildGym'; }
 export function initializeEssences(state: GameState): void {

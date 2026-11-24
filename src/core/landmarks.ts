@@ -44,8 +44,9 @@ export function landmarkEssences(map: FeatureMap, workedTileIds: readonly number
 }
 
 /** Writes `expansion.landmarks` when the content has landmarks and the map has sites; places Stardust Mere's moon-stone deposit. */
-export function initializeLandmarks(state: GameState, content: Content): void {
-  if (!content.landmarks || !state.expansion || !state.map.features?.landmarks.length) return;
+export function initializeLandmarks(state: GameState, _content?: Content): void {
+  void _content;
+  if (!state.expansion || !state.map.features?.landmarks.length) return;
   const ledger: LandmarkState = { discovered: Object.fromEntries(state.turnOrder.map(id => [id, []])), first: {} };
   const mere = state.map.features.landmarks.find(site => site.id === 'stardustMere');
   const world = state.expansion.world;

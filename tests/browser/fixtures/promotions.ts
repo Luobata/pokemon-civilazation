@@ -1,4 +1,4 @@
-import { EXPANSION_CONTENT } from '../../../src/content/units.ts';
+import { contentFor } from '../../../src/content/units.ts';
 import { RULE_QUERIES } from '../../../src/ai/query.ts';
 import { planNext } from '../../../src/ai/plan.ts';
 import { rememberCityRejection } from '../../../src/ai/memory.ts';
@@ -12,7 +12,7 @@ import type { CommandLog } from '../../../src/app/session.ts';
 import type { Command, GameSetup, GameState } from '../../../src/core/model.ts';
 
 // The v13 rules are pinned explicitly so the fixture keeps working when the default version moves on.
-const setupFor = (seed: number): GameSetup => ({ seed, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 13,
+const setupFor = (seed: number): GameSetup => ({ seed, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 27,
   players: [{ id: 0, controller: 'human', starterId: 'bulbasaur', leaderId: 'lance' }, { id: 1, controller: 'ai', personality: 'aggressive', leaderId: 'giovanni' }] });
 const logFor = (state: GameState, commands: Command[]): CommandLog =>
   ({ version: 1, ...gameVersions(state.setup), contentVersion: state.contentVersion, setup: state.setup, commands });
@@ -25,11 +25,12 @@ export type PromotionFixture = { state: GameState; log: CommandLog; save: string
  * while player 0 is at war with player 1 and sees a promoted unit of player 1.
  */
 function search(seed: number): PromotionFixture | null {
-  let state = createGame(setupFor(seed), EXPANSION_CONTENT);
+  const setup = setupFor(seed), content = contentFor(setup);
+  let state = createGame(setup, content);
   const commands: Command[] = [], memory: RejectedCitySite[] = [];
   while (!state.outcome && state.round < 90) {
-    const view = observe(state, state.activePlayerId, EXPANSION_CONTENT);
-    let command = planNext(view, { ...RULE_QUERIES, content: EXPANSION_CONTENT }, memory);
+    const view = observe(state, state.activePlayerId, content);
+    let command = planNext(view, { ...RULE_QUERIES, content }, memory);
     if (state.activePlayerId === 0 && command.action.type === 'PromoteUnit') {
       const unitId = command.action.unitId, unit = view.units.find(item => item.id === unitId);
       const record = state.expansion!.promotions!.units[unitId];
@@ -38,11 +39,11 @@ function search(seed: number): PromotionFixture | null {
       if (unit && unit.actionLeft > 0 && record.traits.length === 0 && war && enemy)
         return { state, log: logFor(state, commands), save: serializeSave(state, logFor(state, commands)), unitId, enemyId: enemy.id, seed };
     }
-    let result = step(state, command, EXPANSION_CONTENT);
+    let result = step(state, command, content);
     if (!result.ok) {
       rememberCityRejection(memory, view, command, result.reason);
       command = { actorId: view.playerId, expectedSeq: view.commandSeq, action: { type: 'EndTurn' } };
-      result = step(state, command, EXPANSION_CONTENT);
+      result = step(state, command, content);
     }
     if (!result.ok) throw new Error(`Promotion fixture rejected ${command.action.type}: ${result.reason}`);
     state = result.state; commands.push(command);
@@ -63,6 +64,6 @@ export function promotionFixture(): PromotionFixture {
 
 /** A fresh v13 game: nobody has fought yet, so no unit has merit. */
 export function freshPromotionFixture() {
-  const state = createGame(setupFor(1), EXPANSION_CONTENT), log = logFor(state, []);
+  const setup = setupFor(1), state = createGame(setup, contentFor(setup)), log = logFor(state, []);
   return { state, log, save: serializeSave(state, log) };
 }

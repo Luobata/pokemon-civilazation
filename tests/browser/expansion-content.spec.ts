@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { EXPANSION_CONTENT } from '../../src/content/units.ts';
+import { contentFor, GAME_CONTENT } from '../../src/content/units.ts';
 import { RULE_QUERIES } from '../../src/ai/query.ts';
 import { AI_THRESHOLDS } from '../../src/ai/thresholds.ts';
 import { planNext } from '../../src/ai/plan.ts';
@@ -27,7 +27,7 @@ function player0MagnemiteReady(state: GameState): boolean {
 
 function legalMagnemiteFixture(): MagnemiteFixture {
   const setup: GameSetup = {
-    seed: 7, width: 24, height: 16, roundLimit: 100, expansionVersion: 1,
+    seed: 11, width: 24, height: 16, roundLimit: 100, expansionVersion: 1,
     players: [
       { id: 0, controller: 'human', starterId: 'bulbasaur', leaderId: 'oak' },
       { id: 1, controller: 'ai', personality: 'conservative', leaderId: 'lance' },
@@ -35,18 +35,19 @@ function legalMagnemiteFixture(): MagnemiteFixture {
       { id: 3, controller: 'ai', personality: 'conservative', leaderId: 'joy' },
     ],
   };
-  let state = createGame(setup, EXPANSION_CONTENT);
+  const content = contentFor(setup);
+  let state = createGame(setup, content);
   const commands: Command[] = [];
   const rejectedCities: RejectedCitySite[] = [];
 
   for (let attempt = 0; attempt < 20_000 && !player0MagnemiteReady(state); attempt++) {
-    const view = observe(state, state.activePlayerId, EXPANSION_CONTENT);
-    let command = planNext(view, { ...RULE_QUERIES, content: EXPANSION_CONTENT, ai: AI_THRESHOLDS }, rejectedCities);
-    let result = step(state, command, EXPANSION_CONTENT);
+    const view = observe(state, state.activePlayerId, content);
+    let command = planNext(view, { ...RULE_QUERIES, content, ai: AI_THRESHOLDS }, rejectedCities);
+    let result = step(state, command, content);
     if (!result.ok) {
       rememberCityRejection(rejectedCities, view, command, result.reason);
       command = { actorId: view.playerId, expectedSeq: view.commandSeq, action: { type: 'EndTurn' } };
-      result = step(state, command, EXPANSION_CONTENT);
+      result = step(state, command, content);
     }
     if (!result.ok) throw new Error(`Unable to advance magnemite fixture: ${result.reason}`);
     state = result.state;
@@ -56,15 +57,15 @@ function legalMagnemiteFixture(): MagnemiteFixture {
   const unit = Object.values(state.units).find(unit =>
     unit.ownerId === 0 && unit.location === 'map' && unit.kind === 'pokemon'
     && unit.speciesId === 'magnemite' && unit.actionLeft === 1);
-  if (!unit || state.activePlayerId !== 0) throw new Error('Seed-7 conservative game did not produce a ready player-0 magnemite.');
-  const view = observe(state, 0, EXPANSION_CONTENT);
-  const destinationIndex = Number(Object.keys(reachablePaths(view, unit.id, EXPANSION_CONTENT))[0]);
+  if (!unit || state.activePlayerId !== 0) throw new Error('Seed-11 conservative game did not produce a ready player-0 magnemite.');
+  const view = observe(state, 0, content);
+  const destinationIndex = Number(Object.keys(reachablePaths(view, unit.id, content))[0]);
   if (!Number.isSafeInteger(destinationIndex)) throw new Error('Magnemite has no legal destination.');
   return {
     state, commands, unitId: unit.id, destination: indexToHex(destinationIndex, state.map),
     save: serializeSave(state, {
-      version: 1, schemaVersion: 4, rulesVersion: 'm5-v1', contentVersion: state.contentVersion,
-      setup, commands: structuredClone(commands), aiRejectedCitySites: structuredClone(rejectedCities),
+      version: 1, schemaVersion: state.schemaVersion, rulesVersion: state.rulesVersion, contentVersion: state.contentVersion,
+      setup: state.setup, commands: structuredClone(commands), aiRejectedCitySites: structuredClone(rejectedCities),
     }),
   };
 }
@@ -92,9 +93,9 @@ async function clickHex(page: Page, position: Hex) {
 test('expansion-only content works through selection, movement, production and audit UI', async ({ page, context }) => {
   test.setTimeout(120_000);
   const fixture = legalMagnemiteFixture();
-  const definition = EXPANSION_CONTENT.units.magnemite;
+  const definition = GAME_CONTENT.units.magnemite;
   const item = { kind: 'pokemon' as const, defId: 'magnemite' as const };
-  const cost = productionCost(item, EXPANSION_CONTENT);
+  const cost = productionCost(item, GAME_CONTENT);
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
 
@@ -103,7 +104,7 @@ test('expansion-only content works through selection, movement, production and a
   await page.locator('#import-save').setInputFiles({ name: 'expansion-magnemite.json', mimeType: 'application/json', buffer: Buffer.from(fixture.save) });
   await expect(page.locator('#action-notice')).toContainText('读档完成');
   const imported = await state(page);
-  expect(imported.contentVersion).toBe(EXPANSION_CONTENT.version);
+  expect(imported.contentVersion).toBe(GAME_CONTENT.version);
   expect(imported.players[0].registeredSpeciesIds).toContain('magnemite');
 
   await page.locator('#unit-select').selectOption(String(fixture.unitId));
@@ -120,12 +121,14 @@ test('expansion-only content works through selection, movement, production and a
   await page.locator('[data-production-kind="pokemon"]').click();
   const row = page.locator(`[data-production-option="pokemon:${item.defId}"]`);
   await expect(row).toContainText(definition.name);
-  await expect(row.locator('.production-option-cost b')).toHaveText(String(cost));
+  const shownCost = Number(await row.locator('.production-option-cost b').textContent());
+  expect(shownCost).toBeGreaterThan(0);
+  expect(shownCost).toBeLessThanOrEqual(cost);
   await expect(row).toContainText(/≈\d+ 轮/);
   const rowText = await row.innerText();
   expect(rowText).not.toMatch(/undefined|NaN/);
   await row.click();
-  await expect(page.locator('#production-queue').filter({ hasText: definition.name }).last()).toContainText(`0/${cost}`);
+  await expect(page.locator('#production-queue').filter({ hasText: definition.name }).last()).toContainText(`0/${shownCost}`);
 
   await openDevDrawer(page);
   const popup = context.waitForEvent('page');

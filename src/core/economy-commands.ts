@@ -11,8 +11,8 @@ import { visibleTiles } from './vision.ts';
 import { ballPrice, playerPolicyEffects } from './policies.ts';
 import { trainableSpeciesIds } from './role-tactics.ts';
 import { isMapUnit } from './model.ts';
-import { deploymentTileExists, usesDeploymentRulesV25 } from './movement.ts';
-import { CONTENT, contentFor, techOf } from '../content/units.ts';
+import { deploymentTileExists } from './movement.ts';
+import { GAME_CONTENT, contentFor, techOf } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
 import type { TechId } from '../content/economy.ts';
 import { hexDistance, hexToIndex } from './hex.ts';
@@ -20,12 +20,9 @@ import { assignNewWorkers, cleanWork, createCity, workCandidates } from './city.
 import type { EconomyAction, EconomyEvent, GameState, PlayerState, StepResult } from './model.ts';
 
 type Rejection = Extract<StepResult, { ok: false }>['reason'];
-export function canResearch(player: PlayerState, techId: TechId, content: Content = CONTENT): boolean {
+export function canResearch(player: PlayerState, techId: TechId, content: Content = GAME_CONTENT): boolean {
   if (!Object.hasOwn(content.techs, techId) || player.research.unlockedIds.includes(techId)) return false;
-  // v22 tree: every listed prerequisite must be complete. Older contents: any tech of the previous tier.
-  if (content.techTree) return (techOf(content, techId).requires ?? []).every(id => player.research.unlockedIds.includes(id));
-  const tier = techOf(content, techId).tier;
-  return tier === 1 || player.research.unlockedIds.some(id => techOf(content, id).tier === tier - 1);
+  return techOf(content, techId).requires.every(id => player.research.unlockedIds.includes(id));
 }
 export function validateEconomyAction(state: GameState, actor: number, action: EconomyAction, content: Content = contentFor(state.setup)): Rejection | null {
   const player = state.players[actor];
@@ -76,8 +73,7 @@ export function validateEconomyAction(state: GameState, actor: number, action: E
       if (!state.expansion?.legends || action.orders.filter(other => other.item.kind === 'legend' && other.item.defId === item.defId).length > 1) return 'invalid-production';
       if (order.orderId === undefined && legendWonderBlocker(state, city, item.defId) !== null) return 'invalid-production';
     } else if (item.kind === 'project') {
-      // v27 ③: at most one project per queue; a new one needs its requirement (refused before v27).
-      if (!content.cityProjects || action.orders.filter(other => other.item.kind === 'project').length > 1) return 'invalid-production';
+      if (action.orders.filter(other => other.item.kind === 'project').length > 1) return 'invalid-production';
       if (order.orderId === undefined && cityProjectBlocker(stateCityProjectInput(state, city, content), item.defId, true) !== null) return 'invalid-production';
     } else if (item.kind === 'building') {
       const def = content.buildings[item.defId];
@@ -88,11 +84,9 @@ export function validateEconomyAction(state: GameState, actor: number, action: E
       if (!trainableSpeciesIds(player, state.setup.gameplayVersion, content, state.setup.eraProgression).includes(item.defId) || !Object.hasOwn(content.units, item.defId)) return 'invalid-production';
       if (content.species[item.defId].role === 'fast' && !player.research.unlockedIds.includes('riding')) return 'invalid-production';
       if (order.orderId === undefined && classTrainingBlocker(state, player, state.setup.eraProgression, stateBadges(state, actor), item.defId, content)) return 'invalid-production';
-      // v25 fix 1: a Pokémon this city could never place (e.g. water-only in an inland city) would wait forever; refuse it at queue time.
-      if (order.orderId === undefined && usesDeploymentRulesV25(state) && !deploymentTileExists(state.map, city.position, { kind: 'pokemon', speciesId: item.defId }, content)) return 'invalid-production';
+      if (order.orderId === undefined && !deploymentTileExists(state.map, city.position, { kind: 'pokemon', speciesId: item.defId }, content)) return 'invalid-production';
     } else if (item.kind !== 'logistics' || (item.defId !== 'settler' && item.defId !== 'trader' && item.defId !== 'builder')) return 'invalid-production';
-    // v23: a builder may take an escort (registered species); its type becomes the builder's crew specialty.
-    else if (item.defId === 'builder' ? !usesBuilders(state) || (item.escortId !== undefined && (!content.builderCrews || !player.registeredSpeciesIds.includes(item.escortId))) : false) return 'invalid-production';
+    else if (item.defId === 'builder' ? !usesBuilders(state) || (item.escortId !== undefined && !player.registeredSpeciesIds.includes(item.escortId)) : false) return 'invalid-production';
     else if (!state.expansion?.cityNetwork ? item.defId !== 'settler' || item.escortId !== undefined
       : (item.escortId !== undefined && !player.registeredSpeciesIds.includes(item.escortId))
         || (item.defId === 'trader' && !city.buildingIds.includes(CITY_NETWORK_RULES.trader.building))) return 'invalid-production';

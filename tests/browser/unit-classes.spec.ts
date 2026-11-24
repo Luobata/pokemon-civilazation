@@ -9,7 +9,7 @@ const state = (page: Page): Promise<GameState> => page.evaluate(async () => { co
 test('v19: the unit panel names the class, its counters and affinity; training is grouped by class; research shows HMs', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(String(error)));
-  await page.goto('/?seed=12345&gameplay=21');
+  await page.goto('/?seed=12345');
   const game = await state(page);
   expect(game.setup.gameplayVersion).toBeGreaterThanOrEqual(19);
   const starter = Object.values(game.units).find(unit => unit.ownerId === 0 && unit.kind === 'pokemon')!;
@@ -21,7 +21,8 @@ test('v19: the unit panel names the class, its counters and affinity; training i
   // The class is a named shield badge on the sprite.
   await expect(page.locator('#production-list [data-production-option]').first().getByRole('img', { name: CLASS_NAMES.ranged, exact: true })).toHaveCount(1);
   await openScreen(page, 'research');
-  await expect(page.locator('[data-tech-card="meteorology"]')).toContainText('学会秘传「飞翔」');
+  await page.locator('[data-tree-node="aviation"]').click();
+  await expect(page.locator('#research-panel')).toContainText('学会秘传「飞翔」');
   expect(errors).toEqual([]);
 });
 

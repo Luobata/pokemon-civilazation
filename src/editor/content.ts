@@ -1,15 +1,18 @@
-import { EXPANSION_CONTENT } from '../content/units.ts';
+import { GAME_CONTENT } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
 import type { SpeciesDefinition, SpeciesId, TypeId } from '../content/species.ts';
+import { TECH_LINE_IDS } from '../content/tech-tree.ts';
 import { damage, dualEffectiveness } from '../core/combat-math.ts';
 
-const BASELINE = EXPANSION_CONTENT;
+const BASELINE = GAME_CONTENT;
 
 const TYPES = [...new Set(Object.values(BASELINE.species).flatMap(definition => [definition.typeId, ...definition.secondaryTypeId === undefined ? [] : [definition.secondaryTypeId]]))] as TypeId[];
 const BIOMES = Object.keys(BASELINE.moveCosts);
 const SPECIES_IDS = Object.keys(BASELINE.species) as SpeciesId[];
 const TECH_IDS = Object.keys(BASELINE.techs);
-const STAGE_BUDGETS: readonly (readonly [number, number])[] = [[150, 170], [210, 240], [280, 320]];
+const LOGISTICS_IDS = new Set(['settler', 'trader', 'builder']);
+const STAGE_BUDGETS: readonly (readonly [number, number])[] = [[160, 180], [180, 205], [195, 225]];
+const OPTIONAL_SPECIES_KEYS = ['secondaryTypeId', 'dex', 'generation', 'evolutionCondition', 'branches'] as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -72,8 +75,8 @@ function validateYield(value: unknown, path: string): void {
 function validateSpeciesDefinition(raw: unknown, id: string, all: Record<string, SpeciesDefinition>): SpeciesDefinition {
   const path = `species.${id}`;
   if (!isRecord(raw)) fail(path, 'expected an object');
-    const baseKeys = ['name', 'typeId', 'stage', 'role', 'maxHp', 'attack', 'defense', 'move', 'range', 'power', 'vision', 'rare', 'immunities', 'trainCost', 'upkeep', 'terrain', 'spawnBiomes', 'evolution'];
-  keysExactly(raw, raw.secondaryTypeId === undefined ? baseKeys : [...baseKeys, 'secondaryTypeId'], path);
+  const baseKeys = ['name', 'typeId', 'stage', 'role', 'maxHp', 'attack', 'defense', 'move', 'range', 'power', 'vision', 'rare', 'immunities', 'trainCost', 'upkeep', 'terrain', 'spawnBiomes', 'evolution'];
+  keysWithin(raw, baseKeys, [...baseKeys, ...OPTIONAL_SPECIES_KEYS], path);
   const typeId = enumerated(raw.typeId, TYPES, `${path}.typeId`);
   const stage = integer(raw.stage, `${path}.stage`, 1, 3) as 1 | 2 | 3;
   const role = enumerated(raw.role, ['ranged', 'melee', 'scout', 'fast', 'siege', 'naval', 'air'], `${path}.role`);
@@ -99,17 +102,19 @@ function validateSpeciesDefinition(raw: unknown, id: string, all: Record<string,
     evolution = {
       speciesId: enumerated(evolutionRaw.speciesId, SPECIES_IDS, `${path}.evolution.speciesId`),
       xp: integer(evolutionRaw.xp, `${path}.evolution.xp`, 1, 1000),
-      gold: integer(evolutionRaw.gold, `${path}.evolution.gold`, 1, 1000),
+      gold: integer(evolutionRaw.gold, `${path}.evolution.gold`, 0, 1000),
       requiresTraining: boolean(evolutionRaw.requiresTraining, `${path}.evolution.requiresTraining`),
     };
   } else fail(`${path}.evolution`, 'expected null or an evolution object');
   const sum = maxHp + attack + defense;
   const [minimum, maximum] = STAGE_BUDGETS[stage - 1];
   if (sum < minimum || sum > maximum) fail(path, `${id} stage ${stage} stat budget ${sum} is outside ${minimum}–${maximum}`);
-  if (trainCost !== Math.floor(sum / 8)) fail(`${path}.trainCost`, `must equal Math.floor((${minimum}–${maximum}) budget / 8)`);
-  if (evolution && (!all[evolution.speciesId] || all[evolution.speciesId].stage !== stage + 1)) fail(`${path}.evolution.speciesId`, 'must reference the next development stage');
-  return { name: string(raw.name, path), typeId, ...(secondaryTypeId === undefined ? {} : { secondaryTypeId }), stage, role, maxHp, attack, defense, move, range, power, vision,
-    rare: boolean(raw.rare, `${path}.rare`), immunities, trainCost, upkeep, terrain, spawnBiomes, evolution } as SpeciesDefinition;
+  if (evolution && (!all[evolution.speciesId] || all[evolution.speciesId].stage <= stage)) fail(`${path}.evolution.speciesId`, 'must reference a later development stage');
+  return {
+    ...raw,
+    name: string(raw.name, path), typeId, ...(secondaryTypeId === undefined ? {} : { secondaryTypeId }), stage, role, maxHp, attack, defense, move, range, power, vision,
+    rare: boolean(raw.rare, `${path}.rare`), immunities, trainCost, upkeep, terrain, spawnBiomes, evolution,
+  } as SpeciesDefinition;
 }
 
 export function validateD15(species: Record<SpeciesId, SpeciesDefinition>): void {
@@ -118,20 +123,21 @@ export function validateD15(species: Record<SpeciesId, SpeciesDefinition>): void
     const effectivenessValue = dualEffectiveness(attacker.typeId, [defender.typeId, ...(defender.secondaryTypeId ? [defender.secondaryTypeId] : [])], true);
     if (effectivenessValue < 220) continue;
     const hit = damage(attacker.attack, defender.defense, attacker.power, effectivenessValue, 120, 100);
-    if (hit * 100 > defender.maxHp * 60) {
+    if (hit * 100 > defender.maxHp * 75) {
       throw new Error(`D15 violation: ${attacker.name} can deal ${hit} to ${defender.name} (${defender.maxHp} HP)`);
     }
   }
 }
 
 export function cloneContent(): Content {
-  return structuredClone(EXPANSION_CONTENT);
+  return structuredClone(GAME_CONTENT);
 }
 
 export function validateEditorContent(value: unknown): Content {
   if (!isRecord(value)) fail('content', 'expected an object');
-  const editableKeys = ['version', 'biomes', 'buildings', 'techs', 'balls', 'balance', 'units', 'species', 'moveCosts'];
-  keysExactly(value, editableKeys, 'content');
+  const requiredKeys = ['version', 'biomes', 'buildings', 'techs', 'balls', 'balance', 'units', 'species', 'moveCosts'];
+  const optionalKeys = ['roster', 'world24', 'depth26', 'pace27', 'regionalDex'];
+  keysWithin(value, requiredKeys, [...requiredKeys, ...optionalKeys], 'content');
   string(value.version, 'content.version');
 
   sameKeys(value.biomes, BASELINE.biomes as Record<string, unknown>, 'content.biomes');
@@ -154,10 +160,12 @@ export function validateEditorContent(value: unknown): Content {
   for (const [id, definition] of Object.entries(value.techs)) {
     const path = `content.techs.${id}`;
     if (!isRecord(definition)) fail(path, 'expected an object');
-    keysExactly(definition, ['name', 'tier', 'cost'], path);
+    keysWithin(definition, ['name', 'tier', 'cost'], ['name', 'tier', 'cost', 'requires', 'line'], path);
     string(definition.name, path);
-    integer(definition.tier, `${path}.tier`, 1, 3);
+    integer(definition.tier, `${path}.tier`, 1, 6);
     integer(definition.cost, `${path}.cost`, 1, 1000);
+    if (definition.requires !== undefined) stringArray(definition.requires, TECH_IDS, `${path}.requires`);
+    if (definition.line !== undefined) enumerated(definition.line, TECH_LINE_IDS, `${path}.line`);
   }
 
   sameKeys(value.balls, BASELINE.balls as Record<string, unknown>, 'content.balls');
@@ -180,15 +188,15 @@ export function validateEditorContent(value: unknown): Content {
     const path = `content.units.${id}`;
     if (!isRecord(definition)) fail(path, 'expected an object');
     const unitKeys = ['name', 'move', 'vision', 'terrain', 'trainCost', 'upkeep'];
-    if (id === 'settler') keysExactly(definition, unitKeys, path);
-    else keysWithin(definition, unitKeys, [...unitKeys, ...Object.keys(species[id]), 'secondaryTypeId'], path);
+    if (LOGISTICS_IDS.has(id)) keysExactly(definition, unitKeys, path);
+    else keysWithin(definition, unitKeys, [...unitKeys, ...Object.keys(species[id]), ...OPTIONAL_SPECIES_KEYS], path);
     string(definition.name, path);
     integer(definition.move, `${path}.move`, 1, 10);
     integer(definition.vision, `${path}.vision`, 1, 8);
     stringArray(definition.terrain, BIOMES, `${path}.terrain`);
     integer(definition.trainCost, `${path}.trainCost`, 1, 200);
     integer(definition.upkeep, `${path}.upkeep`, 0, 100);
-    const source = id === 'settler' ? null : species[id];
+    const source = LOGISTICS_IDS.has(id) ? null : species[id];
     if (source && JSON.stringify(definition) !== JSON.stringify(source)) fail(path, 'the unit definition must exactly match its species definition');
   }
 

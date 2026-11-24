@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { combatFixture, pokemon, issue } from './combat-fixture.ts';
-import { CONTENT } from '../../src/content/units.ts';
+import { GAME_CONTENT } from '../../src/content/units.ts';
 import { canEnter, reachablePaths } from '../../src/core/movement.ts';
 import { hexToIndex } from '../../src/core/hex.ts';
 import { observe, refreshKnowledge } from '../../src/core/vision.ts';
@@ -9,7 +9,7 @@ test('D28 flight passage still costs terrain; ghost ignores terrain costs and ha
   const state = combatFixture(); state.cities = {}; state.map.tiles.fill('forest');
   const unit = pokemon(state, 10, 'gastly', 0, 3, 3);
   refreshKnowledge(state);
-  expect(CONTENT.species.gastly.vision).toBe(3); expect(CONTENT.species.haunter.vision).toBe(3); expect(CONTENT.species.gengar.vision).toBe(3);
+  expect(GAME_CONTENT.species.gastly.vision).toBe(3); expect(GAME_CONTENT.species.haunter.vision).toBe(3); expect(GAME_CONTENT.species.gengar.vision).toBe(3);
   expect(reachablePaths(observe(state, 0), 10)[hexToIndex({ q: 6, r: 3 }, state.map)!]).toBeDefined();
   unit.speciesId = 'pidgey'; refreshKnowledge(state);
   expect(reachablePaths(observe(state, 0), 10)[hexToIndex({ q: 6, r: 3 }, state.map)!]).toBeUndefined(); // move4, cost6

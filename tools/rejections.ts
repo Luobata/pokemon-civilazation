@@ -1,4 +1,4 @@
-import { CONTENT } from '../src/content/units.ts';
+import { GAME_CONTENT as CONTENT } from '../src/content/units.ts';
 import type { Content } from '../src/content/units.ts';
 import { hexDistance, hexToIndex } from '../src/core/hex.ts';
 import { isMapUnit } from '../src/core/model.ts';

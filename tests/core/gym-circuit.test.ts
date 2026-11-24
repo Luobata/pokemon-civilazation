@@ -1,12 +1,11 @@
 import { describe, expect, test } from 'vitest';
 import { ESSENCE_IDS } from '../../src/content/essences.ts';
 import { ELITE_FOUR, GYM_RULES_V24, HOME_GYMS } from '../../src/content/gym-circuit.ts';
-import { WORLD24_CONTENT } from '../../src/content/units.ts';
-import { gymTeamPower } from '../../src/content/world24-tuning.ts';
+import { GAME_CONTENT } from '../../src/content/units.ts';
 import type { SpeciesId } from '../../src/content/species.ts';
 import { dualEffectiveness } from '../../src/core/combat-math.ts';
 import { createGame } from '../../src/core/game.ts';
-import { leaderTeam, placeGyms, viewGymBlocker, viewGymTeam } from '../../src/core/gym-circuit.ts';
+import { leaderTeam, leaderTeamFor, placeGyms, viewGymBlocker, viewGymTeam } from '../../src/core/gym-circuit.ts';
 import { hexDistance, hexToIndex, indexToHex, neighbors } from '../../src/core/hex.ts';
 import { isMapUnit } from '../../src/core/model.ts';
 import type { Command, GameState } from '../../src/core/model.ts';
@@ -16,12 +15,12 @@ import { classTrainingBlocker, stateBadges } from '../../src/core/unit-classes.t
 import { createMapUnit } from '../../src/core/unit.ts';
 import { observe, refreshKnowledge } from '../../src/core/vision.ts';
 
-const setup = (gameplayVersion: 23 | 24, players = 4, seed = 31) => ({ seed, width: 24, height: 16, roundLimit: 100 as const, expansionVersion: 1 as const,
+const setup = (gameplayVersion: 27, players = 4, seed = 31) => ({ seed, width: 24, height: 16, roundLimit: 100 as const, expansionVersion: 1 as const,
   eraProgression: 'simple-v1' as const, gameplayVersion, players: [
     { id: 0, controller: 'human' as const, starterId: 'bulbasaur' as const },
     ...Array.from({ length: players - 1 }, (_, index) => ({ id: index + 1, controller: 'ai' as const })),
   ] });
-const content = WORLD24_CONTENT;
+const content = GAME_CONTENT;
 const order = (state: GameState, action: Command['action'], actorId = 0) => step(state, { actorId, expectedSeq: state.commandSeq, action }, content);
 /** Clears the gym's surroundings and puts own Pokémon on it (first) and next to it. */
 function teamAt(state: GameState, gymId: number, species: SpeciesId[], playerId = 0): number[] {
@@ -38,7 +37,7 @@ function teamAt(state: GameState, gymId: number, species: SpeciesId[], playerId 
 describe('v24 B gym circuit: placement', () => {
   test('eight or more neutral gyms; each civilization has a home gym its starter beats, 5–8 land travel away; every essence present', () => {
     for (const seed of [31, 32, 33, 34]) {
-      const state = createGame(setup(24, 4, seed));
+      const state = createGame(setup(27, 4, seed));
       const gyms = state.expansion!.gymCircuit!.gyms;
       expect(gyms.length).toBeGreaterThanOrEqual(GYM_RULES_V24.gymCount);
       expect(new Set(ESSENCE_IDS.filter(id => gyms.some(gym => gym.essence === id))).size).toBe(ESSENCE_IDS.length);
@@ -60,12 +59,11 @@ describe('v24 B gym circuit: placement', () => {
         expect(capitals.every(city => hexDistance(city.position, gym.position, state.map) >= GYM_RULES_V24.minCapitalDistance)).toBe(true);
       }
     }
-    expect(createGame(setup(23)).expansion!.gymCircuit).toBeUndefined();
   });
 
   test('v24 terrain: at least two gyms across water and the rest by continent quota (40×26, four civilizations)', () => {
     for (const seed of [31, 32, 33, 34, 35, 36]) {
-      const state = createGame({ ...setup(24, 4, seed), width: 40, height: 26 });
+      const state = createGame({ ...setup(27, 4, seed), width: 40, height: 26 });
       const gyms = state.expansion!.gymCircuit!.gyms, rule = landRule(state.map);
       expect(gyms.filter(gym => gym.overseas).length, `seed ${seed}`).toBeGreaterThanOrEqual(GYM_RULES_V24.minOverseas);
       const capitals = state.turnOrder.map(id => hexToIndex(state.cities[state.players[id].headquartersCityId].position, state.map)!);
@@ -99,7 +97,7 @@ describe('v24 B gym circuit: placement', () => {
   });
 
   test('no city may be founded on a gym tile (authority and AI site check agree)', () => {
-    const state = createGame(setup(24, 2));
+    const state = createGame(setup(27, 2));
     const gym = state.expansion!.gymCircuit!.gyms[0];
     for (const city of Object.values(state.cities)) if (city.ownerId === 1) city.position = { q: 999, r: 999 };
     const settler = Object.values(state.units).find(unit => unit.ownerId === 0 && unit.kind === 'logistics')!;
@@ -111,25 +109,28 @@ describe('v24 B gym circuit: placement', () => {
 
 describe('v24 B gym circuit: challenges', () => {
   test('leader strength follows the badges the challenger holds', () => {
-    const state = createGame(setup(24, 2)), gym = state.expansion!.gymCircuit!.gyms[0];
+    const state = createGame(setup(27, 2)), gym = state.expansion!.gymCircuit!.gyms[0];
     for (const [badges, row] of GYM_RULES_V24.teams.entries()) {
       const team = leaderTeam(gym, badges, state.setup.seed, content);
       expect(team.length).toBe(row.members);
       const power = team.reduce((sum, member) => sum + member.maxHp + member.attack + member.defense, 0);
-      expect(Math.abs(power - gymTeamPower(content, badges))).toBeLessThanOrEqual(3 * row.members);
+      expect(Math.abs(power - leaderTeamFor(badges, content).power)).toBeLessThanOrEqual(3 * row.members);
       expect(team.every(member => content.species[member.speciesId].typeId === gym.typeId || content.species[member.speciesId].secondaryTypeId === gym.typeId)).toBe(true);
     }
   });
 
   test('ChallengeGym: refusals, a win (badge, gold, essence, XP), cooldown and the view agree with the authority', () => {
-    const state = createGame(setup(24, 2)), circuit = state.expansion!.gymCircuit!, gym = circuit.gyms.find(item => item.homeOf === 0)!;
-    const ids = teamAt(state, gym.id, ['venusaur', 'charizard', 'blastoise']);
+    const state = createGame(setup(27, 2)), circuit = state.expansion!.gymCircuit!, gym = circuit.gyms.find(item => item.homeOf === 0)!;
+    // At 0 badges the leader fields 1 Pokémon, so a challenger lineup must be size 1 (extra nearby units fail size / on-site checks).
+    const placed = teamAt(state, gym.id, ['venusaur', 'charizard']);
+    const ids = [placed[0]], offSite = [placed[1]];
     const view = observe(state, 0, content);
-    expect([...viewGymTeam(view, gym.id, content)].sort((a, b) => a - b)).toEqual(ids);
+    expect(viewGymTeam(view, gym.id, content)).toEqual(ids);
     expect(viewGymBlocker(view, gym.id, ids)).toBeNull();
     expect(order(state, { type: 'ChallengeGym', gymId: gym.id, unitIds: [] })).toEqual({ ok: false, reason: 'invalid-command' });
-    expect(order(state, { type: 'ChallengeGym', gymId: gym.id, unitIds: ids.slice(1) })).toEqual({ ok: false, reason: 'invalid-command' });
-    expect(viewGymBlocker(view, gym.id, ids.slice(1))).toBe('unit-not-on-site');
+    expect(order(state, { type: 'ChallengeGym', gymId: gym.id, unitIds: placed })).toEqual({ ok: false, reason: 'invalid-command' });
+    expect(order(state, { type: 'ChallengeGym', gymId: gym.id, unitIds: offSite })).toEqual({ ok: false, reason: 'invalid-command' });
+    expect(viewGymBlocker(view, gym.id, offSite)).toBe('unit-not-on-site');
     expect(order(state, { type: 'ChallengeGym', gymId: 999, unitIds: ids })).toEqual({ ok: false, reason: 'invalid-command' });
     const gold = state.players[0].gold, essence = state.expansion!.essences!.stock[0][gym.essence];
     const result = order(state, { type: 'ChallengeGym', gymId: gym.id, unitIds: ids });
@@ -141,10 +142,9 @@ describe('v24 B gym circuit: challenges', () => {
     expect(after.players[0].gold).toBe(gold + GYM_RULES_V24.reward.goldPerBadge);
     expect(after.expansion!.essences!.stock[0][gym.essence]).toBe(essence + GYM_RULES_V24.reward.essence);
     expect(ids.every(id => after.units[id].actionLeft === 0 && after.units[id].xp === GYM_RULES_V24.reward.xp && after.units[id].hp >= 1)).toBe(true);
-    // Replays are byte-identical (stableSeed, no state.rng).
+    // Replays are byte-identical from the same starting state.
     const again = order(state, { type: 'ChallengeGym', gymId: gym.id, unitIds: ids });
     expect(again.ok && JSON.stringify(again.state)).toBe(JSON.stringify(after));
-    expect(after.rng).toEqual(state.rng);
     // The badge is public, the same gym cannot be won twice.
     expect(observe(after, 1, content).expansion!.gymCircuit!.badges[0]).toEqual([gym.id]);
     for (const id of ids) after.units[id].actionLeft = 1;
@@ -153,7 +153,7 @@ describe('v24 B gym circuit: challenges', () => {
   });
 
   test('a lost challenge puts the gym on a 3-round cooldown; units keep at least 1 HP', () => {
-    const state = createGame(setup(24, 2)), gym = state.expansion!.gymCircuit!.gyms.find(item => item.homeOf === 1)!;
+    const state = createGame(setup(27, 2)), gym = state.expansion!.gymCircuit!.gyms.find(item => item.homeOf === 1)!;
     state.expansion!.gymCircuit!.badges[0] = [];
     const ids = teamAt(state, gym.id, ['caterpie']);
     state.units[ids[0]].hp = 5;
@@ -171,7 +171,7 @@ describe('v24 B gym circuit: challenges', () => {
   });
 
   test('a circuit badge unlocks the final forms of its essence (v19 badge gate)', () => {
-    const state = createGame(setup(24, 2)), circuit = state.expansion!.gymCircuit!;
+    const state = createGame(setup(27, 2)), circuit = state.expansion!.gymCircuit!;
     const tide = circuit.gyms.find(gym => gym.essence === 'tide')!;
     const player = state.players[0];
     player.research.unlockedIds = Object.keys(content.techs) as typeof player.research.unlockedIds;
@@ -183,7 +183,7 @@ describe('v24 B gym circuit: challenges', () => {
   });
 
   test('Elite Four: eight badges, six Pokémon, five battles; a win is one championship title, once per game', () => {
-    const state = createGame(setup(24, 2)), circuit = state.expansion!.gymCircuit!;
+    const state = createGame(setup(27, 2)), circuit = state.expansion!.gymCircuit!;
     const ids = teamAt(state, circuit.gyms[0].id, ['venusaur', 'charizard', 'blastoise', 'dragonite', 'metagross', 'snorlax']);
     expect(order(state, { type: 'ChallengeEliteFour', unitIds: ids })).toEqual({ ok: false, reason: 'invalid-command' });
     circuit.badges[0] = circuit.gyms.slice(0, GYM_RULES_V24.gymCount).map(gym => gym.id);

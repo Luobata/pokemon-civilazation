@@ -15,7 +15,7 @@ import type { WorldAction } from '../../src/core/world-systems.ts';
 import { WORLD_CONTENT, WORLD_DEFINITIONS } from '../../src/content/world-systems.ts';
 
 const setup: GameSetup = {
-  seed: 1729, width: 12, height: 9, expansionVersion: undefined,
+  seed: 1729, width: 24, height: 16,
   players: [
     { id: 0, controller: 'human', starterId: 'bulbasaur' },
     { id: 1, controller: 'ai', personality: 'expansion' },
@@ -23,7 +23,7 @@ const setup: GameSetup = {
 };
 
 function fixture(): GameState {
-  const state = createGame({ ...setup, expansionVersion: undefined });
+  const state = createGame(setup);
   state.map = { width: 12, height: 9, tiles: Array(108).fill('grassland') };
   state.turnOrder = [0, 1];
   state.units = {};
@@ -147,7 +147,7 @@ describe('resources and overlords', () => {
     const state = fixture();
     const world = state.expansion!.world;
     const tileIndex = state.map.tiles.findIndex((_, index) =>
-      hexDistance(indexToHex(index, state.map), state.cities[9001].position, state.map) === 2);
+      hexDistance(indexToHex(index, state.map), state.cities[9001].position, state.map) === 3);
     const definition = WORLD_DEFINITIONS.berries.oranBerry;
     world.resources = { [tileIndex]: {
       tileIndex, position: indexToHex(tileIndex, state.map), kind: 'berry', definitionId: definition.id,

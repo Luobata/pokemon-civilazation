@@ -31,16 +31,16 @@ test('the map fills the window and every launcher entry opens its own screen', a
 });
 
 test('research tree cards start research and show each discovery', async ({ page }) => {
-  await page.goto('/?seed=12345&gameplay=21');
+  await page.goto('/?seed=12345');
   await page.keyboard.press('r');
   await expect(page.locator('#screen-research')).toBeVisible();
   await expect(page.locator('#research-topic')).toBeFocused();
-  await expect(page.locator('[data-tech-card]')).toHaveCount(12);
-  await expect(page.locator('[data-tech-card="ballCraft"]')).toHaveClass(/locked/);
-  await expect(page.locator('[data-tech-card="domestication"] .tech-eureka')).toContainText('初次交手');
-  await page.locator('[data-tech="domestication"]').click();
+  await expect(page.locator('[data-tree-node]')).toHaveCount(30);
+  await expect(page.locator('[data-tree-node="ballCraft"]')).toHaveClass(/locked/);
+  await page.locator('[data-tree-node="domestication"]').click();
+  await expect(page.locator('#research-panel .tech-eureka')).toContainText('初次交手');
   expect((await state(page)).players[0].research.techId).toBe('domestication');
-  await expect(page.locator('[data-tech-card="domestication"]')).toHaveClass(/active/);
+  await expect(page.locator('[data-tree-node="domestication"]')).toHaveClass(/active/);
   await expect(page.locator('#research-status')).toContainText('驯化');
   await closeScreen(page);
   await expect(page.locator('#turn-reminders')).not.toContainText('选择研究');

@@ -13,18 +13,19 @@ type Placed = Occupant & { id: number; position: Hex };
 /** 'pokemon' or 'civilian' (logistics units): the two layers of a tile. */
 export const stackLayer = (unit: { kind: string }) => unit.kind === 'pokemon' ? 'pokemon' : 'civilian';
 /** Whether `mover` may enter (pass through) a tile `occupant` stands on: any own unit under the v26 rule, never before. */
-export function tileShareAllowed(mover: Occupant, occupant: Occupant, content: Content): boolean {
-  return Boolean(content.stacking) && mover.ownerId !== null && mover.ownerId === occupant.ownerId;
+export function tileShareAllowed(mover: Occupant, occupant: Occupant, _content?: Content): boolean {
+  void _content;
+  return mover.ownerId !== null && mover.ownerId === occupant.ownerId;
 }
 /** Whether `mover` may end its move on a tile holding `occupants` (itself excluded): at most one other, own, of the other layer. */
-export function stackStopAllowed(mover: Occupant & { id: number }, occupants: readonly Placed[], content: Content): boolean {
+export function stackStopAllowed(mover: Occupant & { id: number }, occupants: readonly Placed[], _content?: Content): boolean {
+  void _content;
   const others = occupants.filter(other => other.id !== mover.id);
   if (!others.length) return true;
-  return Boolean(content.stacking) && others.length === 1 && others[0].ownerId === mover.ownerId && stackLayer(others[0]) !== stackLayer(mover);
+  return others.length === 1 && others[0].ownerId === mover.ownerId && stackLayer(others[0]) !== stackLayer(mover);
 }
 /** Path search: drops the destinations where the mover may pass but not stop (only under the v26 rule). */
-export function dropUnstoppable<T>(paths: Record<number, T>, mover: Occupant & { id: number }, units: readonly Placed[], map: GridSize, content: Content): Record<number, T> {
-  if (!content.stacking) return paths;
+export function dropUnstoppable<T>(paths: Record<number, T>, mover: Occupant & { id: number }, units: readonly Placed[], map: GridSize, content?: Content): Record<number, T> {
   const byTile = new Map<number, Placed[]>();
   for (const unit of units) { const index = hexToIndex(unit.position, map); if (index !== null) byTile.set(index, [...byTile.get(index) ?? [], unit]); }
   for (const key of Object.keys(paths)) {
@@ -34,8 +35,7 @@ export function dropUnstoppable<T>(paths: Record<number, T>, mover: Occupant & {
   return paths;
 }
 /** Authority's Move: the walked path shortened to its last tile the mover may stop on (unchanged before v26). */
-export function trimToStop(path: Hex[], mover: MapUnit, state: GameState, content: Content): Hex[] {
-  if (!content.stacking) return path;
+export function trimToStop(path: Hex[], mover: MapUnit, state: GameState, content?: Content): Hex[] {
   const units = Object.values(state.units).filter(isMapUnit);
   while (path.length > 1) {
     const index = hexToIndex(path[path.length - 1], state.map);
@@ -45,8 +45,9 @@ export function trimToStop(path: Hex[], mover: MapUnit, state: GameState, conten
   return path;
 }
 /** A logistics unit sharing its tile with a Pokémon of its owner (v26): attacks and wild strikes cannot pick it. */
-export function protectedCivilian(units: readonly Placed[], target: Placed, map: GridSize, content: Content): boolean {
-  if (!content.stacking || target.kind === 'pokemon' || target.ownerId === null) return false;
+export function protectedCivilian(units: readonly Placed[], target: Placed, map: GridSize, _content?: Content): boolean {
+  void _content;
+  if (target.kind === 'pokemon' || target.ownerId === null) return false;
   const tile = hexToIndex(target.position, map);
   return units.some(other => other.id !== target.id && other.kind === 'pokemon' && other.ownerId === target.ownerId && hexToIndex(other.position, map) === tile);
 }
@@ -56,9 +57,8 @@ export const stateProtectedCivilian = (state: GameState, target: MapUnit, conten
  * Tiles a new unit of `owner` with this identity may not be placed on: before v26 every unit's tile; under the v26 rule the tiles holding
  * another civilization's unit or an own unit of the same layer (cities are excluded by the callers as before).
  */
-export function placementBlocked(state: GameState, identity: { kind: string }, ownerId: number, content: Content): Set<number> {
+export function placementBlocked(state: GameState, identity: { kind: string }, ownerId: number, content?: Content): Set<number> {
   const units = Object.values(state.units).filter(isMapUnit);
-  if (!content.stacking) return new Set(units.map(unit => hexToIndex(unit.position, state.map)!));
   const byTile = new Map<number, MapUnit[]>();
   for (const unit of units) { const index = hexToIndex(unit.position, state.map)!; byTile.set(index, [...byTile.get(index) ?? [], unit]); }
   return new Set([...byTile].filter(([, occupants]) => !stackStopAllowed({ id: -1, kind: identity.kind, ownerId }, occupants, content)).map(([index]) => index));

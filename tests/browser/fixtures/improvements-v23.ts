@@ -13,7 +13,7 @@ import type { CommandLog } from '../../../src/app/session.ts';
 import type { Command, GameSetup, GameState, PlayerView } from '../../../src/core/model.ts';
 
 // Real v23 games: the AI plays every seat (seat 0 is the human seat), nothing is patched, so saves replay exactly.
-const setupFor = (seed: number): GameSetup => ({ seed, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 23,
+const setupFor = (seed: number): GameSetup => ({ seed, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 27,
   players: [{ id: 0, controller: 'human', starterId: 'bulbasaur', leaderId: 'oak' }, ...[1, 2, 3].map(id => ({ id, controller: 'ai' as const, personality: 'aggressive' as const }))] });
 export type V23Fixture = { state: GameState; save: string; unitId: number };
 

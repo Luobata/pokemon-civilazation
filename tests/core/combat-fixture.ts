@@ -17,6 +17,7 @@ export function combatFixture(): GameState {
   state.players[1].starterId = 'bulbasaur';
   state.players[0].gold = 1000; state.players[1].gold = 1000;
   state.units = {}; state.nextEntityId = 100; state.rng = createRng(1);
+  delete state.expansion;
   state.knowledge = { 0: emptyKnowledge(), 1: emptyKnowledge() };
   return state;
 }

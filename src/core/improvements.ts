@@ -3,7 +3,6 @@ import { districtOccupiedTiles } from './districts.ts';
 import { leaderEffects } from '../content/leaders.ts';
 import { CREW_SPECIALTIES, IMPROVEMENT_IDS, IMPROVEMENT_IDS_V23, IMPROVEMENT_RULES_V23, IMPROVEMENT_WORK, IMPROVEMENTS, crewSpecialtyFor, improvementIdsFor } from '../content/improvements.ts';
 import type { CrewSpecialty, ImprovementId, ImprovementResource } from '../content/improvements.ts';
-import { gameplayAtLeast } from '../content/eras.ts';
 import type { Content, SpeciesId, UnitIdentity } from '../content/units.ts';
 import type { Yield } from '../content/economy.ts';
 import type { BerryId, StoneId } from '../content/world-systems.ts';
@@ -30,14 +29,11 @@ export type ImprovementEvent = { type: 'TileWorked'; playerId: number; unitId: n
 export type ImprovementView = { tiles: (TileImprovement & { tileIndex: number; position: Hex })[]; projects: (ImprovementProject & { tileIndex: number })[] };
 
 export function usesImprovements(state: GameState): boolean {
-  return state.expansion !== undefined && gameplayAtLeast(state.setup, 2);
+  return state.expansion !== undefined;
 }
 type VersionSource = { setup?: { gameplayVersion?: number }; gameplayVersion?: number };
-const versionOf = (source: VersionSource) => (source.setup?.gameplayVersion ?? source.gameplayVersion) ?? 0;
-/** Gameplay v18: only 工匠 (builder) units build improvements, finishing one per action. */
-export const usesBuilders = (source: VersionSource) => versionOf(source) >= 18;
-/** Gameplay v23 (docs/design/improvements-v23.md): resource improvements, pillage and repair, builder escorts. */
-export const usesImprovementsV23 = (source: VersionSource) => versionOf(source) >= 23;
+export const usesBuilders = (_source?: VersionSource) => { void _source; return true; };
+export const usesImprovementsV23 = (_source?: VersionSource) => { void _source; return true; };
 export function initializeImprovements(state: GameState): void {
   if (usesImprovements(state)) state.expansion!.improvements = { tiles: {}, projects: {} };
 }
@@ -293,7 +289,7 @@ export function improvementOptions(view: PlayerView, unitId: number, content: Co
     const distance = index === here ? 0 : hexDistance(indexToHex(index, view.map), unit.position, view.map);
     return distance >= 1 && distance <= reach ? [index] : [];
   })];
-  return nearby.filter(index => visible.has(index)).flatMap(tileIndex => improvementIdsFor(view).flatMap(kind => improvementBlocker({ tiles: view.map.tiles, width: view.map.width, height: view.map.height, wrap: view.map.wrap,
+  return nearby.filter(index => visible.has(index)).flatMap(tileIndex => improvementIdsFor().flatMap(kind => improvementBlocker({ tiles: view.map.tiles, width: view.map.width, height: view.map.height, wrap: view.map.wrap,
     cities: [...view.economy.cities.map(city => ({ ownerId: city.ownerId, position: city.position, population: city.population })),
       ...view.cities.filter(city => city.ownerId !== view.playerId).map(city => ({ ownerId: city.ownerId, position: city.position, population: 1 }))],
     improved: index => improved.has(index), unitPosition: unit.position, playerId: view.playerId, tileIndex, kind, ...(v23 ? { v23 } : {}) }) === null

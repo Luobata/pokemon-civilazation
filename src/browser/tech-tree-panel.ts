@@ -83,7 +83,7 @@ function tipMarkup(context: TreeContext, id: TechId): string {
   const tech = def(context.content, id), state = stateOf(context, id), found = context.view.expansion?.discoveries;
   const unlocks = techUnlocks(id, context.content, context.view.gameplayVersion)
     .map(item => `<li>${unlockPicture(item, id, 18)}<span>${escapeAttr(item.text)}</span></li>`).join('');
-  const discovery = found ? discoveryText(id, Boolean(context.content.opening)) : null;
+  const discovery = found ? discoveryText(id) : null;
   return `<b>${tech.name} · ${STATE_NAME[state]}</b><small>${tech.cost} 科研${state === 'done' ? '' : ` · 约 ${roundsLeft(context, id)} 轮`} · ${TECH_LINES[tech.line ?? 'capture'].name}</small>
     <ul class="tip-unlocks">${unlocks}</ul>${discovery ? `<small>${found!.includes(id) ? '★ 已触发' : '☆ 未触发'}图鉴发现「${discovery.name}」：${discovery.hint}</small>` : ''}`;
 }
@@ -98,7 +98,7 @@ function detailMarkup(context: TreeContext, id: TechId): string {
   const leadsTo = ids(content).filter(other => def(content, other).requires?.includes(id))
     .map(other => `<span class="tech-lead">${uiIcon(TECH_ICONS[other], { size: 18 })}${def(content, other).name}</span>`).join('');
   const unlocks = techUnlocks(id, content, view.gameplayVersion).map(item => `<li class="${item.kind}"><span class="unlock-chip ${item.kind}${item.boost ? ' boost' : ''}" aria-hidden="true">${unlockPicture(item, id, 24)}</span><span><small>${UNLOCK_KIND_NAMES[item.kind]}</small> ${item.text}</span></li>`).join('');
-  const discovery = discoveryText(id, Boolean(content.opening));
+  const discovery = discoveryText(id);
   const eureka = found ? `<div class="tech-eureka ${found.includes(id) ? 'hit' : ''}"><span class="eureka-mark">${uiIcon('pokedex', { size: 24, label: found.includes(id) ? '图鉴发现已触发' : '图鉴发现未触发' })}</span><div><b>图鉴发现 · ${discovery.name}</b><small>${discovery.hint}${found.includes(id) ? ` · 已触发 +${DISCOVERY_PERCENT}%` : ` · 达成后 +${DISCOVERY_PERCENT}%`}</small></div></div>` : '';
   const missing = missingPrerequisites(view.economy.player, id, content);
   const action = state === 'available' ? `<button type="button" class="primary" data-tech="${id}" ${context.disabled ? 'disabled' : ''}>研究此项</button>`

@@ -1,12 +1,12 @@
 import { describe, expect, test } from 'vitest';
-import { RIVAL_COUNTERS, RIVAL_RULES_V24 } from '../../src/content/rivals.ts';
-import { WORLD24_CONTENT } from '../../src/content/units.ts';
+import { RIVAL_RULES_V24 } from '../../src/content/rivals.ts';
+import { GAME_CONTENT } from '../../src/content/units.ts';
 import { createGame } from '../../src/core/game.ts';
 import { hexDistance, hexToIndex, indexToHex, neighbors } from '../../src/core/hex.ts';
 import { isMapUnit } from '../../src/core/model.ts';
 import type { Command, GameState, MapUnit, VisibleEvent } from '../../src/core/model.ts';
 import { previewAttack, previewCapture } from '../../src/core/preview.ts';
-import { resolveRivalRound, rivalSpirit, spiritFor } from '../../src/core/rivals.ts';
+import { resolveRivalRound, rivalNeutrals, rivalSpirit, spiritFor } from '../../src/core/rivals.ts';
 import { step } from '../../src/core/step.ts';
 import { canEnter } from '../../src/core/movement.ts';
 import { landRule } from '../../src/core/reach.ts';
@@ -14,8 +14,8 @@ import { isLandmarkTile, isPeak } from '../../src/core/terrain.ts';
 import { createMapUnit } from '../../src/core/unit.ts';
 import { observe, projectEvents, refreshKnowledge } from '../../src/core/vision.ts';
 
-const content = WORLD24_CONTENT;
-const setup = (gameplayVersion: 23 | 24) => ({ seed: 31, width: 24, height: 16, roundLimit: 100 as const, expansionVersion: 1 as const,
+const content = GAME_CONTENT;
+const setup = (gameplayVersion: 27) => ({ seed: 31, width: 24, height: 16, roundLimit: 100 as const, expansionVersion: 1 as const,
   eraProgression: 'simple-v1' as const, gameplayVersion, players: [
     { id: 0, controller: 'human' as const, starterId: 'bulbasaur' as const }, { id: 1, controller: 'ai' as const }, { id: 2, controller: 'ai' as const },
   ] });
@@ -34,9 +34,8 @@ function playTo(state: GameState, round: number) {
 const rivalUnits = (state: GameState, target: number) => state.expansion!.rivals!.byPlayer[target].activeUnitIds.map(id => state.units[id] as MapUnit);
 
 describe('v24 C rival trainers', () => {
-  test('warning two rounds ahead, seen only by its target; arrival at round 8 with counters to the starter', () => {
-    const start = createGame(setup(24));
-    expect(createGame(setup(23)).expansion!.rivals).toBeUndefined();
+  test('warning two rounds ahead, seen only by its target; arrival at round 8 with a neutral matchup to the starter', () => {
+    const start = createGame(setup(27));
     const names = Object.values(start.expansion!.rivals!.byPlayer).map(ledger => ledger.name);
     expect(new Set(names).size).toBe(names.length);
     const { state: warned, seen } = playTo(start, RIVAL_RULES_V24.arrivals[0] - RIVAL_RULES_V24.warningRounds);
@@ -57,23 +56,23 @@ describe('v24 C rival trainers', () => {
       expect(units).toHaveLength(1);
       const unit = units[0] as Extract<MapUnit, { kind: 'pokemon' }>;
       expect(unit.ownerId).toBeNull();
-      expect(RIVAL_COUNTERS[arrived.players[id].starterId].primary).toContain(unit.speciesId);
+      expect(rivalNeutrals(content, arrived.players[id].starterId)).toContain(unit.speciesId);
       expect(content.species[unit.speciesId].stage).toBe(1);
       expect(Math.abs(rivalSpirit(arrived, unit.id))).toBeLessThanOrEqual(RIVAL_RULES_V24.strengthCap);
     }
   });
 
   test('劲敌气势 = clamp(second-strongest attack + offset − species attack, ±12)', () => {
-    const state = createGame(setup(24));
+    const state = createGame(setup(27));
     const attacks = Object.values(state.units).filter(isMapUnit).filter(unit => unit.ownerId === 0 && unit.kind === 'pokemon')
       .map(unit => content.species[(unit as Extract<MapUnit, { kind: 'pokemon' }>).speciesId].attack).sort((a, b) => b - a);
     const strength = attacks[1] ?? attacks[0];
-    expect(spiritFor(state, 0, 0, 'charmander', content)).toBe(Math.max(-12, Math.min(12, strength - 6 - content.species.charmander.attack)));
+    expect(spiritFor(state, 0, 0, 'charmander', content)).toBe(Math.max(-12, Math.min(12, strength + content.world24.rivalStrengthOffsets[0] - content.species.charmander.attack)));
     expect(spiritFor(state, 0, 2, 'caterpie', content)).toBeLessThanOrEqual(12);
   });
 
   test('rivals strike their target’s Pokémon and cities (never below 1 HP), never logistics units, and leave after six rounds', () => {
-    let { state } = playTo(createGame(setup(24)), RIVAL_RULES_V24.arrivals[0]);
+    let { state } = playTo(createGame(setup(27)), RIVAL_RULES_V24.arrivals[0]);
     const rival = rivalUnits(state, 0)[0];
     // Only a settler next to the rival, the capital in reach: the rival ignores the settler and strikes the city, never below 1 HP.
     for (const unit of Object.values(state.units)) if (isMapUnit(unit) && unit.ownerId === 0 && unit.kind === 'pokemon') delete state.units[unit.id];
@@ -95,7 +94,7 @@ describe('v24 C rival trainers', () => {
   });
 
   test('cannot be captured; the attack preview shows 劲敌气势 and matches the authority; knocking out a visit pays the reward', () => {
-    let { state } = playTo(createGame(setup(24)), RIVAL_RULES_V24.arrivals[0]);
+    let { state } = playTo(createGame(setup(27)), RIVAL_RULES_V24.arrivals[0]);
     const rival = rivalUnits(state, 0)[0];
     state.expansion!.rivals!.spirit[rival.id] = 7;
     const spot = neighbors(rival.position, state.map).find(hex => { const index = hexToIndex(hex, state.map);
@@ -128,14 +127,14 @@ describe('v24 C rival trainers', () => {
     expect(state.expansion!.eraHonors!.players[0].byMilestone.rivalDefeated).toBe(1);
   });
   test('v24 terrain: rivals walk by their species terrain and the land passage rules (no embarking, no peaks, no landmarks)', () => {
-    const { state } = playTo(createGame(setup(24)), RIVAL_RULES_V24.arrivals[0]);
+    const { state } = playTo(createGame(setup(27)), RIVAL_RULES_V24.arrivals[0]);
     const rule = landRule(state.map);
     for (let round = 0; round < RIVAL_RULES_V24.staysRounds; round++) {
       resolveRivalRound(state, content, rule);
       for (const unit of rivalUnits(state, 0).filter(Boolean)) {
         const index = hexToIndex(unit.position, state.map)!;
         expect(canEnter(unit, state.map.tiles[index]!, content, { map: state.map, index })).toBe(true);
-        if (!WORLD24_CONTENT.species[(unit as MapUnit & { speciesId: 'charmander' }).speciesId].terrain.includes('ocean')) expect(state.map.tiles[index]).not.toBe('ocean');
+        if (!GAME_CONTENT.species[(unit as MapUnit & { speciesId: 'charmander' }).speciesId].terrain.includes('ocean')) expect(state.map.tiles[index]).not.toBe('ocean');
         expect(isPeak(state.map, index) || isLandmarkTile(state.map, index)).toBe(false);
       }
     }

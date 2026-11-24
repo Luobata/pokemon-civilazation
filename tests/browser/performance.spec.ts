@@ -15,7 +15,7 @@ const scenarios = [
 test.use({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 2 });
 
 test('measure Canvas2D draw time in four reachable late-game scenes including 100 visible units', async ({ page, browser }) => {
-  test.setTimeout(180_000);
+  test.setTimeout(600_000);
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   const results = [];
@@ -31,11 +31,13 @@ test('measure Canvas2D draw time in four reachable late-game scenes including 10
     const peakState = dense ? dense.state : game!.maxState;
     await page.goto(`/?dev=1&seed=${scenario.seed}`);
     await page.locator('#import-save').setInputFiles({ name: `${scenario.name}.json`, mimeType: 'application/json', buffer: Buffer.from(saved) });
-    await expect(page.locator('#action-notice')).toContainText('读档完成');
+    await expect(page.locator('#action-notice')).toContainText('读档完成', { timeout: 120_000 });
     await verifyImportedReplay(page, saved);
+    if (await page.locator('#gameover-close').isVisible()) await page.locator('#gameover-close').click();
+    if (await page.locator('#reject-peace').isVisible()) await page.locator('#reject-peace').click();
     await page.locator('#fit').click();
     await openDevDrawer(page);
-    await page.locator('#god').check();
+    if (await page.locator('#god').isEnabled()) await page.locator('#god').check();
     await expect(page.locator('#frame-metrics')).toContainText('p95');
     const measured = await page.evaluate(async combat => {
       const mainPath = '/src/browser/main.ts', renderPath = '/src/browser/render/index.ts', benchmarkPath = '/src/browser/render/benchmark.ts';

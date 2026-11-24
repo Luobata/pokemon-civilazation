@@ -43,9 +43,9 @@ export function regionalPokedexTarget(target: number, size: number, pool: number
   const c = POKEDEX_POOL_SHARE_PERCENT_V25, numerator = target * (100 * pool - c * pool + c * size), denominator = 100 * pool;
   return Math.max(12, Math.floor((2 * numerator + denominator) / (2 * denominator)));
 }
-/** v21: victory targets scale with the round limit (a 200-round game asks twice as much as a 100-round one). Older rules: fixed. */
-export function victoryTargets(source: { gameplayVersion?: number; roundLimit?: number }) {
-  const scale = (source.gameplayVersion ?? 0) >= 21 ? Math.max(1, (source.roundLimit ?? 100) / 100) : 1;
+/** Victory targets scale with the round limit (a 200-round game asks twice as much as a 100-round one). */
+export function victoryTargets(source: { roundLimit?: number }) {
+  const scale = Math.max(1, (source.roundLimit ?? 100) / 100);
   return { contestMinimum: scale === 1 ? 500 : Math.round(1000 * scale), faithMinimumCities: Math.round(6 + 2 * (scale - 1)), championshipTitles: Math.round(2 + (scale - 1)),
     pokedexBonus: Math.round(16 * (scale - 1)) };
 }

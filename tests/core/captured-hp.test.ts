@@ -3,10 +3,10 @@ import { combatFixture, pokemon } from './combat-fixture.ts';
 import { createCity } from '../../src/core/city.ts';
 import { refreshKnowledge } from '../../src/core/vision.ts';
 import { step } from '../../src/core/step.ts';
-import { CONTENT } from '../../src/content/units.ts';
+import { GAME_CONTENT } from '../../src/content/units.ts';
 
 test.each([false, true])('captured HP is injected; HQ=%s still neutralizes remaining cities at 50', headquarters => {
-  const state = combatFixture(), content = structuredClone(CONTENT);
+  const state = combatFixture(), content = structuredClone(GAME_CONTENT);
   content.balance.city.baseHp = 80; content.balance.city.capturedHp = 60;
   pokemon(state, 10, 'charmander', 0, 9, 2);
   state.diplomacy[0].status = 'war';

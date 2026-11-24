@@ -84,7 +84,7 @@ function targetsV23(view: PlayerView): { tileIndex: number; kind: ImprovementId 
       if (done.has(tileIndex) || out.has(tileIndex)) continue;
       const biome = view.map.tiles[tileIndex], resource = resourceAt(tileIndex);
       const kind = resource ? (researched(RESOURCE_IMPROVEMENT[resource]) ? RESOURCE_IMPROVEMENT[resource] : undefined)
-        : [...improvementIdsFor(view)].filter(id => !IMPROVEMENTS[id].resource && researched(id) && biome && IMPROVEMENTS[id].biomes.includes(biome as never))
+        : [...improvementIdsFor()].filter(id => !IMPROVEMENTS[id].resource && researched(id) && biome && IMPROVEMENTS[id].biomes.includes(biome as never))
           .sort((a, b) => valueFor(b, view, foodFirst) - valueFor(a, view, foodFirst))[0];
       if (kind) out.set(tileIndex, kind);
     }

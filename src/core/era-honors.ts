@@ -3,7 +3,7 @@
 import { ERA_AGES, ERA_HONOR_RULES, ERA_HONOR_RULES_V22, ERA_MILESTONES } from '../content/era-honors.ts';
 import type { AgeLines, EraAge, EraMilestone } from '../content/era-honors.ts';
 import { GYM_RULES_V24 } from '../content/gym-circuit.ts';
-import { eraState, gameplayAtLeast } from '../content/eras.ts';
+import { eraState } from '../content/eras.ts';
 import type { PolicyEffects } from '../content/policies.ts';
 import type { SpeciesId } from '../content/species.ts';
 import type { EventPayload, GameState } from './model.ts';
@@ -28,7 +28,7 @@ export type EraHonorView = EraHonorPlayerState & { goldenRatePermille: number; d
 export type EraHonorEvent = { type: 'EraAgeBegan'; playerId: number; eraIndex: number; age: EraAge; previousScore: number; previousRounds: number; heroic?: true; dedicationPicks?: number };
 
 export const usesEraHonors = (state: Pick<GameState, 'setup' | 'expansion'>) =>
-  state.expansion !== undefined && state.setup.eraProgression !== undefined && gameplayAtLeast(state.setup, 12);
+  state.expansion !== undefined && state.setup.eraProgression !== undefined;
 
 export function initializeEraHonors(state: GameState): void {
   if (!usesEraHonors(state)) return;

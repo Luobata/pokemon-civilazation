@@ -1,7 +1,6 @@
 import { CITY_NETWORK_RULES, DISTRICT_COMBOS } from '../content/city-network.ts';
 import { DISTRICTS, districtTech, emptyDistrictEffects } from '../content/districts.ts';
 import type { DistrictId, DistrictEffects } from '../content/districts.ts';
-import { gameplayAtLeast } from '../content/eras.ts';
 import type { GameplayVersion } from '../content/eras.ts';
 import type { TechId } from '../content/economy.ts';
 import type { ImprovementId } from '../content/improvements.ts';
@@ -35,7 +34,7 @@ export type DistrictSite = { cityId: number; kind: DistrictId; tileIndex: number
   releasesWork: boolean; releasedCityIds: number[]; effects: DistrictBreakdown };
 const compare = (a: District | DistrictProject, b: District | DistrictProject) => a.cityId - b.cityId || a.tileIndex - b.tileIndex || (a.kind < b.kind ? -1 : a.kind > b.kind ? 1 : 0);
 export function initializeDistricts(state: GameState): void {
-  if (state.expansion && gameplayAtLeast(state.setup, 10)) state.expansion.districts = { tiles: {} };
+  if (state.expansion) state.expansion.districts = { tiles: {} };
 }
 export function districtProjects(cities: readonly Pick<CityState, 'id' | 'queue'>[]): DistrictProject[] {
   return cities.flatMap(city => city.queue.flatMap(order => order.item.kind === 'district'
@@ -85,7 +84,7 @@ export function districtEffects(input: Pick<DistrictInput, 'map' | 'cities' | 'i
     return { id: rule.id, label: rule.label, effect: rule.effect, tileIndices, perTile: rule.perTile, cap: rule.cap, value };
   });
   // v17 city planning: districts reward neighbouring districts (any owner), plus themed combos.
-  if ((input.gameplayVersion ?? 0) >= 17 && input.completed) {
+  if (input.completed) {
     const neighbours = input.completed.filter(item => item.tileIndex !== tileIndex && adjacent.includes(item.tileIndex));
     const main = MAIN_EFFECT[kind], perTile = main === 'trainedXp' ? 10 : 1, cap = CITY_NETWORK_RULES.districtAdjacencyCap * perTile;
     const tileIndices = neighbours.map(item => item.tileIndex).sort((a, b) => a - b), value = Math.min(cap, tileIndices.length * perTile);
@@ -100,12 +99,11 @@ export function districtEffects(input: Pick<DistrictInput, 'map' | 'cities' | 'i
   return { base, adjacency, total, incomplete: unknownAdjacentTileIds.length > 0, unknownAdjacentTileIds };
 }
 export function districtBlocker(input: DistrictInput, cityId: number, kind: DistrictId, tileIndex: number): string | null {
-  if (!gameplayAtLeast(input, 10)) return 'districts-unavailable';
   if (!Object.hasOwn(DISTRICTS, kind)) return 'unknown-district';
   const city = input.cities.find(city => city.id === cityId && city.ownerId === input.playerId);
   if (!city) return 'city-unavailable';
   const definition = DISTRICTS[kind];
-  if (!input.techs.includes(gameplayAtLeast(input, 22) ? districtTech(kind, true) : definition.requiredTech)) return 'district-tech-locked';
+  if (!input.techs.includes(districtTech(kind))) return 'district-tech-locked';
   if (!Number.isSafeInteger(tileIndex) || tileIndex < 0 || tileIndex >= input.map.tiles.length || input.map.tiles[tileIndex] === null || !input.visible.has(tileIndex)) return 'unknown-tile';
   const position = indexToHex(tileIndex, input.map), distance = hexDistance(position, city.position, input.map);
   if (input.cities.some(city => hexToIndex(city.position, input.map) === tileIndex)) return 'city-center';

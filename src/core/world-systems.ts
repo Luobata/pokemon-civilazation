@@ -2,7 +2,6 @@ import { regionalPokedexTarget, victoryTargets } from '../content/opening.ts';
 import { isRivalUnit } from './rivals.ts';
 import { isRegionalSpecies, nestPriorityFor, speciesGeneration, stoneEvolutionsFor } from '../content/roster.ts';
 import { generationAllows, maxGeneration } from './roster.ts';
-import { gameplayAtLeast } from '../content/eras.ts';
 import { resolveAttack } from './combat.ts';
 import { cityDamage } from './combat-query.ts';
 import { finishGame } from './victory.ts';
@@ -231,7 +230,7 @@ export function initializeWorld(state: GameState, content: Content = WORLD_CONTE
   if (!state.expansion) throw new Error('Expansion container must exist before world initialization.');
   const definitions = WORLD();
   const players = Object.fromEntries(state.turnOrder.map(playerId => [playerId, blankPlayerState(content, definitions)])) as Record<number, WorldPlayerState>;
-  const baseTarget = gameplayAtLeast(state.setup, 3) ? Math.min(Object.keys(content.species).length, definitions.pokedex.targetDocumentedSpecies + 3 + (content.roster?.pokedexTargetBonus ?? 0) + victoryTargets(state.setup).pokedexBonus) : definitions.pokedex.targetDocumentedSpecies;
+  const baseTarget = Math.min(Object.keys(content.species).length, definitions.pokedex.targetDocumentedSpecies + 3 + (content.roster?.pokedexTargetBonus ?? 0) + victoryTargets(state.setup).pokedexBonus);
   const world: WorldState = {
     version: 'world-v1', initializedAtRound: state.round, nests: {}, rampagingUnitIds: [],
     overlords: {}, resources: {}, players,
@@ -370,11 +369,9 @@ export function validateWorldAction(state: GameState, actorId: number, action: W
     if (!unit || !unit.actionLeft) return 'unit-unavailable';
     if (!resource || resource.remaining <= 0 || !visibleSite(state, actorId, action.tileIndex, content)) return 'world-target-unavailable';
     if (hexToIndex(unit.position, state.map) !== action.tileIndex) return 'world-target-unreachable';
-    if (gameplayAtLeast(state.setup, 23)) {
-      const blocked = harvestBlocker({ map: state.map, ownCities: Object.values(state.cities).filter(city => city.ownerId === actorId), position: resource.position,
-        improved: Object.hasOwn(state.expansion?.improvements?.tiles ?? {}, action.tileIndex) });
-      if (blocked) return blocked;
-    }
+    const blocked = harvestBlocker({ map: state.map, ownCities: Object.values(state.cities).filter(city => city.ownerId === actorId), position: resource.position,
+      improved: Object.hasOwn(state.expansion?.improvements?.tiles ?? {}, action.tileIndex) });
+    if (blocked) return blocked;
     if (resource.kind === 'berry') {
       const city = Object.values(state.cities).filter(candidate => candidate.ownerId === actorId)
         .sort((a, b) => hexDistance(resource.position, a.position, state.map) - hexDistance(resource.position, b.position, state.map) || a.id - b.id)[0];
@@ -761,7 +758,7 @@ export function planWorldAction(view: PlayerView, content: WorldSystemContent = 
       && hexToIndex(candidate.position, view.map) === resource.tileIndex);
     const berryHasNearbyCity = resource.kind !== 'berry' || view.economy.cities.some(city =>
       city.ownerId === view.playerId && hexDistance(city.position, resource.position, view.map) <= 3);
-    if (unit && berryHasNearbyCity && (view.gameplayVersion ?? 0) >= 23 && harvestBlocker({ map: view.map, ownCities: view.economy.cities, position: resource.position,
+    if (unit && berryHasNearbyCity && harvestBlocker({ map: view.map, ownCities: view.economy.cities, position: resource.position,
       improved: (view.expansion?.improvements?.tiles ?? []).some(tile => tile.tileIndex === resource.tileIndex) })) continue;
     if (unit && berryHasNearbyCity) return { type: 'HarvestResource', unitId: unit.id, tileIndex: resource.tileIndex };
   }

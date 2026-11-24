@@ -22,7 +22,7 @@ export function aiGameAt(seed: number, round: number, size: { width: 24 | 30 | 4
   const key = `${seed}:${size.width}`;
   let run = runs.get(key);
   if (!run || run.state.round > round && !run.saves.has(round)) {
-    const setup: GameSetup = { seed, ...size, roundLimit: 200, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 26,
+    const setup: GameSetup = { seed, ...size, roundLimit: 200, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 27,
       players: [{ id: 0, controller: 'human', starterId: 'bulbasaur', leaderId: 'oak' }, ...[1, 2, 3].map(id => ({ id, controller: 'ai' as const, personality: 'expansion' as const }))] };
     run = { state: createGame(setup, contentFor(setup)), commands: [], memory: [], saves: new Map() };
     runs.set(key, run);

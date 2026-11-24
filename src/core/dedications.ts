@@ -4,7 +4,6 @@ import { DEDICATION_IDS, DEDICATION_RULES, DEDICATIONS, EXPLORATION_TILES } from
 import type { DedicationId, DedicationTrigger } from '../content/dedications.ts';
 import type { EraAge, EraMilestone } from '../content/era-honors.ts';
 import type { PolicyEffects } from '../content/policies.ts';
-import { contentFor } from '../content/units.ts';
 import type { EventPayload, GameState } from './model.ts';
 
 /** Per player: cards still to choose this era, whether the era is heroic, chosen cards and the extra score each earned. */
@@ -14,7 +13,7 @@ export type DedicationAction = { type: 'ChooseDedication'; dedicationIds: Dedica
 export type DedicationEvent = { type: 'DedicationChosen'; playerId: number; eraIndex: number; dedicationIds: DedicationId[] };
 type HonorRecord = { eraIndex: number; age: EraAge; dedication?: DedicationLedger };
 
-export const usesDedications = (state: Pick<GameState, 'setup'>) => contentFor(state.setup).dedications === true;
+export const usesDedications = (state: Pick<GameState, 'setup'>) => { void state; return true; };
 export const blankDedication = (): DedicationLedger => ({ pending: 0, heroic: false, chosen: [], progress: {} });
 export const isHeroic = (previous: EraAge, next: EraAge) => previous === 'dark' && next === 'golden';
 export const dedicationPicks = (age: EraAge, heroic: boolean): number => heroic ? DEDICATION_RULES.picks.heroic : DEDICATION_RULES.picks[age];

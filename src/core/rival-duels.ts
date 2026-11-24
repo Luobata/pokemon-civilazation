@@ -7,7 +7,6 @@
 import { RIVAL_RULES_V24 } from '../content/rivals.ts';
 import { depth26Tuning } from '../content/depth-v26.ts';
 import type { Content } from '../content/units.ts';
-import { contentForView } from '../content/units.ts';
 import { stableSeed } from '../content/stable-seed.ts';
 import { regionalSpeciesIds } from '../content/roster.ts';
 import type { SpeciesId } from '../content/species.ts';
@@ -56,8 +55,9 @@ export function rivalLineup(state: GameState, playerId: number): (MapUnit & { ki
     return unit && isMapUnit(unit) && unit.kind === 'pokemon' && unit.ownerId === null ? [unit as MapUnit & { kind: 'pokemon' }] : [];
   });
 }
-export function validateRivalDuelAction(state: GameState, actorId: number, action: RivalDuelAction, content: Content): string | null {
-  if (!content.rivalDuels || !state.expansion?.rivals) return 'rival-duels-unavailable';
+export function validateRivalDuelAction(state: GameState, actorId: number, action: RivalDuelAction, _content?: Content): string | null {
+  void _content;
+  if (!state.expansion?.rivals) return 'rival-duels-unavailable';
   if (action.stake !== 'spar' && action.stake !== 'serious') return 'invalid-stake';
   const ledger = ledgerOf(state, actorId);
   if (!ledger) return 'rival-unavailable';
@@ -125,7 +125,7 @@ export function viewRivalLineup(view: PlayerView): (MapUnit & { kind: 'pokemon' 
 /** Why the viewer cannot duel with these Pokémon now (null = the authority accepts it). Every rival Pokémon must be in sight. */
 export function viewRivalDuelBlocker(view: PlayerView, unitIds: readonly number[]): string | null {
   const rivals = view.expansion?.rivals;
-  if (!rivals || !contentDuels(view)) return 'rival-duels-unavailable';
+  if (!rivals) return 'rival-duels-unavailable';
   if (view.outcome || view.activePlayerId !== view.playerId) return 'not-your-turn';
   const lineup = viewRivalLineup(view);
   if (lineup.length !== rivals.activeUnitIds.length) return 'rival-unavailable';
@@ -143,7 +143,6 @@ export function viewDuelCandidates(view: PlayerView): { candidates: number[]; ad
   return { candidates: reach.map(unit => unit.id).sort((a, b) => a - b), gate,
     adjacent: reach.filter(unit => lineup.some(rival => hexDistance(unit.position, rival.position, view.map) <= 1)).map(unit => unit.id).sort((a, b) => a - b) };
 }
-const contentDuels = (view: PlayerView) => Boolean(contentForView(view).rivalDuels);
 
 // ---------- the conference (4th visit, §3.1) ----------
 
@@ -159,7 +158,7 @@ export type ConferenceRival = { entrantId: string; name: string; targetPlayerId:
 export function conferenceRivals(state: GameState, content: Content, season: number, entered: readonly number[], slots: number,
   npcPower: (slot: number) => number, firstSlot: number): ConferenceRival[] {
   const rivals = state.expansion?.rivals;
-  if (!content.rivalDuels || !rivals || state.round < CONFERENCE_RIVAL_FROM_ROUND) return [];
+  if (!rivals || state.round < CONFERENCE_RIVAL_FROM_ROUND) return [];
   const out: ConferenceRival[] = [];
   for (const playerId of [...entered].sort((a, b) => a - b)) {
     const ledger = rivals.byPlayer[playerId];

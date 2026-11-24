@@ -104,7 +104,7 @@ export function worldCards(view: PlayerView, content: Content = contentForView(v
       // Playtest 2026-11b N2 / O2: in sight, else last seen, else the warned arrival tile (rival-tracker.ts); the duel's conditions in the tip.
       const seen = nearest(view, hunting), trail = rivalTrail(view), spot = seen ? null : trail?.target ?? null;
       cards.push({ id: 'rival', title: `劲敌${rivals.name}`, art: { icon: 'rival' }, status: `已到达 · 还剩 ${rivals.activeUnitIds.length} 只${trail?.missing ? ` · ${trail.short}` : ''}`,
-        tip: `劲敌${rivals.name}已到达你的领土附近（第 ${rivals.encounter} 次登场）${trail ? `：${trail.where}` : ''}。只打你的宝可梦和城市，不能捕捉；全部击倒有奖励。${content.rivalDuels ? `\n对决条件：\n${conditionLines(duelConditions(view, trail))}` : ''}`,
+        tip: `劲敌${rivals.name}已到达你的领土附近（第 ${rivals.encounter} 次登场）${trail ? `：${trail.where}` : ''}。只打你的宝可梦和城市，不能捕捉；全部击倒有奖励。\n对决条件：\n${conditionLines(duelConditions(view, trail))}`,
         urgency: 0, distance: seen ? finite(seen.distance) : spot ? ownDistance(view, indexToHex(spot.tileIndex, view.map)) : null,
         ...(seen ? { tileIndex: tileOf(view, seen.item.position) } : spot ? { tileIndex: spot.tileIndex } : {}) });
     } else if (rivals.nextArrival !== null) {
@@ -120,13 +120,11 @@ export function worldCards(view: PlayerView, content: Content = contentForView(v
     const left = championship.nextRound - view.round, titles = championship.titlesByPlayer[me] ?? 0;
     const need = (view.gameplayVersion ?? 0) >= 21 ? victoryTargets(view).championshipTitles : CIVILIZATION_CONTENT.championship.titlesNeededForVictory;
     const peaceful = !view.diplomacy.some(pair => pair.status === 'war' && [pair.a, pair.b].includes(me));
-    const team = own.slice(0, 6).map(unit => unit.id);
     cards.push({ id: 'conference', title: `联盟大会 第 ${championship.nextSeason} 届`, art: { icon: 'trophy' },
       status: `${left <= 0 ? '本轮' : `${left} 轮后`} · ${championship.registration ? '已报名' : '未报名'} · 冠军 ${titles}/${need}`,
       tip: `第 ${championship.nextRound} 轮举办，六队淘汰赛（前两名轮空）。和平时报名六只宝可梦。\n冠军头衔 ${titles}/${need}：本局（${view.roundLimit} 轮）要 ${need} 个头衔；${circuit ? '四天王最多算 1 个，其余' : '头衔都'}来自联盟大会冠军。`,
       urgency: left <= 2 && !championship.registration ? 0 : left <= 2 ? 1 : 3, distance: null,
-      ...(content.teamBattles ? { lineup: { label: championship.registration ? '调整顺序' : '报名', target: 'championship:', available: peaceful && own.length >= 6 } }
-        : championship.registration ? {} : { action: { label: '报名', command: { type: 'RegisterChampionshipTeam', unitIds: team } as Command['action'], available: peaceful && own.length >= 6 } }) });
+      lineup: { label: championship.registration ? '调整顺序' : '报名', target: 'championship:', available: peaceful && own.length >= 6 } });
   }
 
   // Contest: appeal, cooldown, the hall to locate.

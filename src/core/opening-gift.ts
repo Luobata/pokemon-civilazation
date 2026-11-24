@@ -7,7 +7,6 @@ import type { EventPayload, GameState } from './model.ts';
 
 export type OpeningGiftEvent = { type: 'OpeningGiftReceived'; playerId: number; ballId: 'pokeBall'; quantity: number };
 export function recordOpeningGift(before: GameState, after: GameState, events: readonly EventPayload[], content: Content): EventPayload[] {
-  if (!content.openingGift) return [];
   const quantity = lateTuning(content).giftBalls, output: EventPayload[] = [];
   for (const event of events) {
     if (event.type !== 'TechCompleted' || event.techId !== 'domestication' || before.players[event.playerId]?.research.unlockedIds.includes('domestication')) continue;

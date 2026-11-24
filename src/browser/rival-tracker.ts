@@ -103,7 +103,8 @@ export const conditionLines = (conditions: readonly { ok: boolean; text: string 
  */
 export function duelBarState(view: PlayerView, unit: MapUnit, content: Content = contentForView(view)):
   { goTo: number | null; reason: string | null; title: string; detail: string } | null {
-  if (unit.kind !== 'pokemon' || !content.rivalDuels) return null;
+  void content;
+  if (unit.kind !== 'pokemon') return null;
   const trail = rivalTrail(view);
   if (!trail) return null;
   const conditions = conditionLines(duelConditions(view, trail));

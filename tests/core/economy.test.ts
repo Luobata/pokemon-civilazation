@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { CONTENT } from '../../src/content/units.ts';
+import { GAME_CONTENT } from '../../src/content/units.ts';
 import type { Content } from '../../src/content/units.ts';
 import type { Command, GameSetup, GameState, ProductionItem } from '../../src/core/model.ts';
 import { createGame } from '../../src/core/game.ts';
@@ -22,6 +22,7 @@ function fixture(): GameState {
   const state = createGame(setup);
   state.map = { width: 16, height: 12, tiles: Array(192).fill('grassland') };
   state.units = {}; state.cities = { 1: createCity(1, 0, { q: 3, r: 4 }, true), 2: createCity(2, 1, { q: 10, r: 8 }, true) };
+  delete state.expansion;
   state.knowledge = { 0: emptyKnowledge(), 1: emptyKnowledge() }; state.nextEntityId = 100;
   refreshKnowledge(state); return state;
 }
@@ -45,7 +46,8 @@ function panelFixture() {
 describe('city economy and D30 snapshot', () => {
   test('GDD §7.2 exact panel numbers and six-round growth', () => {
     let state = panelFixture();
-    expect(cityYield(state, state.cities[1])).toEqual({ food: 7, production: 4, gold: 1, research: 0 });
+    // Capital includes v21 opening bonuses (+2 production, +2 research).
+    expect(cityYield(state, state.cities[1])).toEqual({ food: 7, production: 6, gold: 1, research: 2 });
     expect(growthThreshold(state.cities[1])).toBe(40);
     for (let i = 0; i < 5; i++) state = round(state);
     expect(state.cities[1]).toMatchObject({ population: 2, food: 37 });
@@ -72,12 +74,12 @@ describe('city economy and D30 snapshot', () => {
     city.queue = [{ id: 10, progress: 37, item: { kind: 'building', defId: 'meetingHall' } },
       { id: 11, progress: 0, item: { kind: 'building', defId: 'observatory' } }];
     resolveEconomy(state);
-    expect(city.population).toBe(3); expect(city.queue[0].progress).toBe(1); // old production=4, not 5
+    expect(city.population).toBe(3); expect(city.queue[0].progress).toBe(3); // old production=6, not 7
     expect(state.players[0].gold).toBe(51); // new meeting hall pays next round
     expect(cityYield(state, city).gold).toBe(3);
     const second = fixture(); second.cities[1].queue = [{ id: 10, progress: 49, item: { kind: 'building', defId: 'observatory' } }];
-    resolveEconomy(second); expect(second.players[0].research.reserve).toBe(2);
-    resolveEconomy(second); expect(second.players[0].research.reserve).toBe(6);
+    resolveEconomy(second); expect(second.players[0].research.reserve).toBe(4);
+    resolveEconomy(second); expect(second.players[0].research.reserve).toBe(10);
   });
   test('captured-this-round city produces nothing and consumes no food', () => {
     const state = panelFixture(), city = state.cities[1]; city.capturedAtRound = state.round;
@@ -104,10 +106,10 @@ describe('work assignment', () => {
   });
   test('D30 B3 manual observers persist; growth only fills the added population', () => {
     let state = panelFixture(); state = accepted(state, { type: 'AssignWork', cityId: 1, workedTileIds: [], lockedTileIds: [] });
-    state = round(state); expect(state.cities[1].workedTileIds).toEqual([]); expect(state.players[0].research.reserve).toBe(2);
+    state = round(state); expect(state.cities[1].workedTileIds).toEqual([]); expect(state.players[0].research.reserve).toBe(4);
     state.cities[1].food = 40; state = round(state);
     expect(state.cities[1].population).toBe(3); expect(state.cities[1].workedTileIds).toHaveLength(1);
-    expect(state.players[0].research.reserve).toBe(4); // new worker begins next round
+    expect(state.players[0].research.reserve).toBe(8); // new worker begins next round
   });
   test('out-of-radius locks disappear and invalidated workers remain observers', () => {
     const state = fixture(), city = state.cities[1]; city.population = 4;
@@ -115,7 +117,7 @@ describe('work assignment', () => {
     city.workedTileIds = [distant]; city.lockedTileIds = [distant];
     cleanWork(state, city); expect(city.lockedTileIds).toEqual([distant]);
     city.population = 3; cleanWork(state, city);
-    expect(city.workedTileIds).toEqual([]); expect(city.lockedTileIds).toEqual([]); expect(cityYield(state, city).research).toBe(3);
+    expect(city.workedTileIds).toEqual([]); expect(city.lockedTileIds).toEqual([]); expect(cityYield(state, city).research).toBe(5);
   });
   test('snow/volcano need meteorology and get +1 research when unlocked', () => {
     const state = fixture(), city = state.cities[1], ids = neighbors(city.position, state.map).slice(0, 2).map(hex => hexToIndex(hex, state.map)!);
@@ -123,7 +125,7 @@ describe('work assignment', () => {
     expect(workCandidates(state, city)).not.toContain(ids[0]); expect(workCandidates(state, city)).not.toContain(ids[1]);
     state.players[0].research.unlockedIds = ['meteorology'];
     expect(workCandidates(state, city)).toEqual(expect.arrayContaining(ids)); city.workedTileIds = ids;
-    expect(cityYield(state, city).research).toBe(5);
+    expect(cityYield(state, city).research).toBe(7);
   });
 });
 
@@ -154,7 +156,8 @@ describe('production and D16/D17/D28', () => {
   test('old waiting records claim the only gap first; new waiting order waits and overflow only carries', () => {
     const state = fixture(), city = state.cities[1]; state.round = 4;
     const adjacent = neighbors(city.position, state.map).sort((a, b) => hexToIndex(a, state.map)! - hexToIndex(b, state.map)!);
-    for (const [i, position] of adjacent.slice(1).entries()) state.units[20 + i] = { kind: 'logistics', role: 'settler', id: 20 + i, ownerId: 0, location: 'map', hp: 30, enraged: false, wildHome: null, position, actionLeft: 1, xp: 0 };
+    // Foreign units block all five other adjacent tiles regardless of same-owner logistics stacking.
+    for (const [i, position] of adjacent.slice(1).entries()) state.units[20 + i] = { kind: 'logistics', role: 'settler', id: 20 + i, ownerId: 1, location: 'map', hp: 30, enraged: false, wildHome: null, position, actionLeft: 1, xp: 0 };
     city.pendingDeployments = [{ enteredAtRound: 3, sourceOrderId: 10, item: pokemon as { kind: 'pokemon'; defId: 'charmander' } },
       { enteredAtRound: 2, sourceOrderId: 20, item: pokemon as { kind: 'pokemon'; defId: 'charmander' } }];
     city.queue = [{ id: 42, progress: 100, item: pokemon }, { id: 43, progress: 0, item: { kind: 'building', defId: 'meetingHall' } }];
@@ -162,7 +165,7 @@ describe('production and D16/D17/D28', () => {
     expect(events.filter(e => e.type === 'UnitTrained').map(e => e.orderId)).toEqual([20]);
     expect(state.units[100].position!).toEqual(adjacent[0]); expect(state.units[100].actionLeft).toBe(0);
     expect(city.pendingDeployments.map(p => p.sourceOrderId)).toEqual([10, 42]); expect(state.nextEntityId).toBe(101);
-    expect(city.queue).toHaveLength(1); expect(city.queue[0].progress).toBe(81); expect(city.buildingIds).not.toContain('meetingHall');
+    expect(city.queue).toHaveLength(1); expect(city.queue[0].progress).toBe(83); expect(city.buildingIds).not.toContain('meetingHall');
     expect(state.players[0].gold).toBe(50); // income1 - only actual Pokemon1
     delete state.units[100]; delete state.units[20]; state.round++;
     const nextEvents = resolveEconomy(state);
@@ -193,24 +196,25 @@ describe('production and D16/D17/D28', () => {
 
 describe('research, purchase, deficit, atomic commands', () => {
   test('D30 B1 reserve before selection, progress preservation, completion overflow and one topic per round', () => {
-    let state = fixture(); state = round(state); expect(state.players[0].research.reserve).toBe(2);
+    let state = fixture(); state = round(state); expect(state.players[0].research.reserve).toBe(4);
     state = accepted(state, { type: 'SetResearch', techId: 'domestication' }); state = round(state);
-    expect(state.players[0].research.progressByTech.domestication).toBe(4);
+    expect(state.players[0].research.progressByTech.domestication).toBe(8);
     state = accepted(state, { type: 'SetResearch', techId: 'berryCultivation' }); state = round(state);
-    expect(state.players[0].research.progressByTech.domestication).toBe(4);
-    expect(state.players[0].research.progressByTech.berryCultivation).toBe(2);
+    expect(state.players[0].research.progressByTech.domestication).toBe(8);
+    expect(state.players[0].research.progressByTech.berryCultivation).toBe(4);
     state.players[0].research.reserve = 100;
     state = accepted(state, { type: 'SetResearch', techId: 'domestication' }); state = round(state);
-    expect(state.players[0].research).toMatchObject({ techId: null, reserve: 86, progressByTech: { domestication: 20 }, unlockedIds: ['domestication'] });
+    expect(state.players[0].research).toMatchObject({ techId: null, reserve: 92, progressByTech: { domestication: 20 }, unlockedIds: ['domestication'] });
     state = accepted(state, { type: 'SetResearch', techId: 'ballCraft' });
     expect(state.players[0].research.progressByTech.ballCraft).toBe(0); // selection doesn't instantly spend reserve
-    state = round(state); expect(state.players[0].research).toMatchObject({ techId: null, reserve: 48, unlockedIds: ['ballCraft', 'domestication'] });
+    state = round(state); expect(state.players[0].research).toMatchObject({ techId: null, reserve: 46, unlockedIds: ['ballCraft', 'domestication'] });
   });
-  test('tier requires one prior-tier completion, same tier has no prerequisite', () => {
+  test('branching tech tree enforces explicit prerequisites and blocks unlocked techs', () => {
     const state = fixture(), player = state.players[0];
     expect(canResearch(player, 'berryCultivation')).toBe(true); expect(canResearch(player, 'ballCraft')).toBe(false);
-    player.research.unlockedIds.push('berryCultivation'); expect(canResearch(player, 'ballCraft')).toBe(true); expect(canResearch(player, 'medicine')).toBe(false);
-    player.research.unlockedIds.push('ballCraft'); expect(canResearch(player, 'medicine')).toBe(true); expect(canResearch(player, 'ballCraft')).toBe(false);
+    player.research.unlockedIds.push('berryCultivation'); expect(canResearch(player, 'ballCraft')).toBe(false); expect(canResearch(player, 'fieldObservation')).toBe(true);
+    player.research.unlockedIds.push('domestication'); expect(canResearch(player, 'ballCraft')).toBe(true); expect(canResearch(player, 'medicine')).toBe(false);
+    player.research.unlockedIds.push('fieldObservation'); expect(canResearch(player, 'medicine')).toBe(true); expect(canResearch(player, 'domestication')).toBe(false);
   });
   test('ball purchase deducts exact price, checks both techs, amount and owner', () => {
     let state = fixture(); state.players[0].research.unlockedIds = ['domestication'];
@@ -226,7 +230,7 @@ describe('research, purchase, deficit, atomic commands', () => {
     expect(command(state, { type: 'BuyBall', cityId: 1, ballId: 'pokeBall', quantity: 0 }).ok).toBe(false);
   });
   test('upkeep descending then entity ID descending; settlers never pay or get disbanded', () => {
-    const state = fixture(), content: Content = structuredClone(CONTENT);
+    const state = fixture(), content: Content = structuredClone(GAME_CONTENT);
     content.units.charmander.upkeep = 3; content.units.squirtle.upkeep = 2; state.players[0].gold = 0;
     state.units = {
       10: { kind: 'pokemon', speciesId: 'charmander', id: 10, ownerId: 0, location: 'map', hp: 30, enraged: false, wildHome: null, position: indexToHex(10, state.map), xp: 0, actionLeft: 1 },
@@ -254,7 +258,7 @@ describe('research, purchase, deficit, atomic commands', () => {
     state.units[50] = { kind: 'logistics', role: 'settler', id: 50, ownerId: 0, location: 'map', hp: 30, enraged: false, wildHome: null, position, xp: 0, actionLeft: 1 };
     refreshKnowledge(state);
     const next = accepted(state, { type: 'FoundCity', unitId: 50 });
-    expect(next.units[50]).toBeUndefined(); expect(next.cities[100]).toMatchObject({ population: 1, food: 0, hp: 50, buildingIds: [], queue: [], position });
+    expect(next.units[50]).toBeUndefined(); expect(next.cities[100]).toMatchObject({ population: 1, food: 0, hp: 100, buildingIds: [], queue: [], position });
     expect(next.cities[100].workedTileIds).toHaveLength(1); expect(next.nextEntityId).toBe(101);
     state.units[50].actionLeft = 0; expect(command(state, { type: 'FoundCity', unitId: 50 }).ok).toBe(false);
     state.units[50].actionLeft = 1; state.units[50].position = { q: 6, r: 4 }; expect(command(state, { type: 'FoundCity', unitId: 50 }).ok).toBe(false);

@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import { combatFixture, pokemon } from '../core/combat-fixture.ts';
 import { observe, refreshKnowledge } from '../../src/core/vision.ts';
-import { CONTENT } from '../../src/content/units.ts';
+import { GAME_CONTENT } from '../../src/content/units.ts';
 import { planNext } from '../../src/ai/plan.ts';
 import { previewCapture } from '../../src/core/preview.ts';
 import { hexToIndex } from '../../src/core/hex.ts';
@@ -9,7 +9,8 @@ import { canCaptureByPersonality } from '../../src/ai/plan.ts';
 
 function captureScenario(personality: 'aggressive' | 'conservative') {
   const state = combatFixture(); state.players[0].personality = personality;
-  state.players[0].research.unlockedIds = Object.keys(CONTENT.techs) as (keyof typeof CONTENT.techs)[];
+  state.players[0].gold = 100;
+  state.players[0].research.unlockedIds = Object.keys(GAME_CONTENT.techs) as (keyof typeof GAME_CONTENT.techs)[];
   state.players[0].ballInventory.pokeBall = 1;
   state.cities[1].queue = [{ id: 50, progress: 0, item: { kind: 'pokemon', defId: 'bulbasaur' } }];
   state.cities[1].workedTileIds = [0, 1];

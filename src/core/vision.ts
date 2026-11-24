@@ -148,8 +148,7 @@ export function observe(state: GameState, playerId: number, content: Content = c
       ...(state.expansion.contestSeasons ? { contestSeasons: observeContestSeasons(state, playerId, content) } : {}),
       ...(state.expansion.raids ? { raids: observeRaids(state, playerId, content) } : {}),
       ...(state.expansion.wildEncounters ? { wildEncounters: observeWildEncounters(state, playerId) } : {}),
-      // v27 ③: the viewer's own project counts (absent before v27).
-      ...(content.cityProjects ? { cityProjects: observeCityProjects(state, playerId) } : {}),
+      cityProjects: observeCityProjects(state, playerId),
       ...(state.expansion.promotions ? { promotions: observePromotions(state, playerId, visible, hex => hexToIndex(hex, state.map)) } : {}),
       ...(state.expansion.faith ? { faith: observeFaith(state, playerId, content) } : {}),
       ...(state.expansion.contests ? { contests: observeContests(state, playerId, content) } : {}),

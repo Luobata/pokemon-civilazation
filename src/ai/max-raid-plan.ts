@@ -15,7 +15,7 @@ import { raidAttackBonus } from './raid-plan.ts';
 type Pokemon = Extract<MapUnit, { kind: 'pokemon' }>;
 export function planMaxRaidAction(view: PlayerView, content: Content): Command['action'] | null {
   const active = view.expansion?.raids?.active;
-  if (!content.maxRaids || !active?.max || active.max.dynamaxUsed || active.unitId === null) return null;
+  if (!active?.max || active.max.dynamaxUsed || active.unitId === null) return null;
   const boss = view.units.find(unit => unit.id === active.unitId);
   if (!boss) return null;
   const near = view.units.filter((unit): unit is Pokemon => unit.ownerId === view.playerId && unit.kind === 'pokemon'
@@ -27,7 +27,7 @@ export function planMaxRaidAction(view: PlayerView, content: Content): Command['
 /** Military score of an attack on the Max boss (null = not a Max boss, or the attack does nothing). */
 export function maxRaidAttackScore(view: PlayerView, unit: MapUnit, target: MapUnit, preview: AttackPreview, content: Content): number | null {
   const active = view.expansion?.raids?.active;
-  if (!content.maxRaids || !active?.max || active.unitId !== target.id || unit.kind !== 'pokemon' || !preview.ok) return null;
+  if (!active?.max || active.unitId !== target.id || unit.kind !== 'pokemon' || !preview.ok) return null;
   const shields = active.max.shields ?? 0, role = raidRole(content.species[unit.speciesId].role);
   const broken = preview.maxRaid?.shields ?? 0;
   if (preview.damage.min <= 0 && broken <= 0) return null;

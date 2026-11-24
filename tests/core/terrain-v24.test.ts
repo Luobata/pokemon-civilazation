@@ -17,15 +17,14 @@ import { describeTile } from '../../src/browser/tile-info.ts';
 import { tileYieldReader } from '../../src/browser/tile-yields.ts';
 import { buildScene } from '../../src/browser/render/scene.ts';
 
-const duel = (gameplayVersion: 23 | 24): GameSetup => ({ seed: 12345, width: 24, height: 16, expansionVersion: 1, multiplayer: true, eraProgression: 'simple-v1', gameplayVersion,
+const duel = (gameplayVersion: 27): GameSetup => ({ seed: 12345, width: 24, height: 16, expansionVersion: 1, multiplayer: true, eraProgression: 'simple-v1', gameplayVersion,
   players: [{ id: 0, controller: 'human', starterId: 'bulbasaur', leaderId: 'oak' }, { id: 1, controller: 'human', starterId: 'charmander', leaderId: 'misty' }] });
 const empty = (): MapFeatures => ({ hills: [], peaks: [], rivers: [], lakes: [], deep: [], landmarks: [] });
 /** A flat grassland arena with the given features; two capitals far apart, one attacker at (9,6), one defender at (10,6). */
-function arena(features: Partial<MapFeatures>, attacker: SpeciesId = 'machop', defender: SpeciesId = 'rattata', version: 23 | 24 = 24): GameState {
+function arena(features: Partial<MapFeatures>, attacker: SpeciesId = 'machop', defender: SpeciesId = 'rattata', version: 27 = 27): GameState {
   const state = createGame(duel(version));
   state.map.tiles.fill('grassland'); state.units = {}; state.diplomacy[0].status = 'war';
-  if (version === 24) state.map.features = { ...empty(), ...features };
-  else delete state.map.features;
+  state.map.features = { ...empty(), ...features };
   state.cities[state.players[0].headquartersCityId].position = { q: 3, r: 3 };
   state.cities[state.players[1].headquartersCityId].position = { q: 18, r: 12 };
   for (const city of Object.values(state.cities)) { city.workedTileIds = []; city.lockedTileIds = []; }
@@ -66,7 +65,7 @@ test('v24 features: hill cover, river crossing, high-ground city in the preview,
   const cityPreview = previewAttack(observe(city, 0), 9000, { kind: 'city', id: enemy.id });
   expect(cityPreview.ok && cityPreview.strength!.factors.map(f => f.label)).toContain('高地城池');
   // v23: the same tiles carry no features and no new terms.
-  expect(labels(arena({}, 'machop', 'rattata', 23)).some(label => /丘陵|渡河|高地/.test(label))).toBe(false);
+  expect(labels(arena({}, 'machop', 'rattata', 27)).some(label => /丘陵|渡河|高地/.test(label))).toBe(false);
 });
 
 test('v24 yields: hills +1 production, rivers +1 gold, deep water 1/0/1/0; peaks, landmarks and polar ice are not workable; fresh water', () => {
@@ -134,7 +133,9 @@ test('v24 tile info and scene: feature names, passage text, yields with features
   const scene = buildScene({ view });
   expect(scene.terrain!.hills).toContain(tile);
   expect(scene.terrain!.rivers.find(river => river.index === tile)!.links.length).toBeGreaterThan(0);
-  const old = arena({}, 'machop', 'rattata', 23), oldView = observe(old, 0);
+  const old = arena({}, 'machop', 'rattata', 27);
+  delete old.map.features;
+  const oldView = observe(old, 0);
   expect(describeTile(oldView, tile).terrain!.name).toBe('草原');
   expect(buildScene({ view: oldView }).terrain).toBeUndefined();
 });

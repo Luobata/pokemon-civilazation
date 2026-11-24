@@ -3,7 +3,6 @@
 // badges and Rare Candy.
 import type { TechId } from './economy.ts';
 import type { SpeciesDefinition, TypeId } from './species.ts';
-import { TREE_CLASS_HMS } from './tech-tree.ts';
 
 export type UnitClass = SpeciesDefinition['role'];
 export const CLASS_IDS: readonly UnitClass[] = ['melee', 'ranged', 'fast', 'scout', 'siege', 'air', 'naval'];
@@ -35,10 +34,9 @@ export const CLASS_NATIVE_TYPES: Record<UnitClass, readonly TypeId[]> = {
 };
 /** HMs (秘传学习器): a technology teaches the HM, and the HM lets cities train that class. Other classes need none. */
 export const CLASS_HMS: Partial<Record<UnitClass, { hm: string; techId: TechId }>> = {
-  naval: { hm: '冲浪', techId: 'domestication' },
+  naval: { hm: '冲浪', techId: 'seafaring' },
   siege: { hm: '怪力', techId: 'stoneCraft' },
   fast: { hm: '骑乘', techId: 'riding' },
-  air: { hm: '飞翔', techId: 'meteorology' },
+  air: { hm: '飞翔', techId: 'aviation' },
 };
-/** The HM table of a content: v22's tree teaches 冲浪 with 近海航行 and 飞翔 with 飞行训练. */
-export const classHms = (content: { techTree?: true }): Partial<Record<UnitClass, { hm: string; techId: TechId }>> => content.techTree ? TREE_CLASS_HMS : CLASS_HMS;
+export const classHms = (): Partial<Record<UnitClass, { hm: string; techId: TechId }>> => CLASS_HMS;

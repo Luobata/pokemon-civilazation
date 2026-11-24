@@ -14,7 +14,7 @@ import { gameVersions } from '../../src/core/versions.ts';
 import { canonicalSerialize } from '../../src/core/snapshot.ts';
 import type { Command, GameSetup, GameState } from '../../src/core/model.ts';
 
-const setup: GameSetup = { seed: 31, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 23,
+const setup: GameSetup = { seed: 31, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 27,
   players: [0, 1, 2, 3].map(id => ({ id, controller: 'ai' as const, personality: 'aggressive' as const })) };
 
 test('a real v23 AI game: builders take escorts, develop resources, pillage and repair without rejected commands, and replay exactly', () => {

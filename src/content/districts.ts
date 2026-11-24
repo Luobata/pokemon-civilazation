@@ -1,7 +1,6 @@
 import type { TechId, Yield } from './economy.ts';
 import type { BiomeId } from './rules.ts';
 import type { ImprovementId } from './improvements.ts';
-import { TREE_DISTRICT_TECH } from './tech-tree.ts';
 
 export type DistrictId = 'researchDistrict' | 'gymDistrict' | 'harborDistrict' | 'powerPlantDistrict' | 'gardenDistrict';
 export type DistrictEffects = Yield & { trainedXp: number; bondPressure: number };
@@ -22,12 +21,12 @@ export const DISTRICTS: Record<DistrictId, DistrictDefinition> = {
       { id: 'city', label: '城市中心', effect: 'trainedXp', perTile: 10, cap: 10, cityCenter: true },
       { id: 'mine', label: '已完成矿坑', effect: 'trainedXp', perTile: 10, cap: 20, improvement: 'mine' },
     ] },
-  harborDistrict: { name: '港口', mark: '港', requiredTech: 'domestication', cost: 50, biomes: ['ocean'], coastal: true,
+  harborDistrict: { name: '港口', mark: '港', requiredTech: 'seafaring', cost: 50, biomes: ['ocean'], coastal: true,
     base: { ...emptyDistrictEffects(), food: 1, gold: 1 }, adjacency: [
       { id: 'fishery', label: '已完成渔场', effect: 'gold', perTile: 1, cap: 2, improvement: 'fishery' },
       { id: 'terrain', label: '草原/森林', effect: 'food', perTile: 1, cap: 1, biomes: ['grassland', 'forest'] },
     ] },
-  powerPlantDistrict: { name: '发电厂', mark: '电', requiredTech: 'typeResearch', cost: 60, biomes: ['mountain', 'desert', 'volcano'],
+  powerPlantDistrict: { name: '发电厂', mark: '电', requiredTech: 'electricity', cost: 60, biomes: ['mountain', 'desert', 'volcano'],
     base: { ...emptyDistrictEffects(), production: 2 }, adjacency: [
       { id: 'terrain', label: '荒漠/火山', effect: 'production', perTile: 1, cap: 2, biomes: ['desert', 'volcano'] },
       { id: 'mine', label: '已完成矿坑', effect: 'production', perTile: 1, cap: 2, improvement: 'mine' },
@@ -39,5 +38,4 @@ export const DISTRICTS: Record<DistrictId, DistrictDefinition> = {
     ] },
 };
 export const DISTRICT_IDS = (Object.keys(DISTRICTS) as DistrictId[]).sort();
-/** The technology a district needs: v22's tree moves the harbour and the power plant onto their own technologies. */
-export const districtTech = (id: DistrictId, tree: boolean): TechId => (tree ? TREE_DISTRICT_TECH[id] : undefined) ?? DISTRICTS[id].requiredTech;
+export const districtTech = (id: DistrictId): TechId => DISTRICTS[id].requiredTech;

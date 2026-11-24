@@ -21,7 +21,7 @@ type Exposed = { __main: { developerAdapter: { getPresentation(): { frame: Frame
 async function importSave(page: Page, save: string) {
   await page.goto('/?seed=1');
   await page.locator('#import-save').setInputFiles({ name: 'batch3.json', mimeType: 'application/json', buffer: Buffer.from(save) });
-  await expect(page.locator('#action-notice')).toContainText('读档完成');
+  await expect(page.locator('#action-notice')).toContainText('读档完成', { timeout: 60_000 });
   await verifyImportedReplay(page, save);
 }
 const idle = (page: Page) => expect(page.locator('#skip')).toBeDisabled({ timeout: 30_000 });
@@ -291,7 +291,7 @@ test('A3: an AI attack on our city raises the war music to its top layer; the la
 });
 
 test('A5: the map-table theme plays from the first gesture through the opening round and on the menu; the game ends on the defeat or victory theme', async ({ page }) => {
-  test.setTimeout(120_000);
+  test.setTimeout(240_000);
   await page.goto('/?seed=1');
   await expect(page.locator('#end-turn')).toBeEnabled();
   // Nothing plays before the first gesture.

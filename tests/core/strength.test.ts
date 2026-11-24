@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { BATTLE_CONTENT, ROSTER_CONTENT, contentFor } from '../../src/content/units.ts';
+import { GAME_CONTENT, contentFor } from '../../src/content/units.ts';
 import type { SpeciesId } from '../../src/content/units.ts';
 import type { GameplayVersion } from '../../src/content/eras.ts';
 import { createGame } from '../../src/core/game.ts';
@@ -27,25 +27,24 @@ function arena(version: GameplayVersion, attacker: SpeciesId, defender: SpeciesI
 }
 const preview = (state: GameState) => { const result = previewAttack(observe(state, 0), 9000, { kind: 'unit', id: 9001 }); if (!result.ok) throw new Error(result.reason); return result; };
 
-test('v20 content: strength stats, 100 HP, its own version; older versions keep their content', () => {
-  expect(gameVersions({ gameplayVersion: 20 })).toEqual({ schemaVersion: 15, rulesVersion: 'strength-v20' });
-  expect(contentFor({ expansionVersion: 1, gameplayVersion: 20 })).toBe(BATTLE_CONTENT);
-  expect(contentFor({ expansionVersion: 1, gameplayVersion: 19 })).toBe(ROSTER_CONTENT);
-  expect(BATTLE_CONTENT.species.charizard.attack).toBe(toStrength(ROSTER_CONTENT.species.charizard.attack));
-  expect(maxUnitHp({ kind: 'pokemon', speciesId: 'rattata' }, BATTLE_CONTENT)).toBe(100);
+test('v27 content: strength stats, 100 HP, unified envelope', () => {
+  expect(gameVersions({ gameplayVersion: 27 })).toEqual({ schemaVersion: 22, rulesVersion: 'pace-v27' });
+  expect(contentFor({ expansionVersion: 1, gameplayVersion: 27 })).toBe(GAME_CONTENT);
+  expect(GAME_CONTENT.species.charizard.attack).toBe(toStrength(83));
+  expect(maxUnitHp({ kind: 'pokemon', speciesId: 'rattata' }, GAME_CONTENT)).toBe(100);
   // Old multipliers become the nearest flat bonus.
   expect([1200, 800, 1150, 1000].map(strengthFromPermille)).toEqual([5, -6, 3, 0]);
 });
 
 test('v20: the preview lists each bonus, the gap matches the totals, and the authority stays inside the range', () => {
   // 小火龙 (fire) on 妙蛙种子 (grass/poison) in a forest: type +10 for the attacker, cover +5 for the defender.
-  const state = arena(20, 'charmander', 'bulbasaur', 'forest'), result = preview(state), strength = result.strength!;
+  const state = arena(27, 'charmander', 'bulbasaur', 'forest'), result = preview(state), strength = result.strength!;
   expect(strength.factors).toContainEqual(expect.objectContaining({ side: 'attack', value: STRENGTH_RULES.typeStep }));
   expect(strength.factors).toContainEqual({ side: 'defense', label: '森林掩护', value: STRENGTH_RULES.cover });
   const sum = (side: 'attack' | 'defense') => strength.factors.filter(factor => factor.side === side).reduce((total, factor) => total + factor.value, 0);
   expect(strength.gap).toBe(strength.attack + sum('attack') - strength.defense - sum('defense'));
   for (const [a, d] of [['charmander', 'bulbasaur'], ['machop', 'rattata'], ['sandshrew', 'ponyta'], ['geodude', 'squirtle']] as [SpeciesId, SpeciesId][]) {
-    const fight = arena(20, a, d), expected = preview(fight), hp = fight.units[9001].hp, attackerHp = fight.units[9000].hp;
+    const fight = arena(27, a, d), expected = preview(fight), hp = fight.units[9001].hp, attackerHp = fight.units[9000].hp;
     resolveAttack(fight, 9000, { kind: 'unit', id: 9001 });
     expect(hp - fight.units[9001].hp).toBeGreaterThanOrEqual(expected.damage.min);
     expect(hp - fight.units[9001].hp).toBeLessThanOrEqual(expected.damage.max);
@@ -53,15 +52,11 @@ test('v20: the preview lists each bonus, the gap matches the totals, and the aut
   }
 });
 
-test('v20: equal strength deals about 15; immunity deals nothing; older rules keep the multiplier formula', () => {
-  const equal = preview(arena(20, 'rattata', 'rattata'));
-  expect(equal.strength!.gap).toBe(BATTLE_CONTENT.species.rattata.attack - BATTLE_CONTENT.species.rattata.defense);
+test('v27: equal strength deals about 15; immunity deals nothing', () => {
+  const equal = preview(arena(27, 'rattata', 'rattata'));
+  expect(equal.strength!.gap).toBe(GAME_CONTENT.species.rattata.attack - GAME_CONTENT.species.rattata.defense);
   expect(equal.damage.max).toBeGreaterThan(5);
   expect(equal.damage.max).toBeLessThan(40);
   // 小拉达 (normal) cannot hurt 鬼斯 (ghost).
-  expect(preview(arena(20, 'rattata', 'gastly')).damage).toEqual({ min: 0, max: 0 });
-  // Older rules keep the multiplier formula (no strength breakdown); 穿山鼠 vs 小拉达 has no v19 class modifiers either.
-  const v19 = preview(arena(19, 'sandshrew', 'rattata'));
-  expect(v19.strength).toBeUndefined();
-  expect(v19.damage).toEqual(preview(arena(18, 'sandshrew', 'rattata')).damage);
+  expect(preview(arena(27, 'rattata', 'gastly')).damage).toEqual({ min: 0, max: 0 });
 });

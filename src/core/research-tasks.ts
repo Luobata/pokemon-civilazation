@@ -86,8 +86,9 @@ export function inResearchHabitat(map: FeatureMap, content: Content, speciesId: 
 }
 
 /** v24 games only: one empty card book per player; species already seen at the start (starting registrations) count as seen. */
-export function initializeResearchTasks(state: GameState, content: Content): void {
-  if (!content.researchTasks || !state.expansion) return;
+export function initializeResearchTasks(state: GameState, _content?: Content): void {
+  void _content;
+  if (!state.expansion) return;
   const ledger: ResearchTaskState = {};
   for (const playerId of [...state.turnOrder].sort((a, b) => a - b)) {
     const book: Partial<Record<SpeciesId, ResearchCard>> = {};

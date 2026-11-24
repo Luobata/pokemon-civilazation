@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { IMPROVEMENT_CONTENT, WORLD_CONTENT } from '../../src/content/units.ts';
+import { GAME_CONTENT } from '../../src/content/units.ts';
 import type { GameplayVersion } from '../../src/content/eras.ts';
 import { IMPROVEMENT_RULES_V23 } from '../../src/content/improvements.ts';
 import { createGame } from '../../src/core/game.ts';
@@ -17,17 +17,17 @@ const duel = (gameplayVersion: GameplayVersion): GameSetup => ({ seed: 12345, wi
   players: [{ id: 0, controller: 'human', starterId: 'bulbasaur', leaderId: 'oak' }, { id: 1, controller: 'human', starterId: 'charmander', leaderId: 'misty' }] });
 const as = (state: GameState, actorId: number, action: Command['action']) => {
   state.activePlayerId = actorId;
-  return step(state, { actorId, expectedSeq: state.commandSeq, action }, IMPROVEMENT_CONTENT);
+  return step(state, { actorId, expectedSeq: state.commandSeq, action }, GAME_CONTENT);
 };
 
 /** Player 0 owns a farm next to its capital; player 1 has a Pokémon standing on it. */
-function raid(version: GameplayVersion = 23, war = true) {
+function raid(version: GameplayVersion = 27, war = true) {
   const state = createGame(duel(version)), capital = state.cities[state.players[0].headquartersCityId];
   const tileIndex = capital.workedTileIds.find(index => state.map.tiles[index] === 'grassland')
     ?? state.map.tiles.findIndex((biome, index) => biome === 'grassland' && hexDistance(indexToHex(index, state.map), capital.position, state.map) === 1);
   if (!capital.workedTileIds.includes(tileIndex)) capital.workedTileIds = [tileIndex];
   state.expansion!.improvements!.tiles[tileIndex] = { kind: 'berryFarm', builtBy: 0, builtAtRound: 0 };
-  const raider = createMapUnit({ kind: 'pokemon', speciesId: 'charmander' }, 9100, 1, indexToHex(tileIndex, state.map), IMPROVEMENT_CONTENT, 0, 1);
+  const raider = createMapUnit({ kind: 'pokemon', speciesId: 'charmander' }, 9100, 1, indexToHex(tileIndex, state.map), GAME_CONTENT, 0, 1);
   state.units[9100] = raider;
   if (war) state.diplomacy[0].status = 'war';
   refreshKnowledge(state);
@@ -35,12 +35,12 @@ function raid(version: GameplayVersion = 23, war = true) {
 }
 
 test('pillage: only at war, on an intact enemy improvement; damages it and pays the raider', () => {
-  const peace = raid(23, false);
+  const peace = raid(27, false);
   expect(as(peace.state, 1, { type: 'PillageImprovement', unitId: 9100 }).ok).toBe(false);
   const { state, tileIndex } = raid();
-  expect(viewPillage(observe(state, 1, IMPROVEMENT_CONTENT), 9100)).toMatchObject({ tileIndex, kind: 'berryFarm', reward: { kind: 'food', amount: IMPROVEMENT_RULES_V23.pillage.food } });
+  expect(viewPillage(observe(state, 1, GAME_CONTENT), 9100)).toMatchObject({ tileIndex, kind: 'berryFarm', reward: { kind: 'food', amount: IMPROVEMENT_RULES_V23.pillage.food } });
   const raiderCity = state.cities[state.players[1].headquartersCityId], food = raiderCity.food;
-  const before = workedTileYield(state, tileIndex, state.players[0], IMPROVEMENT_CONTENT);
+  const before = workedTileYield(state, tileIndex, state.players[0], GAME_CONTENT);
   const result = as(state, 1, { type: 'PillageImprovement', unitId: 9100 });
   expect(result.ok).toBe(true);
   if (!result.ok) return;
@@ -48,19 +48,13 @@ test('pillage: only at war, on an intact enemy improvement; damages it and pays 
   expect(next.expansion!.improvements!.tiles[tileIndex]).toMatchObject({ kind: 'berryFarm', damaged: true });
   expect(next.cities[raiderCity.id].food).toBe(food + IMPROVEMENT_RULES_V23.pillage.food);
   expect(next.units[9100].actionLeft).toBe(0);
-  expect(workedTileYield(next, tileIndex, next.players[0], IMPROVEMENT_CONTENT).food).toBe(before.food - 1);
+  expect(workedTileYield(next, tileIndex, next.players[0], GAME_CONTENT).food).toBe(before.food - 1);
   // Cannot pillage twice; the same unit has no action anyway, a fresh one is refused too.
   next.units[9100].actionLeft = 1;
   expect(as(next, 1, { type: 'PillageImprovement', unitId: 9100 }).ok).toBe(false);
   // Event reaches the victim and the raider.
-  expect(projectEvents(state, next, result.events, 0, IMPROVEMENT_CONTENT).some(event => event.payload.type === 'ImprovementPillaged')).toBe(true);
-  expect(projectEvents(state, next, result.events, 1, IMPROVEMENT_CONTENT).some(event => event.payload.type === 'ImprovementPillaged')).toBe(true);
-});
-
-test('pillage is unknown before v23', () => {
-  const { state } = raid(22);
-  state.activePlayerId = 1;
-  expect(step(state, { actorId: 1, expectedSeq: state.commandSeq, action: { type: 'PillageImprovement', unitId: 9100 } }, WORLD_CONTENT).ok).toBe(false);
+  expect(projectEvents(state, next, result.events, 0, GAME_CONTENT).some(event => event.payload.type === 'ImprovementPillaged')).toBe(true);
+  expect(projectEvents(state, next, result.events, 1, GAME_CONTENT).some(event => event.payload.type === 'ImprovementPillaged')).toBe(true);
 });
 
 test('a damaged improvement stops counting for league points and is repaired by a builder without a charge', () => {
@@ -75,9 +69,9 @@ test('a damaged improvement stops counting for league points and is repaired by 
   if (!pillaged.ok) return;
   const next = pillaged.state;
   delete next.units[9100];
-  const builder = createMapUnit({ kind: 'logistics', role: 'builder' }, 9000, 0, indexToHex(tileIndex, next.map), IMPROVEMENT_CONTENT, 0, 1);
+  const builder = createMapUnit({ kind: 'logistics', role: 'builder' }, 9000, 0, indexToHex(tileIndex, next.map), GAME_CONTENT, 0, 1);
   builder.charges = 2; next.units[9000] = builder; refreshKnowledge(next);
-  expect(viewRepairs(observe(next, 0, IMPROVEMENT_CONTENT), 9000, IMPROVEMENT_CONTENT)).toEqual([tileIndex]);
+  expect(viewRepairs(observe(next, 0, GAME_CONTENT), 9000, GAME_CONTENT)).toEqual([tileIndex]);
   const repaired = as(next, 0, { type: 'RepairImprovement', unitId: 9000, tileIndex });
   expect(repaired.ok).toBe(true);
   if (!repaired.ok) return;
@@ -93,28 +87,23 @@ test('fog: a pillage you cannot see does not change your view of the improvement
   expect(remembered.improvement?.damaged).toBeUndefined();
   // Damage it behind player 1's back (e.g. a third party), while player 1 cannot see the tile.
   delete state.units[9100];
-  const visibleBefore = observe(state, 1, IMPROVEMENT_CONTENT).visibleTileIds.includes(tileIndex);
+  const visibleBefore = observe(state, 1, GAME_CONTENT).visibleTileIds.includes(tileIndex);
   state.expansion!.improvements!.tiles[tileIndex].damaged = true;
-  const view = observe(state, 1, IMPROVEMENT_CONTENT).expansion!.improvements!.tiles.find(tile => tile.tileIndex === tileIndex);
+  const view = observe(state, 1, GAME_CONTENT).expansion!.improvements!.tiles.find(tile => tile.tileIndex === tileIndex);
   expect(visibleBefore).toBe(false);
   expect(view).toMatchObject({ kind: 'berryFarm' });
   expect(view?.damaged).toBeUndefined();
   // The owner always sees its own territory live.
-  expect(observe(state, 0, IMPROVEMENT_CONTENT).expansion!.improvements!.tiles.find(tile => tile.tileIndex === tileIndex)?.damaged).toBe(true);
+  expect(observe(state, 0, GAME_CONTENT).expansion!.improvements!.tiles.find(tile => tile.tileIndex === tileIndex)?.damaged).toBe(true);
 });
 
 test('map scene: a damaged improvement carries the damaged mark (drawn on every wrapped copy); intact ones do not', () => {
   const { state, tileIndex } = raid();
-  const intact = buildScene({ view: observe(state, 0, IMPROVEMENT_CONTENT) }).improvements.find(item => item.index === tileIndex);
+  const intact = buildScene({ view: observe(state, 0, GAME_CONTENT) }).improvements.find(item => item.index === tileIndex);
   expect(intact).toMatchObject({ kind: 'berryFarm' });
   expect(intact).not.toHaveProperty('damaged');
   state.expansion!.improvements!.tiles[tileIndex].damaged = true;
-  const scene = buildScene({ view: observe(state, 0, IMPROVEMENT_CONTENT) });
+  const scene = buildScene({ view: observe(state, 0, GAME_CONTENT) });
   expect(scene.wrap).toBe(true);
   expect(scene.improvements.find(item => item.index === tileIndex)).toMatchObject({ kind: 'berryFarm', damaged: true });
-});
-
-test('v22 remembered tiles carry no improvement snapshot', () => {
-  const { state, tileIndex } = raid(22);
-  expect(state.knowledge[1].rememberedTiles[tileIndex]).not.toHaveProperty('improvement');
 });

@@ -8,6 +8,7 @@ import type { SpeciesId } from '../../src/content/species.ts';
 import { createGame } from '../../src/core/game.ts';
 import { leaderTeam, leaderTeamFor, viewGymBlocker } from '../../src/core/gym-circuit.ts';
 import { championshipNpcEntrants, guardianFighter } from '../../src/core/civilization-systems.ts';
+import { leagueTeamSize } from '../../src/core/league-roster.ts';
 import { hexDistance, hexToIndex, neighbors } from '../../src/core/hex.ts';
 import { isMapUnit } from '../../src/core/model.ts';
 import type { Command, GameSetup, GameState } from '../../src/core/model.ts';
@@ -24,9 +25,9 @@ import { RULE_QUERIES } from '../../src/ai/query.ts';
 import { rememberCityRejection } from '../../src/ai/memory.ts';
 import type { RejectedCitySite } from '../../src/ai/memory.ts';
 
-const setup = (gameplayVersion: 25 | 26, seed = 31): GameSetup => ({ seed, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion,
+const setup = (gameplayVersion: 27, seed = 31): GameSetup => ({ seed, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion,
   players: [{ id: 0, controller: 'human', starterId: 'bulbasaur' }, { id: 1, controller: 'ai' }, { id: 2, controller: 'ai' }] });
-const v26 = contentFor(setup(26));
+const v26 = contentFor(setup(27));
 const fighter = (id: string, speciesId: SpeciesId, extra: Partial<RelayFighter> = {}): RelayFighter => {
   const species = v26.species[speciesId];
   return { id, unitId: null, speciesId, typeIds: [species.typeId, ...(species.secondaryTypeId ? [species.secondaryTypeId] : [])], hp: species.maxHp, maxHp: species.maxHp,
@@ -80,9 +81,8 @@ describe('v26 relay rules (§2.1)', () => {
     expect(estimate % 5).toBe(0);
     expect(home).toEqual(team());
   });
-  test('历练: +1 attack and defence per 50 XP, at most 5; none before v26', () => {
+  test('历练: +1 attack and defence per 50 XP, at most 5', () => {
     expect([0, 49, 50, 149, 250, 999].map(xp => veteranBonus(xp, v26))).toEqual([0, 0, 1, 2, 5, 5]);
-    expect(veteranBonus(250, contentFor(setup(25)))).toBe(0);
   });
 });
 
@@ -103,7 +103,7 @@ const order = (state: GameState, action: Command['action']) => step(state, { act
 
 describe('v26 gyms, guardians, Elite Four and conference (§2.2)', () => {
   test('equal-size gyms at gymPowerPercent of the table; the battle draws its seed from state.rng; preview = authority', () => {
-    const state = createGame(setup(26)), gym = state.expansion!.gymCircuit!.gyms[0];
+    const state = createGame(setup(27)), gym = state.expansion!.gymCircuit!.gyms[0];
     // v26: the first two leaders have their own table power (GYM_RULES_V26), the rest the v24 table; all at gymPowerPercent.
     expect(leaderTeamFor(0, v26)).toMatchObject({ members: 1, power: Math.floor(GYM_RULES_V26.earlyTeamPower[0] * DEPTH26_TUNING.gymPowerPercent / 100) });
     expect(leaderTeamFor(1, v26)).toMatchObject({ members: 1, power: Math.floor(GYM_RULES_V26.earlyTeamPower[1] * DEPTH26_TUNING.gymPowerPercent / 100) });
@@ -126,20 +126,6 @@ describe('v26 gyms, guardians, Elite Four and conference (§2.2)', () => {
     expect(spec.opponents[0].map(member => member.speciesId)).toEqual(leaderTeam(gym, 0, state.setup.seed, v26).map(member => member.speciesId));
     expect(estimateLineup(spec, lineupFighters(view, [ids[0]], v26)) % 5).toBe(0);
   });
-  test('v25 gyms keep the v24 auto-battle and public seed (state.rng untouched)', () => {
-    const v25 = contentFor(setup(25)), state = createGame(setup(25)), gym = state.expansion!.gymCircuit!.gyms[0];
-    const spots = [gym.position, ...neighbors(gym.position, state.map)];
-    for (const unit of Object.values(state.units)) if (isMapUnit(unit) && spots.some(hex => hexDistance(hex, unit.position, state.map) === 0)) delete state.units[unit.id];
-    const ids = ['charmander', 'pidgey'].map((speciesId, index) => {
-      const id = state.nextEntityId++;
-      state.units[id] = createMapUnit({ kind: 'pokemon', speciesId: speciesId as SpeciesId }, id, 0, spots[index], v25, 0, 1);
-      return id;
-    });
-    refreshKnowledge(state, v25);
-    const result = step(state, { actorId: 0, expectedSeq: state.commandSeq, action: { type: 'ChallengeGym', gymId: gym.id, unitIds: ids } }, v25);
-    expect(result.ok).toBe(true);
-    expect(result.ok && result.state.rng).toEqual(state.rng);
-  });
   test('guardians: species attack and defence, HP 150% at 620 to 200% at 860', () => {
     const site = (challengePower: number) => ({ id: 'x', guardianSpeciesId: 'machamp' as SpeciesId, challengePower });
     const species = v26.species.machamp;
@@ -147,10 +133,12 @@ describe('v26 gyms, guardians, Elite Four and conference (§2.2)', () => {
     expect(guardianFighter(site(860), v26).maxHp).toBe(species.maxHp * 2);
     expect(guardianFighter(site(740), v26).maxHp).toBe(Math.floor(species.maxHp * 175 / 100));
   });
-  test('conference NPC teams: six per season, six regional Pokémon each, original names, more power per slot and season', () => {
-    const teams = championshipNpcEntrants(31, 1, v26), later = championshipNpcEntrants(31, 4, v26);
+  test('conference NPC teams: six per season, regional Pokémon growing 4→5→6 across seasons, original names, more power per season', () => {
+    const teams = championshipNpcEntrants(31, 1, v26), later = championshipNpcEntrants(31, 4, v26), full = championshipNpcEntrants(31, 5, v26);
     expect(teams).toHaveLength(6);
-    expect(teams.every(team => team.roster.length === 6 && team.name.length > 0)).toBe(true);
+    expect(teams.every(team => team.roster.length === leagueTeamSize(1) && team.name.length > 0)).toBe(true);
+    expect(later.every(team => team.roster.length === leagueTeamSize(4) && team.name.length > 0)).toBe(true);
+    expect(full.every(team => team.roster.length === leagueTeamSize(5) && team.name.length > 0)).toBe(true);
     const regional = new Set(v26.regionalDex!.speciesIds);
     expect(teams.every(team => team.roster.every(member => regional.has(member.speciesId)))).toBe(true);
     expect(championshipNpcEntrants(31, 1, v26)).toEqual(teams);
@@ -161,7 +149,7 @@ describe('v26 gyms, guardians, Elite Four and conference (§2.2)', () => {
 
 describe('v26 AI lineups (§2.4)', () => {
   test('chooseLineup picks the counter: against a fire leader it sends the water Pokémon, whatever the id order', () => {
-    const state = createGame(setup(26)), gym = state.expansion!.gymCircuit!.gyms.find(item => item.typeId === 'fire') ?? state.expansion!.gymCircuit!.gyms[0];
+    const state = createGame(setup(27)), gym = state.expansion!.gymCircuit!.gyms.find(item => item.typeId === 'fire') ?? state.expansion!.gymCircuit!.gyms[0];
     gym.typeId = 'fire';
     const ids = teamAt(state, gym.id, ['bulbasaur', 'squirtle']);
     const view = observe(state, 0, v26), spec = { ...viewGymSpec(view, gym.id, v26)!, onSite: [] };
@@ -169,7 +157,7 @@ describe('v26 AI lineups (§2.4)', () => {
     expect(choice.unitIds).toEqual([ids[1]]);
   });
   test('real AI v26 games: no refused team commands, relay events only', () => {
-    let state = createGame({ ...setup(26, 33), players: [{ id: 0, controller: 'ai', personality: 'aggressive' }, { id: 1, controller: 'ai', personality: 'conservative' }, { id: 2, controller: 'ai', personality: 'expansion' }] });
+    let state = createGame({ ...setup(27, 33), players: [{ id: 0, controller: 'ai', personality: 'aggressive' }, { id: 1, controller: 'ai', personality: 'conservative' }, { id: 2, controller: 'ai', personality: 'expansion' }] });
     const content = contentFor(state.setup), rejected: string[] = [], formats = new Set<string>(), memory: RejectedCitySite[] = [];
     while (!state.outcome && state.round <= 45) {
       const view = observe(state, state.activePlayerId, content);

@@ -2,7 +2,7 @@ import { doctrineEffects } from './leader-doctrines.ts';
 import { promotionMovement } from './promotions.ts';
 import { inZoc, usesTactics, zocTiles } from './tactics.ts';
 import { isMapUnit } from './model.ts';
-import { CONTENT, unitDefinition, contentFor, contentForView } from '../content/units.ts';
+import { GAME_CONTENT, unitDefinition, contentFor, contentForView } from '../content/units.ts';
 import type { Content, UnitIdentity } from '../content/units.ts';
 import type { BiomeId } from '../content/rules.ts';
 import { hexDistance, hexToIndex, indexToHex, neighbors } from './hex.ts';
@@ -19,8 +19,8 @@ export type WaterAccess = 0 | 1 | 2;
  * Gameplay v24 A2 (docs/design/world-v24.md §2.3): which water a civilization's land units may enter. Shared by the authority
  * (`state.players[id]`) and views (`view.economy.player`), so a preview always equals the resolution. Always 0 before v24.
  */
-export function waterAccess(player: { research: { unlockedIds: readonly string[] } }, content: Content): WaterAccess {
-  if (!content.embark) return 0;
+export function waterAccess(player: { research: { unlockedIds: readonly string[] } }, _content?: Content): WaterAccess {
+  void _content;
   const known = player.research.unlockedIds;
   return known.includes(EMBARK_TECHS.deep) ? 2 : known.includes(EMBARK_TECHS.shallow) ? 1 : 0;
 }
@@ -46,14 +46,13 @@ export const canEmbark = (unit: UnitIdentity, content: Content) => {
  * on shallow water / lakes with access ≥ 1 and on deep water with access 2 (content.embark); a naval unit in its own coastal city.
  * Other v24 planners (gyms, rivals) should test tiles through this function with a passage rather than reading the terrain table.
  */
-export function canEnter(unit: UnitIdentity, biome: BiomeId, content: Content = CONTENT, passage?: Passage): boolean {
+export function canEnter(unit: UnitIdentity, biome: BiomeId, content: Content = GAME_CONTENT, passage?: Passage): boolean {
   const native = unitDefinition(unit, content).terrain.includes(biome);
   if (!passage?.map.features) return native;
   const { map, index } = passage;
   if (isLandmarkTile(map, index)) return false;
   if (isPeak(map, index)) return isFlying(unit, content);
   if (native) return true;
-  if (!content.embark) return false;
   if (passage.harbor) return true;
   return biome === 'ocean' && canEmbark(unit, content) && (passage.access ?? 0) >= (isDeep(map, index) ? 2 : 1);
 }
@@ -61,8 +60,7 @@ export function canEnter(unit: UnitIdentity, biome: BiomeId, content: Content = 
 export const canEnterTile = (unit: UnitIdentity, map: FeatureMap, index: number, content: Content, access?: WaterAccess, harbor?: boolean) =>
   map.tiles[index] !== null && canEnter(unit, map.tiles[index]!, content, { map, index, ...(access ? { access } : {}), ...(harbor ? { harbor } : {}) });
 /** Gameplay v25 rule fixes (docs/design/balance/gate-v24-ai.md, "needs a rule change"). */
-export const usesDeploymentRulesV25 = (source: { setup?: { gameplayVersion?: number }; gameplayVersion?: number }) =>
-  ((source.setup?.gameplayVersion ?? source.gameplayVersion) ?? 0) >= 25;
+export const usesDeploymentRulesV25 = (_source?: { setup?: { gameplayVersion?: number }; gameplayVersion?: number }) => { void _source; return true; };
 /** v25 fix 1: whether a unit trained in a city at `position` could ever be placed (some neighbouring tile accepts it, occupancy aside). */
 export function deploymentTileExists(map: FeatureMap, position: Hex, identity: UnitIdentity, content: Content): boolean {
   return neighbors(position, map).some(hex => { const index = hexToIndex(hex, map); return index !== null && canEnterTile(identity, map, index, content); });
@@ -74,9 +72,10 @@ export function besideStrikingWild(units: readonly { kind: string; ownerId: numb
     && hexDistance(unit.position, hex, map) === 1);
 }
 /** Own cities beside water (v24 A2): naval units dock there, and land units board or leave the water there without ending their move. */
-export function harborTiles(map: FeatureMap, cities: readonly { ownerId: number | null; position: Hex }[], ownerId: number, content: Content): Set<number> {
+export function harborTiles(map: FeatureMap, cities: readonly { ownerId: number | null; position: Hex }[], ownerId: number, _content?: Content): Set<number> {
+  void _content;
   const out = new Set<number>();
-  if (!content.embark || !map.features) return out;
+  if (!map.features) return out;
   for (const city of cities) {
     if (city.ownerId !== ownerId) continue;
     const index = hexToIndex(city.position, map);
@@ -89,7 +88,7 @@ export function harborTiles(map: FeatureMap, cities: readonly { ownerId: number 
  * Such a step needs at least one movement point left and spends all the rest.
  */
 export function embarkStep(unit: UnitIdentity, map: FeatureMap, from: number, to: number, content: Content, harbors: ReadonlySet<number>): boolean {
-  if (!content.embark || !map.features || harbors.has(from) || harbors.has(to) || !canEmbark(unit, content)) return false;
+  if (!map.features || harbors.has(from) || harbors.has(to) || !canEmbark(unit, content)) return false;
   return (map.tiles[from] === 'ocean') !== (map.tiles[to] === 'ocean');
 }
 
@@ -129,8 +128,7 @@ export function pathCost(unit: UnitIdentity, map: FeatureMap, path: readonly Hex
   return total - (embark?.spent ?? 0);
 }
 /** Gameplay v16: movement points let a unit move, then still act. */
-export const usesMovementPoints = (source: { gameplayVersion?: number; setup?: { gameplayVersion?: number } }) =>
-  ((source.setup?.gameplayVersion ?? source.gameplayVersion) ?? 0) >= 16;
+export const usesMovementPoints = (_source?: { gameplayVersion?: number; setup?: { gameplayVersion?: number } }) => { void _source; return true; };
 
 // Dijkstra over the player's known terrain only. Hidden occupants never affect
 // this query; remembered unit markers are not current occupancy information.

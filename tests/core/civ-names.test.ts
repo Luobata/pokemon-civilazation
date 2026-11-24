@@ -7,7 +7,7 @@ import { toastFor } from '../../src/browser/notifications.ts';
 import { civName, civOrYou, LEADER_CIV_NAMES } from '../../src/browser/civ-names.ts';
 import { LEADER_IDS } from '../../src/content/leaders.ts';
 
-const setup = (leaders: boolean): GameSetup => ({ seed: 32, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 26,
+const setup = (leaders: boolean): GameSetup => ({ seed: 32, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 27,
   players: [{ id: 0, controller: 'human', starterId: 'charmander', ...(leaders ? { leaderId: 'oak' as const } : {}) },
     { id: 1, controller: 'ai', personality: 'aggressive', ...(leaders ? { leaderId: 'lance' as const } : {}) }] });
 

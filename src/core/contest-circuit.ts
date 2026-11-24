@@ -18,13 +18,12 @@ export type CircuitPrize = { place: number; playerId: number; speciesId: Species
 export type ContestCircuitEvent = { type: 'ContestCircuitPrizes'; public: true; season: number; category: ContestCategory; prizes: CircuitPrize[] };
 
 /** City ids a Pokémon may enter from (in or next to): the contest halls before v27, every own city with the circuit. Same rule for the authority and the view. */
-export function contestEntryCityIds(halls: readonly number[], ownCityIds: readonly number[], content: Content): readonly number[] {
-  if (!content.contestCircuit) return halls;
+export function contestEntryCityIds(halls: readonly number[], ownCityIds: readonly number[], _content?: Content): readonly number[] {
+  void _content;
   return [...new Set([...halls, ...ownCityIds])].sort((a, b) => a - b);
 }
 /** ③ → ⑦: extra season score for `playerId`'s entrant this season (the contest rehearsal project); 0 before v27. */
 export function seasonScoreBonus(state: GameState, playerId: number, content: Content): number {
-  if (!content.contestCircuit) return 0;
   return rehearsalScoreBonus(state, playerId, content);
 }
 /** The prizes of the placings (what the season card shows ahead: same table as the judging). */
@@ -37,7 +36,7 @@ export function circuitPrizeFor(place: number, category: ContestCategory, conten
 /** Placing prizes after a season is judged ([] before v27); `entries` are the season's entries (cleared from the ledger by the caller). */
 export function resolveCircuitPrizes(state: GameState, placings: readonly ContestPlacing[], entries: Readonly<Record<number, ContestEntry>>, season: { number: number; category: ContestCategory },
   content: Content): EventPayload[] {
-  if (!content.contestCircuit || !placings.length) return [];
+  if (!placings.length) return [];
   const prizes: CircuitPrize[] = [];
   for (const placing of placings) {
     const prize = circuitPrizeFor(placing.place, season.category, content), player = state.players[placing.playerId];

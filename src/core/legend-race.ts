@@ -39,7 +39,7 @@ export function hasMet(state: GameState, viewer: number, other: number): boolean
   return Object.values(knowledge.lastKnownCities).some(city => city.ownerId === other)
     || Object.values(knowledge.rememberedTiles).some(tile => tile.territoryOwnerIds?.includes(other));
 }
-const usesRace = (state: GameState, content: Content) => Boolean(content.legendRace && state.expansion?.legends);
+const usesRace = (state: GameState, _content: Content) => { void _content; return Boolean(state.expansion?.legends); };
 /** Met civilizations' legend wonders under way (the viewer's own are in `LegendView.building`); undefined before v26. */
 export function observeLegendRace(state: GameState, playerId: number, content: Content = contentFor(state.setup)): LegendRaceEntry[] | undefined {
   if (!usesRace(state, content)) return undefined;

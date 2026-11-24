@@ -50,24 +50,22 @@ const effectText = (id: TechId, tree: boolean): string => (tree ? TREE_TECH_EFFE
 
 /** `ref` names the unlocked thing (building, district, improvement or species id, or the HM's unit class) for icons. */
 export type TechUnlock = { kind: 'effect' | 'building' | 'district' | 'recruit' | 'class' | 'improvement'; text: string; ref?: string; boost?: true };
-export function techUnlocks(id: TechId, content?: Content, gameplayVersion?: number): TechUnlock[] {
-  const tree = Boolean(content?.techTree);
-  const hm = (gameplayVersion ?? 0) >= 19 ? (Object.entries(classHms(content ?? {})) as [UnitClass, { hm: string; techId: TechId }][]).find(([, item]) => item.techId === id) : undefined;
+export function techUnlocks(id: TechId, content?: Content, _gameplayVersion?: number): TechUnlock[] {
+  void _gameplayVersion;
+  const hm = (Object.entries(classHms()) as [UnitClass, { hm: string; techId: TechId }][]).find(([, item]) => item.techId === id);
   const recruit = (content?.roster?.techRecruits ?? ERA_TECH_RECRUITS)[id];
-  const effect = effectText(id, tree);
+  const effect = effectText(id, true);
   return [
     ...(effect ? [{ kind: 'effect' as const, text: effect }] : []),
     ...Object.entries(content?.buildings ?? BUILDINGS).filter(([, building]) => building.requiredTech === id).map(([ref, building]) => ({ kind: 'building' as const, text: `建筑「${building.name}」`, ref })),
-    ...DISTRICT_IDS.filter(district => districtTech(district, tree) === id).map(district => ({ kind: 'district' as const, text: `设施区「${DISTRICTS[district].name}」`, ref: district })),
+    ...DISTRICT_IDS.filter(district => districtTech(district) === id).map(district => ({ kind: 'district' as const, text: `设施区「${DISTRICTS[district].name}」`, ref: district })),
     ...(hm ? [{ kind: 'class' as const, text: `学会秘传「${hm[1].hm}」：可训练${CLASS_NAMES[hm[0]]}宝可梦`, ref: hm[0] }] : []),
     ...recruitUnlock(id, recruit, content),
-    // v24 A2: the two water-access technologies (from content.embark).
-    ...(content?.embark && id === EMBARK_TECHS.shallow ? [{ kind: 'effect' as const, text: '乘浪：陆地单位可下浅海与湖（下水 / 上岸结束移动，防守 −10，不能攻击）' }] : []),
-    ...(content?.embark && id === EMBARK_TECHS.deep ? [{ kind: 'effect' as const, text: '远洋冲浪：陆地单位可下深海' }] : []),
-    // v23: improvements that need this technology, and the new improvements it boosts.
-    ...(content?.resourceImprovements ? IMPROVEMENT_IDS_V23.filter(kind => IMPROVEMENTS[kind].requiredTech === id).map(kind => ({ kind: 'improvement' as const, text: `可建改良「${IMPROVEMENTS[kind].name}」`, ref: kind })) : []),
-    ...(content?.resourceImprovements ? IMPROVEMENT_IDS_V23.filter(kind => IMPROVEMENTS[kind].requiredTech && IMPROVEMENTS[kind].boostTech === id)
-      .map(kind => ({ kind: 'improvement' as const, text: `${IMPROVEMENTS[kind].name}再加${Object.entries(IMPROVEMENTS[kind].boost!).filter(([, v]) => v > 0).map(([k, v]) => `${({ food: '食物', production: '生产', gold: '金币', research: '科研' } as const)[k as 'food']} +${v}`).join('、')}`, ref: kind, boost: true as const })) : []),
+    ...(id === EMBARK_TECHS.shallow ? [{ kind: 'effect' as const, text: '乘浪：陆地单位可下浅海与湖（下水 / 上岸结束移动，防守 −10，不能攻击）' }] : []),
+    ...(id === EMBARK_TECHS.deep ? [{ kind: 'effect' as const, text: '远洋冲浪：陆地单位可下深海' }] : []),
+    ...IMPROVEMENT_IDS_V23.filter(kind => IMPROVEMENTS[kind].requiredTech === id).map(kind => ({ kind: 'improvement' as const, text: `可建改良「${IMPROVEMENTS[kind].name}」`, ref: kind })),
+    ...IMPROVEMENT_IDS_V23.filter(kind => IMPROVEMENTS[kind].requiredTech && IMPROVEMENTS[kind].boostTech === id)
+      .map(kind => ({ kind: 'improvement' as const, text: `${IMPROVEMENTS[kind].name}再加${Object.entries(IMPROVEMENTS[kind].boost!).filter(([, v]) => v > 0).map(([k, v]) => `${({ food: '食物', production: '生产', gold: '金币', research: '科研' } as const)[k as 'food']} +${v}`).join('、')}`, ref: kind, boost: true as const })),
   ];
 }
 /** v25: a regional recruit names its slot ("本地区的水面宝可梦"); an empty slot says so. Before v25: "各城可招募 X". */

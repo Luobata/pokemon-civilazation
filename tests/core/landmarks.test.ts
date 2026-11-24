@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest';
 import { LANDMARKS } from '../../src/content/terrain.ts';
+import { residentsFor } from '../../src/content/roster.ts';
 import { contentFor } from '../../src/content/units.ts';
 import { createGame } from '../../src/core/game.ts';
 import { generateWorldMap } from '../../src/core/map-v24.ts';
@@ -14,7 +15,7 @@ import { step } from '../../src/core/step.ts';
 import { isFlying } from '../../src/core/movement.ts';
 import type { GameSetup, GameState } from '../../src/core/model.ts';
 
-const setup = (seed = 31, width = 40, height = 26): GameSetup => ({ seed, width, height, roundLimit: 200, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 24,
+const setup = (seed = 31, width = 40, height = 26): GameSetup => ({ seed, width, height, roundLimit: 200, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 27,
   players: [0, 1, 2, 3].map(id => ({ id, controller: 'ai' as const, starterId: 'bulbasaur' as const, personality: 'expansion' as const })) });
 const around = (state: { map: GameState['map'] }, index: number) => neighbors(indexToHex(index, state.map), state.map).map(hex => hexToIndex(hex, state.map)!).filter(i => i !== null);
 
@@ -91,7 +92,9 @@ test('habitats: hills, rivers, deep water and landmark residents change the tabl
   expect(deepTable.squirtle).toBeUndefined();
   expect(deepTable.lapras).toBe(30);
   const site = f.landmarks[0], beside = around(state, site.tileIndex)[0];
-  for (const resident of LANDMARKS[site.id].residents) expect(habitatWeights(state, beside, content)[resident]).toBeGreaterThanOrEqual(50);
+  const residents = residentsFor(content, site.id);
+  expect(residents.length).toBeGreaterThan(0);
+  for (const resident of residents) expect(habitatWeights(state, beside, content)[resident]).toBeGreaterThanOrEqual(50);
   // A real game for 20 rounds: wild Pokémon never stand on peaks or landmarks.
   let current = state;
   for (let k = 0; k < 80 && current.round < 10; k++) {

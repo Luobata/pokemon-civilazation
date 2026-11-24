@@ -1,31 +1,4 @@
-// Gameplay v26 (docs/design/depth-v26.md): the feature flags and the balance knobs of the depth upgrade. The knobs ride on the v26
-// `Content` only (`content.depth26`), so `tools/patch.ts` can vary them and older contents are untouched; `depth26Tuning(content)`
-// falls back to the stock values. Each rule module keeps its own tables; this block only repeats the tunable numbers.
-
-/** One flag per v26 lane (§1). All are absent before v26; the v26 content sets every one of them. */
-export type DepthFlags = {
-  /** P1 §2: singles relay battles, equal-size gyms, beatable guardians, lineups and win estimates. */
-  teamBattles?: true;
-  /** P3 §3: the ChallengeRival duel (friendly / serious stakes), the doorstep duel, the rival at the conference. */
-  rivalDuels?: true;
-  /** P2 §4.2: candy evolutions score less, a "final evolution" era milestone. */
-  evolutionGoals?: true;
-  /** D §5.1: rush production, Pokémon Center, special training, TMs. */
-  goldSinks?: true;
-  /** D §5.2: contest seasons and the AI's cultural defence. */
-  contestSeasons?: true;
-  /** D §5.3: the legend-wonder race in the view. */
-  legendRace?: true;
-  /** D §5.4: Max Raid dens. */
-  raids?: true;
-  /** C2 §7.2: one Pokémon and one logistics unit may share a tile. */
-  stacking?: true;
-  /** O §8: three Poké Balls when domestication is researched. */
-  openingGift?: true;
-};
-export const DEPTH_FLAGS: Required<DepthFlags> = {
-  teamBattles: true, rivalDuels: true, evolutionGoals: true, goldSinks: true, contestSeasons: true, legendRace: true, raids: true, stacking: true, openingGift: true,
-};
+// Balance knobs for team battles, rival duels, late-game sinks, contests, raids and tile sharing.
 
 // ---------- Lane 2: late game (§5), tile sharing (§7.2), the opening gift (§8) ----------
 export type LateGameTuning = {

@@ -34,7 +34,7 @@ export const viewFighter = (view: PlayerView, unit: Pokemon, content: Content, i
 
 export function viewGymSpec(view: PlayerView, gymId: number, content: Content): LineupSpec | null {
   const gym = view.expansion?.gymCircuit?.gyms.find(item => item.id === gymId);
-  if (!gym || !content.teamBattles) return null;
+  if (!gym) return null;
   const held = view.expansion!.gymCircuit!.badges[view.playerId]?.length ?? 0, members = leaderTeamFor(held, content).members;
   const near = ownReady(view).filter(unit => hexDistance(unit.position, gym.position, view.map) <= GYM_RULES_V24.siteRange);
   return { kind: 'gym', size: { min: members, max: members }, candidates: near.map(unit => unit.id),
@@ -43,14 +43,14 @@ export function viewGymSpec(view: PlayerView, gymId: number, content: Content): 
     names: [] };
 }
 export function viewEliteFourSpec(view: PlayerView, content: Content): LineupSpec | null {
-  if (!view.expansion?.gymCircuit || !content.teamBattles) return null;
+  if (!view.expansion?.gymCircuit) return null;
   return { kind: 'elite', size: { min: GYM_RULES_V24.eliteFour.team, max: GYM_RULES_V24.eliteFour.team }, candidates: ownReady(view).map(unit => unit.id), onSite: [],
     opponents: ELITE_FOUR.map((_, stage) => eliteFourTeam(stage, view.seed, content).map(member => fighterFromCombatant(member, content))), gauntlet: true,
     terrain: 'grassland', names: ELITE_FOUR.map(member => member.name) };
 }
 export function viewGuardianSpec(view: PlayerView, siteId: string, content: Content): LineupSpec | null {
   const site = view.expansion?.civilization.sanctuaries.find(item => item.id === siteId);
-  if (!site || !content.teamBattles) return null;
+  if (!site) return null;
   const near = ownReady(view).filter(unit => hexDistance(unit.position, site.position, view.map) <= 2);
   return { kind: 'guardian', size: { min: 1, max: CIVILIZATION_CONTENT.sanctuaries.maximumChallengeUnits }, candidates: near.map(unit => unit.id),
     onSite: near.filter(unit => hexDistance(unit.position, site.position, view.map) === 0).map(unit => unit.id),
@@ -59,7 +59,7 @@ export function viewGuardianSpec(view: PlayerView, siteId: string, content: Cont
 /** The conference: any six own Pokémon (registration needs no action or position); the NPC teams once announced (else none). */
 export function viewChampionshipSpec(view: PlayerView, content: Content): LineupSpec | null {
   const championship = view.expansion?.civilization.championship;
-  if (!championship || !content.teamBattles) return null;
+  if (!championship) return null;
   const size = CIVILIZATION_CONTENT.championship.teamSize, own = view.units.filter((unit): unit is Pokemon => unit.ownerId === view.playerId && unit.kind === 'pokemon');
   const npcs = championship.lineup ?? [];
   return { kind: 'championship', size: { min: size, max: size }, candidates: own.sort((a, b) => a.id - b.id).map(unit => unit.id), onSite: [],

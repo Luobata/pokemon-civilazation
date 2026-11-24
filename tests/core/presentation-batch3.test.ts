@@ -17,7 +17,7 @@ import { WAR_SONG } from '../../src/browser/audio/music-war.ts';
 import { PEACE_SONG } from '../../src/browser/audio/music-peace.ts';
 
 // Presentation batch 3 (review 3-audio-visual V8–V11, A3, A5): the pure parts, on a real v23 game's PlayerView.
-const setup: GameSetup = { seed: 1, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, eraProgression: 'full-v1', gameplayVersion: 23,
+const setup: GameSetup = { seed: 1, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, eraProgression: 'full-v1', gameplayVersion: 27,
   players: [{ id: 0, controller: 'human', starterId: 'charmander', leaderId: 'oak' }, { id: 1, controller: 'ai', personality: 'aggressive', leaderId: 'lance' }] };
 function playedTo(round: number): GameSession {
   const driver = new GameSession(setup), content = contentFor(setup);

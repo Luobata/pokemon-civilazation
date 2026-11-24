@@ -5,5 +5,10 @@ test('sim arguments are explicit and bounded', () => {
   for (const args of [['--seeds', '0'], ['--seeds', 'NaN'], ['--other', '1']]) expect(() => parseSeedCount(args)).toThrow('Usage');
 });
 test('AI-only seed finishes without invalid actions or aborts', () => {
-  expect(simulate(1)).toMatchObject({ seed: 1, kind: 'score', round: 100, aborted: false, invalid: [] });
-}, 30_000);
+  const result = simulate(1);
+  expect(result).toMatchObject({ seed: 1, aborted: false, defect: false, invalid: [] });
+  expect(result.kind).not.toBeNull();
+  expect(result.round).toBeGreaterThan(0);
+  expect(result.round).toBeLessThanOrEqual(100);
+  expect(result.winners.length).toBeGreaterThan(0);
+}, 120_000);

@@ -50,7 +50,7 @@ import type { ActionMode, PendingTarget } from './unit-panel.ts';
 import type { AiPersonality, CitySummary, Command, GameSetup } from '../core/model.ts';
 import { GameSession } from '../app/session.ts';
 import type { PlayerSession } from '../app/session.ts';
-import { unitDefinition, contentForView, techOf, regionalDexDraw, REGIONAL_CONTENT, DEPTH_CONTENT } from '../content/units.ts';
+import { unitDefinition, contentForView, techOf, regionalDexDraw, GAME_CONTENT } from '../content/units.ts';
 import { dexSummaryMarkup } from './regional-dex-panel.ts';
 import type { StarterId } from '../content/units.ts';
 import type { BallId } from '../content/economy.ts';
@@ -107,7 +107,7 @@ import { clearReplays, recordChallengeResult, rememberChallenge, storedReplay } 
 import type { BattleReplay } from './battle-replay.ts';
 import { renderBattleLog, resetBattleLog, setBattleLogFilter, unitBattleLogButton } from './battle-log.ts';
 import { closeBattleViewer, openBattleViewer } from './battle-viewer.ts';
-import { challengeCardResult, closeChallengeCard, isPreviewedChallenge, openChallengeCard } from './challenge-card.ts';
+import { challengeCardResult, closeChallengeCard, isPreviewedChallenge } from './challenge-card.ts';
 import { evolutionTrack } from './render/animation.ts';
 import { stoneEvolutionsFor } from '../content/roster.ts';
 import { evolutionOptions } from '../core/roster.ts';
@@ -433,7 +433,7 @@ function activityText(payload: VisibleEvent['payload']) {
     case 'GovernmentChanged': return `采用体制「${GOVERNMENTS[payload.governmentId].name}」${payload.goldCost ? `（${payload.goldCost} 金）` : ''}${payload.droppedPolicies.length ? `，取下方针：${payload.droppedPolicies.map(id => POLICIES[id].name).join('、')}` : ''}`;
     case 'PoliciesChanged': return `方针更新：${payload.policyIds.map(id => POLICIES[id].name).join('、') || '无'}${payload.goldCost ? `（${payload.goldCost} 金）` : ''}`;
     case 'ChampionshipResolved': return leagueActivityText(currentView(), payload.season);
-    case 'DiscoveryMade': return `★ 图鉴发现「${discoveryText(payload.techId, Boolean(contentForView(currentView()).opening)).name}」：${techOf(contentForView(currentView()), payload.techId).name} +${payload.bonus}`;
+    case 'DiscoveryMade': return `★ 图鉴发现「${discoveryText(payload.techId).name}」：${techOf(contentForView(currentView()), payload.techId).name} +${payload.bonus}`;
     default: return '';
   }
 }
@@ -721,9 +721,7 @@ function controls() {
   renderVictoryPanel(view);
   // depth-v26 §2.5: a guardian / Elite Four challenge from the world panel first opens its preview card (matchups, then 挑战).
   // Gameplay v26 relay battles: the lineup picker (order, relay matchup grid, estimate) is that preview, so its command goes straight through.
-  renderExpansionPanel(view, selected, selectedCity, action => isPreviewedChallenge(action) && !contentForView(currentView()).teamBattles
-    ? openChallengeCard(currentView(), action, issue, watchReplay) : issue(action),
-    busy() || ended || pendingPeace);
+  renderExpansionPanel(view, selected, selectedCity, action => issue(action), busy() || ended || pendingPeace);
   document.querySelector<HTMLElement>('#selection-empty')!.hidden = selected !== null || selectedCity !== null || neutralCity !== null || inspectedTile !== null;
   renderTilePanel(view, inspectedTile, { onSelectUnit: id => selectUnit(id, false), selectedUnitId: selected, disabled: busy() || ended || pendingPeace,
     onAction: action => { resetAction(); issue(action); } });
@@ -854,8 +852,7 @@ function onEndTurn(force: boolean) {
 function openConference() {
   const view = currentView();
   markConferenceReviewed(view);
-  if (contentForView(view).teamBattles) { closeScreen(); openLineupPicker(view, { kind: 'championship', key: '' }, issue); }
-  else { openScreen('world'); const card = document.querySelector<HTMLDetailsElement>('details[data-system="s27-championship"]'); if (card) { card.open = true; card.scrollIntoView({ block: 'nearest' }); } }
+  closeScreen(); openLineupPicker(view, { kind: 'championship', key: '' }, issue);
   notice = '联盟大会报名：选六只宝可梦和出场顺序。不想报名就 Shift+点击结束回合。'; controls();
 }
 /** Playtest 2026-11b: the research queue starts its next tech (start of turn, or when the queue changes with nothing being researched). */
@@ -1233,7 +1230,7 @@ function renderDexSummary() {
   root.hidden = (setup.gameplayVersion ?? 0) < 25 || !setup.eraProgression;
   if (root.hidden) { root.innerHTML = ''; return; }
   // v26: names of the species batch come from the v26 pool.
-  root.innerHTML = dexSummaryMarkup(regionalDexDraw({ ...setup, eraProgression: setup.eraProgression! }), (setup.gameplayVersion ?? 0) >= 26 ? DEPTH_CONTENT : REGIONAL_CONTENT);
+  root.innerHTML = dexSummaryMarkup(regionalDexDraw({ ...setup, eraProgression: setup.eraProgression! }), GAME_CONTENT);
 }
 function newGame() {
   if (session && transitionBlocked()) return;

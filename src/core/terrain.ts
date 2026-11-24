@@ -21,7 +21,7 @@ export type MapFeatures = {
 export type FeatureMap = GridSize & { tiles: readonly (BiomeId | null)[]; features?: MapFeatures };
 type VersionSource = { setup?: { gameplayVersion?: number }; gameplayVersion?: number };
 /** Gameplay v24 terrain rules (A1). */
-export const usesTerrainV24 = (source: VersionSource) => ((source.setup?.gameplayVersion ?? source.gameplayVersion) ?? 0) >= 24;
+export const usesTerrainV24 = (_source?: VersionSource) => { void _source; return true; };
 
 const HILL = 1, PEAK = 2, RIVER = 4, LAKE = 8, DEEP = 16, LANDMARK = 32;
 const flagCache = new WeakMap<MapFeatures, Uint8Array>();

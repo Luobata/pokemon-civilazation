@@ -1,5 +1,5 @@
 import type { Command } from '../core/model.ts';
-import { ROSTER_CONTENT } from '../content/units.ts';
+import { GAME_CONTENT } from '../content/units.ts';
 
 export type AuditSystemStatus = 'implemented' | 'partial' | 'planned';
 
@@ -399,7 +399,7 @@ export const AUDIT_SYSTEMS: readonly AuditSystem[] = [
     id: 's8-species',
     name: '物种数据与登记',
     status: 'implemented',
-    summary: `经典模式 39 种、扩展模式 47 种、阵容包 v14 共 ${Object.keys(ROSTER_CONTENT.species).length} 种宝可梦作为数据驱动单位（v25 每局只用其中的地区图鉴）；捕捉或训练会登记可生产物种。`,
+    summary: `全图鉴池共 ${Object.keys(GAME_CONTENT.species).length} 种宝可梦作为数据驱动单位（每局按种子抽取地区图鉴）；捕捉或训练会登记可生产物种。`,
     rules: [
       '每种物种定义类型、阶段、角色、数值、行动、射程、视野、地形、刷新群系与进化。',
       '阶段总预算分别限制在 150–170、210–240、280–320，训练成本等于预算 / 8。',

@@ -1,7 +1,7 @@
 import type { ExpansionAction } from './expansion-model.ts';
-import { ROSTER_CONTENT } from '../content/units.ts';
+import { GAME_CONTENT } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
-import { IMPROVEMENT_IDS, IMPROVEMENT_IDS_V23 } from '../content/improvements.ts';
+import { IMPROVEMENT_IDS } from '../content/improvements.ts';
 import { CHARTER_IDS, GOVERNMENT_IDS, POLICY_IDS } from '../content/policies.ts';
 import { ESSENCE_IDS, TYPE_ESSENCE } from '../content/essences.ts';
 import { WEATHER_IDS } from '../content/era-abilities.ts';
@@ -11,7 +11,7 @@ import { PROMOTION_TRAIT_IDS } from '../content/promotions.ts';
 import { DEDICATION_IDS } from '../content/dedications.ts';
 
 type Fields = Record<string, 'id' | 'ids' | 'string' | 'boolean' | 'policyIds' | 'tenets' | 'dedicationIds' | readonly string[]>;
-export function expansionActionFields(content: Content = ROSTER_CONTENT): Record<ExpansionAction['type'], Fields> {
+export function expansionActionFields(content: Content = GAME_CONTENT): Record<ExpansionAction['type'], Fields> {
   return {
   UseLeaderAbility: {}, RecruitLeaderUnit: { cityId: 'id' }, BuildLeaderBuilding: { cityId: 'id' },
   ClearNest: { unitId: 'id', nestId: 'id' },
@@ -27,7 +27,7 @@ export function expansionActionFields(content: Content = ROSTER_CONTENT): Record
   ProposeAlliance: { targetPlayerId: 'id' }, RespondAlliance: { targetPlayerId: 'id', accept: 'boolean' },
   DissolveAlliance: { targetPlayerId: 'id' }, BetrayAlliance: { targetPlayerId: 'id' },
     ProposeTrade: { targetPlayerId: 'id' }, RespondTrade: { targetPlayerId: 'id', accept: 'boolean' },
-  ImproveTile: { unitId: 'id', tileIndex: 'id', kind: content.resourceImprovements ? IMPROVEMENT_IDS_V23 : IMPROVEMENT_IDS },
+  ImproveTile: { unitId: 'id', tileIndex: 'id', kind: IMPROVEMENT_IDS },
   SetCharter: { charterId: CHARTER_IDS },
   SetPolicies: { policyIds: 'policyIds' },
   SetGovernment: { governmentId: GOVERNMENT_IDS },
@@ -59,7 +59,7 @@ export function expansionActionType(type: unknown): type is ExpansionAction['typ
 export function isExpansionAction(action: { type: unknown }): action is ExpansionAction {
   return expansionActionType(action.type);
 }
-export function parseExpansionAction(input: unknown, content: Content = ROSTER_CONTENT): ExpansionAction {
+export function parseExpansionAction(input: unknown, content: Content = GAME_CONTENT): ExpansionAction {
   if (!input || typeof input !== 'object' || Array.isArray(input) || !('type' in input) || !expansionActionType(input.type)) throw new Error('Unknown expansion action');
   const value = input as Record<string, unknown>, fields = expansionActionFields(content)[input.type];
   const output: Record<string, unknown> = { type: input.type };

@@ -8,7 +8,7 @@ import type { SpeciesId, TypeId } from '../content/species.ts';
 import type { Content, StarterId } from '../content/units.ts';
 import { regionalSpeciesIds } from '../content/roster.ts';
 import { gymTeamPower, world24Tuning } from '../content/world24-tuning.ts';
-import { grantChampionshipTitle, simulateBattle, stableSeed } from './civilization-systems.ts';
+import { grantChampionshipTitle, stableSeed } from './civilization-systems.ts';
 import type { BattleCombatant, BattleTrace } from './civilization-systems.ts';
 import { depth26Tuning } from '../content/depth-v26.ts';
 import { contentForView } from '../content/units.ts';
@@ -122,7 +122,7 @@ export function placeGyms(input: { map: GridSize & Partial<FeatureMap>; seed: nu
 
 /** Places the eight gyms (§3.1) when the content has the circuit; nests, sanctuaries, resources, item balls and the like keep their tiles. */
 export function initializeGymCircuit(state: GameState, content: Content, canStand: StandRule = landRule(state.map)): void {
-  if (!content.gymCircuit || !state.expansion) return;
+  if (!state.expansion) return;
   const expansion = state.expansion, world = expansion.world;
   const taken = new Set<number>([...Object.values(state.cities).map(city => hexToIndex(city.position, state.map)!),
     ...Object.values(world.nests).map(site => site.tileIndex), ...Object.values(world.overlords).map(site => site.tileIndex),
@@ -141,7 +141,7 @@ export function initializeGymCircuit(state: GameState, content: Content, canStan
 export const leaderTeamFor = (badges: number, content?: Content) => {
   const row = RULES.teams[Math.max(0, Math.min(RULES.teams.length - 1, badges))], power = gymTeamPower(content, badges);
   // v26 (depth-v26 §2.2): equal-size relay battles; the leader team is scaled to `gymPowerPercent` of the v24 / v25 table.
-  return { members: row.members, stage: row.stage, power: content?.teamBattles ? Math.max(1, Math.floor(power * depth26Tuning(content).gymPowerPercent / 100)) : power };
+  return { members: row.members, stage: row.stage, power: Math.max(1, Math.floor(power * depth26Tuning(content).gymPowerPercent / 100)) };
 };
 /** Species of a type at a stage (primary type first, then secondary, then the nearest stage), sorted by id. */
 function speciesPool(typeId: TypeId, stage: number, content: Content): SpeciesId[] {
@@ -176,7 +176,7 @@ export const leaderTeam = (gym: GymSite, badges: number, seed: number, content: 
 export const eliteFourTeam = (stage: number, seed: number, content: Content): BattleCombatant[] => {
   const power = world24Tuning(content).eliteFourPower[stage] ?? ELITE_FOUR[stage].power;
   // v26 (depth-v26 §2.2): relay battles, recalibrated with `eliteFourPowerPercent` (tools/team-battle-calibrate.ts).
-  return team(ELITE_FOUR[stage].typeIds, 3, ELITE_FOUR[stage].members, content.teamBattles ? Math.max(1, Math.floor(power * depth26Tuning(content).eliteFourPowerPercent / 100)) : power,
+  return team(ELITE_FOUR[stage].typeIds, 3, ELITE_FOUR[stage].members, Math.max(1, Math.floor(power * depth26Tuning(content).eliteFourPowerPercent / 100)),
     seed, `elite-${stage}`, content);
 };
 const challenger = (unit: UnitState, id: string, content: Content): BattleCombatant => {
@@ -229,14 +229,14 @@ const cooldownEnd = (last: number | undefined, rounds: number) => last === undef
 
 export function validateGymCircuitAction(state: GameState, actorId: number, action: GymCircuitAction, content: Content): string | null {
   const circuit = state.expansion?.gymCircuit;
-  if (!circuit || !content.gymCircuit) return 'gyms-unavailable';
+  if (!circuit) return 'gyms-unavailable';
   if (action.type === 'ChallengeEliteFour') {
     const record = circuit.eliteFour[actorId];
     return eliteBlocker((circuit.badges[actorId] ?? []).length, record?.won ?? false, cooldownEnd(record?.lastRound, RULES.eliteFour.cooldownRounds) ?? 0,
       state.round, action.unitIds, mapUnits(state), actorId);
   }
   const blocked = gymBlocker(circuit, cooldownEnd(circuit.challengedAt[actorId]?.[action.gymId], RULES.cooldownRounds), state.round, actorId, action.gymId);
-  const size = content.teamBattles ? leaderTeamFor((circuit.badges[actorId] ?? []).length, content).members : undefined;
+  const size = leaderTeamFor((circuit.badges[actorId] ?? []).length, content).members;
   return blocked ?? teamBlocker(mapUnits(state), action.unitIds, actorId, circuit.gyms.find(gym => gym.id === action.gymId)!, state.map, size);
 }
 
@@ -255,13 +255,9 @@ export function applyGymCircuitAction(state: GameState, actorId: number, action:
     const gym = circuit.gyms.find(item => item.id === action.gymId)!, held = (circuit.badges[actorId] ??= []).length;
     const leader = leaderTeam(gym, held, seed, content);
     const teamPower = action.unitIds.reduce((sum, id) => sum + unitPower(state.units[id]!, content), 0);
-    // v26 (depth-v26 §2.1): a relay battle seeded from the game RNG; v≤25: the v24 auto-battle with the public seed.
-    let battle: BattleTrace | BattleTraceV26;
-    if (content.teamBattles) {
-      const home = relayRoster(state, actorId, action.unitIds, content);
-      battle = resolveTeamBattle(home, leader.map(member => fighterFromCombatant(member, content)), battleSeed(state.rng), state.map.tiles[gym.tileIndex]);
-      home.forEach((fighter, index) => { roster[index].hp = fighter.hp; });
-    } else battle = simulateBattle(roster, leader, stableSeed(seed, state.round, actorId, gym.id, 'gym'), state.map.tiles[gym.tileIndex]);
+    const home = relayRoster(state, actorId, action.unitIds, content);
+    const battle: BattleTraceV26 = resolveTeamBattle(home, leader.map(member => fighterFromCombatant(member, content)), battleSeed(state.rng), state.map.tiles[gym.tileIndex]);
+    home.forEach((fighter, index) => { roster[index].hp = fighter.hp; });
     settle();
     (circuit.challengedAt[actorId] ??= {})[gym.id] = state.round;
     const victory = battle.winnerSide === 'home';
@@ -276,24 +272,13 @@ export function applyGymCircuitAction(state: GameState, actorId: number, action:
     return [{ type: 'GymChallenged', public: true, playerId: actorId, gymId: gym.id, victory, badges: circuit.badges[actorId].length,
       teamPower, leaderPower: leaderTeamFor(held, content).power, battle }];
   }
-  const battles: (BattleTrace | BattleTraceV26)[] = [];
+  const battles: BattleTraceV26[] = [];
   let reached = 0;
-  const relay = content.teamBattles ? relayRoster(state, actorId, action.unitIds, content) : null;
+  const relay = relayRoster(state, actorId, action.unitIds, content);
   for (let stage = 0; stage < ELITE_FOUR.length; stage++) {
-    if (relay) {
-      // v26: the lineup's order, one RNG seed per battle, half the lost HP back in between.
-      if (stage > 0) healBetween(relay, RULES.eliteFour.healPercentBetween);
-      const battle = resolveTeamBattle(relay, eliteFourTeam(stage, seed, content).map(member => fighterFromCombatant(member, content)), battleSeed(state.rng), 'grassland');
-      relay.forEach((fighter, index) => { roster[index].hp = fighter.hp; });
-      battles.push(battle);
-      if (battle.winnerSide !== 'home') break;
-      reached = stage + 1;
-      continue;
-    }
-    if (stage > 0) for (const combatant of roster) if (combatant.hp > 0) {
-      combatant.hp += Math.floor((combatant.maxHp - combatant.hp) * RULES.eliteFour.healPercentBetween / 100);
-    }
-    const battle = simulateBattle(roster, eliteFourTeam(stage, seed, content), stableSeed(seed, state.round, actorId, stage, 'elite-four'), 'grassland');
+    if (stage > 0) healBetween(relay, RULES.eliteFour.healPercentBetween);
+    const battle = resolveTeamBattle(relay, eliteFourTeam(stage, seed, content).map(member => fighterFromCombatant(member, content)), battleSeed(state.rng), 'grassland');
+    relay.forEach((fighter, index) => { roster[index].hp = fighter.hp; });
     battles.push(battle);
     if (battle.winnerSide !== 'home') break;
     reached = stage + 1;
@@ -331,7 +316,7 @@ export function viewGymBlocker(view: PlayerView, gymId: number, unitIds: readonl
   if (!circuit) return 'gyms-unavailable';
   if (view.outcome || view.activePlayerId !== view.playerId) return 'not-your-turn';
   const blocked = gymBlocker(circuit, circuit.readyAt[gymId], view.round, view.playerId, gymId), content = contentForView(view);
-  const size = content.teamBattles ? leaderTeamFor((circuit.badges[view.playerId] ?? []).length, content).members : undefined;
+  const size = leaderTeamFor((circuit.badges[view.playerId] ?? []).length, content).members;
   return blocked ?? teamBlocker(view.units, unitIds, view.playerId, circuit.gyms.find(gym => gym.id === gymId)!, view.map, size);
 }
 export function viewEliteFourBlocker(view: PlayerView, unitIds: readonly number[]): string | null {
@@ -350,7 +335,7 @@ export function viewGymTeam(view: PlayerView, gymId: number, content: Content): 
   if (!onSite) return [];
   const rest = ready.filter(unit => unit.id !== onSite.id).sort((a, b) => unitPower(b, content) * b.hp - unitPower(a, content) * a.hp || a.id - b.id);
   // v26: as many as the leader has (the lineup picker chooses who and the order).
-  const size = content.teamBattles ? leaderTeamFor((view.expansion?.gymCircuit?.badges[view.playerId] ?? []).length, content).members : RULES.maxTeam;
+  const size = leaderTeamFor((view.expansion?.gymCircuit?.badges[view.playerId] ?? []).length, content).members;
   return [onSite.id, ...rest.slice(0, size - 1).map(unit => unit.id)];
 }
 /** The gym standing on a tile (view: only explored gyms). */

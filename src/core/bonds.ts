@@ -1,7 +1,6 @@
 import { cityDistrictEffects } from './districts.ts';
 import { faithBond, faithKeepsCity } from './faith-legends.ts';
 import { rareBerryBond } from './rare-berries.ts';
-import { gameplayAtLeast } from '../content/eras.ts';
 import { hexDistance } from './hex.ts';
 import { workRadius } from './city.ts';
 import { isMapUnit } from './model.ts';
@@ -27,7 +26,7 @@ export type BondEvent =
   | { type: 'CityBondChanged'; playerId: number; cityId: number; bond: number; delta: number }
   | { type: 'CityDefected'; playerId: number; public: true; cityId: number; position: { q: number; r: number } };
 
-export const usesBonds = (state: Pick<GameState, 'setup' | 'expansion'>) => state.expansion !== undefined && gameplayAtLeast(state.setup, 6);
+export const usesBonds = (state: Pick<GameState, 'setup' | 'expansion'>) => state.expansion !== undefined;
 export function initializeBonds(state: GameState): void {
   if (usesBonds(state)) state.expansion!.bonds = Object.fromEntries(Object.values(state.cities).filter(city => city.ownerId !== null).map(city => [city.id, BOND_RULES.start]));
 }

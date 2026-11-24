@@ -1,4 +1,4 @@
-import { CONTENT, EXPANSION_CONTENT } from '../../../src/content/units.ts';
+import { contentFor } from '../../../src/content/units.ts';
 import type { LeaderId } from '../../../src/content/leaders.ts';
 import { RULE_QUERIES } from '../../../src/ai/query.ts';
 import { planNext } from '../../../src/ai/plan.ts';
@@ -20,6 +20,7 @@ export type RealGameOptions = {
   roundLimit?: 100 | 200 | 300;
   leaderIds?: LeaderId[];
   expansionVersion?: 1;
+  stopAtUnits?: number;
 };
 
 export type RealGame = {
@@ -43,7 +44,7 @@ export function generateRealGame(options: RealGameOptions): RealGame {
         ...(options.leaderIds?.[index + 1] ? { leaderId: options.leaderIds[index + 1] } : {}) })),
     ],
   };
-  const content = setup.expansionVersion ? EXPANSION_CONTENT : CONTENT;
+  const content = contentFor(setup);
   let state = createGame(setup, content);
   let maxState = state;
   let maxCommands: Command[] = [];
@@ -79,6 +80,7 @@ export function generateRealGame(options: RealGameOptions): RealGame {
       maxUnits = units;
       maxState = state;
       maxCommands = [...commands];
+      if (options.stopAtUnits && maxUnits >= options.stopAtUnits) break;
     }
   }
   if (state.outcome) milestones.outcome = commands.length - 1;
@@ -86,8 +88,8 @@ export function generateRealGame(options: RealGameOptions): RealGame {
 }
 
 export function realGameLog(game: RealGame, commands = game.commands): CommandLog {
-  return { version: 1, schemaVersion: 4, rulesVersion: 'm5-v1', contentVersion: game.finalState.contentVersion,
-    setup: game.setup, commands: structuredClone(commands) };
+  return { version: 1, schemaVersion: game.finalState.schemaVersion, rulesVersion: game.finalState.rulesVersion, contentVersion: game.finalState.contentVersion,
+    setup: game.finalState.setup, commands: structuredClone(commands) };
 }
 
 export function realGameSave(game: RealGame, peak = false): string {

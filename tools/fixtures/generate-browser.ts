@@ -7,7 +7,7 @@ import { isMapUnit } from '../../src/core/model.ts';
 import type { AiPersonality, Command, GameSetup, GameState } from '../../src/core/model.ts';
 import { replay } from '../../src/app/session.ts';
 import { canonicalSerialize, stateDigest } from '../../src/core/snapshot.ts';
-import { CONTENT } from '../../src/content/units.ts';
+import { contentFor, GAME_CONTENT as CONTENT } from '../../src/content/units.ts';
 import { planNext } from '../../src/ai/plan.ts';
 import { RULE_QUERIES } from '../../src/ai/query.ts';
 import { rememberCityRejection } from '../../src/ai/memory.ts';
@@ -44,7 +44,7 @@ function scriptedDiplomacy() {
   issue({ type: 'MakePeace', targetPlayerId: 0 });
   issue({ type: 'EndTurn' });
   record('incoming-peace', state, commands);
-  state = createGame(setup(1, ['conservative', 'conservative'])); commands.length = 0;
+  state = createGame(setup(14, ['conservative', 'conservative'])); commands.length = 0;
   while (!state.outcome) issue({ type: 'EndTurn' });
   if (state.outcome.winners.length !== 2) throw new Error('Expected a naturally tied score');
   record('score', state, commands);
@@ -74,20 +74,21 @@ function retryCapture(state: GameState, prefix: Command[], action: Extract<Comma
     }
   }
 }
-function mine(seed: number, personalities: AiPersonality[]) {
-  let state = createGame(setup(seed, personalities));
+function mine(seed: number, personalities: AiPersonality[], want?: readonly string[]) {
+  const s = setup(seed, personalities), content = contentFor(s), query = { ...RULE_QUERIES, content };
+  let state = createGame(s, content);
   const commands: Command[] = [], memory: RejectedCitySite[] = [];
   let humanEnd: { state: GameState; commands: Command[] } | undefined;
-  while (!state.outcome && commands.length < 10_000) {
-    const view = observe(state, state.activePlayerId);
+  while (!state.outcome && commands.length < 10_000 && (!want || want.some(name => !fixtures[name]))) {
+    const view = observe(state, state.activePlayerId, content);
     // Script the human with the requested policy; the actual state is only changed by step.
     view.economy.player.personality = personalities[state.activePlayerId];
-    let command = planNext(view, RULE_QUERIES, memory);
-    let result = step(state, command);
+    let command = planNext(view, query, memory);
+    let result = step(state, command, content);
     if (!result.ok) {
       rememberCityRejection(memory, view, command, result.reason);
       command = { actorId: state.activePlayerId, expectedSeq: state.commandSeq, action: { type: 'EndTurn' } };
-      result = step(state, command);
+      result = step(state, command, content);
     }
     if (!result.ok) throw new Error(result.reason);
     const action = command.action;
@@ -111,9 +112,13 @@ function mine(seed: number, personalities: AiPersonality[]) {
       if (recovering?.location === 'recovering' && selectable) record('recovering', state, commands, { unitId: selectable.id, cityId: recovering.cityId });
       const neutral = view.cities.find(city => city.ownerId === null);
       if (neutral) record('neutral', state, commands, { cityId: neutral.id });
-    } else if (state.activePlayerId === 1 && action.type === 'Move' && humanEnd
-      && projectEvents(state, result.state, result.events, 0).some(event => event.payload.type === 'Moved')) {
-      record('visible-ai', humanEnd.state, humanEnd.commands);
+    } else if (state.activePlayerId === 1 && action.type === 'Move' && humanEnd) {
+      const hv = observe(humanEnd.state, 0, content);
+      const hasPeaceForeign = hv.units.some(unit => unit.ownerId !== null && unit.ownerId !== 0
+        && hv.diplomacy.some(pair => pair.status === 'peace' && pair.a === 0 && pair.b === unit.ownerId));
+      if (hasPeaceForeign && projectEvents(state, result.state, result.events, 0).some(event => event.payload.type === 'Moved')) {
+        record('visible-ai', humanEnd.state, humanEnd.commands);
+      }
     }
     commands.push(command); state = result.state;
   }
@@ -121,15 +126,21 @@ function mine(seed: number, personalities: AiPersonality[]) {
 }
 scriptedDiplomacy();
 const mined = ['attack', 'capture-success', 'capture-failure', 'evolve', 'recovering', 'neutral', 'visible-ai', 'conquest', 'playerDefeat'];
-// Fixed source games found during BL-11 exploration; no seed search during tests.
-mine(1, ['conservative', 'expansion', 'expansion', 'expansion']);
-mine(1, ['aggressive', 'expansion', 'aggressive', 'conservative']);
-mine(4, ['aggressive', 'aggressive']);
-mine(5, ['aggressive', 'aggressive']);
-mine(14, ['conservative', 'expansion', 'expansion', 'expansion']);
+const sources: [number, AiPersonality[], readonly string[]][] = [
+  [1, ['conservative', 'expansion', 'expansion', 'expansion'], ['attack', 'recovering', 'evolve', 'capture-success']],
+  [1, ['aggressive', 'expansion', 'aggressive', 'conservative'], ['capture-failure']],
+  [4, ['aggressive', 'aggressive'], ['conquest']],
+  [6, ['aggressive', 'aggressive'], ['playerDefeat']],
+  [10, ['conservative', 'expansion', 'expansion', 'expansion'], ['visible-ai']],
+  [14, ['conservative', 'expansion', 'expansion', 'expansion'], ['neutral']],
+];
+for (const [seed, personalities, want] of sources) {
+  if (mined.every(name => fixtures[name])) break;
+  mine(seed, personalities, want);
+}
 const missing = mined.filter(name => !fixtures[name]);
 if (missing.length) throw new Error(`Missing fixtures: ${missing.join(', ')}`);
-const dense = generateRealGame({ seed: 8, width: 40, height: 26, roundLimit: 300, personalities: ['expansion', 'expansion', 'expansion', 'expansion'] });
+const dense = generateRealGame({ seed: 8, width: 40, height: 26, roundLimit: 300, personalities: ['expansion', 'expansion', 'expansion', 'expansion'], stopAtUnits: 105 });
 if (dense.maxUnits < 100) throw new Error('Expected at least 100 deployed units');
 record('dense', dense.maxState, realGameLog(dense, dense.maxCommands).commands);
 // One command per line keeps generated traces inspectable without snapshot-sized diffs.

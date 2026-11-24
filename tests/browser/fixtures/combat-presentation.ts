@@ -14,7 +14,7 @@ import type { CombatTarget, GameSetup } from '../../../src/core/model.ts';
 // GameSession, so each save replays exactly; nothing is patched. A search stops at player 0's turn the first
 // time an attack situation is available, or keeps the save from just before an end turn whose AI turns
 // present battles (or a city capture) to player 0.
-const setupFor = (seed: number): GameSetup => ({ seed, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 22,
+const setupFor = (seed: number): GameSetup => ({ seed, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 27,
   players: [{ id: 0, controller: 'human', starterId: 'charmander', leaderId: 'oak' },
     { id: 1, controller: 'ai', personality: 'aggressive', leaderId: 'lance' }, { id: 2, controller: 'ai', personality: 'aggressive', leaderId: 'giovanni' }] });
 
@@ -27,7 +27,7 @@ export type AiBattleFixture = { save: string; seed: number; round: number; battl
 export type AiCaptureFixture = { save: string; seed: number; round: number; cityId: number; city: Hex; attacker: Hex; previousOwner: number | null; ownerId: number | null };
 type Found = Partial<Record<AttackScenario, AttackFixture>> & { ai?: AiBattleFixture; capture?: AiCaptureFixture };
 /** Seeds known to reach each situation early (searched first; the search falls back to seeds 1–12). */
-const PREFERRED: Record<keyof Found, number> = { counter: 1, ranged: 1, ai: 1, knockdown: 8, capture: 8 };
+const PREFERRED: Record<keyof Found, number> = { counter: 1, ranged: 1, ai: 1, knockdown: 8, capture: 1 };
 
 function classify(preview: Extract<AttackPreview, { ok: true }>, distance: number, civilizationTarget: boolean): AttackScenario | null {
   if (preview.knockdown === 'guaranteed') return civilizationTarget ? 'knockdown' : null;

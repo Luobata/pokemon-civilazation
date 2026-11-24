@@ -45,13 +45,9 @@ export const IMPROVEMENTS: Record<ImprovementId, ImprovementDefinition> = {
   plantation: { name: '种植园', mark: '园', biomes: ALL_BIOMES, base: y(0, 0, 2), requiredTech: 'commerce', resource: 'rare',
     crewTypes: ['grass', 'bug', 'fairy'], description: '只建在稀有树果上（需以物易物）：金币 +2；被耕作时这种稀有树果算 2 份（多出的 1 份可赠送）。' },
 };
-/** v2–v22 improvement ids, in the order older AI and UI iterate them (unchanged). */
-export const IMPROVEMENT_IDS: readonly LegacyImprovementId[] = ['berryFarm', 'mine', 'fishery', 'observatoryCamp'];
-/** v23: the legacy four, the three tile improvements the user chose, then the three resource improvements. */
-export const IMPROVEMENT_IDS_V23: readonly ImprovementId[] = [...IMPROVEMENT_IDS, 'ranch', 'honeyHive', 'pearlBed', 'berryGrove', 'stoneQuarry', 'plantation'];
-/** Improvement ids a game of this version knows. */
-export const improvementIdsFor = (source: { setup?: { gameplayVersion?: number }; gameplayVersion?: number }): readonly ImprovementId[] =>
-  ((source.setup?.gameplayVersion ?? source.gameplayVersion) ?? 0) >= 23 ? IMPROVEMENT_IDS_V23 : IMPROVEMENT_IDS;
+export const IMPROVEMENT_IDS: readonly ImprovementId[] = ['berryFarm', 'mine', 'fishery', 'observatoryCamp', 'ranch', 'honeyHive', 'pearlBed', 'berryGrove', 'stoneQuarry', 'plantation'];
+export const IMPROVEMENT_IDS_V23: readonly ImprovementId[] = IMPROVEMENT_IDS;
+export const improvementIdsFor = (): readonly ImprovementId[] => IMPROVEMENT_IDS;
 /** Resource improvement for each map resource (v23). */
 export const RESOURCE_IMPROVEMENT: Record<ImprovementResource, ImprovementId> = { berry: 'berryGrove', stone: 'stoneQuarry', rare: 'plantation' };
 /** Work points per action: matching crew 2, any other Pokémon 1. Three points complete an improvement. */

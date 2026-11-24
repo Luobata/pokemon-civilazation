@@ -47,17 +47,16 @@ test('every leader applies only to a new game and pairs independently with the s
 });
 
 test('leader research is reflected in the UI and leader identity survives save/load and replay', async ({ page }) => {
-  // Pinned to v20: v21 adds city-centre research, which would change the leader-only numbers checked here.
-  await page.goto('/?gameplay=20');
+  await page.goto('/');
   await page.locator('#animate').uncheck();
-  await expect(page.locator('#hud-research')).toContainText('2');
+  await expect(page.locator('#hud-research')).toContainText('4');
   await openScreen(page, 'research');
   await page.locator('#research-topic').selectOption('domestication');
   await openScreen(page, 'research');
   await page.locator('#set-research').click();
   await closeScreen(page);
   await page.locator('#end-turn').click({ modifiers: ['Shift'] });
-  expect((await state(page)).players[0].research.progressByTech.domestication).toBe(2);
+  expect((await state(page)).players[0].research.progressByTech.domestication).toBe(4);
   await openScreen(page, 'menu');
   await page.locator('#save-game').click();
   const saved = await state(page);
@@ -66,6 +65,7 @@ test('leader research is reflected in the UI and leader identity survives save/l
   await openScreen(page, 'menu');
   await page.locator('input[name="leader"][value="joy"]').check();
   await startNewGame(page);
+  await expect(page.locator('#hud-research')).toContainText('2');
   await expect(page.locator('#leader-panel')).toContainText('乔伊小姐');
   await openScreen(page, 'menu');
   await page.locator('#load-game').click();

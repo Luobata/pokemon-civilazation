@@ -29,10 +29,10 @@ test('v24: a Pokémon on a gym opens the challenge card from the bar (G), confir
   await expect(page.locator('#gym-unit-tip')).toContainText(GYM_LEADERS[gym.leader].name);
   await page.locator('#map').focus();
   await page.keyboard.press('g');
-  const card = page.locator('#gym-card');
+  const card = page.locator('#lineup-picker');
   await expect(card).toBeVisible();
-  await expect(card.locator('#gym-card-leader')).not.toBeEmpty();
-  await expect(card.locator('#gym-card-team')).not.toBeEmpty();
+  await expect(card.locator('.lp-foes')).not.toBeEmpty();
+  await expect(card.locator('#lineup-order')).not.toBeEmpty();
   await page.screenshot({ path: `${reports}/gym-circuit-card.png` });
   // Esc closes the card without a command; the real click confirms.
   const seq = (await state(page)).commandSeq;
@@ -41,7 +41,7 @@ test('v24: a Pokémon on a gym opens the challenge card from the bar (G), confir
   expect((await state(page)).commandSeq).toBe(seq);
   await button.click();
   await expect(card).toBeVisible();
-  await card.locator('#gym-card-challenge').click();
+  await card.locator('#lineup-confirm').click();
   await expect.poll(async () => (await state(page)).expansion!.gymCircuit!.challengedAt[0]?.[gym.id]).toBe(fixture.state.round);
   const after = await state(page), won = after.expansion!.gymCircuit!.badges[0].length;
   expect(won === before + 1 || won === before).toBe(true);

@@ -17,7 +17,6 @@ const BENEFIT = 30;
 
 /** Production candidates (item, benefit) for an idle city; [] before v27. */
 export function cityProjectCandidates(view: PlayerView, cityId: number, content: Content): { item: ProductionItem; benefit: number }[] {
-  if (!content.cityProjects) return [];
   const city = view.economy.cities.find(item => item.id === cityId);
   if (!city || city.queue.length) return [];
   const input = viewCityProjectInput(view, city, content);

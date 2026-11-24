@@ -14,7 +14,7 @@ import { chooseLineup } from './battle-plan.ts';
 /** The duel as a lineup spec (exact size, one adjacent Pokémon needed unless at the gate), or null when no duel is possible now. */
 export function rivalDuelSpec(view: PlayerView, content: Content): LineupSpec | null {
   const rivals = view.expansion?.rivals, lineup = viewRivalLineup(view);
-  if (!content.rivalDuels || !rivals || !lineup.length || lineup.length !== rivals.activeUnitIds.length || rivals.duelRound === view.round) return null;
+  if (!rivals || !lineup.length || lineup.length !== rivals.activeUnitIds.length || rivals.duelRound === view.round) return null;
   const { candidates, adjacent, gate } = viewDuelCandidates(view);
   if (candidates.length < lineup.length) return null;
   const terrain: BiomeId = view.map.tiles[hexToIndex(lineup[0].position, view.map) ?? -1] ?? 'grassland';

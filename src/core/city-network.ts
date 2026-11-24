@@ -3,7 +3,6 @@
 import { ALLIANCE_YIELD, CITY_NETWORK_RULES, COMPLEMENTS, ESCORT_BONUSES, REGIONAL_DISTRICTS, escortBonusKind } from '../content/city-network.ts';
 import type { EscortBonusKind } from '../content/city-network.ts';
 import type { Yield } from '../content/economy.ts';
-import { gameplayAtLeast } from '../content/eras.ts';
 import type { Content, SpeciesId } from '../content/units.ts';
 import { hexDistance } from './hex.ts';
 import { isMapUnit } from './model.ts';
@@ -19,8 +18,7 @@ export type CityNetworkEvent =
   | { type: 'TradeRouteLost'; playerId: number; fromCityId: number; toCityId: number }
   | { type: 'EscortBonus'; playerId: number; cityId: number; escortId: SpeciesId; kind: EscortBonusKind };
 
-export const usesCityNetwork = (source: { setup?: { gameplayVersion?: number }; gameplayVersion?: number }) =>
-  gameplayAtLeast({ gameplayVersion: (source.setup?.gameplayVersion ?? source.gameplayVersion) as never }, 17);
+export const usesCityNetwork = (_source?: { setup?: { gameplayVersion?: number }; gameplayVersion?: number }) => { void _source; return true; };
 export function initializeCityNetwork(state: GameState): void {
   if (state.expansion && usesCityNetwork(state)) state.expansion.cityNetwork = { routes: [] };
 }

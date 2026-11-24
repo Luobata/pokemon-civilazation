@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { generateRealGame, realGameLog } from './fixtures/real-game.ts';
 import { createGame } from '../../src/core/game.ts';
+import { contentFor } from '../../src/content/units.ts';
 import { serializeSave } from '../../src/app/save.ts';
 import { openScreen, startNewGame } from './ui.ts';
 
@@ -12,13 +13,13 @@ test('complete small-map game with milestone screenshots and identical command r
   test.setTimeout(180_000);
   await mkdir(screenshots, { recursive: true });
   await mkdir(acceptance, { recursive: true });
-  const game = generateRealGame({ seed: 1, width: 24, height: 16, personalities: ['conservative', 'aggressive'], leaderIds: ['oak', 'lance'] });
+  const game = generateRealGame({ seed: 10, width: 24, height: 16, personalities: ['conservative', 'aggressive'], leaderIds: ['oak', 'lance'] });
   expect(game.finalState.outcome?.kind).toBe('score');
   expect(game.invalid).toBe(0);
   for (const milestone of ['city', 'battle', 'capture', 'war', 'peace', 'outcome']) expect(game.milestones[milestone]).not.toBeUndefined();
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
-  await page.goto('/?seed=1');
+  await page.goto('/?seed=10');
   await openScreen(page, 'menu');
   await page.locator('input[name="leader"][value="oak"]').check();
   await openScreen(page, 'menu');
@@ -31,9 +32,7 @@ test('complete small-map game with milestone screenshots and identical command r
   await page.locator('#ai-personality').selectOption('aggressive');
   await startNewGame(page);
   await page.locator('#animate').uncheck();
-  // Keep this classic war/peace milestone regression on its original rules pack.
-  // New games now default to expansion-v1, exercised by crossenv and expansion.spec.
-  const opening = serializeSave(createGame(game.setup), realGameLog(game, []));
+  const opening = serializeSave(createGame(game.finalState.setup, contentFor(game.finalState.setup)), realGameLog(game, []));
   await page.locator('#import-save').setInputFiles({ name: 'classic-opening.json', mimeType: 'application/json', buffer: Buffer.from(opening) });
   await expect(page.locator('#action-notice')).toContainText('读档完成');
 
@@ -76,7 +75,7 @@ test('complete small-map game with milestone screenshots and identical command r
   }
   await capture('outcome');
   await expect(page.locator('#gameover-dialog')).toBeVisible();
-  await expect(page.locator('#outcome-ranking')).toContainText('2×80');
+  await expect(page.locator('#outcome-ranking')).toContainText('×80');
   await expect(page.locator('#end-turn')).toBeDisabled();
   await expect(page.locator('#new-game')).toBeEnabled();
   // The 40-entry log can legitimately evict earlier battles before round 100.

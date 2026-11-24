@@ -33,7 +33,7 @@ const record = (state: GameState, playerId = 0) => state.expansion!.eraHonors!.p
 
 /** Moves player 0 into the next era with `previous` as the finished era's age and `score` points over 10 rounds. */
 function enterEra(previous: EraAge, score: number): { state: GameState; events: EventPayload[] } {
-  const before = createGame(setup(22));
+  const before = createGame(setup(27));
   Object.assign(record(before), { age: previous, score, eraStartRound: before.round - 10 });
   const after = clone(before);
   // Every tech: player 0 is in a later era whatever the thresholds are.
@@ -44,9 +44,8 @@ function enterEra(previous: EraAge, score: number): { state: GameState; events: 
 const choose = (state: GameState, dedicationIds: string[], actorId = 0) =>
   step(state, { actorId, expectedSeq: state.commandSeq, action: { type: 'ChooseDedication', dedicationIds: dedicationIds as DedicationId[] } });
 
-test('v22 era games carry a dedication ledger; v21 ones do not', () => {
-  expect(Object.keys(record(createGame(setup(21))))).not.toContain('dedication');
-  expect(record(createGame(setup(22))).dedication).toEqual({ pending: 0, heroic: false, chosen: [], progress: {} });
+test('era games carry a dedication ledger', () => {
+  expect(record(createGame(setup(27))).dedication).toEqual({ pending: 0, heroic: false, chosen: [], progress: {} });
   expect(DEDICATION_IDS).toHaveLength(8);
   for (const id of DEDICATION_IDS) {
     expect(DEDICATIONS[id].promise.length).toBeGreaterThan(0);
@@ -66,22 +65,12 @@ test('entering an era asks for 1 card (normal, dark, golden) or 3 (heroic: golde
     if (!heroic) expect(events[0]).not.toHaveProperty('heroic');
     expect(record(state).history.at(-1)).toMatchObject({ age: previous, score, dedications: [] });
   }
-  // v21: the same transition has no pending choice and no new event fields.
-  const before = createGame(setup(21)), after = clone(before);
-  after.players[0].research.unlockedIds = Object.keys(contentFor(after.setup).techs) as never;
-  const events = recordEraHonors(before, after, []);
-  expect(Object.keys(events[0]).sort()).toEqual(['age', 'eraIndex', 'playerId', 'previousRounds', 'previousScore', 'type']);
-  expect(record(after)).not.toHaveProperty('dedication');
-  expect(Object.keys(record(after).history[0]).sort()).toEqual(['age', 'eraIndex', 'rounds', 'score']);
 });
 
 test('ChooseDedication: only while pending, with the exact count and no duplicates', () => {
-  const fresh = createGame(setup(22));
+  const fresh = createGame(setup(27));
   expect(validateDedicationAction(fresh, 0, { type: 'ChooseDedication', dedicationIds: ['ballMaster'] })).toBe('dedication-not-pending');
   expect(choose(fresh, ['ballMaster']).ok).toBe(false);
-  const v21 = createGame(setup(21));
-  expect(validateDedicationAction(v21, 0, { type: 'ChooseDedication', dedicationIds: ['ballMaster'] })).toBe('dedications-unavailable');
-  expect(choose(v21, ['ballMaster'])).toEqual({ ok: false, reason: 'invalid-command' });
 
   const { state } = enterEra('dark', 16); // heroic: 3 cards
   state.activePlayerId = 0;
@@ -114,7 +103,7 @@ test('ChooseDedication: only while pending, with the exact count and no duplicat
 
 test('promises add era score in normal and dark ages (not in golden ones), and feed the next age', () => {
   for (const age of ['normal', 'dark', 'golden'] as const) {
-    const before = createGame(setup(22));
+    const before = createGame(setup(27));
     Object.assign(record(before), { age, dedication: { pending: 0, heroic: false, chosen: ['ballMaster', 'professorNotes'], progress: {} } });
     const after = clone(before);
     // One successful capture and one discovery (milestones +1 each), in the same era.
@@ -128,7 +117,7 @@ test('promises add era score in normal and dark ages (not in golden ones), and f
     expect(record(after, 1).score).toBe(0);
   }
   // The promise points are part of the score the next age is judged on.
-  const before = createGame(setup(22));
+  const before = createGame(setup(27));
   Object.assign(record(before), { age: 'normal', score: 11, eraStartRound: before.round - 10, dedication: { pending: 0, heroic: false, chosen: ['evolutionLight'], progress: {} } });
   const after = clone(before);
   after.players[0].research.unlockedIds = Object.keys(contentFor(after.setup).techs) as never;
@@ -139,7 +128,7 @@ test('promises add era score in normal and dark ages (not in golden ones), and f
 });
 
 test('golden effects apply only in golden and heroic ages and replace the fixed golden bonus', () => {
-  const base = createGame(setup(22)), effects = playerPolicyEffects(base, 0), league = leaguePointsPerRound(base, 0);
+  const base = createGame(setup(27)), effects = playerPolicyEffects(base, 0), league = leaguePointsPerRound(base, 0);
   const withAge = (age: EraAge, chosen: DedicationId[]) => {
     const state = clone(base);
     Object.assign(record(state), { age, dedication: { pending: 0, heroic: chosen.length === 3, chosen, progress: {} } });
@@ -165,8 +154,8 @@ test('golden effects apply only in golden and heroic ages and replace the fixed 
 });
 
 function play(rounds: number): { state: GameState; commands: Command[]; chosen: EventPayload[]; rejected: number } {
-  const content = contentFor(setup(22));
-  let state = createGame(setup(22), content);
+  const content = contentFor(setup(27));
+  let state = createGame(setup(27), content);
   const commands: Command[] = [], memory: RejectedCitySite[] = [], chosen: EventPayload[] = [];
   let rejected = 0;
   while (!state.outcome && state.round < rounds) {
@@ -205,11 +194,10 @@ test('a real v22 AI game: every era change is answered at once, promises score, 
   expect(canonicalSerialize(replay(log))).toBe(canonicalSerialize(state));
 }, 180_000);
 
-test('v22 golden / dark lines are stricter than v12 and the view reports them; older rules keep 0.8 / 0.45', () => {
+test('v22 golden / dark lines are stricter than the legacy defaults and the view reports them', () => {
   expect(ageFor(9, 10)).toBe('golden');
   expect(ageFor(9, 10, ERA_HONOR_RULES_V22)).toBe('dark');
   expect(ageFor(12, 10, ERA_HONOR_RULES_V22)).toBe('normal');
   expect(ageFor(15, 10, ERA_HONOR_RULES_V22)).toBe('golden');
-  expect(observe(createGame(setup(22)), 0).expansion!.eraHonors).toMatchObject(ERA_HONOR_RULES_V22);
-  expect(observe(createGame(setup(21)), 0).expansion!.eraHonors).toMatchObject({ goldenRatePermille: 800, darkRatePermille: 450 });
+  expect(observe(createGame(setup(27)), 0).expansion!.eraHonors).toMatchObject(ERA_HONOR_RULES_V22);
 });

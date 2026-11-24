@@ -2,7 +2,7 @@ import { legendEffects, mergeEffects, viewLegendEffects } from './legends.ts';
 import type { LegendView } from './legends.ts';
 import { CHARTER_IDS, CHARTERS, GOVERNMENT_IDS, GOVERNMENT_SWAP_GOLD, GOVERNMENTS, LEADER_GOVERNMENT_AFFINITY, LEADER_POLICY_AFFINITY, POLICIES, POLICY_IDS, POLICY_SWAP_GOLD } from '../content/policies.ts';
 import type { CharterId, GovernmentId, PolicyEffects, PolicyId, SlotKind } from '../content/policies.ts';
-import { eraState, gameplayAtLeast } from '../content/eras.ts';
+import { eraState } from '../content/eras.ts';
 import type { LeaderId } from '../content/leaders.ts';
 import type { EventPayload, GameState, PlayerState } from './model.ts';
 import { eraHonorRecord, honorEffects, honorLeaguePoints } from './era-honors.ts';
@@ -36,8 +36,8 @@ export type PolicyView = PolicyPlayerState & { slots: Record<SlotKind, number>; 
 
 const ZERO: Required<PolicyEffects> = { trainedXp: 0, trainingDiscountPercent: 0, cityProduction: 0, cityFood: 0, cityGold: 0, cityResearch: 0,
   workPointBonus: 0, captureBonus: 0, healing: 0, ballDiscount: 0, upkeepReduction: 0, visionBonus: 0 };
-export const usesPolicies = (state: Pick<GameState, 'setup' | 'expansion'>) => state.expansion !== undefined && gameplayAtLeast(state.setup, 3);
-export const usesGovernments = (state: Pick<GameState, 'setup' | 'expansion'>) => state.expansion !== undefined && gameplayAtLeast(state.setup, 11);
+export const usesPolicies = (state: Pick<GameState, 'setup' | 'expansion'>) => state.expansion !== undefined;
+export const usesGovernments = (state: Pick<GameState, 'setup' | 'expansion'>) => state.expansion !== undefined;
 export function isPolicyAction(action: { type: unknown }): action is PolicyAction {
   return action.type === 'SetCharter' || action.type === 'SetPolicies' || action.type === 'SetGovernment';
 }

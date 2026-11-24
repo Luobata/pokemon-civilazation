@@ -233,8 +233,7 @@ function barActions(view: PlayerView, unit: MapUnit, mode: ActionMode, lock: str
   if (gym) actions.push({
     id: 'gym-unit', action: 'gym', icon: 'gym', label: '道馆', hotkey: 'G', key: UNIT_BAR_HOTKEYS.gym, tone: 'primary',
     title: `挑战道馆 · ${gymTitle(gym.gym)}`, reason: lock ?? gym.reason,
-    detail: contentForView(view).teamBattles ? `单打接力：带与馆主同数的宝可梦（2 格内），自己选人和出场顺序。你的下一位馆主：${nextLeaderText(view)}。`
-      : `带上 2 格内最多 3 只宝可梦。你的下一位馆主：${nextLeaderText(view)}。`,
+    detail: `单打接力：带与馆主同数的宝可梦（2 格内），自己选人和出场顺序。你的下一位馆主：${nextLeaderText(view)}。`,
   });
   // v26 P3: a Pokémon in reach of the own rival's team can open the duel picker (who, the order, the stake). Playtest 2026-11b N2 / O2:
   // the hover card lists the duel's conditions; while rival Pokémon are out of sight the button says so and sets a go-to order there.
@@ -309,7 +308,7 @@ function run(button: HTMLButtonElement) {
       if (current.unitId === null || !lastView || !callbacks.order) return;
       // v26: the lineup picker (who goes, in which order, the matchup grid and the estimate) replaces the power-ratio card.
       const gym = gymBarState(lastView, lastView.units.find(item => item.id === current.unitId)!);
-      if (gym && contentForView(lastView).teamBattles) openLineupPicker(lastView, { kind: 'gym', key: String(gym.gym.id) }, callbacks.order);
+      if (gym) openLineupPicker(lastView, { kind: 'gym', key: String(gym.gym.id) }, callbacks.order);
       else openGymCard(lastView, current.unitId, callbacks.order);
       return;
     }

@@ -11,7 +11,7 @@ import { viewIsRivalUnit } from '../core/rivals.ts';
  * while the civilization can throw a ball (domestication and a ball in stock) with an own Pokémon within 2 tiles. 0 before v27.
  */
 export function exhaustAttackBonus(view: PlayerView, target: MapUnit, minDamage: number, content: Content): number {
-  if (!content.wildEncounters || target.ownerId !== null || target.kind !== 'pokemon' || target.exhaustedUntilRound !== undefined
+  if (target.ownerId !== null || target.kind !== 'pokemon' || target.exhaustedUntilRound !== undefined
     || viewIsRivalUnit(view, target.id) || viewIsRaidUnit(view, target.id)) return 0;
   const player = view.economy.player, tuning = openingTuning(content), left = target.hp - minDamage;
   if (left <= 0 || left * 100 > tuning.exhaustHpPercent * content.species[target.speciesId].maxHp) return 0;

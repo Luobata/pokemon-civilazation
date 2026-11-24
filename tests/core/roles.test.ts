@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { ROSTER_CONTENT } from '../../src/content/units.ts';
+import { GAME_CONTENT } from '../../src/content/units.ts';
 import { BUILDER_RULES, ROLE_POKEMON } from '../../src/content/roles.ts';
 import type { GameplayVersion } from '../../src/content/eras.ts';
 import { createGame } from '../../src/core/game.ts';
@@ -19,11 +19,11 @@ const hq = (state: GameState) => state.cities[state.players[0].headquartersCityI
 /** A builder (v18) or the starter Pokémon (older rules) standing on a worked, buildable tile next to the capital. */
 function workSite(version: GameplayVersion) {
   const state = createGame(duel(version));
-  const capital = hq(state), probe = createMapUnit({ kind: 'logistics', role: 'builder' }, 9000, 0, capital.position, ROSTER_CONTENT, 0, 1);
+  const capital = hq(state), probe = createMapUnit({ kind: 'logistics', role: 'builder' }, 9000, 0, capital.position, GAME_CONTENT, 0, 1);
   for (const index of capital.workedTileIds) {
     probe.position = indexToHex(index, state.map);
     state.units[9000] = probe; refreshKnowledge(state);
-    const option = improvementOptions(observe(state, 0), 9000, ROSTER_CONTENT).find(item => item.tileIndex === index);
+    const option = improvementOptions(observe(state, 0), 9000, GAME_CONTENT).find(item => item.tileIndex === index);
     if (option) return { state, option };
   }
   throw new Error('no buildable tile');
@@ -31,14 +31,14 @@ function workSite(version: GameplayVersion) {
 
 test('role Pokémon are fixed, non-combat species that never appear as combat units', () => {
   for (const role of Object.values(ROLE_POKEMON)) {
-    expect(Object.values(ROSTER_CONTENT.species).some(species => species.name === role.species)).toBe(false);
+    expect(Object.values(GAME_CONTENT.species).some(species => species.name === role.species)).toBe(false);
     expect(role.sprite).toMatch(/^\/sprites\/gen\d\/\d+\.png$/);
   }
-  expect(gameVersions({ gameplayVersion: 18 })).toEqual({ schemaVersion: 13, rulesVersion: 'roles-v18' });
+  expect(gameVersions({ gameplayVersion: 27 })).toEqual({ schemaVersion: 22, rulesVersion: 'pace-v27' });
 });
 
 test('v18: only 工匠 build; one action finishes an improvement and spends a charge; the last charge uses the builder up', () => {
-  const { state, option } = workSite(18);
+  const { state, option } = workSite(27);
   const builder = state.units[9000];
   builder.charges = BUILDER_RULES.charges;
   // A combat Pokémon on the same tile may not build any more.
@@ -55,8 +55,8 @@ test('v18: only 工匠 build; one action finishes an improvement and spends a ch
   expect(used.ok && used.state.units[9000]).toBeUndefined();
 });
 
-test('v18: cities train 工匠 with charges; before v18 the order is rejected and Pokémon still build', () => {
-  const state = createGame(duel(18)), city = hq(state);
+test('v27: cities train 工匠 with charges', () => {
+  const state = createGame(duel(27)), city = hq(state);
   const queued = act(state, { type: 'SetProductionQueue', cityId: city.id, orders: [{ item: { kind: 'logistics', defId: 'builder' } }] });
   expect(queued.ok).toBe(true);
   if (!queued.ok) return;
@@ -66,6 +66,4 @@ test('v18: cities train 工匠 with charges; before v18 the order is rejected an
   const builder = Object.values(next.units).find(unit => unit.ownerId === 0 && unit.kind === 'logistics' && unit.role === 'builder')!;
   expect(builder.charges).toBe(BUILDER_RULES.charges);
   expect(hexDistance(builder.position!, city.position, state.map)).toBe(1);
-  const old = createGame(duel(17));
-  expect(act(old, { type: 'SetProductionQueue', cityId: hq(old).id, orders: [{ item: { kind: 'logistics', defId: 'builder' } }] }).ok).toBe(false);
 });

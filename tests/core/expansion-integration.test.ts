@@ -14,7 +14,7 @@ import { createMapUnit } from '../../src/core/unit.ts';
 import { CLASSIC_LEADER_IDS, LEADER_IDS } from '../../src/content/leaders.ts';
 import type { LeaderId } from '../../src/content/leaders.ts';
 import { FULL_TYPE_CHART } from '../../src/content/combat.ts';
-import { EXPANSION_CONTENT } from '../../src/content/units.ts';
+import { GAME_CONTENT } from '../../src/content/units.ts';
 import { GameSession, replay } from '../../src/app/session.ts';
 import { deserializeSave } from '../../src/app/save.ts';
 import { parseAuditAction } from '../../src/audit/commands.ts';
@@ -22,7 +22,7 @@ import { parseAuditAction } from '../../src/audit/commands.ts';
 const setup: GameSetup = { seed: 77, width: 24, height: 16, expansionVersion: 1, multiplayer: true,
   players: [{ id: 0, controller: 'human', starterId: 'bulbasaur', leaderId: 'oak' }, { id: 1, controller: 'human', starterId: 'charmander', leaderId: 'lance' }] };
 /** Classic leaders keep the plain expansion setup; newer leaders need gameplay v4. */
-const leaderSetup = (leaderId: LeaderId): GameSetup => (CLASSIC_LEADER_IDS as readonly string[]).includes(leaderId) ? setup : { ...setup, eraProgression: 'simple-v1', gameplayVersion: 4 };
+const leaderSetup = (leaderId: LeaderId): GameSetup => (CLASSIC_LEADER_IDS as readonly string[]).includes(leaderId) ? setup : { ...setup, eraProgression: 'simple-v1', gameplayVersion: 27 };
 function apply(state: GameState, action: Command['action']): GameState {
   const result = step(state, { actorId: state.activePlayerId, expectedSeq: state.commandSeq, action });
   if (!result.ok) throw new Error(`Rejected ${action.type}: ${result.reason}`);
@@ -78,25 +78,24 @@ describe('versioned expansion integration', () => {
     expect(thirdParty.some(event => event.payload.type === `${protocol}Changed`)).toBe(false);
     expect(projectEvents(proposed.state, expired, events, 0).some(event => event.payload.type === `${protocol}Changed`)).toBe(true);
   });
-  it('requires a harvested stone on expansion evolution routes while retaining legacy evolution', () => {
-    const legacySetup = { ...setup }; delete legacySetup.expansionVersion;
-    for (const config of [setup, legacySetup]) {
-      const state = createGame(config);
-      const unit = Object.values(state.units).find(unit => unit.ownerId === 0 && unit.kind === 'pokemon')!;
-      if (unit.kind !== 'pokemon') throw new Error('Expected pokemon');
-      unit.speciesId = 'ivysaur'; unit.xp = 999; unit.actionLeft = 1;
-      state.players[0].gold = 999; state.players[0].research.unlockedIds.push('training');
-      const result = step(state, { actorId: 0, expectedSeq: 0, action: { type: 'Evolve', unitId: unit.id, intoSpeciesId: 'venusaur' } });
-      expect(result.ok).toBe(!config.expansionVersion);
-      if (config.expansionVersion) expect(state.expansion!.world.players[0].stoneInventory.leafStone).toBe(0);
-    }
+  it('requires a harvested stone on stone-evolution routes while retaining XP evolution elsewhere', () => {
+    const state = createGame(setup);
+    const unit = Object.values(state.units).find(unit => unit.ownerId === 0 && unit.kind === 'pokemon')!;
+    if (unit.kind !== 'pokemon') throw new Error('Expected pokemon');
+    unit.speciesId = 'ivysaur'; unit.xp = 999; unit.actionLeft = 1;
+    state.players[0].gold = 999; state.players[0].research.unlockedIds.push('training');
+    const stoneRoute = step(state, { actorId: 0, expectedSeq: 0, action: { type: 'Evolve', unitId: unit.id, intoSpeciesId: 'venusaur' } });
+    expect(stoneRoute.ok).toBe(false);
+    expect(state.expansion!.world.players[0].stoneInventory.leafStone).toBe(0);
+    unit.speciesId = 'bulbasaur';
+    const xpRoute = step(state, { actorId: 0, expectedSeq: 0, action: { type: 'Evolve', unitId: unit.id, intoSpeciesId: 'ivysaur' } });
+    expect(xpRoute.ok).toBe(true);
   });
-  it('preserves legacy state and rejects inconsistent rule versions', () => {
-    const legacy = { ...setup }; delete legacy.expansionVersion;
-    expect(createGame(legacy).expansion).toBeUndefined();
+  it('always initializes expansion v1 and rejects unsupported expansion versions', () => {
+    const defaulted = { ...setup }; delete defaulted.expansionVersion;
+    expect(createGame(defaulted).expansion?.version).toBe(1);
     expect(createGame(setup).expansion?.version).toBe(1);
     expect(() => createGame({ ...setup, expansionVersion: 2 } as unknown as GameSetup)).toThrow();
-    expect(step(createGame(legacy), { actorId: 0, expectedSeq: 0, action: { type: 'UseLeaderAbility' } })).toEqual({ ok: false, reason: 'invalid-command' });
   });
   it('replays every initialized expansion ledger and rejects tampered save state', () => {
     const session = new GameSession(setup);
@@ -125,6 +124,7 @@ describe('versioned expansion integration', () => {
   });
   it('builds and recruits actual unique content with ownership, cost and lifetime caps', () => {
     let state = createGame(setup); state.players[0].gold = 1000; state.players[0].research.unlockedIds.push('training');
+    state.expansion!.opening!.objectives[0].push('firstTech');
     const cityId = state.players[0].headquartersCityId, oldYield = observe(state, 0).economy.cities[0].yields.research;
     state = apply(state, { type: 'BuildLeaderBuilding', cityId });
     expect(observe(state, 0).economy.cities[0].yields.research).toBe(oldYield + 2);
@@ -158,8 +158,8 @@ describe('full type chart and dual defenses', () => {
     let state = createGame(setup);
     const city = state.cities[state.players[0].headquartersCityId], from = city.position;
     state.units = {
-      901: createMapUnit({ kind: 'pokemon', speciesId: 'magnemite', uniqueLeader: 'oak' }, 901, 0, { q: from.q, r: from.r }, EXPANSION_CONTENT, 0, 1),
-      902: createMapUnit({ kind: 'pokemon', speciesId: 'gyarados' }, 902, null, { q: from.q + 1, r: from.r }, EXPANSION_CONTENT, 0, 1),
+      901: createMapUnit({ kind: 'pokemon', speciesId: 'magnemite', uniqueLeader: 'oak' }, 901, 0, { q: from.q, r: from.r }, GAME_CONTENT, 0, 1),
+      902: createMapUnit({ kind: 'pokemon', speciesId: 'gyarados' }, 902, null, { q: from.q + 1, r: from.r }, GAME_CONTENT, 0, 1),
     };
     const preview = previewAttack(observe(state, 0), 901, { kind: 'unit', id: 902 });
     expect(preview.ok).toBe(true);

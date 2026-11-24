@@ -7,8 +7,7 @@ import type { SpeciesDefinition, SpeciesId } from '../../src/content/species.ts'
 import { ALL_SPECIES_TAGS, deriveRosterTables, dexConstraintIds, dexMaxGeneration, drawRegionalDex, evolutionLines, unmetConstraints } from '../../src/content/regional-dex.ts';
 import type { RegionalDexDraw } from '../../src/content/regional-dex.ts';
 import { RECRUIT_SLOTS, resolveRecruits } from '../../src/content/recruit-slots.ts';
-import { DEPTH_CONTENT, PACE_CONTENT, REGIONAL_CONTENT, STOCK_CONTENTS, WORLD24_CONTENT, contentFor, contentForView, depthContentFor, depthDexDraw, isStockContent,
-  regionalContentFor, regionalDexDraw, regionalPoolSize } from '../../src/content/units.ts';
+import { GAME_CONTENT, STOCK_CONTENTS, contentFor, contentForView, regionalDexDraw, isStockContent, regionalPoolSize } from '../../src/content/units.ts';
 import type { EraProgression } from '../../src/content/eras.ts';
 import { LEADER_IDS } from '../../src/content/leaders.ts';
 import type { LeaderId } from '../../src/content/leaders.ts';
@@ -18,11 +17,11 @@ import type { GameSetup } from '../../src/core/model.ts';
 import { parseRegionalDexArgs, regionalDexReport } from '../../tools/regional-dex.ts';
 
 const NEW_IDS = Object.keys(ROSTER_V26_SPECIES) as SpeciesId[];
-const species = DEPTH_CONTENT.species;
+const species = GAME_CONTENT.species;
 const MODES: readonly EraProgression[] = ['simple-v1', 'full-v1'];
 const seated = (seed: number): LeaderId[] => [0, 1, 2, 3].map(index => LEADER_IDS[(seed + index) % LEADER_IDS.length]);
 const GOLDEN = new URL('./__golden__/regional-dex-v26.json', import.meta.url);
-const setup = (gameplayVersion: 25 | 26, seed = 31): GameSetup => ({ seed, width: 24, height: 16, roundLimit: 100 as const, expansionVersion: 1 as const,
+const setup = (gameplayVersion: 27, seed = 31): GameSetup => ({ seed, width: 24, height: 16, roundLimit: 100 as const, expansionVersion: 1 as const,
   eraProgression: 'simple-v1' as const, gameplayVersion, players: [
     { id: 0, controller: 'human' as const, starterId: 'bulbasaur' as const }, { id: 1, controller: 'ai' as const },
   ] });
@@ -86,21 +85,12 @@ test('evolution chains: early lines at 60 / 150 XP without training, the others 
   expect(Object.keys(ROSTER_V26_EVOLUTIONS).sort()).toEqual(['caterpie', 'meowth']);
 });
 
-test('v<=25 contents are unchanged: no new species, no new evolutions, the same pool sizes and recruit first choices', () => {
-  // v27 (PACE_CONTENT) is the v26 content plus the pace overlay, so it carries the v26 species too.
-  for (const content of STOCK_CONTENTS.filter(content => content !== DEPTH_CONTENT && content !== PACE_CONTENT)) {
-    for (const id of NEW_IDS) expect(content.species[id], `${content.version} ${id}`).toBeUndefined();
-    if (content.species.caterpie) expect(content.species.caterpie.evolution).toBeNull();
-    if (content.species.meowth) expect(content.species.meowth.evolution).toBeNull();
-  }
-  expect(regionalContentFor(setup(25)).regionalDex!.speciesIds.some(id => NEW_IDS.includes(id))).toBe(false);
+test('v27 stock content carries the full 115-species pool and preserves the reference regional pool sizes', () => {
+  expect(STOCK_CONTENTS).toEqual([GAME_CONTENT]);
   expect([regionalPoolSize('simple-v1'), regionalPoolSize('full-v1')]).toEqual([71, 105]);
-  expect(regionalContentFor(setup(25)).version).toBe('roster-v25');
-  // v25 pools do not define spearow / doduo, so pidgey and ponyta stay level-1 first choices.
-  const v25 = resolveRecruits(REGIONAL_CONTENT.species, Object.keys(REGIONAL_CONTENT.species) as SpeciesId[], 3, new Set());
-  expect(v25.find(item => item.slot === 'aviation')).toEqual({ slot: 'aviation', speciesId: 'pidgey', level: 1 });
-  expect(v25.find(item => item.slot === 'riding')).toEqual({ slot: 'riding', speciesId: 'ponyta', level: 1 });
-  expect(WORLD24_CONTENT.species.caterpie.evolution).toBeNull();
+  expect(contentFor(setup(27)).version).toBe('pace-v27');
+  expect(GAME_CONTENT.species.caterpie.evolution?.speciesId).toBe('metapod');
+  expect(GAME_CONTENT.species.meowth.evolution?.speciesId).toBe('persian');
 });
 
 test('v26 recruit slots: spearow first for flight training (pidgey its fallback), doduo the riding fallback', () => {
@@ -121,7 +111,7 @@ test('v26 recruit slots: spearow first for flight training (pidgey its fallback)
 
 test.each(MODES)('%s: the batch makes no class × stage cell required (v26 C1 / C2 = v25 C1 / C2)', mode => {
   const cells = (table: typeof species) => dexConstraintIds(table, mode).filter(id => id.startsWith('C1:') || id.startsWith('C2:'));
-  expect(cells(species)).toEqual(cells(REGIONAL_CONTENT.species));
+  expect(cells(species)).toEqual(cells(GAME_CONTENT.species));
   expect(cells(species)).not.toContain('C2:scout:3');
   expect(cells(species)).not.toContain('C2:air:1');
 });
@@ -143,27 +133,25 @@ test.each(MODES)('%s v26 draw: seeds 1–100 meet every constraint with whole li
     expect(drawn.get(line) ?? 0, `${mode} ${line}`).toBeLessThan(100);
   }
   const input = { seed: 77, eraProgression: mode, players: [{ leaderId: 'misty' as LeaderId }, { leaderId: 'brock' as LeaderId }] };
-  expect(depthDexDraw(input)).toBe(depthDexDraw({ ...input, players: [...input.players].reverse() }));
-  expect(drawRegionalDex({ species, mode, dexSeed: 77, leaders: ['brock', 'misty'] })).toEqual(depthDexDraw(input));
-  expect(regionalDexDraw({ ...input, gameplayVersion: 26 })).toBe(depthDexDraw(input));
-  expect(unmetConstraints(species, depthDexDraw(input).speciesIds, mode)).toEqual([]);
+  expect(regionalDexDraw(input)).toBe(regionalDexDraw({ ...input, players: [...input.players].reverse() }));
+  expect(drawRegionalDex({ species, mode, dexSeed: 77, leaders: ['brock', 'misty'] })).toEqual(regionalDexDraw(input));
+  expect(regionalDexDraw({ ...input })).toBe(regionalDexDraw(input));
+  expect(unmetConstraints(species, regionalDexDraw(input).speciesIds, mode)).toEqual([]);
 }, 120_000);
 
-test('a v26 game draws from the v26 species; authority and view share one content object', () => {
-  const content = contentFor(setup(26)), v25 = regionalContentFor(setup(25));
-  expect(content).toBe(depthContentFor(setup(26)));
-  expect(content.version).toBe('depth-v26');
-  expect(DEPTH_CONTENT.species).toBe(content.species);
-  // The Pokédex target keeps the v25 scale: the pool is the v25 pool (the batch widens the draw, not the target).
+test('a v27 game draws from the full species pool; authority and view share one content object', () => {
+  const content = contentFor(setup(27));
+  expect(content).toBe(contentFor(setup(27)));
+  expect(content.version).toBe('pace-v27');
+  expect(GAME_CONTENT.species).toBe(content.species);
   expect(content.regionalDex!.pool).toBe(regionalPoolSize('simple-v1'));
-  expect(content.regionalDex!.speciesIds).not.toEqual(v25.regionalDex!.speciesIds);
   expect(isStockContent(content)).toBe(true);
-  expect(Object.keys(DEPTH_CONTENT.species).length).toBe(Object.keys(REGIONAL_CONTENT.species).length + 10);
+  expect(Object.keys(GAME_CONTENT.species).length).toBe(115);
   expect(ROSTER_V26_VERSION).toBe('roster-v26');
   // Some seed includes a new line; its game view re-derives the same object.
-  const seed = [31, 32, 33, 34, 35, 36, 37, 38].find(value => contentFor(setup(26, value)).regionalDex!.speciesIds.some(id => NEW_IDS.includes(id)))!;
+  const seed = [31, 32, 33, 34, 35, 36, 37, 38].find(value => contentFor(setup(27, value)).regionalDex!.speciesIds.some(id => NEW_IDS.includes(id)))!;
   expect(seed).toBeDefined();
-  const state = createGame(setup(26, seed)), own = contentFor(state.setup);
+  const state = createGame(setup(27, seed)), own = contentFor(state.setup);
   expect(contentForView(observe(state, 0, own))).toBe(own);
   for (const id of own.regionalDex!.speciesIds) expect(own.units[id], id).toBe(own.species[id]);
 });
@@ -197,9 +185,9 @@ test('golden v26 regional Pokédexes (seeds 31–38, both modes, two leader sets
   expect(actual).toEqual(JSON.parse(readFileSync(GOLDEN, 'utf8')));
 }, 60_000);
 
-test('regional-dex tool: --roster v26 reports no structural gaps (v25 keeps its three)', () => {
+test('regional-dex tool: --roster v26 and default report no structural gaps on the 115-species pool', () => {
   expect(parseRegionalDexArgs(['--roster', 'v26', '--gaps'])).toMatchObject({ roster: 'v26', gapsOnly: true });
   expect(() => parseRegionalDexArgs(['--roster', 'v27'])).toThrow();
   expect(regionalDexReport({ mode: 'simple-v1', seeds: [1], leaders: 'rotation', roster: 'v26', gapsOnly: true }).json.gaps).toEqual([]);
-  expect(regionalDexReport({ mode: 'simple-v1', seeds: [1], leaders: 'rotation', gapsOnly: true }).json.gaps).toEqual(['快速3阶', '侦察3阶', '飞行1阶']);
+  expect(regionalDexReport({ mode: 'simple-v1', seeds: [1], leaders: 'rotation', gapsOnly: true }).json.gaps).toEqual([]);
 });

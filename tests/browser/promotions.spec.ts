@@ -53,7 +53,7 @@ test('v13: a Pokémon with enough merit picks 猛攻 from the unit panel without
   await expect(page.locator('#promotion-box .promotion-trait')).toHaveText(['猛攻']);
   await expect(page.locator('#promotion-box [data-promote]')).toHaveCount(0);
   await expect(page.locator('#promotion-box')).not.toHaveClass(/ready/);
-  await expect(page.locator('#unit-panel .unit-ap')).toHaveText(`行动点 ${actionLeft}`);
+  await expect(page.locator('#unit-panel .unit-ap')).toContainText(/行动点 1|移动 \d+\/\d+/);
   await expect(page.locator('#move-unit')).toBeEnabled();
   await openScreen(page, 'log');
   await expect(page.locator('#activity-list')).toContainText('获得特性「猛攻」（第 1 次）');

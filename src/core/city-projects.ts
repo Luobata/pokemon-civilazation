@@ -72,7 +72,7 @@ const researchLeft = (unlocked: readonly string[], content: Content) => Object.k
 
 export function stateCityProjectInput(state: GameState, city: CityState, content: Content): CityProjectInput {
   const owner = city.ownerId, player = owner === null ? undefined : state.players[owner];
-  return { enabled: Boolean(content.cityProjects && player), queue: city.queue, buildingIds: city.buildingIds,
+  return { enabled: Boolean(player), queue: city.queue, buildingIds: city.buildingIds,
     districts: Object.values(state.expansion?.districts?.tiles ?? {}).filter(item => item.cityId === city.id).map(item => item.kind),
     hall: owner !== null && Boolean(state.expansion?.contests?.[owner]?.halls.includes(city.id)),
     hatchable: Boolean(player && hatchPool(player.registeredSpeciesIds, content).length),
@@ -80,7 +80,7 @@ export function stateCityProjectInput(state: GameState, city: CityState, content
 }
 export function viewCityProjectInput(view: PlayerView, city: PlayerView['economy']['cities'][number], content: Content): CityProjectInput {
   const player = view.economy.player;
-  return { enabled: Boolean(content.cityProjects && !player.eliminated), queue: city.queue, buildingIds: city.buildingIds,
+  return { enabled: Boolean(!player.eliminated), queue: city.queue, buildingIds: city.buildingIds,
     districts: (view.expansion?.districts?.tiles ?? []).filter(item => item.cityId === city.id && item.ownerId === view.playerId).map(item => item.kind),
     hall: Boolean(view.expansion?.contests?.own.halls.includes(city.id)),
     hatchable: hatchPool(player.registeredSpeciesIds, content).length > 0, researchLeft: researchLeft(player.research.unlockedIds, content) };
@@ -114,7 +114,7 @@ function hatchTile(state: GameState, city: CityState & { ownerId: number }, spec
 
 /** Completes a finished project order (the order has already left the queue); null when the order is not a project. */
 export function completeCityProject(state: GameState, city: CityState & { ownerId: number }, order: ProductionOrder, content: Content): EconomyEvent[] | null {
-  if (!content.cityProjects || order.item.kind !== 'project') return null;
+  if (order.item.kind !== 'project') return null;
   const tuning = economyTuning(content), book = ledger(state), owner = city.ownerId, id = order.item.defId;
   const done = book.done[owner] ??= {}, cost = cityProjectCost(content, id, done[id] ?? 0);
   done[id] = (done[id] ?? 0) + 1;
@@ -159,7 +159,6 @@ export function completeCityProject(state: GameState, city: CityState & { ownerI
 
 /** ③ → ⑦ (`seasonScoreBonus`): the rehearsal's season score for this civilization's entry in the season now open (0 without one). */
 export function rehearsalScoreBonus(state: GameState, playerId: number, content: Content): number {
-  if (!content.cityProjects) return 0;
   const target = state.expansion?.cityProjects?.rehearsal[playerId], season = currentSeason(content, state.round, state.setup.roundLimit ?? 100);
   return target !== undefined && season?.index === target ? economyTuning(content).rehearsalScore : 0;
 }

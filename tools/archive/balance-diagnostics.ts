@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { CONTENT, unitDefinition } from '../../src/content/units.ts';
+import { GAME_CONTENT as CONTENT, unitDefinition } from '../../src/content/units.ts';
 import { createGame } from '../../src/core/game.ts';
 import { maxCityHp } from '../../src/core/city.ts';
 import { step } from '../../src/core/step.ts';

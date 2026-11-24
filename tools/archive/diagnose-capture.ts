@@ -14,7 +14,7 @@ import { step } from '../../src/core/step.ts';
 import { observe } from '../../src/core/vision.ts';
 import { previewCapture } from '../../src/core/preview.ts';
 import { canCaptureByPersonality } from '../../src/ai/plan.ts';
-import { CONTENT } from '../../src/content/units.ts';
+import { GAME_CONTENT as CONTENT } from '../../src/content/units.ts';
 import type { MatchResult } from '../simulate.ts';
 
 type CaptureExample = { round: number; seq: number; unitId: number; targetId: number; hp: number; maxHp: number; probability: number; selected: object };

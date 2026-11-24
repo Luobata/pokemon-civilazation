@@ -1,4 +1,4 @@
-import { CONTENT, unitDefinition } from '../src/content/units.ts';
+import { GAME_CONTENT as CONTENT, unitDefinition } from '../src/content/units.ts';
 import type { Content } from '../src/content/units.ts';
 import { scorePlayer } from '../src/core/victory.ts';
 import { eraState } from '../src/content/eras.ts';

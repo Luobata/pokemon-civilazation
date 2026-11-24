@@ -145,7 +145,10 @@ test('actual era arrivals use command transitions and include every crossed era'
   const advanced = structuredClone(initial);
   initial.round = 9;
   advanced.round = 9;
-  advanced.players[0].research.unlockedIds.push('typeResearch', 'riding', 'medicine', 'training', 'siegeCraft');
+  advanced.players[0].research.unlockedIds.push(
+    'domestication', 'berryCultivation', 'stoneCraft', 'seafaring', 'ballCraft',
+    'riding', 'typeResearch', 'fieldObservation', 'masonry', 'commerce',
+  );
   collectTelemetry(telemetry, initial, advanced, { actorId: 0, expectedSeq: 1, action: { type: 'SetResearch', techId: 'typeResearch' } }, []);
 
   expect(telemetry.rounds).toEqual([]);

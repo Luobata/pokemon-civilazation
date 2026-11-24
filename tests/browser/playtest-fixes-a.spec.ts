@@ -52,14 +52,12 @@ test('B4 + B6: the conference card names the titles the victory needs; the start
     await openScreen(page, 'victory');
     await expect(page.locator('[data-victory="championship"]')).toContainText(`0/${titles}`);
   }
-  // B6: the dex strip and counts show the starter as owned; the stored record is untouched (still documented).
+  // B6: the dex grid shows the starter as owned (not caught); the stored record is untouched (still documented).
   await openScreen(page, 'world');
   const dex = page.locator('details[data-system="s22-pokedex"]');
   await dex.locator('summary').first().click();
   await expect(dex.locator('.dex-entry img[alt*="拥有"]')).toHaveCount(1);
   await expect(dex.locator('.dex-entry img[alt*="已捕捉"]')).toHaveCount(0);
-  await expect(dex.locator('[aria-label="捕捉 0"]')).toHaveCount(1);
-  await expect(dex.locator('[aria-label="拥有（初始伙伴，非捕捉） 1"]')).toHaveCount(1);
   const record = (await view(page)).expansion!.world.player!.pokedex.bulbasaur;
   expect(record.captured).toBe(true);
   await openScreen(page, 'victory');
@@ -124,11 +122,12 @@ test('B1: countdowns 5 rounds and 1 round before the league, then a toast, a 动
   const fixture = leagueFixture();
   const next = fixture.state.expansion!.civilization!.championship.nextRound;
   await importSave(page, fixture.save);
-  // Register the team with the world page's button (seat 0 is at peace with six Pokémon on the map).
+  // Register the team with the world page's lineup picker (seat 0 is at peace with six Pokémon on the map).
   await openScreen(page, 'world');
   const card = page.locator('details[data-system="s27-championship"]');
   await card.locator('summary').click();
-  await card.getByRole('button', { name: '报名当前六只宝可梦' }).click();
+  await card.getByRole('button', { name: /报名/ }).click();
+  await page.locator('#lineup-picker #lineup-confirm').click();
   await expect(card).toContainText('已报名');
   await closeScreen(page);
   const rail = page.locator('#toast-host');

@@ -18,7 +18,7 @@ import { ballPrice, viewPolicyEffects } from '../core/policies.ts';
 import { tileYieldReader } from './tile-yields.ts';
 import { CREW_SPECIALTIES, IMPROVEMENTS, crewSpecialtyFor } from '../content/improvements.ts';
 import { trainableSpeciesIds } from '../core/role-tactics.ts';
-import { CONTENT as BASE_CONTENT, contentForView, techOf } from '../content/units.ts';
+import { GAME_CONTENT as BASE_CONTENT, contentForView, techOf } from '../content/units.ts';
 import { TREE_GATES } from '../content/tech-tree.ts';
 import { treeGateOpen } from '../core/tech-tree.ts';
 import type { BallId, BuildingId } from '../content/economy.ts';
@@ -231,7 +231,7 @@ export function renderEconomyPanel(view: PlayerView, selectedCity: number | null
     if (item.kind === 'project') return projectEffectText(view, item.defId, CONTENT);
     if (item.kind === 'logistics') return item.defId === 'builder' ? `${ROLE_POKEMON.builder.job} ${BUILDER_RULES.charges} 处` : item.defId === 'trader' ? ROLE_POKEMON.trader.job : `${ROLE_POKEMON.settler.job} · 移动 ${CONTENT.units.settler.move} · 无维护费`;
     const species = CONTENT.species[item.defId];
-    return `${statChip('attack', species.attack, CONTENT.combat === 'strength' ? '战斗力 攻击' : '攻击')}${statChip('defense', species.defense, '防御')}${statChip('gold', `−${species.upkeep}`, '维护 金/轮')}${districtXp ? statChip('star', `+${districtXp}`, '设施区出场经验') : ''}`;
+    return `${statChip('attack', species.attack, '战斗力 攻击')}${statChip('defense', species.defense, '防御')}${statChip('gold', `−${species.upkeep}`, '维护 金/轮')}${districtXp ? statChip('star', `+${districtXp}`, '设施区出场经验') : ''}`;
   };
   const queueFull = city.queue.length >= 5;
   const optionRows = options.map(item => {
@@ -268,7 +268,7 @@ export function renderEconomyPanel(view: PlayerView, selectedCity: number | null
       <ol id="production-queue">${queueMarkup}</ol>${cityGoldSinkMarkup(view, city.id, disabled)}
       ${city.queue.length ? '' : `<p class="empty-note">队列为空。点击下方项目开始生产${quickFill.length ? '，或一键用建议填上' : ''}。</p>${quickFillMarkup(quickFill, disabled || queueFull)}`}
       ${city.pendingDeployments.length ? `<p id="pending-deployments">待出场 ${city.pendingDeployments.length}：${city.pendingDeployments.map(p => itemName(p.item)).join('、')}</p>` : ''}</div>
-      <div class="production-tabs" role="group" aria-label="生产类别">${(Object.keys(productionLabels) as ProductionItem['kind'][]).filter(kind => (kind !== 'district' || view.expansion?.districts) && (kind !== 'legend' || view.expansion?.legends) && (kind !== 'project' || CONTENT.cityProjects)).map(kind => `<button data-production-kind="${kind}" aria-pressed="${kind === productionKind}" ${disabled ? 'disabled' : ''}>${productionLabels[kind]}</button>`).join('')}</div>
+      <div class="production-tabs" role="group" aria-label="生产类别">${(Object.keys(productionLabels) as ProductionItem['kind'][]).filter(kind => (kind !== 'district' || view.expansion?.districts) && (kind !== 'legend' || view.expansion?.legends)).map(kind => `<button data-production-kind="${kind}" aria-pressed="${kind === productionKind}" ${disabled ? 'disabled' : ''}>${productionLabels[kind]}</button>`).join('')}</div>
       ${productionKind === 'district' ? districtTypeCards(view, city.id, disabled) : productionKind === 'project' ? projectCardsMarkup(view, city, CONTENT, rate, disabled) : `${productionKind === 'logistics' && view.expansion?.cityNetwork ? escortSelectMarkup(view, CONTENT) : ''}
       ${options.length ? `<ul id="production-list" class="production-list" aria-label="可生产项目 · 点击加入队列">${optionRows}</ul>${queueFull ? '<p class="empty-note">队列已满（5/5）。完成或取消一项后才能继续加入。</p>' : ''}` : productionKind === 'legend' ? '' : '<p class="empty-note">当前没有可建项目。研究新科技可解锁更多建筑。</p>'}
       ${productionKind === 'pokemon' ? lockedSpeciesMarkup(view, CONTENT) : ''}`}

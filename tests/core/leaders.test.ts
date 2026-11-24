@@ -3,7 +3,7 @@ import { GameSession, replay } from '../../src/app/session.ts';
 import { deserializeSave } from '../../src/app/save.ts';
 import { CLASSIC_LEADER_IDS, LEADER_IDS } from '../../src/content/leaders.ts';
 import type { LeaderId } from '../../src/content/leaders.ts';
-import { CONTENT, STARTER_IDS } from '../../src/content/units.ts';
+import { GAME_CONTENT, STARTER_IDS } from '../../src/content/units.ts';
 import { cityCounterAttack, cityYield } from '../../src/core/city.ts';
 import { resolveAttack } from '../../src/core/combat.ts';
 import { resolveEconomy } from '../../src/core/economy.ts';
@@ -22,9 +22,9 @@ const setup: GameSetup = { seed: 12345, width: 24, height: 16, players: [
 
 test('every leader pairs with every starter without changing map, spawns or RNG', () => {
   for (const starterId of STARTER_IDS) {
-    const legacy = createGame({ ...setup, players: [{ id: 0, controller: 'human', starterId }, setup.players[1]] });
+    const legacy = createGame({ ...setup, players: [{ id: 0, controller: 'human', starterId }, setup.players[1]] }, GAME_CONTENT);
     for (const leaderId of CLASSIC_LEADER_IDS) {
-      const current = createGame({ ...setup, players: [{ id: 0, controller: 'human', starterId, leaderId }, setup.players[1]] });
+      const current = createGame({ ...setup, players: [{ id: 0, controller: 'human', starterId, leaderId }, setup.players[1]] }, GAME_CONTENT);
       expect(current.players[0]).toMatchObject({ starterId, leaderId });
       expect(current.map).toEqual(legacy.map);
       expect(current.units).toEqual(legacy.units);
@@ -35,7 +35,7 @@ test('every leader pairs with every starter without changing map, spawns or RNG'
 
 test.each([...LEADER_IDS, undefined])('leader %s survives save/load and exact AI command replay', leaderId => {
   const classic = leaderId === undefined || (CLASSIC_LEADER_IDS as readonly string[]).includes(leaderId);
-  const chosen: GameSetup = structuredClone(classic ? setup : { ...setup, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 4 });
+  const chosen: GameSetup = structuredClone(classic ? setup : { ...setup, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 27 });
   if (leaderId !== undefined) {
     const roster = classic ? CLASSIC_LEADER_IDS : LEADER_IDS;
     chosen.players[0].leaderId = leaderId;
@@ -78,10 +78,11 @@ test('Oak research is settled, benefits laboratories and respects captured/neutr
   const state = combatFixture(), city = state.cities[1];
   const original = cityYield(state, city);
   state.players[0].leaderId = 'oak';
-  expect(cityYield(state, city)).toEqual({ ...original, research: original.research + 1 });
+  // +1 Oak passive + 1 Oak early-era doctrine.
+  expect(cityYield(state, city)).toEqual({ ...original, research: original.research + 2 });
   city.buildingIds.push('observatory');
   const output = cityYield(state, city);
-  expect(output.research).toBe(original.research + 4); // laboratory +2, leader +1 and laboratory synergy +1
+  expect(output.research).toBe(original.research + 5); // laboratory +2, leader +1, laboratory synergy +1, early doctrine +1
   resolveEconomy(state);
   expect(state.players[0].research.reserve).toBe(output.research);
   city.capturedAtRound = state.round;
@@ -96,7 +97,7 @@ test('Lance damage preview and resolution agree, while counter damage and XP sta
   refreshKnowledge(base);
   const boosted = structuredClone(base); boosted.players[0].leaderId = 'lance';
   const preview = previewAttack(observe(boosted, 0), 10, { kind: 'unit', id: 11 });
-  expect(preview).toMatchObject({ ok: true, damage: { min: 19, max: 23 }, counter: { damage: 2 } });
+  expect(preview).toMatchObject({ ok: true, damage: { min: 24, max: 28 }, counter: { damage: 5 } });
   const normal = resolveAttack(base, 10, { kind: 'unit', id: 11 })[0];
   const battle = resolveAttack(boosted, 10, { kind: 'unit', id: 11 })[0];
   if (battle.type !== 'BattleResolved' || normal.type !== 'BattleResolved' || !preview.ok) throw new Error('Missing battle');
@@ -153,19 +154,19 @@ test.each([false, true])('Joy healing stays in owned territory, stacks with medi
   pokemon(state, 10, 'charmander', 0, 2, 2).hp = 1;
   pokemon(state, 11, 'charmander', 0, 7, 5).hp = 1;
   pokemon(state, 12, 'charmander', 1, 10, 2).hp = 1;
-  pokemon(state, 13, 'charmander', 0, 3, 2).hp = CONTENT.species.charmander.maxHp - 1;
+  pokemon(state, 13, 'charmander', 0, 3, 2).hp = GAME_CONTENT.species.charmander.maxHp - 1;
   resolveRecovery(state);
   expect(state.units[10].hp).toBe(medicine ? 16 : 11);
   expect(state.units[11].hp).toBe(1);
   expect(state.units[12].hp).toBe(6);
-  expect(state.units[13].hp).toBe(CONTENT.species.charmander.maxHp);
+  expect(state.units[13].hp).toBe(GAME_CONTENT.species.charmander.maxHp);
 });
 
 test.each([false, true])('Joy reduces recovery only on knockout, wildPhase=%s', wildPhase => {
   const state = combatFixture(); state.players[0].leaderId = 'joy';
   pokemon(state, 10, 'charmander', wildPhase ? null : 1, 4, 3);
   pokemon(state, 11, 'bulbasaur', 0, 3, 3).hp = 1;
-  const events = resolveAttack(state, 10, { kind: 'unit', id: 11 }, CONTENT, wildPhase);
+  const events = resolveAttack(state, 10, { kind: 'unit', id: 11 }, GAME_CONTENT, wildPhase);
   expect(state.units[11]).toMatchObject({ location: 'recovering', roundsLeft: wildPhase ? 1 : 2, hp: 1, actionLeft: 0 });
   expect(events).toContainEqual(expect.objectContaining({ type: 'UnitRecovering', roundsLeft: wildPhase ? 1 : 2 }));
   resolveRecovery(state);
@@ -173,12 +174,11 @@ test.each([false, true])('Joy reduces recovery only on knockout, wildPhase=%s', 
   if (!wildPhase) expect(state.units[11]).toMatchObject({ roundsLeft: 1, hp: 1 });
 });
 
-test('newer leaders require gameplay v4 and pair with every starter there', () => {
+test('newer leaders pair with every starter on the v27 baseline', () => {
   for (const leaderId of LEADER_IDS.filter(id => !(CLASSIC_LEADER_IDS as readonly string[]).includes(id))) {
-    expect(() => createGame({ ...setup, players: [{ id: 0, controller: 'human', starterId: 'bulbasaur', leaderId }, setup.players[1]] })).toThrow('gameplay v4');
     for (const starterId of STARTER_IDS) {
-      const v4 = createGame({ ...setup, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 4, players: [{ id: 0, controller: 'human', starterId, leaderId }, setup.players[1]] });
-      expect(v4.players[0]).toMatchObject({ starterId, leaderId });
+      const game = createGame({ ...setup, players: [{ id: 0, controller: 'human', starterId, leaderId }, setup.players[1]] });
+      expect(game.players[0]).toMatchObject({ starterId, leaderId });
     }
   }
 });

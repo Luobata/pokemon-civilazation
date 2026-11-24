@@ -48,8 +48,9 @@ export type RivalEvent =
   | { type: 'RivalSkipped'; playerId: number; encounter: number; reason: 'eliminated' | 'no-site' };
 
 const RULES = RIVAL_RULES_V24;
-export function initializeRivals(state: GameState, content: Content): void {
-  if (!content.rivals || !state.expansion) return;
+export function initializeRivals(state: GameState, _content?: Content): void {
+  void _content;
+  if (!state.expansion) return;
   const ids = [...state.turnOrder].sort((a, b) => a - b);
   const names = [...RIVAL_NAMES].sort((a, b) => stableSeed(state.setup.seed, a, 'rival-name') - stableSeed(state.setup.seed, b, 'rival-name') || (a < b ? -1 : 1));
   state.expansion.rivals = { byPlayer: Object.fromEntries(ids.map((id, seat) => [id, { name: names[seat % names.length], encounter: 0, activeUnitIds: [], outcomes: [] }])),
@@ -127,7 +128,7 @@ export function rivalNeutrals(content: Content, starterId: StarterId): readonly 
 /** The visit's team: counters to the target's starter, by stage (§4.1), picked with stableSeed; v26: the first visit is neutral (above). */
 export function rivalTeam(state: GameState, playerId: number, encounter: number, content: Content): SpeciesId[] {
   const starterId = state.players[playerId].starterId;
-  const neutrals = content.rivalDuels && encounter === 0 ? rivalNeutrals(content, starterId) : [];
+  const neutrals = encounter === 0 ? rivalNeutrals(content, starterId) : [];
   return RIVAL_TEAMS[encounter].map((slot, index) => {
     const list = neutrals.length ? neutrals : rivalCounters(content, starterId, slot.list);
     const pool = [0, -1, -2, 1].map(offset => list.filter(id => content.species[id]?.stage === slot.stage + offset)).find(found => found.length) ?? [...list];
@@ -217,7 +218,7 @@ function actRival(state: GameState, unit: MapUnit & { kind: 'pokemon' }, playerI
   if (struck) {
     const from = map.tiles[hexToIndex(unit.position, map)!], to = map.tiles[hexToIndex(struck.position, map)!];
     const capital = state.players[playerId].headquartersCityId === struck.id;
-    const breakdown = cityStrengthBreakdown(unit, from, to, content, [], content.opening ? wallBonus(state.round, capital) : 0,
+    const breakdown = cityStrengthBreakdown(unit, from, to, content, [], wallBonus(state.round, capital),
       cityStrikeTerrain(map, unit, struck.position, content), rivalSpirit(state, unit.id));
     const damage = strengthDamage(breakdown, 85 + randomBelow(state.rng, 16), false, struck.hp), before = struck.hp;
     struck.hp = Math.max(1, struck.hp - damage);
@@ -271,7 +272,7 @@ function arrive(state: GameState, playerId: number, canStand: StandRule, content
   if (!tiles.length) return skip('no-site');
   const unitIds: number[] = [];
   // v26 (depth-v26 §3.1): after two visits beaten in a row the rival comes back fired up (+3 气势) and pays more (×1.25).
-  const streak = Boolean(content.rivalDuels) && ledger.outcomes.length >= 2 && ledger.outcomes.slice(-2).every(outcome => outcome === 'defeated');
+  const streak = ledger.outcomes.length >= 2 && ledger.outcomes.slice(-2).every(outcome => outcome === 'defeated');
   if (streak) ledger.streak = true;
   for (const [index, tile] of tiles.entries()) {
     const id = state.nextEntityId++, unit = createMapUnit({ kind: 'pokemon', speciesId: team[index] }, id, null, indexToHex(tile, state.map), content);
@@ -287,7 +288,7 @@ function arrive(state: GameState, playerId: number, canStand: StandRule, content
 /** Round end, right after the world's rampages: rival moves and strikes, departures after six rounds, arrivals, then warnings. */
 export function resolveRivalRound(state: GameState, content: Content, canStand: StandRule = landRule(state.map)): EventPayload[] {
   const rivals = state.expansion?.rivals;
-  if (!rivals || !content.rivals) return [];
+  if (!rivals) return [];
   const events = settleDefeats(state);
   for (const playerId of Object.keys(rivals.byPlayer).map(Number).sort((a, b) => a - b)) {
     const ledger = rivals.byPlayer[playerId];

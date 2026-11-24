@@ -1,4 +1,5 @@
 import { traceStrikes, traceTurns } from '../../src/core/team-battle.ts';
+import { planTeamBattleAction } from '../../src/ai/battle-plan.ts';
 import { describe, expect, test } from 'vitest';
 import { CIVILIZATION_CONTENT } from '../../src/content/civilization-systems.ts';
 import type { CivilizationContent } from '../../src/content/civilization-systems.ts';
@@ -6,6 +7,7 @@ import { createGame } from '../../src/core/game.ts';
 import { step } from '../../src/core/step.ts';
 import { createMapUnit } from '../../src/core/unit.ts';
 import { hexDistance, hexToIndex } from '../../src/core/hex.ts';
+import { observe, refreshKnowledge } from '../../src/core/vision.ts';
 import type { GameSetup, GameState } from '../../src/core/model.ts';
 import { canonicalSerialize } from '../../src/core/snapshot.ts';
 import {
@@ -21,9 +23,11 @@ const setup: GameSetup = {
   ],
 };
 function fixture(content: CivilizationContent = CIVILIZATION_CONTENT): GameState {
-  const useSetup = content === CIVILIZATION_CONTENT ? setup : { ...setup, expansionVersion: undefined };
-  const state = createGame(useSetup);
-  if (!state.expansion?.civilization) initializeCivilization(state, content);
+  const state = createGame(setup);
+  if (content !== CIVILIZATION_CONTENT) {
+    delete (state.expansion as { civilization?: unknown }).civilization;
+    initializeCivilization(state, content);
+  }
   state.activePlayerId = 0;
   state.players[0]!.gold = 1000;
   state.players[1]!.gold = 1000;
@@ -59,9 +63,9 @@ function establishSanctuary(state: GameState, siteIndex = 0) {
 }
 
 describe('versioned initialization', () => {
-  test('legacy state stays absent and expansion initialization is deterministic', () => {
-    const legacySetup = { ...setup, expansionVersion: undefined };
-    expect(createGame(legacySetup).expansion).toBeUndefined();
+  test('expansion initialization always enables v1 and is deterministic', () => {
+    const defaultedSetup = { ...setup, expansionVersion: undefined };
+    expect(createGame(defaultedSetup).expansion?.version).toBe(1);
     const first = createGame(setup), second = createGame(setup);
     expect(canonicalSerialize(first)).toBe(canonicalSerialize(second));
     expect(first.expansion!.civilization.sanctuaries.map(site => [site.id, site.position]))
@@ -153,18 +157,11 @@ describe('S24–S26 sanctuaries, guardian battles, and origin victory', () => {
     state.units[team[1]!]!.actionLeft = 0;
     expect(validateCivilizationAction(state, 0, { type: 'ChallengeGuardian', siteId: site.id, unitIds: team })).toBe('unit-not-local');
     placeAtSite(state, 0, team);
+    const replayState = structuredClone(state);
     const challenge = applyCivilizationAction(state, 0, { type: 'ChallengeGuardian', siteId: site.id, unitIds: team })
       .find(event => event.type === 'GuardianChallenged');
     expect(challenge).toBeDefined();
     if (challenge?.type !== 'GuardianChallenged') throw new Error('missing challenge');
-    const replayState = structuredClone(state), replaySite = replayState.expansion!.civilization.sanctuaries[0]!;
-    replaySite.challengeRoundByPlayer = {};
-    replaySite.guardianDefeated = false;
-    delete replayState.expansion!.civilization.tabletOwners[replaySite.tabletId];
-    for (const unitId of team) {
-      replayState.units[unitId]!.actionLeft = 1;
-      replayState.units[unitId]!.hp = CIVILIZATION_CONTENT.world.species.dragonite.maxHp;
-    }
     const replay = applyCivilizationAction(replayState, 0, { type: 'ChallengeGuardian', siteId: site.id, unitIds: team })
       .find(event => event.type === 'GuardianChallenged');
     expect(replay).toEqual(challenge);
@@ -172,13 +169,14 @@ describe('S24–S26 sanctuaries, guardian battles, and origin victory', () => {
     expect(traceStrikes(challenge.battle).every(strike => strike.damage >= 0)).toBe(true);
     expect(team.map(id => state.units[id]!.actionLeft)).toEqual([0, 0, 0]);
     expect(team.map(id => state.units[id]!.hp).every(hp => hp >= 1)).toBe(true);
-    expect(validateCivilizationAction(state, 0, { type: 'ChallengeGuardian', siteId: site.id, unitIds: team })).toBe('guardian-unavailable');
+    expect(validateCivilizationAction(state, 0, { type: 'ChallengeGuardian', siteId: site.id, unitIds: team }))
+      .toBe(challenge.victory ? 'guardian-unavailable' : 'challenge-cooldown');
   });
 
   test('claiming all four tablets through guardian battles triggers origin victory', () => {
     const originContent = structuredClone(CIVILIZATION_CONTENT);
     for (const site of originContent.sanctuaries.definitions) {
-      site.guardianSpeciesId = 'dragonite';
+      site.guardianSpeciesId = 'caterpie';
       site.challengePower = 300;
     }
     const state = fixture(originContent), civilization = state.expansion!.civilization;
@@ -186,7 +184,7 @@ describe('S24–S26 sanctuaries, guardian battles, and origin victory', () => {
     for (const [siteIndex, site] of civilization.sanctuaries.entries()) {
       placeAtSite(state, siteIndex, team);
       establishSanctuary(state, siteIndex);
-      const event = applyCivilizationAction(state, 0, { type: 'ChallengeGuardian', siteId: site.id, unitIds: team })
+      const event = applyCivilizationAction(state, 0, { type: 'ChallengeGuardian', siteId: site.id, unitIds: team }, originContent)
         .find(item => item.type === 'GuardianChallenged');
       if (event?.type !== 'GuardianChallenged' || !event.victory) throw new Error(`guardian ${site.id} was not defeated`);
       expect(civilization.tabletOwners[site.tabletId]).toBe(0);
@@ -215,7 +213,7 @@ describe('S27 recurring league championship', () => {
     if (event?.type !== 'ChampionshipResolved') throw new Error('missing championship');
     const season = event.season;
     expect(season.entrants).toHaveLength(6);
-    expect(season.entrants.every(entrant => entrant.roster.length === 6)).toBe(true);
+    expect(season.entrants.every(entrant => entrant.roster.length === (entrant.playerId !== null ? 6 : 4))).toBe(true);
     expect(season.matches.map(match => match.label)).toEqual(['preliminary-1', 'preliminary-2', 'semifinal-1', 'semifinal-2', 'final']);
     expect(season.matches.every(match => traceTurns(match.battle) > 0)).toBe(true);
     expect(civilization.championship.registrations).toEqual({});
@@ -224,11 +222,13 @@ describe('S27 recurring league championship', () => {
   });
 
   test('a second championship title ends the game', () => {
-    const state = fixture(), civilization = state.expansion!.civilization, team = strongTeam(state, 0, 870, 'venusaur');
+    const championshipContent = structuredClone(CIVILIZATION_CONTENT);
+    championshipContent.world.pace27.trainers.npcBasePower = 400;
+    const state = fixture(championshipContent), civilization = state.expansion!.civilization, team = strongTeam(state, 0, 870, 'venusaur');
     civilization.championship.nextRound = 1;
     state.round = 1;
-    applyCivilizationAction(state, 0, { type: 'RegisterChampionshipTeam', unitIds: team });
-    resolveCivilizationRound(state);
+    applyCivilizationAction(state, 0, { type: 'RegisterChampionshipTeam', unitIds: team }, championshipContent);
+    resolveCivilizationRound(state, championshipContent);
     const first = civilization.championship.history[0]!;
     if (first.championPlayerId !== 0) throw new Error('strong deterministic roster did not win season one');
     state.round = civilization.championship.nextRound;
@@ -236,8 +236,8 @@ describe('S27 recurring league championship', () => {
       state.units[unitId]!.hp = CIVILIZATION_CONTENT.world.species.venusaur.maxHp;
       state.units[unitId]!.actionLeft = 1;
     }
-    applyCivilizationAction(state, 0, { type: 'RegisterChampionshipTeam', unitIds: team });
-    resolveCivilizationRound(state);
+    applyCivilizationAction(state, 0, { type: 'RegisterChampionshipTeam', unitIds: team }, championshipContent);
+    resolveCivilizationRound(state, championshipContent);
     expect(civilization.championship.titlesByPlayer[0]).toBe(2);
     expect(civilization.victory).toMatchObject({ kind: 'championship', playerId: 0, season: 2 });
     expect(state.outcome).toMatchObject({ kind: 'championship', winners: [0] });
@@ -344,11 +344,13 @@ describe('observation and deterministic planning', () => {
     const strongerNearby = strongTeam(challengedState, 0, 820).slice(1, 4);
     placeAtSite(challengedState, 0, strongerNearby);
     challengedState.units[strongerNearby[0]!]!.position = { q: site.position.q + 2, r: site.position.r };
-    const challengeView = observeCivilization(challengedState, 0, visible);
-    const challenge = planCivilizationAction(challengeView);
+    challengedState.expansion!.civilization.sanctuaries[0]!.guardianSpeciesId = 'caterpie';
+    challengedState.expansion!.civilization.sanctuaries[0]!.challengePower = 300;
+    refreshKnowledge(challengedState);
+    const challenge = planTeamBattleAction(observe(challengedState, 0), CIVILIZATION_CONTENT.world);
     expect(challenge).toMatchObject({ type: 'ChallengeGuardian', siteId: site.id });
     expect(challenge?.type === 'ChallengeGuardian' && challenge.unitIds.includes(unit.id)).toBe(true);
-    expect(validateCivilizationAction(challengedState, 0, challenge!)).toBeNull();
+    expect(validateCivilizationAction(challengedState, 0, challenge! as never)).toBeNull();
     const challengeResult = step(challengedState, { actorId: 0, expectedSeq: challengedState.commandSeq, action: challenge! });
     expect(challengeResult.ok).toBe(true);
   });

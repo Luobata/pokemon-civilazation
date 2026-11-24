@@ -38,7 +38,6 @@ export function firstFinalOfLine(content: Content, registered: readonly SpeciesI
 export function evolutionGoalMilestones(before: GameState, after: GameState, events: readonly EventPayload[]): [number, EraMilestone][] {
   if (!after.expansion?.eraHonors || !events.some(event => event.type === 'Evolved' || event.type === 'WorldStoneEvolution')) return [];
   const content = contentFor(after.setup);
-  if (!content.evolutionGoals) return [];
   const found: [number, EraMilestone][] = [], finals: Record<number, number> = {};
   for (const event of events) {
     if (event.type !== 'Evolved' && event.type !== 'WorldStoneEvolution') continue;

@@ -19,7 +19,7 @@ import type { CommandLog } from '../../../src/app/session.ts';
 import type { AiPersonality, Command, GameSetup, GameState, PlayerView } from '../../../src/core/model.ts';
 
 type Options = { seed: number; personality: AiPersonality };
-const setupFor = ({ seed, personality }: Options): GameSetup => ({ seed, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 24,
+const setupFor = ({ seed, personality }: Options): GameSetup => ({ seed, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 27,
   players: [{ id: 0, controller: 'human', starterId: 'bulbasaur', leaderId: 'oak' }, ...[1, 2, 3].map(id => ({ id, controller: 'ai' as const, personality }))] });
 export type BattleEvoFixture = { state: GameState; save: string; id: number };
 

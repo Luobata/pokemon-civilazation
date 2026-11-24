@@ -59,14 +59,12 @@ export function depthWorldCards(view: PlayerView, content: Content = contentForV
     // Playtest 2026-11b N7: an open season nobody can enter says why, and is not ranked as an urgent next step.
     const open = Boolean(seasons.category && !seasons.ownEntry);
     // v27 ⑦: any own city will do; the reason names the nearby-city rule.
-    const blocked = open && !entryUnit ? content.contestCircuit ? '附近城市里没有可出场的宝可梦：派一只宝可梦站在任意己方城市里或旁边'
-      : !exp.contests?.own.halls.length ? '你还没有华丽大赛馆：先在城市建大赛馆，再派宝可梦站在馆所在的城里或旁边参赛'
-      : CONTEST_SEASON_REASONS[(best ? viewContestEntryBlocker(view, best.unit.id, content) : null) ?? 'season-hall'] ?? '现在没有能参赛的宝可梦' : null;
-    const prizes = content.contestCircuit && seasons.category ? circuitPrizeLine(seasons.category, content) : '';
+    const blocked = open && !entryUnit ? '附近城市里没有可出场的宝可梦：派一只宝可梦站在任意己方城市里或旁边' : null;
+    const prizes = seasons.category ? circuitPrizeLine(seasons.category, content) : '';
     cards.push({ id: 'season', title: `华丽大赛季 第 ${seasons.season} 届`, art: { icon: seasons.category ? CATEGORY_ICONS[seasons.category] : 'ribbon' },
-      status: `${category ? category.name : '类别未公布'} · ${left <= 0 ? '本轮评审' : `${left} 轮后`}${seasons.ownEntry ? ' · 已参赛' : ''}${blocked ? ` · 不能参赛：${content.contestCircuit || exp.contests?.own.halls.length ? '没有合适的宝可梦' : '没有大赛馆'}` : ''}`,
+      status: `${category ? category.name : '类别未公布'} · ${left <= 0 ? '本轮评审' : `${left} 轮后`}${seasons.ownEntry ? ' · 已参赛' : ''}${blocked ? ' · 不能参赛：没有合适的宝可梦' : ''}`,
       tip: `第 ${seasons.nextRound} 轮轮末评审；赛前 ${lateTuning(content).seasonAnnounce} 轮（第 ${seasons.announceRound} 轮）公布类别后开放报名。\n`
-        + (content.contestCircuit ? '巡回华丽大赛：任意己方城市里或旁边的宝可梦都能报名（不需要大赛馆，大赛馆仍然加分）。\n' : '')
+        + '巡回华丽大赛：任意己方城市里或旁边的宝可梦都能报名（不需要大赛馆，大赛馆仍然加分）。\n'
         + (category ? `本届「${category.name}」加分属性：${category.types.map(type => TYPE_NAMES[type]).join('、')}。\n` : '')
         + `得分 = 20 × 匹配属性（最多 2，学习器也算）+ 10 × 阶段 + 历练 + 5 × 大赛馆（最多 4）+ 0–9 决胜。名次人气：+${lateTuning(content).seasonRewards.join(' / +')}，其余 +${lateTuning(content).seasonEntryAppeal}；冠军得缎带。`
         + (best ? `\n你的最佳人选：${unitDefinition(best.unit, content).name}（#${best.unit.id}）${best.score} 分。` : '')
@@ -275,7 +273,7 @@ export function depthToast(payload: VisibleEvent['payload'], view: PlayerView): 
   const content = contentForView(view), me = view.playerId, world = { kind: 'screen', screen: 'world' } as const;
   switch (payload.type) {
     case 'OpeningGiftReceived':
-      return payload.playerId === me ? { tone: 'growth', icon: '◓', title: `大木博士送来 ${payload.quantity} 个精灵球`, detail: content.wildEncounters ? '驯化完成：你的第一颗球对相邻的任何野生宝可梦都必中，选中宝可梦按 Q 捕捉。' : '驯化完成：削弱相邻的野生宝可梦，再按 Q 捕捉。', target: null, action: '知道了', persistent: true } : null;
+      return payload.playerId === me ? { tone: 'growth', icon: '◓', title: `大木博士送来 ${payload.quantity} 个精灵球`, detail: '驯化完成：你的第一颗球对相邻的任何野生宝可梦都必中，选中宝可梦按 Q 捕捉。', target: null, action: '知道了', persistent: true } : null;
     case 'GoldSinkUsed': return null;
     case 'ContestSeasonJudged': {
       const own = payload.placings.find(item => item.playerId === me), first = payload.placings[0];

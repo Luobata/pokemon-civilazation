@@ -1,4 +1,3 @@
-import { gameplayAtLeast } from '../content/eras.ts';
 import type { GameplayVersion } from '../content/eras.ts';
 import type { Content, UnitIdentity } from '../content/units.ts';
 import { hexDistance } from './hex.ts';
@@ -9,7 +8,7 @@ import type { Diplomacy, MapUnit } from './model.ts';
 export const FLANK_PER_UNIT = 100;
 export const FLANK_MAX = 300;
 type Source = { gameplayVersion?: GameplayVersion };
-export const usesTactics = (source: Source) => gameplayAtLeast(source, 2);
+export const usesTactics = (_source?: Source) => { void _source; return true; };
 
 export function exertsZoc(unit: UnitIdentity, content: Content): boolean {
   if (unit.kind !== 'pokemon') return false;

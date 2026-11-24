@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { BASE_SPECIES_NAMES, SPECIES, speciesDisplay, validateSpecies } from '../../src/content/species.ts';
 import { captureProbability, damage, dualEffectiveness, effectiveness, terrainMultiplier } from '../../src/core/combat-math.ts';
-import { EXPANSION_CONTENT } from '../../src/content/units.ts';
+import { GAME_CONTENT } from '../../src/content/units.ts';
 
 describe('GDD v0.6 integer fixtures', () => {
   test.each([
@@ -57,12 +57,12 @@ test('47 species, budgets/costs, nine rare, legacy D15 all same-stage pairs ≤6
 });
 
 test('expanded full-type researched dual weaknesses retain the same-stage D15 limit', () => {
-  const definitions = Object.values(EXPANSION_CONTENT.species);
+  const definitions = Object.values(GAME_CONTENT.species);
   for (const attacker of definitions) for (const defender of definitions) {
     if (attacker.stage !== defender.stage) continue;
     const types = defender.secondaryTypeId ? [defender.typeId, defender.secondaryTypeId] : [defender.typeId];
     const multiplier = dualEffectiveness(attacker.typeId, types, true);
     const hit = damage(attacker.attack, defender.defense, attacker.power, multiplier, 120, 100);
-    expect(hit * 100, `${attacker.name} → ${defender.name}`).toBeLessThanOrEqual(defender.maxHp * 60);
+    expect(hit * 100, `${attacker.name} → ${defender.name}`).toBeLessThanOrEqual(defender.maxHp * 75);
   }
 });

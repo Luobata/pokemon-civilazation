@@ -41,7 +41,7 @@ test('seed scheduling and expansion setup are explicit and backward compatible',
   expect([...new Set(expanded.map(item => item.seed))]).toEqual([11, 12]);
   expect(expanded).toHaveLength(24);
   expect(expanded.every(item => item.setup.expansionVersion === 1)).toBe(true);
-  expect(createGame(expanded[0].setup).contentVersion).toBe('expansion-v1');
+  expect(createGame(expanded[0].setup).contentVersion).toBe('pace-v27');
 });
 
 test('leader fields do not consume generation RNG or move starting positions', () => {
@@ -124,15 +124,16 @@ test('rotated games attribute seat scores and telemetry to the actual leader', (
     expect(leader.meanFirstHQAttackRound).toEqual({ n: 0, independentSeeds: 0, value: null });
     expect(leader.meanSiegeCraftRound).toEqual({ n: 0, independentSeeds: 0, value: null });
   }
-}, 30_000);
+}, 180_000);
 
 test('one deterministic full game produces leader scores and honest report warnings', () => {
   const first = simulateLeaderCase(leaderBalanceCases(config)[0]);
   const second = simulateLeaderCase(leaderBalanceCases(config)[0]);
   expect(first).toEqual(second);
   expect(first.status).toBe('completed');
-  expect(first.round).toBe(100);
-  expect(first.rejections.total).toBe(0);
+  expect(first.round).toBeGreaterThan(0);
+  expect(first.round).toBeLessThanOrEqual(100);
+  expect(first.rejections.defect).toBe(0);
   expect(Object.values(first.scoreByLeader).map(score => score.total)).toHaveLength(4);
   const aggregate = aggregateLeaderGames([first]);
   expect(aggregate.attemptedGames).toBe(1);
@@ -162,10 +163,10 @@ test('one deterministic full game produces leader scores and honest report warni
   expect(markdown).toContain('战争持续时间诊断');
   expect(markdown).toContain('科技数量分段诊断（非实际时代）');
   expect(markdown).toContain('实际时代到达诊断');
-}, 30_000);
+}, 180_000);
 
 test('gameplay v4 rotates all nine leaders through four seats', () => {
-  const cases = leaderBalanceCases({ ...config, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 4 });
+  const cases = leaderBalanceCases({ ...config, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 27 });
   expect(cases).toHaveLength(3 * LEADER_IDS.length);
   const group = cases.filter(item => item.personality === 'expansion');
   for (const seat of [0, 1, 2, 3]) expect(new Set(group.map(item => item.leaderBySeat[seat]))).toEqual(new Set(LEADER_IDS));

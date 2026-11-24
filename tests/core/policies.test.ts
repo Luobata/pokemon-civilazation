@@ -1,7 +1,8 @@
 import { expect, test } from 'vitest';
 import { GameSession, replay } from '../../src/app/session.ts';
-import { EXPANSION_CONTENT } from '../../src/content/units.ts';
+import { GAME_CONTENT, contentFor } from '../../src/content/units.ts';
 import { CHARTERS, POLICY_SWAP_GOLD } from '../../src/content/policies.ts';
+import { regionalPokedexTarget } from '../../src/content/opening.ts';
 import { createGame } from '../../src/core/game.ts';
 import { cityYield } from '../../src/core/city.ts';
 import { observe } from '../../src/core/vision.ts';
@@ -25,18 +26,16 @@ function adopt(state: GameState, ...ids: (keyof typeof CHARTERS)[]) {
   state.expansion!.policies![0].adopted = [...ids].sort();
 }
 
-test('policies exist only in gameplay v3 and the parser validates card lists', () => {
-  expect(createGame(setup(3)).expansion?.policies?.[0]).toMatchObject({ adopted: [], slotted: [], charterId: null, freeSwap: true });
-  expect(createGame(setup(2)).expansion).not.toHaveProperty('policies');
-  expect(observe(createGame(setup(2)), 0).expansion).not.toHaveProperty('policies');
-  expect(act(createGame(setup(2)), { type: 'SetCharter', charterId: 'gymCode' }).ok).toBe(false);
+test('policies initialize cleanly and the parser validates card lists', () => {
+  expect(createGame(setup(27)).expansion?.policies?.[0]).toMatchObject({ adopted: [], slotted: [], charterId: null, freeSwap: true });
+  expect(observe(createGame(setup(27)), 0).expansion).toHaveProperty('policies');
   expect(parseAuditAction({ type: 'SetPolicies', policyIds: ['marketDay', 'gymChallenge'] })).toEqual({ type: 'SetPolicies', policyIds: ['marketDay', 'gymChallenge'] });
   expect(() => parseAuditAction({ type: 'SetPolicies', policyIds: ['marketDay', 'marketDay'] })).toThrow();
   expect(() => parseAuditAction({ type: 'SetPolicies', policyIds: ['bogus'] })).toThrow();
 });
 
 test('charters require prerequisites and complete in round settlement, granting slots and a free swap', () => {
-  const state = createGame(setup(3));
+  const state = createGame(setup(27));
   expect(act(state, { type: 'SetCharter', charterId: 'rangerCharter' }).ok).toBe(false);
   const chosen = act(state, { type: 'SetCharter', charterId: 'gymCode' });
   expect(chosen.ok).toBe(true);
@@ -59,7 +58,7 @@ test('slots constrain cards; wild slots take either kind', () => {
 });
 
 test('first change is free, later changes cost gold; effects apply to yields', () => {
-  const state = createGame(setup(3)); adopt(state, 'gymCode');
+  const state = createGame(setup(27)); adopt(state, 'gymCode');
   const city = state.cities[state.players[0].headquartersCityId];
   const before = cityYield(state, city).research;
   const set = act(state, { type: 'SetPolicies', policyIds: ['researchGrant'] });
@@ -81,34 +80,38 @@ test('leader affinity amplifies matching cards', () => {
   expect(policyEffects({ leaderId: 'joy' }, ['nurseCorps']).healing).toBe(4);
 });
 
-test('AI picks a charter, then fills slots by personality and leader', () => {
-  const state = createGame({ ...setup(3), multiplayer: undefined, players: [
+test('AI picks a charter, then a government, then fills slots by personality and leader', () => {
+  const state = createGame({ ...setup(27), multiplayer: undefined, players: [
     { id: 0, controller: 'ai', personality: 'aggressive', leaderId: 'lance' }, { id: 1, controller: 'human', starterId: 'bulbasaur', leaderId: 'oak' }] });
   expect(planPolicyAction(observe(state, 0))).toEqual({ type: 'SetCharter', charterId: 'gymCode' });
   adopt(state, 'gymCode');
   state.expansion!.policies![0].charterId = 'rangerCharter';
+  expect(planPolicyAction(observe(state, 0))).toEqual({ type: 'SetGovernment', governmentId: 'gymLeague' });
+  state.expansion!.policies![0].government = 'gymLeague';
   expect(planPolicyAction(observe(state, 0))).toEqual({ type: 'SetPolicies', policyIds: ['gymChallenge', 'harvestFestival'] });
 });
 
 // Replays the full AI log on load and explicitly; allow >5x the observed 5.6s loaded run.
-test('gameplay v3 keeps exact save/load and replay with AI charters', () => {
-  const session = new GameSession({ ...setup(3), multiplayer: undefined, players: [
+test('gameplay v27 keeps exact save/load and replay with AI charters', () => {
+  const session = new GameSession({ ...setup(27), multiplayer: undefined, players: [
     { id: 0, controller: 'human', starterId: 'bulbasaur', leaderId: 'oak' }, { id: 1, controller: 'ai', personality: 'expansion', leaderId: 'joy' }] });
   for (let turn = 0; turn < 40; turn++) {
     const current = session.getState();
     if (current.outcome) break;
     expect(session.submit({ actorId: current.activePlayerId, expectedSeq: current.commandSeq, action: { type: 'EndTurn' } }).ok).toBe(true);
   }
-  const saved = session.save(), loaded = new GameSession(setup(3));
+  const saved = session.save(), loaded = new GameSession(setup(27));
   loaded.load(saved);
   expect(loaded.save()).toBe(saved);
   expect(canonicalSerialize(replay(session.exportLog()))).toBe(canonicalSerialize(session.getState()));
   expect(session.getState().expansion!.policies![1].adopted.length).toBeGreaterThan(0);
-  void EXPANSION_CONTENT;
+  void GAME_CONTENT;
 }, 30_000);
 
-test('gameplay v3 raises the Pokédex victory target; earlier packs keep 18', () => {
-  expect(createGame(setup(3)).expansion!.world.victory.targetDocumentedSpecies).toBe(21);
-  expect(createGame(setup(2)).expansion!.world.victory.targetDocumentedSpecies).toBe(18);
-  expect(createGame(setup()).expansion!.world.victory.targetDocumentedSpecies).toBe(18);
+test('v27 Pokédex victory target scales with the regional dex and v26/v27 bonuses', () => {
+  const state = createGame(setup(27)), content = contentFor(state.setup);
+  const expected = regionalPokedexTarget(26, content.regionalDex!.size, content.regionalDex!.pool)
+    + content.depth26.pokedexTargetBonus + content.pace27.opening.pokedexTargetBonus;
+  expect(state.expansion!.world.victory.targetDocumentedSpecies).toBe(expected);
+  expect(createGame(setup()).expansion!.world.victory.targetDocumentedSpecies).toBe(expected);
 });

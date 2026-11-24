@@ -1,6 +1,5 @@
 import { expect, test } from 'vitest';
 import { generateWorldMap } from '../../src/core/map-v24.ts';
-import { generateMap } from '../../src/core/map.ts';
 import { hexDistance, hexToIndex, indexToHex, neighbors } from '../../src/core/hex.ts';
 import type { MapState } from '../../src/core/map.ts';
 
@@ -89,10 +88,4 @@ test('v24 generator: start fairness and 56x36 timing', () => {
   for (const seed of [31, 32, 33]) generateWorldMap({ seed, width: 56, height: 36, playerCount: 4 });
   // Spec target is 50 ms per map; the bound leaves room for loaded CI machines.
   expect((performance.now() - started) / 3).toBeLessThan(250);
-});
-
-test('the v22/v23 generator is untouched', () => {
-  const map = generateMap({ seed: 31, width: 24, height: 16, playerCount: 4, wrap: true });
-  expect(map.features).toBeUndefined();
-  expect(map.starts.map(start => start.tileIndex)).toEqual(generateMap({ seed: 31, width: 24, height: 16, playerCount: 4, wrap: true }).starts.map(start => start.tileIndex));
 });

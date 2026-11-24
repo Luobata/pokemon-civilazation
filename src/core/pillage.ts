@@ -49,7 +49,7 @@ export function pillageReward(kind: ImprovementId, nearestCityId: number | undef
 }
 const improvementGetter = (state: GameState) => (index: number) => state.expansion?.improvements?.tiles[index];
 export function validatePillageAction(state: GameState, actorId: number, action: PillageAction, content: Content): string | null {
-  if (!usesImprovementsV23(state) || !content.pillage || !state.expansion?.improvements) return 'pillage-unavailable';
+  if (!state.expansion?.improvements) return 'pillage-unavailable';
   const unit = state.units[action.unitId];
   if (action.type === 'PillageImprovement') return pillageBlocker({ map: state.map, cities: Object.values(state.cities), relations: state.diplomacy, actorId,
     unit: unit && isMapUnit(unit) ? unit : undefined, improvementAt: improvementGetter(state) });

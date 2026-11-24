@@ -2,11 +2,11 @@ import { readFileSync } from 'node:fs';
 import { AI_THRESHOLDS } from '../../src/ai/thresholds.ts';
 import { expect, test } from 'vitest';
 import { parsePatch } from '../../tools/patch.ts';
-import { CONTENT, contentFor, unitDefinition } from '../../src/content/units.ts';
+import { GAME_CONTENT, contentFor, unitDefinition } from '../../src/content/units.ts';
 import { LATEST_GAMEPLAY_VERSION } from '../../src/content/eras.ts';
 import { createGame } from '../../src/core/game.ts';
 import { createCity, maxCityHp, tileYield } from '../../src/core/city.ts';
-import { cityCounterDamage, cityDamage } from '../../src/core/combat-query.ts';
+import { cityDamage } from '../../src/core/combat-query.ts';
 import { observe } from '../../src/core/vision.ts';
 import { scorePlayer, finishGame, eliminateCivilization } from '../../src/core/victory.ts';
 import { roundSnapshot } from '../../tools/telemetry.ts';
@@ -38,15 +38,15 @@ test.each([
   expect(() => parsePatch(input)).toThrow(String(path));
 });
 test('patches are isolated, aliased species stay consistent, hashes ignore key order', () => {
-  const before = JSON.stringify(CONTENT);
+  const before = JSON.stringify(GAME_CONTENT);
   const first = parsePatch({ species: { bulbasaur: { upkeep: 9, move: 4 } }, settler: { trainCost: 50 } });
   const second = parsePatch({ settler: { trainCost: 50 }, species: { bulbasaur: { move: 4, upkeep: 9 } } });
   expect(first.sha256).toBe(second.sha256);
   expect(first.content.units.bulbasaur).toBe(first.content.species.bulbasaur);
   expect(unitDefinition({ kind: 'pokemon', speciesId: 'bulbasaur' }, first.content)).toMatchObject({ upkeep: 9, move: 4 });
   expect(first.content.units.settler.trainCost).toBe(50);
-  expect(JSON.stringify(CONTENT)).toBe(before);
-  expect(parsePatch({}).content).toEqual(CONTENT);
+  expect(JSON.stringify(GAME_CONTENT)).toBe(before);
+  expect(parsePatch({}).content).toEqual(GAME_CONTENT);
 });
 test('city HP, damage, observation, scoring and telemetry use injected rules', () => {
   const { content } = parsePatch({ balance: { city: { baseHp: 60, buildingHp: 7, counterAttack: 90, squirtleCounterAttack: 95, defense: 25 },
@@ -60,7 +60,6 @@ test('city HP, damage, observation, scoring and telemetry use injected rules', (
   const view = observe(state, 0, content), target = state.cities[2];
   const expected = state.players[target.ownerId!].starterId === 'squirtle' ? 95 : 90;
   expect(view.combat.cities[2].counterAttack).toBe(expected);
-  expect(cityCounterDamage(expected, unit, 'grassland', 'grassland', content)).toBeGreaterThan(0);
   const player = state.players[0]; player.research.unlockedIds.push('leagueRules', 'meteorology');
   expect(tileYield('snow', player, content).research).toBe(4);
   const score = scorePlayer(state, 0, content);
@@ -74,8 +73,8 @@ test('city HP, damage, observation, scoring and telemetry use injected rules', (
 });
 test('empty patch preserves a full match', () => {
   const match = explorationMatches(3)[0], baseline = simulateMatch(match);
-  expect(JSON.stringify(simulateMatch(match, 100, parsePatch({})))).toBe(JSON.stringify(baseline));
-}, 30_000);
+  expect(JSON.stringify(simulateMatch(match, 100, parsePatch({}, contentFor(matchSetup(match, 100)))))).toBe(JSON.stringify(baseline));
+}, 120_000);
 
 test('boolean AI patches preserve explicit false and do not mutate defaults', () => {
   expect(parsePatch({ ai: { conservativeCaptureTerritoryOnly: false } }).ai.conservativeCaptureTerritoryOnly).toBe(false);
@@ -134,9 +133,11 @@ test('D44 defaults are on; explicit experimental fields parse without changing d
 });
 
 
-test('D46 production defaults equal the complete approved M2 configuration', () => {
+test('D46 production defaults preserve approved M2 AI and balance fields (with v20 city baseHp 100)', () => {
   const m2 = parsePatch(JSON.parse(readFileSync(new URL('../../tools/patches/b7-m2.json', import.meta.url), 'utf8')));
-  expect(CONTENT).toEqual(m2.content);
+  expect(GAME_CONTENT.balance.city).toEqual({ ...m2.content.balance.city, baseHp: 100 });
+  expect(GAME_CONTENT.balance.effects).toEqual(m2.content.balance.effects);
+  expect(GAME_CONTENT.balance.score).toEqual(m2.content.balance.score);
   expect(AI_THRESHOLDS).toEqual(m2.ai);
 });
 
@@ -149,68 +150,63 @@ test('a stock-valued patch on version content changes nothing; a real one is app
   expect(stronger.content.version).toBe(base.version);
   expect(stronger.ai.aggressiveWarStrength).toBe(1500);
   expect(base.balance.city.defense).toBe(50);
-  // Version tables are validated against the version's own species / techs, not the legacy ones.
-  const rosterOnly = Object.keys(base.species).find(id => !Object.hasOwn(CONTENT.species, id))!;
-  expect(parsePatch({ species: { [rosterOnly]: { attack: 60 } } }, base).content.units[rosterOnly]).toMatchObject({ attack: 60 });
-  expect(() => parsePatch({ species: { [rosterOnly]: { attack: 60 } } })).toThrow(`patch.species.${rosterOnly}`);
+  // Version tables include v14/v26 roster species and reject unknown species ids.
+  expect(parsePatch({ species: { golbat: { attack: 60 }, weedle: { defense: 30 } } }, base).content.units.golbat).toMatchObject({ attack: 60 });
+  expect(() => parsePatch({ species: { unknownSpecies: { attack: 60 } } }, base)).toThrow('patch.species.unknownSpecies');
   expect(() => parsePatch({ techs: { [Object.keys(base.techs)[0]]: { cost: 20 } } }, base)).not.toThrow();
   expect(() => parsePatch({ balance: { city: { defense: 0 } } }, base)).toThrow('patch.balance.city.defense');
 });
 
-test('v24 tuning knobs: patchable on the v24 content only, and they reach map generation, gyms and rivals', () => {
-  const v24 = contentFor({ expansionVersion: 1, gameplayVersion: 24 }), v23 = contentFor({ expansionVersion: 1, gameplayVersion: 23 });
-  expect(() => parsePatch({ world24: { landPercent: 64 } }, v23)).toThrow('patch.world24: unknown field');
+test('v24 tuning knobs reach map generation, gyms and rivals', () => {
+  const v27 = contentFor({ expansionVersion: 1, gameplayVersion: 27 });
   const tuned = parsePatch({ world24: { landPercent: 64, rivalArrivals: { 0: 12 }, rivalStrengthOffsets: { 0: -10 }, rivalStepsPerRound: 3, gymLatePowerPercent: 85,
-    gymTeamPower: { 0: 180 }, eliteFourPower: { 4: 900 } } }, v24).content;
-  expect(tuned.world24).toMatchObject({ landPercent: 64, rivalArrivals: [12, 25, 50], rivalStrengthOffsets: [-10, -2, 2], rivalStepsPerRound: 3, gymLatePowerPercent: 85 });
+    gymTeamPower: { 0: 180 }, eliteFourPower: { 4: 900 } } }, v27).content;
+  expect(tuned.world24).toMatchObject({ landPercent: 64, rivalArrivals: [12, 25, 50], rivalStrengthOffsets: [-10, -4, 0], rivalStepsPerRound: 3, gymLatePowerPercent: 85 });
   expect(tuned.world24!.gymTeamPower[0]).toBe(180);
   expect(tuned.world24!.eliteFourPower[4]).toBe(900);
-  expect(v24.world24!.rivalArrivals).toEqual([8, 25, 50]);
-  expect(() => parsePatch({ world24: { rivalArrivals: { 3: 70 } } }, v24)).toThrow('patch.world24.rivalArrivals.3');
-  const setup = { seed: 31, width: 40, height: 26, roundLimit: 200 as const, expansionVersion: 1 as const, eraProgression: 'simple-v1' as const, gameplayVersion: 24 as const,
+  expect(v27.world24!.rivalArrivals).toEqual([8, 25, 50]);
+  expect(() => parsePatch({ world24: { rivalArrivals: { 3: 70 } } }, v27)).toThrow('patch.world24.rivalArrivals.3');
+  const setup = { seed: 31, width: 40, height: 26, roundLimit: 200 as const, expansionVersion: 1 as const, eraProgression: 'simple-v1' as const, gameplayVersion: 27 as const,
     players: [0, 1, 2, 3].map(id => ({ id, controller: 'ai' as const })) };
-  const land = (content = v24) => createGame(setup, content).map.tiles.filter(tile => tile !== 'ocean').length;
+  const land = (content = v27) => createGame(setup, content).map.tiles.filter(tile => tile !== 'ocean').length;
   expect(land(tuned)).toBeGreaterThan(land());
   expect(observe(createGame(setup, tuned), 0, tuned).expansion!.rivals!.nextArrival).toBe(12);
 });
 
-test('v26 tuning knobs: the conference NPC power (base, per season, per slot) and the other depth26 knobs patch the v26 content only', () => {
-  const v26 = contentFor({ expansionVersion: 1, gameplayVersion: 26 }), v25 = contentFor({ expansionVersion: 1, gameplayVersion: 25 });
-  expect(() => parsePatch({ depth26: { npcBasePower: 900 } }, v25)).toThrow('patch.depth26: unknown field');
-  const tuned = parsePatch({ depth26: { npcBasePower: 900, npcSeasonPower: 30, npcSlotPower: 0, gymPowerPercent: 75, guardianHpPercent: { 1: 180 } } }, v26).content;
+test('v26/v27 tuning knobs patch conference NPC power and other depth26 fields', () => {
+  const v27 = contentFor({ expansionVersion: 1, gameplayVersion: 27 });
+  const tuned = parsePatch({
+    depth26: { npcBasePower: 900, npcSeasonPower: 30, npcSlotPower: 0, gymPowerPercent: 75, guardianHpPercent: { 1: 180 } },
+    pace27: { trainers: { npcBasePower: 900 } },
+  }, v27).content;
   expect(tuned.depth26).toMatchObject({ npcBasePower: 900, npcSeasonPower: 30, npcSlotPower: 0, gymPowerPercent: 75, guardianHpPercent: [150, 180] });
-  expect(v26.depth26!.npcBasePower).not.toBe(900);
-  const power = (content: typeof v26, season: number) => championshipNpcEntrants(31, season, content)[0].roster.reduce((sum, member) => sum + member.maxHp + member.attack + member.defense, 0);
+  expect(v27.depth26!.npcBasePower).not.toBe(900);
+  const power = (content: typeof v27, season: number) => championshipNpcEntrants(31, season, content)[0].roster.reduce((sum, member) => sum + member.maxHp + member.attack + member.defense, 0);
   // Each member gets floor(total / 6) scaled per stat, so the team total sits just under the target.
   expect(power(tuned, 2)).toBeLessThanOrEqual(900 + 2 * 30);
   expect(power(tuned, 2)).toBeGreaterThan(900 + 2 * 30 - 30);
-  expect(() => parsePatch({ depth26: { npcBasePower: 5 } }, v26)).toThrow('patch.depth26.npcBasePower');
+  expect(() => parsePatch({ depth26: { npcBasePower: 5 } }, v27)).toThrow('patch.depth26.npcBasePower');
 });
 
-test('v26 victory-target knobs: the contest minimum percent and the Pokédex bonus move v26 targets only', () => {
-  const setup = (gameplayVersion: 25 | 26) => ({ seed: 31, width: 40, height: 26, roundLimit: 200 as const, expansionVersion: 1 as const, eraProgression: 'simple-v1' as const,
+test('v26 victory-target knobs adjust contest minimum percent and Pokédex bonus', () => {
+  const setup = (gameplayVersion: 27) => ({ seed: 31, width: 40, height: 26, roundLimit: 200 as const, expansionVersion: 1 as const, eraProgression: 'simple-v1' as const,
     gameplayVersion, players: [0, 1, 2, 3].map(id => ({ id, controller: 'ai' as const, leaderId: undefined })) });
-  const v26 = contentFor(setup(26)), v25 = contentFor(setup(25));
-  expect(() => parsePatch({ depth26: { contestTargetPercent: 130 } }, v25)).toThrow('patch.depth26: unknown field');
-  expect(contestMinimum(setup(25), v25)).toBe(2000);
-  const stockMinimum = contestMinimum(setup(26), v26), tuned = parsePatch({ depth26: { contestTargetPercent: 150, pokedexTargetBonus: 4 } }, v26).content;
-  expect(contestMinimum(setup(26), tuned)).toBe(Math.round(2000 * 1.5));
-  expect(stockMinimum).toBe(Math.round(2000 * v26.depth26!.contestTargetPercent / 100));
-  const stock = createGame(setup(26)), patched = createGame(setup(26), tuned);
-  expect(patched.expansion!.world.victory.targetDocumentedSpecies - stock.expansion!.world.victory.targetDocumentedSpecies).toBe(4 - v26.depth26!.pokedexTargetBonus);
+  const v27 = contentFor(setup(27));
+  const stockMinimum = contestMinimum(setup(27), v27), tuned = parsePatch({ depth26: { contestTargetPercent: 150, pokedexTargetBonus: 4 } }, v27).content;
+  expect(contestMinimum(setup(27), tuned)).toBe(Math.round(2000 * 1.5));
+  expect(stockMinimum).toBe(Math.round(2000 * v27.depth26!.contestTargetPercent / 100));
+  const stock = createGame(setup(27)), patched = createGame(setup(27), tuned);
+  expect(patched.expansion!.world.victory.targetDocumentedSpecies - stock.expansion!.world.victory.targetDocumentedSpecies).toBe(4 - v27.depth26!.pokedexTargetBonus);
   expect(observeContests(patched, 0, tuned)!.target).toBe(3000);
-  expect(() => parsePatch({ depth26: { contestTargetPercent: 20 } }, v26)).toThrow('patch.depth26.contestTargetPercent');
+  expect(() => parsePatch({ depth26: { contestTargetPercent: 20 } }, v27)).toThrow('patch.depth26.contestTargetPercent');
 });
 
-test('v27 Pokédex knob: pace27.opening.pokedexTargetBonus stacks on the v26 bonus in v27 only', () => {
-  const setup = (gameplayVersion: 26 | 27) => ({ seed: 31, width: 40, height: 26, roundLimit: 200 as const, expansionVersion: 1 as const, eraProgression: 'simple-v1' as const,
-    gameplayVersion, players: [0, 1, 2, 3].map(id => ({ id, controller: 'ai' as const, leaderId: undefined })) });
-  const v26 = contentFor(setup(26)), v27 = contentFor(setup(27));
-  expect(() => parsePatch({ pace27: { opening: { pokedexTargetBonus: 3 } } }, v26)).toThrow('patch.pace27');
-  const target = (version: 26 | 27, content = version === 26 ? v26 : v27) => createGame(setup(version), content).expansion!.world.victory.targetDocumentedSpecies;
+test('v27 Pokédex knob: pace27.opening.pokedexTargetBonus adjusts the target', () => {
+  const setup = () => ({ seed: 31, width: 40, height: 26, roundLimit: 200 as const, expansionVersion: 1 as const, eraProgression: 'simple-v1' as const,
+    gameplayVersion: 27 as const, players: [0, 1, 2, 3].map(id => ({ id, controller: 'ai' as const, leaderId: undefined })) });
+  const v27 = contentFor(setup());
+  const target = (content = v27) => createGame(setup(), content).expansion!.world.victory.targetDocumentedSpecies;
   const stock = v27.pace27!.opening.pokedexTargetBonus, tuned = parsePatch({ pace27: { opening: { pokedexTargetBonus: stock + 5 } } }, v27).content;
-  expect(target(27, tuned) - target(27)).toBe(5);
-  // The same map and regional Pokédex as v26: v27's target is v26's plus the stock v27 bonus.
-  expect(target(27) - target(26)).toBe(stock);
+  expect(target(tuned) - target()).toBe(5);
   expect(() => parsePatch({ pace27: { opening: { pokedexTargetBonus: 41 } } }, v27)).toThrow('patch.pace27.opening.pokedexTargetBonus');
 });

@@ -28,7 +28,7 @@ export function pickEscort(view: PlayerView, content: Content): SpeciesId | unde
  * (garden / mining / irrigation / observation / herding), else a fire type (开荒), else none. Ties: lowest species id.
  */
 export function pickBuilderEscort(view: PlayerView, cityId: number, content: Content): SpeciesId | undefined {
-  if (!usesImprovementsV23(view) || !content.builderCrews) return undefined;
+  if (!usesImprovementsV23(view)) return undefined;
   const city = view.economy.cities.find(item => item.id === cityId), improvements = view.expansion?.improvements;
   if (!city || !improvements) return undefined;
   const ids = [...view.economy.player.registeredSpeciesIds].filter(id => content.species[id]).sort();
@@ -39,7 +39,7 @@ export function pickBuilderEscort(view: PlayerView, cityId: number, content: Con
     const distance = hexDistance(city.position, indexToHex(index, view.map), view.map);
     if (!biome || distance === 0 || distance > workRadius(city) || done.has(index)) continue;
     const resource = resourceAt(index);
-    const kinds = resource ? [RESOURCE_IMPROVEMENT[resource]] : improvementIdsFor(view).filter(kind => !IMPROVEMENTS[kind].resource && IMPROVEMENTS[kind].biomes.includes(biome as never));
+    const kinds = resource ? [RESOURCE_IMPROVEMENT[resource]] : improvementIdsFor().filter(kind => !IMPROVEMENTS[kind].resource && IMPROVEMENTS[kind].biomes.includes(biome as never));
     for (const crew of ['garden', 'mining', 'irrigation', 'observation', 'herding'] as const) {
       if (kinds.some(kind => (!IMPROVEMENTS[kind].requiredTech || unlocked.includes(IMPROVEMENTS[kind].requiredTech!)) && crewApplies(crew, kind, biome))) counts.set(crew, (counts.get(crew) ?? 0) + 1);
     }

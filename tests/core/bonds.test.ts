@@ -25,9 +25,8 @@ function farCity(state: GameState, capturedAtRound: number | null = null) {
   return city;
 }
 
-test('bonds exist only in gameplay v6 and the headquarters never wavers', () => {
-  expect(createGame(setup(5)).expansion).not.toHaveProperty('bonds');
-  const state = createGame(setup(6));
+test('bonds initialize on games and the headquarters never wavers', () => {
+  const state = createGame(setup(27));
   const hq = state.players[0].headquartersCityId;
   expect(state.expansion!.bonds![hq]).toBe(100);
   expect(bondPressure(state, state.cities[hq]).total).toBe(100);
@@ -35,7 +34,7 @@ test('bonds exist only in gameplay v6 and the headquarters never wavers', () => 
 });
 
 test('distant freshly captured cities lose bond and defect at zero; garrison and centers resist', () => {
-  const state = createGame(setup(6));
+  const state = createGame(setup(27));
   const city = farCity(state, 1);
   state.expansion!.bonds![900] = 5;
   const pressure = bondPressure(state, city);
@@ -45,14 +44,14 @@ test('distant freshly captured cities lose bond and defect at zero; garrison and
   expect(events).toContainEqual(expect.objectContaining({ type: 'CityDefected', playerId: 0, cityId: 900 }));
   expect(state.cities[900].ownerId).toBe(null);
   expect(state.expansion!.bonds![900]).toBeUndefined();
-  const steady = createGame(setup(6));
+  const steady = createGame(setup(27));
   const second = farCity(steady);
   second.buildingIds = ['trainingGround'];
-  expect(bondPressure(steady, second).total).toBeGreaterThan(bondPressure(createGame(setup(6)), farCity(createGame(setup(6)))).total);
+  expect(bondPressure(steady, second).total).toBeGreaterThan(bondPressure(createGame(setup(27)), farCity(createGame(setup(27)))).total);
 });
 
 test('neutral camps can be reclaimed with gold when near own cities', () => {
-  const state = createGame(setup(6));
+  const state = createGame(setup(27));
   const hq = state.cities[state.players[0].headquartersCityId];
   const camp = createCity(901, 0, { q: hq.position.q + 4, r: hq.position.r }, false);
   camp.ownerId = null; state.cities[901] = camp;
@@ -69,14 +68,14 @@ test('neutral camps can be reclaimed with gold when near own cities', () => {
 });
 
 test('gameplay v6 keeps exact save/load and replay', () => {
-  const session = new GameSession({ ...setup(6), multiplayer: undefined, players: [
+  const session = new GameSession({ ...setup(27), multiplayer: undefined, players: [
     { id: 0, controller: 'human', starterId: 'bulbasaur', leaderId: 'oak' }, { id: 1, controller: 'ai', personality: 'aggressive', leaderId: 'brock' }] });
   for (let turn = 0; turn < 40; turn++) {
     const current = session.getState();
     if (current.outcome) break;
     expect(session.submit({ actorId: current.activePlayerId, expectedSeq: current.commandSeq, action: { type: 'EndTurn' } }).ok).toBe(true);
   }
-  const saved = session.save(), loaded = new GameSession(setup(6));
+  const saved = session.save(), loaded = new GameSession(setup(27));
   loaded.load(saved);
   expect(loaded.save()).toBe(saved);
   expect(canonicalSerialize(replay(session.exportLog()))).toBe(canonicalSerialize(session.getState()));

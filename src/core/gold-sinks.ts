@@ -87,7 +87,7 @@ export type GoldSinkQuote = { ok: true; gold: number; free?: true } | { ok: fals
 /** Authority: price or refusal of one gold-sink command. */
 export function goldSinkQuote(state: GameState, actorId: number, action: GoldSinkAction, content: Content): GoldSinkQuote {
   const ledger = state.expansion?.goldSinks, player = state.players[actorId];
-  if (!content.goldSinks || !ledger || !player || player.eliminated) return { ok: false, reason: 'gold-sinks-unavailable' };
+  if (!ledger || !player || player.eliminated) return { ok: false, reason: 'gold-sinks-unavailable' };
   const fail = (reason: string): GoldSinkQuote => ({ ok: false, reason });
   const priced = (gold: number | null, free = false): GoldSinkQuote => gold === null ? fail('nothing-to-buy') : free ? { ok: true, gold: 0, free: true } : player.gold >= gold ? { ok: true, gold } : fail('gold');
   if (action.type === 'RushProduction') {
@@ -158,7 +158,8 @@ export function applyGoldSinkAction(state: GameState, actorId: number, action: G
   return [{ ...base, unitId: unit.id, typeId: action.typeId, ...(quote.free ? { free: true as const } : {}) }];
 }
 export function initializeGoldSinks(state: GameState, content: Content): void {
-  if (content.goldSinks && state.expansion) state.expansion.goldSinks = { trainedAt: {}, moves: {}, rushedAt: {}, freeUsed: {}, spent: {} };
+  void content;
+  if (state.expansion) state.expansion.goldSinks = { trainedAt: {}, moves: {}, rushedAt: {}, freeUsed: {}, spent: {} };
 }
 /** Round end: nothing to resolve (a rushed order completes in the economy step); kept as the lane's round hook. */
 export function resolveGoldSinkRound(state: GameState, content: Content): EventPayload[] {
@@ -183,7 +184,7 @@ export const viewTaughtMoveType = (view: Pick<PlayerView, 'expansion'>, unitId: 
 /** View mirror of `goldSinkQuote` for the panels and the AI (same numbers; the room check for RushRecovery uses the viewer's sight). */
 export function viewGoldSinkQuote(view: PlayerView, action: GoldSinkAction, content: Content): GoldSinkQuote {
   const sinks = view.expansion?.goldSinks, player = view.economy.player;
-  if (!content.goldSinks || !sinks || player.eliminated || view.outcome || view.activePlayerId !== view.playerId) return { ok: false, reason: 'gold-sinks-unavailable' };
+  if (!sinks || player.eliminated || view.outcome || view.activePlayerId !== view.playerId) return { ok: false, reason: 'gold-sinks-unavailable' };
   const fail = (reason: string): GoldSinkQuote => ({ ok: false, reason });
   const priced = (gold: number | null, free = false): GoldSinkQuote => gold === null ? fail('nothing-to-buy') : free ? { ok: true, gold: 0, free: true } : player.gold >= gold ? { ok: true, gold } : fail('gold');
   if (action.type === 'RushProduction') {

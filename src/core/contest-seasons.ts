@@ -68,7 +68,7 @@ const window = (content: Content, round: number, roundLimit: number) => {
 
 export function validateContestSeasonAction(state: GameState, actorId: number, action: ContestSeasonAction, content: Content): string | null {
   const ledger = state.expansion?.contestSeasons;
-  if (!content.contestSeasons || !ledger || state.players[actorId]?.eliminated) return 'contest-seasons-unavailable';
+  if (!ledger || state.players[actorId]?.eliminated) return 'contest-seasons-unavailable';
   if (!window(content, state.round, state.setup.roundLimit ?? 100)) return 'season-closed';
   if (ledger.entries[actorId]) return 'season-entered';
   const unit = state.units[action.unitId];
@@ -76,7 +76,7 @@ export function validateContestSeasonAction(state: GameState, actorId: number, a
   if (!unit.actionLeft) return 'no-action';
   // v27 ⑦: the circuit opens every own city (the halls before v27).
   const halls = contestEntryCityIds(liveHalls(state, actorId), Object.values(state.cities).filter(city => city.ownerId === actorId).map(city => city.id).sort((a, b) => a - b), content);
-  if (!halls.some(cityId => hexDistance(state.cities[cityId].position, unit.position, state.map) <= 1)) return content.contestCircuit ? 'season-city' : 'season-hall';
+  if (!halls.some(cityId => hexDistance(state.cities[cityId].position, unit.position, state.map) <= 1)) return 'season-city';
   return null;
 }
 export function applyContestSeasonAction(state: GameState, actorId: number, action: ContestSeasonAction, content: Content): EventPayload[] {
@@ -92,12 +92,13 @@ export function applyContestSeasonAction(state: GameState, actorId: number, acti
   return [{ type: 'ContestSeasonEntered', public: true, playerId: actorId, unitId: unit.id, speciesId: unit.speciesId }];
 }
 export function initializeContestSeasons(state: GameState, content: Content): void {
-  if (content.contestSeasons && state.expansion?.contests) state.expansion.contestSeasons = { entries: {}, ribbons: {}, held: 0, last: null };
+  void content;
+  if (state.expansion?.contests) state.expansion.contestSeasons = { entries: {}, ribbons: {}, held: 0, last: null };
 }
 /** Round end of a season round: rank the entrants, add appeal and the ribbon (before the contest victory is checked next round). */
 export function resolveContestSeasonRound(state: GameState, content: Content): EventPayload[] {
   const ledger = state.expansion?.contestSeasons, contests = state.expansion?.contests;
-  if (!content.contestSeasons || !ledger || !contests || state.outcome) return [];
+  if (!ledger || !contests || state.outcome) return [];
   const season = currentSeason(content, state.round, state.setup.roundLimit ?? 100);
   if (!season || season.round !== state.round) return [];
   const tuning = lateTuning(content), category = seasonCategory(state.setup.seed, season.index);
@@ -129,7 +130,7 @@ export function observeContestSeasons(state: GameState, playerId: number, conten
 /** View mirror of the authority's checks (null = the unit may enter now). */
 export function viewContestEntryBlocker(view: PlayerView, unitId: number, content: Content): string | null {
   const seasons = view.expansion?.contestSeasons, contests = view.expansion?.contests;
-  if (!content.contestSeasons || !seasons || !contests || view.activePlayerId !== view.playerId || view.outcome) return 'contest-seasons-unavailable';
+  if (!seasons || !contests || view.activePlayerId !== view.playerId || view.outcome) return 'contest-seasons-unavailable';
   if (!seasons.category || seasons.nextRound === null || view.round > seasons.nextRound) return 'season-closed';
   if (seasons.ownEntry) return 'season-entered';
   const unit = view.units.find(item => item.id === unitId && item.ownerId === view.playerId);
@@ -137,7 +138,7 @@ export function viewContestEntryBlocker(view: PlayerView, unitId: number, conten
   if (!unit.actionLeft) return 'no-action';
   const entry = contestEntryCityIds(contests.own.halls, view.economy.cities.map(city => city.id), content);
   const halls = view.economy.cities.filter(city => entry.includes(city.id));
-  return halls.some(city => hexDistance(city.position, unit.position, view.map) <= 1) ? null : content.contestCircuit ? 'season-city' : 'season-hall';
+  return halls.some(city => hexDistance(city.position, unit.position, view.map) <= 1) ? null : 'season-city';
 }
 export const CONTEST_SEASON_REASONS: Record<string, string> = {
   'contest-seasons-unavailable': '现在不能参赛', 'season-closed': '本届大赛还没开始报名（赛前 5 轮公布类别后开放）', 'season-entered': '本届已经派出参赛者',

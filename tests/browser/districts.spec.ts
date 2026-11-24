@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { districtUiFixture, foreignConstructionFixture, v9SaveFixture } from './fixtures/districts-ui.ts';
+import { districtUiFixture, foreignConstructionFixture } from './fixtures/districts-ui.ts';
 import type { Hex } from '../../src/core/hex.ts';
 
 const reports = process.env.E2E_SCREENSHOT_DIR ?? 'test-results/screenshots';
@@ -16,8 +16,9 @@ async function clickHex(page: Page, hex: Hex) {
   await page.locator('#map').scrollIntoViewIfNeeded();
   const point = await page.evaluate(async hex => {
     const mainPath = '/src/browser/main.ts', cameraPath = '/src/browser/camera.ts';
-    const { camera } = await import(mainPath), { hexToWorld, toScreen } = await import(cameraPath);
-    const screen = toScreen(hexToWorld(hex), camera), rect = document.querySelector('#map')!.getBoundingClientRect();
+    const { camera, session } = await import(mainPath), { tileToScreen } = await import(cameraPath);
+    const canvas = document.querySelector<HTMLCanvasElement>('#map')!, rect = canvas.getBoundingClientRect();
+    const screen = tileToScreen(hex, camera, session.getView().map, canvas.clientWidth);
     return { x: rect.x + screen.x, y: rect.y + screen.y };
   }, hex);
   await page.mouse.click(point.x, point.y);
@@ -92,12 +93,10 @@ test('district invalid tile explains the reason without a confirmation command',
   await expect(page.locator('#confirm-district')).toHaveCount(0);
 });
 
-test('new games default to v10 districts; a loaded v9 save has no district entry or city section', async ({ page }) => {
+test('new games enable districts in the city production panel and city section', async ({ page }) => {
   await page.goto('/?seed=1');
   await expect(page.locator('[data-production-kind="district"]')).toHaveCount(1);
-  await importSave(page, v9SaveFixture().save);
-  await expect(page.locator('[data-production-kind="district"]')).toHaveCount(0);
-  await expect(page.locator('#city-districts')).toHaveCount(0);
+  await expect(page.locator('#city-districts')).toHaveCount(1);
 });
 
 test('foreign construction is selectable, blocks ordering, and disappears after retreat', async ({ page }) => {

@@ -12,7 +12,7 @@ test('v25: the new-game summary, the regional Pokédex page and the recruit rows
   test.setTimeout(180_000);
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(String(error)));
-  await page.goto('/?seed=31&gameplay=25&size=24x16');
+  await page.goto('/?seed=31&size=24x16');
   await openScreen(page, 'menu');
   const summary = page.locator('#regional-dex-summary');
   await expect(summary).toBeVisible();
@@ -25,7 +25,7 @@ test('v25: the new-game summary, the regional Pokédex page and the recruit rows
 
   await startNewGame(page);
   const game = await state(page), content = contentFor(game.setup);
-  expect(game.rulesVersion).toBe('roster-v25');
+  expect(game.rulesVersion).toBe('pace-v27');
   expect(listed).toBe(content.regionalDex!.size);
 
   await openScreen(page, 'world');
@@ -54,16 +54,4 @@ test('v25: the new-game summary, the regional Pokédex page and the recruit rows
   const regionalRows = page.locator('#screen-research').locator('[title*="本地区"], [aria-label*="本地区"], li:has-text("本地区")');
   await expect.poll(() => regionalRows.count()).toBeGreaterThan(0);
   expect(errors).toEqual([]);
-});
-
-test('v24 keeps the old Pokédex strip and shows no regional summary', async ({ page }) => {
-  await page.goto('/?seed=31&gameplay=24&size=24x16');
-  await openScreen(page, 'menu');
-  await expect(page.locator('#regional-dex-summary')).toBeHidden();
-  await startNewGame(page);
-  await openScreen(page, 'world');
-  const card = page.locator('#expansion-panel details[data-system="s22-pokedex"]');
-  await card.locator('> summary').click();
-  await expect(card.locator('#regional-dex')).toHaveCount(0);
-  await expect(card.locator('.dex-strip')).toBeVisible();
 });

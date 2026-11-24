@@ -78,7 +78,6 @@ const activeMax = (state: Pick<GameState, 'expansion'>) => { const boss = state.
 
 /** The damage a strike deals after the Max shields (= `hit` unless the defender is a raid boss of a Max-raid game); updates the ledger. */
 export function maxRaidHit(state: GameState, attacker: MapUnit, defender: MapUnit, hit: number, content: Content): number {
-  if (!content.maxRaids) return hit;
   const boss = activeMax(state);
   if (!boss || boss.unitId !== defender.id || attacker.kind !== 'pokemon' || defender.kind !== 'pokemon' || attacker.ownerId === null) return hit;
   const ledger = boss.max!, tuning = eventsTuning(content);
@@ -92,7 +91,7 @@ export function maxRaidHit(state: GameState, attacker: MapUnit, defender: MapUni
 /** Preview mirror: the min / max damage of the viewer's attack on a Max boss (unchanged for anything else). */
 export function viewMaxRaidDamage(view: PlayerView, attacker: MapUnit, defender: MapUnit, damage: { min: number; max: number }, content: Content): { min: number; max: number; shields: number; phaseTwo: boolean } | null {
   const active = view.expansion?.raids?.active, max = active?.max;
-  if (!content.maxRaids || !active || !max || max.shields === null || max.phase === null || active.unitId !== defender.id || attacker.kind !== 'pokemon' || defender.kind !== 'pokemon') return null;
+  if (!active || !max || max.shields === null || max.phase === null || active.unitId !== defender.id || attacker.kind !== 'pokemon' || defender.kind !== 'pokemon') return null;
   const tuning = eventsTuning(content), role = raidRole(content.species[attacker.speciesId].role);
   const effective = superEffective(content, attacker.speciesId, teraTypes(viewCombatContext(view), defender.id) ?? typesOf(content, defender.speciesId), view.economy.player.research.unlockedIds.includes('typeResearch'));
   const boss = { shields: max.shields, phase: max.phase, hp: defender.hp, maxHp: active.maxHp };
@@ -104,14 +103,15 @@ export function viewMaxRaidDamage(view: PlayerView, attacker: MapUnit, defender:
  * Whether `playerId` knows where the den is: v26 — only once it explored the tile; v27 — always (the integration's fog follow-up: an
  * announced den is public to every civilization, like a world event, so several can join; terrain and units still need vision).
  */
-export function knowsDen(state: Pick<GameState, 'knowledge'>, playerId: number, tileIndex: number, content: Content): boolean {
-  return Boolean(content.maxRaids) || (state.knowledge[playerId]?.exploredTileIds.includes(tileIndex) ?? false);
+export function knowsDen(_state?: Pick<GameState, 'knowledge'>, _playerId?: number, _tileIndex?: number, _content?: Content): boolean {
+  void _state; void _playerId; void _tileIndex; void _content;
+  return true;
 }
 
 // ---------- RaidDynamax ----------
 export function validateMaxRaidAction(state: GameState, actorId: number, action: MaxRaidAction, content: Content): string | null {
   const boss = activeMax(state), statuses = state.expansion?.eraAbilities;
-  if (!content.maxRaids || !boss || !statuses || state.players[actorId]?.eliminated) return 'max-raids-unavailable';
+  if (!boss || !statuses || state.players[actorId]?.eliminated) return 'max-raids-unavailable';
   if (!knowsDen(state, actorId, boss.tileIndex, content)) return 'max-raids-unavailable';
   const unit = state.units[action.unitId], den = state.units[boss.unitId];
   if (!unit || unit.ownerId !== actorId || !isMapUnit(unit) || unit.kind !== 'pokemon' || !den || !isMapUnit(den)) return 'unit-unavailable';
@@ -132,7 +132,7 @@ export function applyMaxRaidAction(state: GameState, actorId: number, action: Ma
 /** View mirror of the checks (null = the unit may Dynamax now). */
 export function viewRaidDynamaxBlocker(view: PlayerView, unitId: number, content: Content): string | null {
   const active = view.expansion?.raids?.active, max = active?.max;
-  if (!content.maxRaids || !active || !max || active.unitId === null || view.outcome || view.activePlayerId !== view.playerId) return 'max-raids-unavailable';
+  if (!active || !max || active.unitId === null || view.outcome || view.activePlayerId !== view.playerId) return 'max-raids-unavailable';
   const unit = view.units.find(item => item.id === unitId && item.ownerId === view.playerId), den = view.units.find(item => item.id === active.unitId);
   if (!unit || unit.kind !== 'pokemon' || !den) return 'unit-unavailable';
   if (max.dynamaxUsed) return 'raid-dynamax-used';
@@ -197,7 +197,7 @@ export function estimatedRaidStrike(content: Content, speciesId: SpeciesId, shie
 }
 export function raidPreview(view: PlayerView, content: Content, reach = 10): RaidPreview | null {
   const active = view.expansion?.raids?.active, max = active?.max;
-  if (!content.maxRaids || !active || !max) return null;
+  if (!active || !max) return null;
   const contribution = max.contribution, total = Object.values(contribution).reduce((sum, value) => sum + value, 0), own = contribution[view.playerId] ?? 0;
   const sharePercent = total ? Math.floor(own * 100 / total) : 0;
   const top = Object.entries(contribution).sort((a, b) => b[1] - a[1] || Number(a[0]) - Number(b[0]))[0];

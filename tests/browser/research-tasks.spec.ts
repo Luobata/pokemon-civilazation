@@ -3,7 +3,7 @@ import type { Page } from '@playwright/test';
 import { knockoutTaskFixture } from './fixtures/research-tasks.ts';
 import { verifyImportedReplay } from './fixtures/reachable.ts';
 import { openScreen } from './ui.ts';
-import { WORLD24_CONTENT } from '../../src/content/units.ts';
+import { GAME_CONTENT } from '../../src/content/units.ts';
 import { RESEARCH_TASK_RULES_V24 } from '../../src/content/research-tasks.ts';
 import { tasksDone } from '../../src/core/research-tasks.ts';
 import type { Hex } from '../../src/core/hex.ts';
@@ -26,7 +26,7 @@ test('v24 research tasks: the unit panel card follows the target, a knockout com
   test.setTimeout(240_000);
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(String(error)));
-  const fixture = knockoutTaskFixture(), name = WORLD24_CONTENT.species[fixture.speciesId].name;
+  const fixture = knockoutTaskFixture(), name = GAME_CONTENT.species[fixture.speciesId].name;
   // The knockout completes one more task on a card a real AI game built; the reward is the one for that count (notes at 2, capture at 4).
   const R = RESEARCH_TASK_RULES_V24, before = tasksDone(fixture.state.expansion!.researchTasks![0]![fixture.speciesId]!.tasks), after = before + 1;
   const reward = after === R.notesAt ? { hint: '调查笔记', toast: `调查笔记：科研 +${R.notesResearch}`, research: R.notesResearch }

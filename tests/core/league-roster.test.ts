@@ -22,7 +22,7 @@ import { observe } from '../../src/core/vision.ts';
 import { nemesisTrainingBonus } from '../../src/ai/roster-plan.ts';
 
 const LEADERS = ['brock', 'misty', 'oak', 'joy', 'jenny', 'giovanni', 'lance', 'steven', 'jasmine'] as const;
-const setup = (gameplayVersion: 26 | 27, seed = 31, rotation = 0): GameSetup => ({ seed, width: 24, height: 16, roundLimit: 100, expansionVersion: 1,
+const setup = (gameplayVersion: 27, seed = 31, rotation = 0): GameSetup => ({ seed, width: 24, height: 16, roundLimit: 100, expansionVersion: 1,
   eraProgression: 'simple-v1', gameplayVersion, dexSeed: stableSeed(seed, rotation, 'gate-dex'),
   players: [{ id: 0, controller: 'human', starterId: 'bulbasaur', leaderId: LEADERS[rotation % LEADERS.length] },
     ...[1, 2, 3].map(id => ({ id, controller: 'ai' as const, leaderId: LEADERS[(id + rotation) % LEADERS.length] }))] });
@@ -74,14 +74,6 @@ describe('the roster (§7.1)', () => {
     expect(leagueRoster(view.seed, contentForView(view))).toBe(leagueRoster(31, v27));
     expect(JSON.parse(JSON.stringify(leagueRoster(31, contentFor({ ...setup(27) }))))).toEqual(JSON.parse(JSON.stringify(leagueRoster(31, v27))));
     expect(leagueRoster(32, contentFor(setup(27, 32)))).not.toEqual(leagueRoster(31, v27));
-  });
-
-  test('before v27 the roster is off: the v26 per-season draw is unchanged', () => {
-    const v26 = contentFor(setup(26));
-    expect(leagueRosterEntrants(31, 1, v26)).toBeNull();
-    const teams = championshipNpcEntrants(31, 1, v26);
-    expect(teams.every(team => team.entrantId.startsWith('npc-1-') && CONFERENCE_TRAINERS.includes(team.name))).toBe(true);
-    expect(championshipNpcEntrants(31, 1, v26, [{ season: 0 } as ChampionshipSeason])).toEqual(teams);
   });
 });
 
@@ -208,6 +200,5 @@ describe('the conference with the roster (integration)', () => {
     expect(events).toEqual([{ type: 'LeagueNemesisBeaten', playerId: 0, entrantId: nemesis.entrantId, name: nemesis.name, season: 2, eraScore: 1 }]);
     recordEraHonors(before, state, events);
     expect(ledger.score).toBe(score + 1);
-    expect(settleLeagueNemeses(state, contentFor(setup(26)))).toEqual([]);
   });
 });

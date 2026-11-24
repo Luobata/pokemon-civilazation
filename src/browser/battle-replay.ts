@@ -6,13 +6,12 @@
 // (no DOM): the viewer is battle-viewer.ts. Gameplay v26 relay battles (`BattleTraceV26`: turns of send / switch / strike / faint
 // acts) are replayed the same way, one Pokémon per side on the field (`format: 'relay'`), and so are the v26 rival duels.
 import type { BattleCombatant, BattleTrace, ChampionshipMatch, ChampionshipSeason } from '../core/civilization-systems.ts';
-import { guardianCombatant, guardianFighter } from '../core/civilization-systems.ts';
+import { guardianFighter } from '../core/civilization-systems.ts';
 import type { BattleTraceV26 } from '../core/team-battle.ts';
 import { estimateLineup, lineupFighters, viewEliteFourSpec, viewGuardianSpec, viewGymSpec, viewRivalTeam } from '../core/team-battle-views.ts';
 import type { LineupSpec } from '../core/team-battle-views.ts';
 import { rivalDuelSpec } from '../ai/rival-duel-plan.ts';
 import { hexToIndex } from '../core/hex.ts';
-import { CIVILIZATION_CONTENT } from '../content/civilization-systems.ts';
 import { eliteFourTeam, leaderTeam } from '../core/gym-circuit.ts';
 import { ELITE_FOUR, GYM_LEADERS, GYM_RULES_V24 } from '../content/gym-circuit.ts';
 import { ESSENCES } from '../content/essences.ts';
@@ -128,7 +127,6 @@ export type ChallengeSnapshot = { action: ChallengeAction; playerId: number; tea
   estimate?: number; round?: number };
 /** The estimate the lineup picker shows for this command (v26 relay battles only; null otherwise). */
 function challengeEstimate(view: PlayerView, action: ChallengeAction, content: Content): number | null {
-  if (!content.teamBattles) return null;
   const spec: LineupSpec | null = action.type === 'ChallengeGym' ? viewGymSpec(view, action.gymId, content) : action.type === 'ChallengeGuardian' ? viewGuardianSpec(view, action.siteId, content)
     : action.type === 'ChallengeEliteFour' ? viewEliteFourSpec(view, content) : rivalDuelSpec(view, content);
   const lineup = lineupFighters(view, action.unitIds, content);
@@ -192,7 +190,7 @@ function challengeBattles(view: PlayerView, snapshot: ChallengeSnapshot, payload
     const site = view.expansion?.civilization?.sanctuaries.find(item => item.id === payload.siteId);
     if (!site) return null;
     // v26: the guardian fights as a boss (guardianFighter); before v26 as a scaled combatant.
-    const guardian = content.teamBattles ? guardianFighter(site, content) : guardianCombatant(site, { ...CIVILIZATION_CONTENT, world: content });
+    const guardian = guardianFighter(site, content);
     const battle = replayBattle(starters(`challenge-${me}-${site.id}`), [{ id: guardian.id, speciesId: guardian.speciesId, typeIds: guardian.typeIds, hp: guardian.hp, maxHp: guardian.maxHp }], payload.battle,
       { title: `圣所守卫 · ${site.guardianName}`, arena: 'altar', homeName: OWN, awayName: `守卫${site.guardianName}` }, content);
     return battle && { key, kind: 'guardian', title: `${site.name} · 守卫${site.guardianName}`, battles: [battle], victory: payload.victory,

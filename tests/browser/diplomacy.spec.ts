@@ -12,7 +12,7 @@ const reports = process.env.E2E_SCREENSHOT_DIR ?? 'test-results/screenshots';
 async function importFixture(page: Page, text: string) {
   await page.goto('/?seed=12345');
   await page.locator('#import-save').setInputFiles({ name: 'fixture.json', mimeType: 'application/json', buffer: Buffer.from(text) });
-  await expect(page.locator('#action-notice')).toContainText('读档完成');
+  await expect(page.locator('#action-notice')).toContainText('读档完成', { timeout: 60_000 });
   await verifyImportedReplay(page, text);
 }
 async function state(page: Page): Promise<GameState> {
@@ -122,6 +122,7 @@ for (const [kind, title] of [['score', '轮上限计分'], ['conquest', '征服�
 }
 
 test('neutral camp has a visible map marker and read-only information panel', async ({ page }) => {
+  test.setTimeout(120_000);
   await importFixture(page, neutralSave());
   const cityId = reachableFixture('neutral').cityId!;
   const city = (await state(page)).cities[cityId];

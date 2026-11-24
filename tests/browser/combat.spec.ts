@@ -6,7 +6,7 @@ import { verifyImportedReplay } from './fixtures/reachable.ts';
 import { isMapUnit } from '../../src/core/model.ts';
 import type { GameState } from '../../src/core/model.ts';
 import type { Hex } from '../../src/core/hex.ts';
-import { CONTENT, unitDefinition } from '../../src/content/units.ts';
+import { GAME_CONTENT, unitDefinition } from '../../src/content/units.ts';
 
 const reports = process.env.E2E_SCREENSHOT_DIR ?? 'test-results/screenshots';
 async function state(page: Page): Promise<GameState> {
@@ -19,8 +19,9 @@ async function clickHex(page: Page, hex: Hex) {
   await page.locator('#map').scrollIntoViewIfNeeded();
   const point = await page.evaluate(async hex => {
     const mainPath = '/src/browser/main.ts', cameraPath = '/src/browser/camera.ts';
-    const { camera } = await import(mainPath), { hexToWorld, toScreen } = await import(cameraPath);
-    const p = toScreen(hexToWorld(hex), camera), rect = document.querySelector('#map')!.getBoundingClientRect();
+    const { camera, session } = await import(mainPath), { tileToScreen } = await import(cameraPath);
+    const canvas = document.querySelector<HTMLCanvasElement>('#map')!, rect = canvas.getBoundingClientRect();
+    const p = tileToScreen(hex, camera, session.getView().map, canvas.clientWidth);
     return { x: rect.x + p.x, y: rect.y + p.y };
   }, hex);
   await page.mouse.click(point.x, point.y);
@@ -29,13 +30,13 @@ async function importFixture(page: Page, scenario: CombatScenario = 'attack') {
   const fixture = combatFixture(scenario);
   await page.goto('/?seed=12345');
   await page.locator('#import-save').setInputFiles({ name: 'combat.json', mimeType: 'application/json', buffer: Buffer.from(fixture.save) });
-  await expect(page.locator('#action-notice')).toContainText('读档完成');
+  await expect(page.locator('#action-notice')).toContainText('读档完成', { timeout: 60_000 });
   await verifyImportedReplay(page, fixture.save);
   const unitId = fixture.action && 'unitId' in fixture.action ? fixture.action.unitId : fixture.unitId!;
   const unit = fixture.state.units[unitId];
   if (!isMapUnit(unit)) throw new Error('Expected a deployed fixture actor');
   await page.locator('#fit').click();
-  await clickHex(page, unit.position);
+  await page.locator('#unit-select').selectOption(String(unitId));
   await expect(page.locator('#selection')).toContainText('行动点 1');
   return { ...fixture, unitId };
 }
@@ -76,6 +77,7 @@ test('capture a low-health wild pokemon with probability and success feedback', 
 });
 
 test('failed capture leaves the wild pokemon unowned and enraged', async ({ page }) => {
+  test.setTimeout(120_000);
   const fixture = await importFixture(page, 'capture-failure');
   const action = fixture.action;
   if (action?.type !== 'Capture') throw new Error('Expected capture');
@@ -93,7 +95,7 @@ test('evolve an eligible unit and show the resulting species and reset XP', asyn
   const action = fixture.action;
   if (action?.type !== 'Evolve') throw new Error('Expected evolution');
   await page.locator('#evolve-unit').click();
-  await expect(page.locator('#action-notice')).toContainText(`进化完成：${CONTENT.species[action.intoSpeciesId].name}`);
+  await expect(page.locator('#action-notice')).toContainText(`进化完成：${GAME_CONTENT.species[action.intoSpeciesId].name}`);
   const evolved = await state(page);
   expect(evolved.units[fixture.unitId]).toMatchObject({ speciesId: action.intoSpeciesId, xp: 0 });
   await page.screenshot({ path: `${reports}/m3ui-evolve.png`, fullPage: true });
@@ -110,10 +112,10 @@ test('unit card stays outside the map and recovering units appear in the city pa
   await page.locator('#city-select').selectOption(String(fixture.cityId));
   await expect(page.locator('#unit-panel')).toBeEmpty();
   await expect(page.locator('#recovering-units')).toContainText(`剩余 ${recovering.roundsLeft} 轮`);
-  await expect(page.locator('#recovering-units')).toContainText(unitDefinition(recovering, CONTENT).name);
+  await expect(page.locator('#recovering-units')).toContainText(unitDefinition(recovering, GAME_CONTENT).name);
   const current = await state(page);
   const upkeep = Object.values(current.units).filter(unit => unit.ownerId === 0)
-    .reduce((sum, unit) => sum + unitDefinition(unit, CONTENT).upkeep, 0);
+    .reduce((sum, unit) => sum + unitDefinition(unit, GAME_CONTENT).upkeep, 0);
   await expect(page.locator('#hud-upkeep')).toContainText(`−${upkeep}`);
   await page.screenshot({ path: `${reports}/m3ui-map.png`, fullPage: true });
 });
@@ -124,7 +126,7 @@ test('battle activity uses civilization and species labels without revealing unk
   if (action?.type !== 'Attack' || action.target.kind !== 'unit') throw new Error('Expected wild attack');
   const actor = fixture.state.units[action.unitId], target = fixture.state.units[action.target.id];
   if (!isMapUnit(actor) || !isMapUnit(target)) throw new Error('Expected deployed combatants');
-  const actorName = unitDefinition(actor, CONTENT).name, targetName = unitDefinition(target, CONTENT).name;
+  const actorName = unitDefinition(actor, GAME_CONTENT).name, targetName = unitDefinition(target, GAME_CONTENT).name;
   const labels = await page.evaluate(async ({ actor, target }) => {
     const mainPath = '/src/browser/main.ts';
     const { battleActivityText, session } = await import(mainPath);

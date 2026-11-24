@@ -1,5 +1,4 @@
 import { DISCOVERIES, DISCOVERY_PERCENT } from '../content/discoveries.ts';
-import { gameplayAtLeast } from '../content/eras.ts';
 import type { TechId } from '../content/economy.ts';
 import { techOf } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
@@ -12,7 +11,7 @@ export type DiscoveryState = Record<number, TechId[]>;
 export type DiscoveryEvent = { type: 'DiscoveryMade'; playerId: number; techId: TechId; bonus: number; progress: number };
 
 export function usesDiscoveries(state: GameState): boolean {
-  return state.expansion !== undefined && gameplayAtLeast(state.setup, 2);
+  return state.expansion !== undefined;
 }
 export function initializeDiscoveries(state: GameState): void {
   if (usesDiscoveries(state)) state.expansion!.discoveries = Object.fromEntries(state.turnOrder.map(id => [id, []]));
@@ -27,7 +26,7 @@ function reached(before: GameState, next: GameState, playerId: number, events: r
   for (const event of events) {
     if (event.type === 'Captured' && event.playerId === playerId && event.success) hits.add('domestication');
     // v21: capturing needs 驯化, so its discovery is a first battle with a wild Pokémon instead.
-    if (content.opening && event.type === 'BattleResolved' && own(event.attackerId) && event.target.kind === 'unit' && before.units[event.target.id]?.ownerId === null) hits.add('domestication');
+    if (event.type === 'BattleResolved' && own(event.attackerId) && event.target.kind === 'unit' && before.units[event.target.id]?.ownerId === null) hits.add('domestication');
     if (event.type === 'WorldResourceHarvested' && event.playerId === playerId) hits.add(event.resourceKind === 'berry' ? 'berryCultivation' : 'stoneCraft');
     if (event.type === 'TileWorked' && event.playerId === playerId && event.completed) {
       if (event.kind === 'berryFarm' || event.kind === 'berryGrove') hits.add('berryCultivation');
@@ -46,7 +45,7 @@ function reached(before: GameState, next: GameState, playerId: number, events: r
   if (Object.values(next.cities).filter(city => city.ownerId === playerId).length >= 3) hits.add('riding');
   if (documented(next, playerId).filter(record => record.observed).length >= 10) hits.add('fieldObservation');
   if (Object.values(next.units).some(unit => unit.ownerId === playerId && isMapUnit(unit) && ['snow', 'volcano'].includes(next.map.tiles[hexToIndex(unit.position, next.map)!]))) hits.add('meteorology');
-  if (content.techTree) for (const id of treeMilestones(before, next, playerId, events, content)) hits.add(id);
+  for (const id of treeMilestones(before, next, playerId, events, content)) hits.add(id);
   return [...hits].filter(techId => Object.hasOwn(DISCOVERIES, techId)).sort();
 }
 /** v22: milestones of the 18 new tree technologies (older contents never call this, so their ledgers are unchanged). */

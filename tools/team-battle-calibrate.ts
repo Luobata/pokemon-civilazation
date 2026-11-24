@@ -17,7 +17,7 @@ import type { GameSetup } from '../src/core/model.ts';
 
 const args = process.argv.slice(2), flag = (name: string, fallback: string) => args[args.indexOf(name) + 1] && args.includes(name) ? args[args.indexOf(name) + 1] : fallback;
 const teams = Number(flag('--teams', '1000')), [lowSeed, highSeed] = flag('--seeds', '31-38').split('-').map(Number);
-const setup = (seed: number): GameSetup => ({ seed, width: 40, height: 26, roundLimit: 200, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 26,
+const setup = (seed: number): GameSetup => ({ seed, width: 40, height: 26, roundLimit: 200, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 27,
   players: [{ id: 0, controller: 'ai' }, { id: 1, controller: 'ai' }, { id: 2, controller: 'ai' }, { id: 3, controller: 'ai' }] });
 const withTuning = (content: Content, patch: Partial<NonNullable<Content['depth26']>>): Content => ({ ...content, depth26: { ...content.depth26!, ...patch } });
 const fighterOf = (content: Content, speciesId: SpeciesId, id: string): RelayFighter => {

@@ -42,7 +42,7 @@ import { SPECIES_NAMES } from '../content/species.ts';
 import type { SpeciesDefinition, SpeciesId, TypeId } from '../content/species.ts';
 import { TYPE_NAMES } from '../content/type-names.ts';
 import { RESEARCH_TASK_RULES_V24, researchSpecialLabel } from '../content/research-tasks.ts';
-import { contentFor, WORLD_CONTENT } from '../content/units.ts';
+import { GAME_CONTENT } from '../content/units.ts';
 import { SPAWN_WEIGHTS } from '../content/wild.ts';
 import { WORLD_DEFINITIONS } from '../content/world-systems.ts';
 import { CIVILIZATION_CONTENT } from '../content/civilization-systems.ts';
@@ -57,7 +57,7 @@ import { techUnlocks } from '../browser/tech-info.ts';
 import { ELITE_FOUR, GYM_LEADERS, GYM_LEADER_ORDER, GYM_RULES_V24, GYM_TYPES, HOME_GYMS, STAGE_NAMES } from '../content/gym-circuit.ts';
 import { RIVAL_COUNTERS, RIVAL_RULES_V24, RIVAL_RULES_V25, RIVAL_TEAMS } from '../content/rivals.ts';
 
-const content = contentFor({ expansionVersion: 1, gameplayVersion: LATEST_GAMEPLAY_VERSION });
+const content = GAME_CONTENT;
 
 export const escape = (text: string | number) => String(text).replace(/[&<>"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[char]!);
 export function table(headers: readonly string[], rows: readonly (readonly string[])[], numeric: readonly number[] = [], className = ''): string {
@@ -131,7 +131,7 @@ export function techTable(): string {
   return table(['科技', '层级', '花费', '效果与解锁', '图鉴发现（立减 ' + DISCOVERY_PERCENT + '%）'],
     ids.map(id => {
       return [techName(id), String(TECHS[id].tier), String(TECHS[id].cost), techUnlocks(id, content, LATEST_GAMEPLAY_VERSION).map(item => item.text).join('；'),
-        `<strong>${discoveryText(id, Boolean(content.opening)).name}</strong>：${discoveryText(id, Boolean(content.opening)).hint}`];
+        `<strong>${discoveryText(id).name}</strong>：${discoveryText(id).hint}`];
     }), [1, 2]);
 }
 // ---------- v22 tech tree (generated from WORLD_CONTENT) ----------
@@ -148,8 +148,8 @@ export function techTreeTable(): string {
   const ids = Object.keys(TREE_TECHS) as TechId[];
   return table(['科技', '列', '路线', '花费', '前置（全部完成）', '效果与解锁', '图鉴发现（立减 ' + DISCOVERY_PERCENT + '%）'],
     ids.map(id => [`${techName(id)}${isNewTech(id) ? ' <span class="chip">v22 新增</span>' : ''}`, String(TREE_TECHS[id].tier), lineChip(id), String(TREE_TECHS[id].cost),
-      TREE_TECHS[id].requires.map(techName).join('、') || '—', techUnlocks(id, WORLD_CONTENT, 22).map(item => item.text).join('；'),
-      `<strong>${discoveryText(id, true).name}</strong>：${discoveryText(id, true).hint}`]), [1, 3]);
+      TREE_TECHS[id].requires.map(techName).join('、') || '—', techUnlocks(id, GAME_CONTENT, LATEST_GAMEPLAY_VERSION).map(item => item.text).join('；'),
+      `<strong>${discoveryText(id).name}</strong>：${discoveryText(id).hint}`]), [1, 3]);
 }
 export function treeEraTable(): string {
   return table(['进程', '世代', '进入条件（v22 科技树）'], (['simple-v1', 'full-v1'] as const).flatMap(mode => ERA_DEFINITIONS[mode].map((era, index) => [
@@ -357,7 +357,7 @@ export function governmentTable(): string {
 export function improvementTable(): string {
   return table(['改良', '可建群系', '基础', '强化科技', '强化后再加', '熟练工属性'], IMPROVEMENT_IDS.map(id => {
     const item = IMPROVEMENTS[id];
-    return [item.name, biomeList(item.biomes), yieldText(item.base), techName(item.boostTech!), yieldText(item.boost!), item.crewTypes.map(typeChip).join('')];
+    return [item.name, biomeList(item.biomes), yieldText(item.base), item.boostTech ? techName(item.boostTech) : '—', item.boost ? yieldText(item.boost) : '—', item.crewTypes.map(typeChip).join('')];
   }));
 }
 export const improvementWork = IMPROVEMENT_WORK;
@@ -440,7 +440,7 @@ export function itemBallTable(): string {
   return table(['道具球', '效果'], ITEM_BALL_KINDS.map(kind => [ITEM_BALLS[kind].name, ITEM_BALLS[kind].text]));
 }
 export function victoryTargetTable(): string {
-  const rows = [100, 200, 300].map(roundLimit => { const v = victoryTargets({ gameplayVersion: 21, roundLimit }); return [`${roundLimit} 轮`, String(v.contestMinimum), `${v.faithMinimumCities} 座`, `${v.championshipTitles} 次`, `+${v.pokedexBonus} 种`]; });
+  const rows = [100, 200, 300].map(roundLimit => { const v = victoryTargets({ roundLimit }); return [`${roundLimit} 轮`, String(v.contestMinimum), `${v.faithMinimumCities} 座`, `${v.championshipTitles} 次`, `+${v.pokedexBonus} 种`]; });
   return table(['轮上限', '华丽大赛魅力', '信仰：有主城市至少', '冠军赛', '图鉴目标'], rows, [1, 2, 3, 4]);
 }
 
@@ -496,7 +496,7 @@ export function speciesTagTable(): string {
 /** Stone evolutions of the latest content, for the prose ("皮卡丘、妙蛙草、…"). */
 export const stoneEvolutionNames = (): string => stoneEvolutionsFor(content).map(path => speciesName(path.fromSpeciesId)).join('、');
 export function regionalTargetTable(): string {
-  const base = (roundLimit: 100 | 200 | 300) => Math.min(105, 18 + 3 + 5 + victoryTargets({ gameplayVersion: 25, roundLimit }).pokedexBonus);
+  const base = (roundLimit: 100 | 200 | 300) => Math.min(105, 18 + 3 + 5 + victoryTargets({ roundLimit }).pokedexBonus);
   return table(['轮上限', 'v24 目标', '精简 48 种（池 71）', '完整 60 种（池 105）'], ([100, 200, 300] as const).map(roundLimit => [`${roundLimit} 轮`, String(base(roundLimit)),
     String(regionalPokedexTarget(base(roundLimit), REGIONAL_DEX_RULES.size['simple-v1'], 71)), String(regionalPokedexTarget(base(roundLimit), REGIONAL_DEX_RULES.size['full-v1'], 105))]), [1, 2, 3]);
 }

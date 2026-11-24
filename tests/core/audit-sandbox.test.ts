@@ -6,7 +6,7 @@ import { canonicalSerialize } from '../../src/core/snapshot.ts';
 import { parseAuditAction } from '../../src/audit/commands.ts';
 import { inspectSystem } from '../../src/audit/inspect.ts';
 import { AUDIT_SYSTEMS } from '../../src/audit/catalog.ts';
-import { CONTENT, unitDefinition } from '../../src/content/units.ts';
+import { GAME_CONTENT, unitDefinition } from '../../src/content/units.ts';
 
 describe('isolated audit sandbox', () => {
   it('reports charged upkeep and executable evolution candidates with the engine conditions', () => {
@@ -17,7 +17,7 @@ describe('isolated audit sandbox', () => {
     expect(inspectSystem('s5-economy', state).metrics.find(metric => metric.label === '单位维护')?.value).toBe(chargedUpkeep);
     const unit = Object.values(state.units).find(unit => unit.ownerId === state.activePlayerId && unit.kind === 'pokemon')!;
     if (unit.kind !== 'pokemon') throw new Error('Expected starter');
-    const evolution = CONTENT.species[unit.speciesId].evolution!;
+    const evolution = GAME_CONTENT.species[unit.speciesId].evolution!;
     unit.xp = evolution.xp; state.players[state.activePlayerId].gold = evolution.gold;
     unit.actionLeft = 0;
     expect(inspectSystem('s11-evolution', state).metrics.find(metric => metric.label === '当前可进化')?.value).toBe(0);

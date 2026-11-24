@@ -27,7 +27,7 @@ const UNITS = ['unit-action-bar.spec.ts', 'selection.spec.ts', 'promotions.spec.
   'playtest-fixes-*.spec.ts', 'waypoints.spec.ts'];
 const CITY = ['city-panel.spec.ts', 'districts.spec.ts', 'economy.spec.ts', 'expansion*.spec.ts', 'tile-info.spec.ts', 'improvements-v23.spec.ts',
   'city-network.spec.ts', 'dedications.spec.ts', 'playtest-fixes-2cd.spec.ts', 'opening.spec.ts'];
-const RESEARCH = ['tech-tree.spec.ts', 'research-tasks.spec.ts', 'eras.spec.ts', 'gameplay-v2.spec.ts', 'era-honors.spec.ts', 'governments.spec.ts'];
+const RESEARCH = ['tech-tree.spec.ts', 'research-tasks.spec.ts', 'eras.spec.ts', 'era-honors.spec.ts', 'governments.spec.ts', 'gameplay-v2.spec.ts'];
 const DIPLOMACY = ['diplomacy.spec.ts', 'leaders.spec.ts', 'playtest-fixes-2e.spec.ts', 'civ-glossary.spec.ts'];
 const WORLD = ['world-ui.spec.ts', 'gym-circuit.spec.ts', 'rivals.spec.ts', 'late-game-v26.spec.ts', 'legends.spec.ts', 'regional-dex.spec.ts',
   'strength.spec.ts', 'era-honors.spec.ts', 'playtest-fixes-*.spec.ts', 'presentation-batch3.spec.ts', 'depth-v26-battles.spec.ts'];
@@ -98,8 +98,6 @@ export const SPEC_RULES: SpecRule[] = [
   { files: ['src/content/civ-glossary.ts'], specs: GUIDE, why: 'glossary terms shown in the guide' },
   { files: ['src/content/units.ts', 'src/content/species.ts', 'src/content/roster*.ts', 'src/content/regional-dex.ts', 'src/core/promotions.ts', 'src/core/unit*.ts'],
     specs: ['roster.spec.ts', 'regional-dex.spec.ts', 'selection.spec.ts', 'promotions.spec.ts', 'unit-classes.spec.ts'], why: 'unit stats shown in panels' },
-  // Gameplay v27 (pace-v27.md): its client modules, rule modules whose numbers the page shows, the trainer portraits; the raid spec also
-  // checks the boss's aura on the map in all three render modes.
   { files: ['src/browser/city-projects-ui.ts', 'src/browser/encounter-ui.ts', 'src/browser/max-raid-ui.ts', 'src/browser/trainer-card.ts', 'src/browser/league-*.ts',
     'src/content/pace-v27.ts', 'src/content/conference.ts', 'src/core/city-projects.ts', 'src/core/contest-circuit.ts', 'src/core/league-roster.ts',
     'src/core/legend-favor.ts', 'src/core/max-raids.ts', 'src/core/raids.ts', 'src/core/opening-safety.ts', 'src/core/wild-encounters.ts', 'public/trainers/**'],
@@ -111,72 +109,20 @@ export const SPEC_RULES: SpecRule[] = [
 export const PROD_TRIGGERS = ['src/*.css', '*.html', 'src/browser/screens.ts', 'src/browser/main.ts', 'src/browser/*-panel.ts', 'src/browser/notification-rail.ts',
   'src/browser/unit-action-bar.ts', 'src/browser/battle-viewer.ts', 'src/browser/lineup-picker.ts', 'src/browser/late-game-ui.ts', 'src/browser/world-cards.ts'];
 
-/** Any of these changed → the whole old gate (build, lint, every vitest file, every spec, prod e2e, smoke for every version). */
+/** Any of these changed → the whole full gate (build, lint, every vitest file, every spec, prod e2e, v27 smoke). */
 export const FULL_TRIGGERS = ['package.json', 'package-lock.json', 'tsconfig*.json', 'eslint.config.js', 'vite.config.ts', 'vitest.config.*', 'playwright*.config.ts',
-  'tools/test-plan.ts', 'tools/test-plan-map.ts', 'tools/smoke-parallel.ts', 'tools/content-trace.ts', '.npmrc', '.nvmrc'];
+  'tools/test-plan.ts', 'tools/test-plan-map.ts', 'tools/smoke-parallel.ts', '.npmrc', '.nvmrc'];
 
 /** Documentation: no checks (no markdown linter is configured). Files a test or the page reads (public/**) are not docs. */
 export const DOC_FILES = ['docs/**', '**/*.md', 'LICENSE*', '.gitignore', '.claude/**'];
 
 /**
  * Tests that read source text with fs (not an import): the graph cannot see these edges.
- * civ-glossary.test scans every src/browser/*.ts for civHint('…') calls; test-plan.test reads the content-trace fixture.
+ * civ-glossary.test scans every src/browser/*.ts for civHint('…') calls.
  */
 export const VITEST_TEXT_DEPENDENCIES: { files: string[]; tests: string[] }[] = [
   { files: ['src/browser/*.ts'], tests: ['tests/core/civ-glossary.test.ts'] },
-  { files: ['tests/tools/fixtures/content-trace-*.json'], tests: ['tests/tools/test-plan.test.ts'] },
 ];
-
-/**
- * Rule files that can only change smoke results of gameplay versions ≥ `from`. Reviewed by hand: rules reach these files only
- * through `importers` (checked by tests/tools/test-plan.test.ts: a new importer in the rule closure fails the test and needs a
- * new review). A module that throws at load would break every version, but the narrowed set always contains a version that
- * loads it, so the failure still shows.
- */
-export const VERSION_SCOPED: { file: string; from: number; importers: string[]; why: string }[] = [
-  { file: 'src/content/regional-dex.ts', from: 25, importers: ['src/content/units.ts'],
-    why: 'units.ts uses it only to build REGIONAL_CONTENT / DEPTH_CONTENT and the dex draws, which contentFor / contentForView pick only for gameplay ≥ 25' },
-  { file: 'src/content/stone-evolutions.ts', from: 25, importers: ['src/content/regional-dex.ts'], why: 'only regional-dex.ts reads it' },
-  { file: 'src/content/roster-v26-data.ts', from: 25, importers: ['src/content/units.ts', 'src/content/regional-dex.ts'],
-    why: 'units.ts: v26 species only (depthSpecies); regional-dex.ts: ALL_SPECIES_TAGS can override a v25 tag, so v25 too' },
-];
-
-/**
- * Tuning modules the content read tracer instruments (tools/content-trace.ts). A change that only edits literal values inside their
- * exported objects keeps the rule shape (tools/test-plan.ts `ruleShape`), so a stored trace of the same shape proves which gameplay
- * versions can observe it. `blocks`: the content key that carries a copy of an export (src/content/units.ts copies it into the stock
- * contents, `INIT_COPY_READERS`); `flags`: the export whose keys are spread onto the content as feature flags. `version` is only
- * documentation (the module's gameplay version); the proof never relies on it. A module that does not exist yet is skipped.
- */
-export const TRACED_MODULES: { file: string; version: number; blocks: Record<string, string>; flags?: string }[] = [
-  { file: 'src/content/world24-tuning.ts', version: 24, blocks: { world24: 'WORLD24_TUNING' } },
-  { file: 'src/content/depth-v26.ts', version: 26, blocks: { depth26: 'DEPTH26_TUNING' }, flags: 'DEPTH_FLAGS' },
-  { file: 'src/content/pace-v27.ts', version: 27, blocks: { pace27: 'PACE27_TUNING' }, flags: 'PACE_FLAGS' },
-];
-
-/**
- * Reviewed copy sites of traced values in src/content/units.ts (tools/test-plan.ts `copySites`; checked by tests/tools/test-plan.test.ts).
- * The tracer instruments the stock contents' blocks under the name of what they copy, which is right only while every copy is a
- * same-named block of a content that is, or is spread from, a stock content (STOCK_CONTENTS). Reviewed 2026-11-20: WORLD24_CONTENT
- * clones WORLD24_TUNING; REGIONAL_CONTENT clones that block with v25 rival offsets; depthOverlay clones the base block with v26 offsets and
- * early gym powers (same keys, over-approximated by name) and DEPTH26_TUNING, and spreads DEPTH_FLAGS onto the content. A changed or new
- * line (a v27 `pace27` overlay, a copy into a non-stock object) needs the same review before it is added here.
- */
-export const INIT_COPY_SITES: Record<string, string[]> = {
-  'src/content/units.ts': [
-    'world24: JSON.parse(JSON.stringify(WORLD24_TUNING)) as typeof WORLD24_TUNING };',
-    'world24: { ...JSON.parse(JSON.stringify(WORLD24_CONTENT.world24)) as World24Tuning, rivalStrengthOffsets: [...RIVAL_RULES_V25.strengthOffsets],',
-    'const depthOverlay = (base: Content): Content => ({ ...base, version: \'depth-v26\', ...DEPTH_FLAGS,',
-    'world24: { ...JSON.parse(JSON.stringify(base.world24)) as World24Tuning, rivalStrengthOffsets: [...RIVAL_RULES_V26.strengthOffsets],',
-    'gymTeamPower: (base.world24?.gymTeamPower ?? []).map((power, badges) => GYM_RULES_V26.earlyTeamPower[badges] ?? power) },',
-    'depth26: JSON.parse(JSON.stringify(DEPTH26_TUNING)) as Depth26Tuning });',
-    // Reviewed ahead of the v27 merge (branch commit 6721019): paceOverlay clones the same-named blocks of its base and PACE27_TUNING and
-    // spreads PACE_FLAGS; PACE_CONTENT is in STOCK_CONTENTS, per-game overlays are built during v27 games (recorded there).
-    'const paceOverlay = (base: Content): Content => ({ ...base, version: \'pace-v27\', ...PACE_FLAGS,',
-    'world24: JSON.parse(JSON.stringify(base.world24)) as World24Tuning, depth26: JSON.parse(JSON.stringify(base.depth26)) as Depth26Tuning,',
-    'pace27: JSON.parse(JSON.stringify(PACE27_TUNING)) as Pace27Tuning });',
-  ],
-};
 
 /** Balance knobs (tools/patch.ts leaves) worth sweeping when these files change. */
 export const BALANCE_KNOBS: { files: string[]; params: string[] }[] = [
@@ -192,14 +138,11 @@ export const BALANCE_KNOBS: { files: string[]; params: string[] }[] = [
 /** Rough wall-clock cost model (seconds) for the estimate line; measured on the shared 64-core box under load (docs/tech/testing.md). */
 export const COST = {
   tsc: 75, eslintFile: 0.6, eslintAll: 70, viteBuild: 60,
-  /** Full vitest run 2026-11-20: 122 files, 715 file-seconds, 122 s wall with 16 workers (≈ startup + sum / 8). */
   vitestStartup: 15, vitestDefaultFile: 3, vitestParallel: 8,
   vitestHeavy: { 'tests/core/regional-dex-game.test.ts': 86, 'tests/tools/balance-run.test.ts': 69, 'tests/core/team-battle.test.ts': 41,
     'tests/core/dedications.test.ts': 41, 'tests/tools/district-preview-check.test.ts': 39, 'tests/core/improvements-v23-ai.test.ts': 28,
     'tests/ai/memory.test.ts': 26, 'tests/core/legends.test.ts': 25, 'tests/core/roster.test.ts': 23, 'tests/tools/leader-balance.test.ts': 23 } as Record<string, number>,
-  /** Per browser test under load, 4 Playwright workers (the old gate's default 32 workers caused load timeouts). */
   playwrightStartup: 25, playwrightTest: 16, playwrightWorkers: 4,
   prodE2e: 150,
-  /** One smoke game (24×16, 100 rounds) took 30–110 s under load; 48 games per version, twice (base + head) unless the base is cached. */
   smokeGame: 60, smokeGamesPerVersion: 48, smokeRuns: 2, smokeWorkers: 16,
 };

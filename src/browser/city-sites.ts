@@ -67,7 +67,7 @@ export function suggestCitySites(view: PlayerView, settlerId: number, count = 3,
     const reasons: SiteReasons = { food: 0, production: 0, gold: 0, research: 0, resources: 0, freshWater: freshWater(view.map, position),
       coast: neighbors(position, view.map).some(hex => view.map.tiles[hexToIndex(hex, view.map) ?? -1] === 'ocean'), essences: 0, turns,
       danger: hostilesNear(view, position, 1).some(id => view.units.find(unit => unit.id === id)?.kind === 'pokemon')
-        || nests.some(nest => hexDistance(nest, position, view.map) <= 3), unexplored, ...(content.openingSafety && unexplored ? { hiddenCityRisk: true as const } : {}) };
+        || nests.some(nest => hexDistance(nest, position, view.map) <= 3), unexplored, ...(unexplored ? { hiddenCityRisk: true as const } : {}) };
     const essences = new Set<EssenceId>();
     for (const tile of area) {
       const info = yieldOf(tile);

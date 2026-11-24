@@ -13,7 +13,8 @@ import * as rng from '../../src/core/rng.ts';
 afterEach(() => vi.restoreAllMocks());
 
 test('action knockout count3 decrements this round; stage6 count2 waits until next stage5', () => {
-  const state = combatFixture(); pokemon(state, 10, 'charmander', 0, 3, 3); pokemon(state, 11, 'bulbasaur', 1, 4, 3).hp = 1;
+  const state = combatFixture(); state.round = 31; // past v27 round-30 wild newbie protection
+  pokemon(state, 10, 'charmander', 0, 3, 3); pokemon(state, 11, 'bulbasaur', 1, 4, 3).hp = 1;
   vi.spyOn(rng, 'randomBelow').mockReturnValue(15);
   resolveAttack(state, 10, { kind: 'unit', id: 11 }); expect(state.units[11]).toMatchObject({ roundsLeft: 3, hp: 1 });
   resolveRecovery(state); expect(state.units[11]).toMatchObject({ roundsLeft: 2, hp: 1 });
@@ -24,12 +25,12 @@ test('action knockout count3 decrements this round; stage6 count2 waits until ne
 });
 
 test('EndTurn executes stage5 before stage6 and never restores recovering AP', () => {
-  const state = combatFixture(); state.activePlayerId = 1;
+  const state = combatFixture(); state.round = 31; state.activePlayerId = 1; // past v27 round-30 wild newbie protection
   state.units[11] = { ...pokemon(state, 11, 'bulbasaur', 0), location: 'recovering', position: null, cityId: 1, roundsLeft: 3, hp: 1, actionLeft: 0 };
   pokemon(state, 20, 'charmander', null, 5, 5); pokemon(state, 21, 'bulbasaur', 0, 6, 5).hp = 1;
   vi.spyOn(rng, 'randomBelow').mockImplementation((_rng, bound) => bound === 100 ? 99 : bound - 1);
   const next = accepted(state, { type: 'EndTurn' });
-  expect(next.round).toBe(2);
+  expect(next.round).toBe(32);
   for (const id of [11, 21]) expect(next.units[id]).toMatchObject({ location: 'recovering', roundsLeft: 2, hp: 1, actionLeft: 0 });
 });
 
@@ -56,8 +57,8 @@ test('D17 ID order, terrain-filtered deployment, blocked retry restores25% only 
   state.map.tiles[hexToIndex(adjacent[2], state.map)!] = 'volcano'; // fire's sole legal empty tile
   for (const id of [9, 7]) state.units[id] = { ...pokemon(state, id, 'charmander'), location: 'recovering', position: null, cityId: city.id, roundsLeft: 1, hp: 1, actionLeft: 0 };
   resolveRecovery(state);
-  expect(state.units[7]).toMatchObject({ location: 'map', position: adjacent[2], hp: 17 }); // floor(50*.25)+5
-  expect(state.units[9]).toMatchObject({ location: 'recovering', roundsLeft: 0, hp: 12 });
+  expect(state.units[7]).toMatchObject({ location: 'map', position: adjacent[2], hp: 30 }); // floor(100*.25)+5
+  expect(state.units[9]).toMatchObject({ location: 'recovering', roundsLeft: 0, hp: 25 });
   state.units[9].hp = 8; resolveRecovery(state); expect(state.units[9].hp).toBe(8);
   delete state.units[7]; resolveRecovery(state); expect(state.units[9]).toMatchObject({ location: 'map', position: adjacent[2], hp: 13 });
 });

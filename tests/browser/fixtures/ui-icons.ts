@@ -18,7 +18,7 @@ let cached: MidGameFixture | null = null;
 
 export function midGameFixture(round = 45, seed = 2): MidGameFixture {
   if (cached) return cached;
-  const setup: GameSetup = { seed, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 24,
+  const setup: GameSetup = { seed, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 27,
     players: [{ id: 0, controller: 'human', starterId: 'bulbasaur', leaderId: 'oak' }, ...[1, 2, 3].map(id => ({ id, controller: 'ai' as const, personality: 'aggressive' as const }))] };
   const content = contentFor(setup);
   let state = createGame(setup, content);

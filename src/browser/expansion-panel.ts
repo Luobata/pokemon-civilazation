@@ -152,13 +152,9 @@ export function renderExpansionPanel(view: PlayerView, selectedUnitId: number | 
   html += card('s24-sanctuaries', '圣所挑战与起源胜利', '<p>派单位抵达圣所，支付 80 金币建立。部署最多三只宝可梦在两格内挑战守卫，队伍消耗行动并承受战损；集齐四块石板获得起源胜利。</p>'
     + civ.sanctuaries.map(site => {
       const onSite = own.find(unit => hexDistance(unit.position, site.position, view.map) === 0);
-      const team = own.filter(unit => unit.actionLeft && hexDistance(unit.position, site.position, view.map) <= 2).sort((a, b) => Number(b.id === onSite?.id) - Number(a.id === onSite?.id) || a.id - b.id).slice(0, 3);
       return `<p>${escape(site.name)} · (${site.position.q},${site.position.r}) · ${site.ownerId === null ? '未控制' : civName(view, site.ownerId)} · ${site.guardianDefeated ? '石板已获得' : escape(site.guardianName)}</p>`
         + (site.ownerId === null && onSite ? button('建立圣所 · 80 金', { type: 'EstablishSanctuary', siteId: site.id, unitId: onSite.id }, player.gold >= 80 && Boolean(onSite.actionLeft)) : '')
-        + (site.ownerId === player.id && !site.guardianDefeated ? (CONTENT.teamBattles
-          // v26: a beatable boss (its species' attack and defence, more HP); the lineup picker shows the estimate.
-          ? `<button type="button" data-lineup="guardian:${escape(site.id)}"${disabled || !onSite?.actionLeft ? ' disabled' : ''}>挑战守卫 · 选择阵容</button>`
-          : button('挑战守卫', { type: 'ChallengeGuardian', siteId: site.id, unitIds: team.map(unit => unit.id) }, Boolean(onSite?.actionLeft) && team.length > 0)) : '');
+        + (site.ownerId === player.id && !site.guardianDefeated ? `<button type="button" data-lineup="guardian:${escape(site.id)}"${disabled || !onSite?.actionLeft ? ' disabled' : ''}>挑战守卫 · 选择阵容</button>` : '');
     }).join('') + `<p>已知石板：${Object.entries(civ.tabletOwners).map(([tablet, owner]) => `${escape(tablet)} → ${civName(view, owner)}`).join('、') || '无'}</p>`);
   // v24 B / C: badge box, circuit gyms, the Elite Four, the own rival.
   html += v24PanelCards(view, button, card);
@@ -166,13 +162,9 @@ export function renderExpansionPanel(view: PlayerView, selectedUnitId: number | 
   html += depthPanelCards(view, button, card);
   const peaceful = !view.diplomacy.some(pair => pair.status === 'war' && [pair.a, pair.b].includes(player.id));
   html += card('s27-championship', '六只队伍与联盟大会', `<p>下一届：第 ${civ.championship.nextRound} 轮。六只宝可梦报名，六队锦标赛、前两名轮空，获得 ${titlesNeeded} 届冠军即胜利${exp.gymCircuit ? '（战胜四天王也计 1 个头衔，四天王最多算 1 个）' : ''}。大会战损会写回参赛单位，HP 至少保留 1，并消耗行动。</p><p>当前冠军数 ${civ.championship.titlesByPlayer[player.id] ?? 0}/${titlesNeeded} · ${civ.championship.registration ? '已报名' : '未报名'}</p>`
-    + (CONTENT.teamBattles
-      // v26: pick the six and their order (re-registering changes the order); the NPC teams are announced five rounds ahead.
-      ? `<button type="button" data-lineup="championship:"${disabled || !peaceful || own.length < 6 ? ' disabled' : ''}>${civ.championship.registration ? '调整报名与出场顺序' : '报名 · 选择六只与出场顺序'}</button>`
-        // v27 ⑥: the league roster strip and the announced trainers as portrait chips, the viewer's nemesis first.
-        + leagueLineupMarkup(view)
-        + (civ.championship.lineup?.length && !viewLeagueRoster(view).length ? `<p>本届公布的联盟训练家：${civ.championship.lineup.map(npc => `${escape(npc.name)}（${npc.roster.map(member => CONTENT.species[member.speciesId]?.name ?? member.speciesId).join('、')}）`).join('；')}</p>` : '')
-      : button('报名当前六只宝可梦', { type: 'RegisterChampionshipTeam', unitIds: own.slice(0, 6).map(unit => unit.id) }, peaceful && own.length >= 6 && !civ.championship.registration))
+    + `<button type="button" data-lineup="championship:"${disabled || !peaceful || own.length < 6 ? ' disabled' : ''}>${civ.championship.registration ? '调整报名与出场顺序' : '报名 · 选择六只与出场顺序'}</button>`
+      + leagueLineupMarkup(view)
+      + (civ.championship.lineup?.length && !viewLeagueRoster(view).length ? `<p>本届公布的联盟训练家：${civ.championship.lineup.map(npc => `${escape(npc.name)}（${npc.roster.map(member => CONTENT.species[member.speciesId]?.name ?? member.speciesId).join('、')}）`).join('；')}</p>` : '')
     + `<p>阵容：${own.slice(0, 6).map(unit => `#${unit.id} ${unit.kind === 'pokemon' ? CONTENT.species[unit.speciesId].name : ''}`).join('、')}</p><p>最近冠军：${civ.championship.history.map(season => `第${season.season}届 ${season.championPlayerId === null ? (viewLeagueTrainer(view, season.championEntrantId) ? escape(trainerDisplayName(viewLeagueTrainer(view, season.championEntrantId)!)) : 'NPC') : `文明${season.championPlayerId + 1}`}`).join('；') || '尚未举办'}</p>`);
   html += card('s28-deep-diplomacy', '联盟、贸易与信任', '<p>和平时期可提议结盟与贸易。贸易每五轮给双方 4 金币并增进信任；背叛需 20 金币，信任降至 -50 并进入冷却。</p>'
     + civ.relations.filter(relation => !view.civilizations.find(civ => civ.id === relation.targetPlayerId)?.eliminated).map(relation => {

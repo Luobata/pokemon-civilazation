@@ -2,7 +2,7 @@ import { ERA_ABILITIES, ERA_ABILITY_RULES, WEATHERS, isNight } from '../content/
 import type { EraAbilityId, WeatherId } from '../content/era-abilities.ts';
 import { TYPE_ESSENCE } from '../content/essences.ts';
 import type { EssenceId } from '../content/essences.ts';
-import { eraState, gameplayAtLeast } from '../content/eras.ts';
+import { eraState } from '../content/eras.ts';
 import type { EraProgression } from '../content/eras.ts';
 import type { TypeId } from '../content/species.ts';
 import type { Content, UnitIdentity } from '../content/units.ts';
@@ -29,7 +29,7 @@ export type EraAbilityEvent =
 /** Visible part: every public weather field, and statuses of units the viewer can see; own ledger. */
 export type EraAbilityView = { generation: number; unlocked: EraAbilityId[]; night: boolean; fields: WeatherField[]; units: Record<number, UnitStatus>; own: EraAbilityPlayer };
 
-export const usesEraAbilities = (state: Pick<GameState, 'setup' | 'expansion'>) => state.expansion !== undefined && gameplayAtLeast(state.setup, 5);
+export const usesEraAbilities = (state: Pick<GameState, 'setup' | 'expansion'>) => state.expansion !== undefined;
 const ACTIONS = ['SummonWeather', 'MegaEvolve', 'PrimeZMove', 'Dynamax', 'Terastallize'];
 export function isEraAbilityAction(action: { type: unknown }): action is EraAbilityAction { return ACTIONS.includes(action.type as string); }
 const blank = (): EraAbilityPlayer => ({ weatherReadyAtRound: 1, zReadyAtRound: 1, dynamaxReadyAtRound: 1, megaUnitId: null, teraUnitId: null });

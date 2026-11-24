@@ -1,4 +1,4 @@
-import { EXPANSION_CONTENT } from './units.ts';
+import { GAME_CONTENT } from './units.ts';
 import type { Content } from './units.ts';
 import type { SpeciesId } from './species.ts';
 
@@ -70,7 +70,7 @@ export type CivilizationContent = {
 
 export const CIVILIZATION_CONTENT: CivilizationContent = {
   version: 'civilization-v1',
-  world: EXPANSION_CONTENT,
+  world: GAME_CONTENT,
   offering: { foodCost: 10, goldCost: 20, points: 5 },
   phantoms: {
     firstSummonCost: 30,

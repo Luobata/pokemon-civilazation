@@ -6,6 +6,7 @@ import { planNext } from '../../../src/ai/plan.ts';
 import { rememberCityRejection } from '../../../src/ai/memory.ts';
 import type { RejectedCitySite } from '../../../src/ai/memory.ts';
 import { createGame } from '../../../src/core/game.ts';
+import { viewContestEntryBlocker } from '../../../src/core/contest-seasons.ts';
 import { leaderTeamFor } from '../../../src/core/gym-circuit.ts';
 import { hexDistance } from '../../../src/core/hex.ts';
 import { isEmbarked } from '../../../src/core/terrain.ts';
@@ -18,7 +19,7 @@ import type { CommandLog } from '../../../src/app/session.ts';
 import type { AiPersonality, Command, GameSetup, GameState, PlayerView } from '../../../src/core/model.ts';
 
 type Options = { seed: number; personality: AiPersonality };
-const setupFor = ({ seed, personality }: Options): GameSetup => ({ seed, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 26,
+const setupFor = ({ seed, personality }: Options): GameSetup => ({ seed, width: 24, height: 16, roundLimit: 100, expansionVersion: 1, eraProgression: 'simple-v1', gameplayVersion: 27,
   players: [{ id: 0, controller: 'human', starterId: 'bulbasaur', leaderId: 'oak' }, ...[1, 2, 3].map(id => ({ id, controller: 'ai' as const, personality }))] });
 export type Playtest2Fixture = { state: GameState; save: string; id: number };
 
@@ -86,8 +87,10 @@ export const embarkedFixture = () => first('embarked', GAMES, view => {
   if (!player.research.unlockedIds.includes('domestication') || player.ballInventory.pokeBall < 1) return undefined;
   return ready(view).find(unit => isEmbarked(unit, view.map, content))?.id;
 });
-/** N7: a contest season is open (category announced), seat 0 has not entered and has no contest hall (id = the season's round). */
-export const seasonNoHallFixture = () => first('season-no-hall', GAMES, view => {
-  const seasons = view.expansion?.contestSeasons, contests = view.expansion?.contests;
-  return seasons?.category && seasons.nextRound !== null && !seasons.ownEntry && contests && !contests.own.halls.length && view.round <= seasons.nextRound ? seasons.nextRound : undefined;
+/** N7: a contest season is open (category announced), seat 0 has not entered and no own Pokémon is eligible right now (id = the season's round). */
+export const seasonNoHallFixture = () => first('season-no-hall', [{ seed: 1, personality: 'aggressive' }, ...GAMES], view => {
+  const seasons = view.expansion?.contestSeasons, content = contentForView(view);
+  if (!seasons?.category || seasons.nextRound === null || seasons.ownEntry || view.round > seasons.nextRound) return undefined;
+  const own = view.units.filter(unit => unit.ownerId === view.playerId && unit.kind === 'pokemon');
+  return own.every(unit => viewContestEntryBlocker(view, unit.id, content) !== null) ? seasons.nextRound : undefined;
 });

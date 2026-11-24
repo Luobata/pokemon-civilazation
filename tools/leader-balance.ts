@@ -12,7 +12,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { CONTENT,  } from '../src/content/units.ts';
+import { GAME_CONTENT as CONTENT } from '../src/content/units.ts';
 import type { Content } from '../src/content/units.ts';
 import { CLASSIC_LEADER_IDS, LEADER_IDS } from '../src/content/leaders.ts';
 import type { LeaderId } from '../src/content/leaders.ts';

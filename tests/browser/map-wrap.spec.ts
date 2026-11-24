@@ -43,7 +43,7 @@ async function probeSeam(page: Page) {
 }
 
 test('v22: panning past the east edge shows the west columns; a click across the seam picks the right tile', async ({ page }) => {
-  await page.goto('/?gameplay=22&seed=12345&size=24x16');
+  await page.goto('/?seed=12345&size=24x16');
   await page.locator('#animate').uncheck();
   await page.locator('#fit').click();
   const start = await probeSeam(page);
@@ -76,16 +76,4 @@ test('v22: panning past the east edge shows the west columns; a click across the
   await page.evaluate(() => { const god = document.querySelector<HTMLInputElement>('#god')!; god.checked = true; god.dispatchEvent(new Event('change')); });
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   await page.screenshot({ path: `${reports}/map-wrap.png` });
-});
-
-test('v21 keeps the flat map: nothing is drawn past the east edge', async ({ page }) => {
-  await page.goto('/?gameplay=21&seed=12345&size=24x16');
-  await page.locator('#animate').uncheck();
-  await page.locator('#fit').click();
-  const start = await probeSeam(page);
-  expect(start.wrap).toBe(false);
-  await drag(page, -(start.east.x - start.canvasWidth * .35), 0);
-  const seam = await probeSeam(page);
-  expect(seam.copy.x).toBeLessThan(seam.canvasWidth);
-  expect(seam.painted).toBe(0);
 });

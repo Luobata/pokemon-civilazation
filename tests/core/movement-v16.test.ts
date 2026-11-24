@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { ROSTER_CONTENT } from '../../src/content/units.ts';
+import { GAME_CONTENT } from '../../src/content/units.ts';
 import type { GameplayVersion } from '../../src/content/eras.ts';
 import { createGame } from '../../src/core/game.ts';
 import { createMapUnit } from '../../src/core/unit.ts';
@@ -16,20 +16,20 @@ const act = (state: GameState, action: Command['action']) => step(state, { actor
 /** Open grassland: player 0's Ponyta (move 5) at (6,6); a rival Machop (melee: zone of control) at (10,6); at war. */
 function field(version: GameplayVersion): GameState {
   const state = createGame(duel(version));
-  state.map.tiles.fill('grassland'); state.units = {};
+  state.map.tiles.fill('grassland'); delete state.map.features; state.units = {};
   state.diplomacy[0].status = 'war';
   state.cities[state.players[0].headquartersCityId].position = { q: 1, r: 1 };
   state.cities[state.players[1].headquartersCityId].position = { q: 22, r: 14 };
-  state.units[9000] = createMapUnit({ kind: 'pokemon', speciesId: 'ponyta' }, 9000, 0, { q: 6, r: 6 }, ROSTER_CONTENT, 0, 1);
-  state.units[9001] = createMapUnit({ kind: 'pokemon', speciesId: 'machop' }, 9001, 1, { q: 10, r: 6 }, ROSTER_CONTENT, 0, 1);
+  state.units[9000] = createMapUnit({ kind: 'pokemon', speciesId: 'ponyta' }, 9000, 0, { q: 6, r: 6 }, GAME_CONTENT, 0, 1);
+  state.units[9001] = createMapUnit({ kind: 'pokemon', speciesId: 'machop' }, 9001, 1, { q: 10, r: 6 }, GAME_CONTENT, 0, 1);
   state.map.tiles.forEach((biomeId, index) => { state.knowledge[0].rememberedTiles[index] = { biomeId }; });
   refreshKnowledge(state);
   return state;
 }
 
-test('v16: a unit moves, keeps its remaining points, and can still attack; v15 keeps one action per round', () => {
-  const state = field(16);
-  expect(gameVersions(state.setup)).toEqual({ schemaVersion: 11, rulesVersion: 'movement-v16' });
+test('v27: a unit moves, keeps its remaining points, and can still attack', () => {
+  const state = field(27);
+  expect(gameVersions(state.setup)).toEqual({ schemaVersion: 22, rulesVersion: 'pace-v27' });
   const moved = act(state, { type: 'Move', unitId: 9000, to: { q: 7, r: 6 } });
   expect(moved.ok).toBe(true);
   if (!moved.ok) return;
@@ -43,14 +43,10 @@ test('v16: a unit moves, keeps its remaining points, and can still attack; v15 k
   expect(second.state.units[9000].movesSpent).toBe(2);
   const reach = Object.keys(reachablePaths(observe(second.state, 0), 9000)).length;
   expect(reach).toBeGreaterThan(0);
-  // v15: the same first move spends the whole action.
-  const legacy = act(field(15), { type: 'Move', unitId: 9000, to: { q: 7, r: 6 } });
-  expect(legacy.ok && legacy.state.units[9000].actionLeft).toBe(0);
-  expect(legacy.ok && legacy.state.units[9000].movesSpent).toBeUndefined();
 });
 
 test('v16: move next to an enemy and attack in the same turn; entering a zone of control ends movement', () => {
-  const state = field(16);
+  const state = field(27);
   // (9,6) is adjacent to the machop: a melee zone of control, so the unit stops and cannot act further.
   const into = act(state, { type: 'Move', unitId: 9000, to: { q: 9, r: 6 } });
   expect(into.ok).toBe(true);
@@ -58,8 +54,8 @@ test('v16: move next to an enemy and attack in the same turn; entering a zone of
   expect(hexDistance(into.state.units[9000].position as { q: number; r: number }, { q: 10, r: 6 }, state.map)).toBe(1);
   expect(into.state.units[9000].actionLeft).toBe(0);
   // Without the zone of control (rival is a scout-role caterpie, which exerts none), the unit moves adjacent and attacks.
-  const open = field(16);
-  open.units[9001] = createMapUnit({ kind: 'pokemon', speciesId: 'caterpie' }, 9001, 1, { q: 10, r: 6 }, ROSTER_CONTENT, 0, 1);
+  const open = field(27);
+  open.units[9001] = createMapUnit({ kind: 'pokemon', speciesId: 'caterpie' }, 9001, 1, { q: 10, r: 6 }, GAME_CONTENT, 0, 1);
   refreshKnowledge(open);
   const approach = act(open, { type: 'Move', unitId: 9000, to: { q: 9, r: 6 } });
   expect(approach.ok).toBe(true);
@@ -72,10 +68,10 @@ test('v16: move next to an enemy and attack in the same turn; entering a zone of
 });
 
 test('v16: spending every point ends the unit’s turn, and points reset next round', () => {
-  const state = field(16);
-  state.units[9000] = createMapUnit({ kind: 'pokemon', speciesId: 'rattata' }, 9000, 0, { q: 6, r: 10 }, ROSTER_CONTENT, 0, 1);
+  const state = field(27);
+  state.units[9000] = createMapUnit({ kind: 'pokemon', speciesId: 'rattata' }, 9000, 0, { q: 6, r: 10 }, GAME_CONTENT, 0, 1);
   refreshKnowledge(state);
-  const budget = movementBudget(observe(state, 0), state.units[9000] as MapUnit, ROSTER_CONTENT);
+  const budget = movementBudget(observe(state, 0), state.units[9000] as MapUnit, GAME_CONTENT);
   const far = act(state, { type: 'Move', unitId: 9000, to: { q: 6 - budget, r: 10 } });
   expect(far.ok).toBe(true);
   if (!far.ok) return;
@@ -86,13 +82,11 @@ test('v16: spending every point ends the unit’s turn, and points reset next ro
   expect(next.units[9000].movesSpent).toBeUndefined();
 });
 
-test('v16: the starting settler stands beside the capital, not on it', () => {
-  for (const version of [15, 16] as const) {
-    const state = createGame(duel(version));
-    for (const player of Object.values(state.players)) {
-      const city = state.cities[player.headquartersCityId], settler = Object.values(state.units).find(unit => unit.ownerId === player.id && unit.kind === 'logistics')!;
-      const distance = hexDistance(city.position, settler.position as { q: number; r: number }, state.map);
-      expect(distance).toBe(version === 16 ? 1 : 0);
-    }
+test('the starting settler stands beside the capital, not on it', () => {
+  const state = createGame(duel(27));
+  for (const player of Object.values(state.players)) {
+    const city = state.cities[player.headquartersCityId], settler = Object.values(state.units).find(unit => unit.ownerId === player.id && unit.kind === 'logistics')!;
+    const distance = hexDistance(city.position, settler.position as { q: number; r: number }, state.map);
+    expect(distance).toBe(1);
   }
 });

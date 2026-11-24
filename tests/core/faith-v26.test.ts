@@ -9,14 +9,14 @@ import { step } from '../../src/core/step.ts';
 import { resolveFaithRound } from '../../src/core/faith-legends.ts';
 import type { GameSetup, GameState } from '../../src/core/model.ts';
 
-const setup = (gameplayVersion: 25 | 26): GameSetup => ({ seed: 12345, width: 24, height: 16, expansionVersion: 1, multiplayer: true, eraProgression: 'simple-v1',
+const setup = (gameplayVersion: 27): GameSetup => ({ seed: 12345, width: 24, height: 16, expansionVersion: 1, multiplayer: true, eraProgression: 'simple-v1',
   gameplayVersion, players: [
     { id: 0, controller: 'human', starterId: 'bulbasaur', leaderId: 'misty' },
     { id: 1, controller: 'human', starterId: 'charmander', leaderId: 'lance' },
     { id: 2, controller: 'human', starterId: 'squirtle', leaderId: 'brock' },
   ] });
 /** Civilization 0's faith holds most cities and one of civilization 1's; civilization 2 is eliminated and its former capital is held by 0. */
-function table(version: 25 | 26, capitalFollows: boolean): GameState {
+function table(version: 27, capitalFollows: boolean): GameState {
   const state = createGame(setup(version)), content = contentFor(state.setup);
   const civ = state.expansion!.civilization.players[0];
   civ.lifetimeOfferings = FAITH_RULES.foundLifetime; civ.offeringPoints = FAITH_RULES.foundCost + 100;
@@ -32,12 +32,10 @@ function table(version: 25 | 26, capitalFollows: boolean): GameState {
   return next;
 }
 
-test('v26: an eliminated non-follower still blocks the faith victory until its former capital follows; v25 lets it through', () => {
-  const v25 = table(25, false), v26 = table(26, false), v26Follows = table(26, true);
-  resolveFaithRound(v25, contentFor(v25.setup));
-  resolveFaithRound(v26, contentFor(v26.setup));
-  resolveFaithRound(v26Follows, contentFor(v26Follows.setup));
-  expect(v25.outcome).toMatchObject({ kind: 'faith', winners: [0] });
-  expect(v26.outcome).toBeNull();
-  expect(v26Follows.outcome).toMatchObject({ kind: 'faith', winners: [0] });
+test('v26+: an eliminated non-follower still blocks the faith victory until its former capital follows', () => {
+  const blocked = table(27, false), follows = table(27, true);
+  resolveFaithRound(blocked, contentFor(blocked.setup));
+  resolveFaithRound(follows, contentFor(follows.setup));
+  expect(blocked.outcome).toBeNull();
+  expect(follows.outcome).toMatchObject({ kind: 'faith', winners: [0] });
 });

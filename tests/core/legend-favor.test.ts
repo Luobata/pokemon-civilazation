@@ -12,11 +12,11 @@ import { observe } from '../../src/core/vision.ts';
 import { legendFavorCost, ownedLegends, viewLegendCost, viewLegendFavorPercent } from '../../src/core/legend-favor.ts';
 import { completeLegendWonder } from '../../src/core/legends.ts';
 
-const setup = (gameplayVersion: 26 | 27): GameSetup => ({ seed: 31, width: 24, height: 16, roundLimit: 100 as const, expansionVersion: 1 as const,
+const setup = (gameplayVersion: 27): GameSetup => ({ seed: 31, width: 24, height: 16, roundLimit: 100 as const, expansionVersion: 1 as const,
   eraProgression: 'simple-v1' as const, gameplayVersion, players: [
     { id: 0, controller: 'human' as const, starterId: 'bulbasaur' as const }, { id: 1, controller: 'ai' as const },
   ] });
-const game = (version: 26 | 27 = 27) => { const state = createGame(setup(version)); return { state, content: contentFor(state.setup) }; };
+const game = (version: 27 = 27) => { const state = createGame(setup(version)); return { state, content: contentFor(state.setup) }; };
 const order = (state: GameState, action: Command['action'], content: Content, actorId = 0) => step(state, { actorId, expectedSeq: state.commandSeq, action }, content);
 const ok = (result: ReturnType<typeof step>) => { if (!result.ok) throw new Error(result.reason); return result; };
 const capital = (state: GameState, playerId = 0) => state.cities[state.players[playerId].headquartersCityId];
@@ -24,7 +24,7 @@ const [A, B, C] = LEGEND_WONDER_IDS;
 const own = (state: GameState, id: typeof A, playerId = 0) => { state.expansion!.legends!.wonders[id] = { cityId: capital(state, playerId).id, builderId: playerId, round: 1 }; };
 
 describe('v27 legend favour', () => {
-  test('cost = stock × (100 + 15 × owned) / 100; owned follows the city; authority = view; v26 keeps the stock cost', () => {
+  test('cost = stock × (100 + 15 × owned) / 100; owned follows the city; authority = view', () => {
     const { state, content } = game(), item = { kind: 'legend' as const, defId: C };
     expect(legendFavorCost(state, 0, item, legendCost(C), content)).toBe(legendCost(C));
     own(state, A); own(state, B);
@@ -39,10 +39,6 @@ describe('v27 legend favour', () => {
     capital(state).ownerId = 1;
     expect(ownedLegends(state, 0)).toBe(0);
     expect(ownedLegends(state, 1)).toBe(2);
-    const v26 = game(26);
-    own(v26.state, A); own(v26.state, B);
-    expect(legendFavorCost(v26.state, 0, item, legendCost(C), v26.content)).toBe(legendCost(C));
-    expect(viewLegendCost(observe(v26.state, 0, v26.content), C, v26.content)).toBe(legendCost(C));
   });
 
   test('a legend under way costs more once another is finished: the order completes at the favoured cost, progress kept', () => {
@@ -72,11 +68,5 @@ describe('v27 legend favour', () => {
     const queued = ok(order(state, { type: 'SetProductionQueue', cityId: mine.id, orders: [{ item: { kind: 'legend', defId: B } }] }, content)).state;
     expect(capital(queued).queue[0].progress).toBe(20);
     expect(queued.expansion!.cityProjects!.legendTrail[mine.id]).toBeUndefined();
-    // v26: the same lost race only refunds gold.
-    const v26 = game(26), v26City = capital(v26.state);
-    v26City.queue = [{ id: v26.state.nextEntityId++, progress: 80, item: { kind: 'legend', defId: A } }];
-    const lost = completeLegendWonder(v26.state, capital(v26.state, 1) as typeof theirs & { ownerId: number }, A, v26.content);
-    expect(lost).toContainEqual({ type: 'LegendWonderLost', playerId: 0, legendId: A, cityId: v26City.id, refund: 40 });
-    expect(v26.state.expansion!.cityProjects).toBeUndefined();
   });
 });

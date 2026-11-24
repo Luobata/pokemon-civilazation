@@ -3,7 +3,7 @@ import { RESEARCH_TASK_IDS, RESEARCH_TASK_RULES_V24, researchSpecialFor } from '
 import type { ResearchTaskId } from '../../src/content/research-tasks.ts';
 import type { SpeciesId } from '../../src/content/species.ts';
 import type { BiomeId } from '../../src/content/rules.ts';
-import { WORLD24_CONTENT } from '../../src/content/units.ts';
+import { GAME_CONTENT } from '../../src/content/units.ts';
 import { createGame } from '../../src/core/game.ts';
 import { createMapUnit } from '../../src/core/unit.ts';
 import { resolveAttack } from '../../src/core/combat.ts';
@@ -20,8 +20,8 @@ import { researchCaptureScore } from '../../src/ai/research-plan.ts';
 import { isMapUnit } from '../../src/core/model.ts';
 import type { EventPayload, GameSetup, GameState, MapUnit } from '../../src/core/model.ts';
 
-const content = WORLD24_CONTENT, R = RESEARCH_TASK_RULES_V24;
-const duel = (gameplayVersion: 23 | 24 = 24): GameSetup => ({ seed: 12345, width: 24, height: 16, expansionVersion: 1, multiplayer: true, eraProgression: 'simple-v1', gameplayVersion,
+const content = GAME_CONTENT, R = RESEARCH_TASK_RULES_V24;
+const duel = (gameplayVersion: 27 = 27): GameSetup => ({ seed: 12345, width: 24, height: 16, expansionVersion: 1, multiplayer: true, eraProgression: 'simple-v1', gameplayVersion,
   players: [{ id: 0, controller: 'human', starterId: 'bulbasaur', leaderId: 'oak' }, { id: 1, controller: 'human', starterId: 'charmander', leaderId: 'misty' }] });
 const clone = (state: GameState) => JSON.parse(JSON.stringify(state)) as GameState;
 const bitOf = (task: ResearchTaskId) => 1 << RESEARCH_TASK_IDS.indexOf(task);
@@ -75,8 +75,7 @@ function knockOut(state: GameState, speciesId: SpeciesId, setupState?: (state: G
   return { state: after, events: completions(recordResearchTasks(before, after, battle)) };
 }
 
-test('v24 only: v23 has no research ledger; a v24 book starts with the starting registrations seen and nothing else', () => {
-  expect(createGame(duel(23)).expansion!.researchTasks).toBeUndefined();
+test('research ledger starts with the starting registrations seen and nothing else', () => {
   const state = createGame(duel());
   const book = state.expansion!.researchTasks!;
   expect(Object.keys(book)).toEqual(['0', '1']);
@@ -85,7 +84,7 @@ test('v24 only: v23 has no research ledger; a v24 book starts with the starting 
     expect(Object.keys(book[playerId]!).sort()).toEqual(observed);
     expect(Object.values(book[playerId]!).every(entry => entry!.tasks === bitOf('seen') && entry!.knockouts === 0)).toBe(true);
   }
-  expect(researchCaptureBonus(createGame(duel(23)), 0, 'rattata')).toBe(0);
+  expect(researchCaptureBonus(state, 0, 'rattata')).toBe(0);
 });
 
 test('task 1: a species counts as seen only when that player actually sees it', () => {
@@ -209,23 +208,24 @@ test('task 5: dark / ghost knocked out at night, water knocked out in rain', () 
 
 test('rewards: 4 tasks give +10 capture chance in the authority roll and the preview alike; 5 give gold and era score (3 per era)', () => {
   const state = quietGame();
-  state.players[0].research.unlockedIds.push('domestication');
-  state.players[0].ballInventory.pokeBall = 5;
+  state.players[0].research.unlockedIds.push('domestication', 'ballCraft');
+  state.players[0].ballInventory.greatBall = 5;
+  state.expansion!.wildEncounters!.firstBall[0] = true; // past v27 first-ball guarantee so +10 bonus is observable
   const spot = pair(state, 0);
   const own = place(state, 'machamp', 0, spot.own), wild = place(state, 'rattata', null, spot.target, 1);
   refreshKnowledge(state, content);
-  const without = previewCapture(observe(state, 0), own.id, wild.id, 'pokeBall', content);
+  const without = previewCapture(observe(state, 0), own.id, wild.id, 'greatBall', content);
   state.expansion!.researchTasks![0]!.rattata = { tasks: bitOf('seen') | bitOf('knockouts') | bitOf('evolution') | bitOf('special'), knockouts: 2 };
   expect(researchCaptureBonus(state, 0, 'rattata')).toBe(R.captureBonus);
   expect(researchCaptureBonus(state, 1, 'rattata')).toBe(0);
   const view = observe(state, 0);
   expect(viewResearchCaptureBonus(view, 'rattata')).toBe(R.captureBonus);
-  const preview = previewCapture(view, own.id, wild.id, 'pokeBall', content);
+  const preview = previewCapture(view, own.id, wild.id, 'greatBall', content);
   expect(without.ok && preview.ok).toBe(true);
   if (!without.ok || !preview.ok) return;
   expect(preview.probability).toBe(without.probability + R.captureBonus);
   const gold = state.players[0].gold, score = state.expansion!.eraHonors!.players[0].score;
-  const result = step(state, { actorId: 0, expectedSeq: state.commandSeq, action: { type: 'Capture', unitId: own.id, targetUnitId: wild.id, ballId: 'pokeBall' } });
+  const result = step(state, { actorId: 0, expectedSeq: state.commandSeq, action: { type: 'Capture', unitId: own.id, targetUnitId: wild.id, ballId: 'greatBall' } });
   expect(result.ok).toBe(true);
   if (!result.ok) return;
   const roll = result.events.map(event => event.payload).find(payload => payload.type === 'Captured');
@@ -266,8 +266,6 @@ test('AI: +15 capture score only when the capture completes task 3 or the habita
   expect(score()).toBe(R.aiCaptureScore); // the habitat task is still open here
   state.expansion!.researchTasks![0]!.rattata = { tasks: bitOf('seen') | bitOf('captured') | bitOf('special'), knockouts: 0 };
   expect(score()).toBe(0);
-  const v23 = createGame(duel(23)), any = observe(v23, 0).units.find(unit => unit.kind === 'pokemon')!;
-  expect(researchCaptureScore(observe(v23, 0), any)).toBe(0);
 });
 
 test('v24 terrain: the habitat task reads the tile habitat (hill overlay, deep water), not only the biome', () => {

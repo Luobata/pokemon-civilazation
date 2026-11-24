@@ -35,14 +35,15 @@ export function victoryProgress(state: GameState, playerId: number, content?: Co
     conquest: percent(state.turnOrder.length - alive.length, state.turnOrder.length - 1),
     pokedex: percent(pokedex, exp.world.victory?.targetDocumentedSpecies ?? Infinity),
     origin: percent(tablets, CIVILIZATION_CONTENT.sanctuaries.definitions.length),
-    championship: percent(titles, (state.setup.gameplayVersion ?? 0) >= 21 ? victoryTargets(state.setup).championshipTitles : CIVILIZATION_CONTENT.championship.titlesNeededForVictory),
+    championship: percent(titles, victoryTargets(state.setup).championshipTitles),
     contest: contests ? percent(appeal, contestTarget) : 0,
     faith: faith ? percent(followers, Math.max(victoryTargets(state.setup).faithMinimumCities, faithWinCount(counted.length, content ?? contentFor(state.setup)))) : 0,
   };
 }
 /** No flag of its own: it comes with the late-game lanes (the v26 content sets them all). */
-export function initializeVictoryWatch(state: GameState, content: Content): void {
-  if (content.contestSeasons && state.expansion) state.expansion.victoryWatch = {};
+export function initializeVictoryWatch(state: GameState, _content?: Content): void {
+  void _content;
+  if (state.expansion) state.expansion.victoryWatch = {};
 }
 export function resolveVictoryWatchRound(state: GameState, content: Content): EventPayload[] {
   const watch = state.expansion?.victoryWatch;

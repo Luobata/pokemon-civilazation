@@ -167,7 +167,6 @@ export function leagueTeamPower(season: number, slot: number, content: Content):
 
 /** The season's NPC entrants from the league roster (slot order), or null for the v26 per-season draw. Public setup and history only. */
 export function leagueRosterEntrants(seed: number, season: number, content: Content, history: readonly ChampionshipSeason[] = []): ChampionshipNpc[] | null {
-  if (!content.leagueTrainers) return null;
   return leagueSeasonTrainers(seed, season, content, history).slice(0, CIVILIZATION_CONTENT.championship.entrantCount).map((trainer, index) => ({
     entrantId: trainer.entrantId, name: trainer.name, roster: leagueTeam(trainer, season, leagueTeamPower(season, index + 1, content), content),
   }));
@@ -215,10 +214,11 @@ export function leagueNemesis(history: readonly ChampionshipSeason[], playerId: 
   return best ? { entrantId: best[0], ...best[1] } : null;
 }
 /** §7.1: era score +1 (once per season) for each civilization that beat its nemesis (as it stood before the season) this season. */
-export function settleLeagueNemeses(state: GameState, content: Content): EventPayload[] {
+export function settleLeagueNemeses(state: GameState, _content?: Content): EventPayload[] {
+  void _content;
   const history = state.expansion?.civilization?.championship.history;
   const season = history?.at(-1);
-  if (!content.leagueTrainers || !history || !season) return [];
+  if (!history || !season) return [];
   const before = history.slice(0, -1), events: LeagueTrainerEvent[] = [];
   for (const entrant of season.entrants) {
     if (entrant.playerId === null || state.players[entrant.playerId]?.eliminated) continue;

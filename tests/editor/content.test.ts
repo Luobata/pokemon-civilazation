@@ -1,24 +1,25 @@
 import { describe, expect, test } from 'vitest';
-import { CONTENT, EXPANSION_CONTENT } from '../../src/content/units.ts';
+import { GAME_CONTENT } from '../../src/content/units.ts';
+import { SPECIES, validateSpecies } from '../../src/content/species.ts';
 import { canonicalSerialize, type JsonValue } from '../../src/core/snapshot.ts';
 import { cloneContent, importEditorContent, validateD15, validateEditorContent } from '../../src/editor/content.ts';
 import { maxUnitHp } from '../../src/core/unit.ts';
 import { EditorSandbox, runIsolatedSimulation } from '../../src/editor/sandbox.ts';
 
 describe('content editor engine', () => {
-  test('starts from a deep expansion clone and never mutates the shared baseline', () => {
-  const before = canonicalSerialize(structuredClone(EXPANSION_CONTENT) as unknown as JsonValue);
-  expect(CONTENT.version).toBe('m3-v1');
-  expect(EXPANSION_CONTENT.version).toBe('expansion-v1');
+  test('starts from a deep game-content clone and never mutates the shared baseline', () => {
+    const before = canonicalSerialize(structuredClone(GAME_CONTENT) as unknown as JsonValue);
+    expect(GAME_CONTENT.version).toBe('pace-v27');
+    validateSpecies(SPECIES);
     const content = cloneContent();
     content.species.bulbasaur.maxHp += 1;
-    expect(content.species.bulbasaur).not.toEqual(EXPANSION_CONTENT.species.bulbasaur);
+    expect(content.species.bulbasaur).not.toEqual(GAME_CONTENT.species.bulbasaur);
     const sandbox = new EditorSandbox(content);
     sandbox.issue({ type: 'EndTurn' });
     sandbox.issue({ type: 'EndTurn' });
     expect(sandbox.seq).toBe(2);
     expect(sandbox.getView().round).toBe(2);
-    expect(canonicalSerialize(structuredClone(EXPANSION_CONTENT) as unknown as JsonValue)).toBe(before);
+    expect(canonicalSerialize(structuredClone(GAME_CONTENT) as unknown as JsonValue)).toBe(before);
   });
 
   test('rejects invalid JSON, shapes, budgets, and D15 violations', () => {
@@ -30,8 +31,8 @@ describe('content editor engine', () => {
 
     const d15 = cloneContent();
     const defender = d15.species.geodude;
-    defender.maxHp = 120;
-    defender.defense = 30;
+    defender.maxHp = 135;
+    defender.defense = 10;
     expect(() => validateEditorContent(d15)).toThrow(/D15/u);
     expect(() => validateD15(d15.species)).toThrow(/D15/u);
   });
@@ -48,11 +49,11 @@ describe('content editor engine', () => {
     bulbasaur.maxHp += 10;
     bulbasaur.attack -= 10;
     const valid = validateEditorContent(content);
-    expect(valid.species.bulbasaur.maxHp).toBe(EXPANSION_CONTENT.species.bulbasaur.maxHp + 10);
+    expect(valid.species.bulbasaur.maxHp).toBe(GAME_CONTENT.species.bulbasaur.maxHp + 10);
     const results = runIsolatedSimulation(valid);
     expect(results).toHaveLength(2);
     expect(results.every(result => result.ok)).toBe(true);
     const starter = results.flatMap(result => result.view.units).find(unit => unit.kind === 'pokemon' && unit.speciesId === 'bulbasaur');
-    expect(starter && maxUnitHp(starter, valid)).toBe(EXPANSION_CONTENT.species.bulbasaur.maxHp + 10);
+    expect(starter && maxUnitHp(starter, valid)).toBe(GAME_CONTENT.species.bulbasaur.maxHp + 10);
   });
 });
