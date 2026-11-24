@@ -16,8 +16,8 @@ import { hexDistance, hexToIndex } from './hex.ts';
 import type { Hex } from './hex.ts';
 import { isMapUnit } from './model.ts';
 import type { EventPayload, GameState, MapUnit, PlayerView } from './model.ts';
-import { defeatRivalVisit, rivalCounters, rivalSpirit } from './rivals.ts';
-import { taughtMoveType } from './gold-sinks.ts';
+import { defeatRivalVisit, rivalCounters } from './rivals.ts';
+import { rivalSpirit, taughtMoveType } from './state-queries.ts';
 import { battleSeed, fighterFromUnit, resolveTeamBattle } from './team-battle.ts';
 import type { BattleTraceV26 } from './team-battle.ts';
 

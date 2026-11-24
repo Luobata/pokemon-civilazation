@@ -7,8 +7,10 @@ import type { StarterId } from '../content/units.ts';
 import type { SpeciesId, TypeId } from '../content/species.ts';
 import type { Content } from '../content/units.ts';
 import { rivalStayRounds, world24Tuning } from '../content/world24-tuning.ts';
-import { stableSeed } from './civilization-systems.ts';
+import { stableSeed } from '../content/stable-seed.ts';
 import { resolveAttack } from './combat.ts';
+import { isRivalUnit, rivalSpirit } from './state-queries.ts';
+export { isRivalUnit, rivalSpirit };
 import { dualEffectiveness } from './combat-math.ts';
 import { canEnter } from './movement.ts';
 import { cityStrengthBreakdown, strengthDamage } from './strength.ts';
@@ -57,13 +59,10 @@ export function initializeRivals(state: GameState, _content?: Content): void {
     unitTargets: {}, spirit: {} };
 }
 
-export const isRivalUnit = (state: Pick<GameState, 'expansion'>, unitId: number) => state.expansion?.rivals?.unitTargets[unitId] !== undefined;
 /** Any rival Pokémon the viewer can see (its own rival's or another civilization's). */
 export const viewIsRivalUnit = (view: Pick<PlayerView, 'expansion'>, unitId: number) =>
   view.expansion?.rivals?.sightings.some(sighting => sighting.unitId === unitId) ?? false;
 export const viewRivalSighting = (view: Pick<PlayerView, 'expansion'>, unitId: number) => view.expansion?.rivals?.sightings.find(sighting => sighting.unitId === unitId);
-/** 劲敌气势 of a unit (0 for everyone but rival Pokémon): authority and preview read the same number. */
-export const rivalSpirit = (state: Pick<GameState, 'expansion'>, unitId: number) => state.expansion?.rivals?.spirit[unitId] ?? 0;
 export const viewRivalSpirit = (view: Pick<PlayerView, 'expansion'>, unitId: number) => viewRivalSighting(view, unitId)?.spirit ?? 0;
 
 // ---------- schedule, target and spawn tile (§4.1) ----------

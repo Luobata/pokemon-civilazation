@@ -16,7 +16,7 @@ import { leaderEffects } from '../content/leaders.ts';
 import type { TypeId } from '../content/species.ts';
 import type { Content } from '../content/units.ts';
 import { stateBadges, viewBadges } from './unit-classes.ts';
-import { productionCost } from './city.ts';
+import { productionCost } from './city-query.ts';
 import { hexDistance, hexToIndex, neighbors } from './hex.ts';
 import { isMapUnit } from './model.ts';
 import type { CityState, Diplomacy, EventPayload, GameState, PlayerState, PlayerView, ProductionOrder, UnitState } from './model.ts';
@@ -24,7 +24,9 @@ import { canEnterTile } from './movement.ts';
 import { playerPolicyEffects, viewPolicyEffects } from './policies.ts';
 import { placementBlocked } from './stacking.ts';
 import { createMapUnit, maxUnitHp } from './unit.ts';
-import { unitIdentity } from './vision.ts';
+import { unitIdentity } from './vision-query.ts';
+import { taughtMoveType } from './state-queries.ts';
+export { taughtMoveType };
 import type { GymCircuitView } from './gym-circuit.ts';
 import { stateProjectsDone, viewProjectsDone } from './city-projects.ts';
 import type { CityProjectId } from '../content/pace-v27.ts';
@@ -166,8 +168,6 @@ export function resolveGoldSinkRound(state: GameState, content: Content): EventP
   void state; void content;
   return [];
 }
-/** The TM type a unit carries in battle (undefined = none). */
-export const taughtMoveType = (state: Pick<GameState, 'expansion'>, unitId: number): TypeId | undefined => state.expansion?.goldSinks?.moves[unitId];
 export function observeGoldSinks(state: GameState, playerId: number): GoldSinkView | undefined {
   const ledger = state.expansion?.goldSinks;
   if (!ledger) return undefined;

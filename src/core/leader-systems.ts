@@ -5,7 +5,9 @@ import type { LeaderId } from '../content/leaders.ts';
 import { contentFor, contentForView } from '../content/units.ts';
 import type { Content, SpeciesId } from '../content/units.ts';
 import type { GameState, PlayerView } from './model.ts';
-import { maxCityHp } from './city.ts';
+import { maxCityHp } from './city-query.ts';
+import { leaderCityYield, leaderVisionBonus } from './state-queries.ts';
+export { leaderCityYield, leaderVisionBonus };
 import { initialUnitPosition } from './movement.ts';
 import { createMapUnit, maxUnitHp } from './unit.ts';
 import { leaderEffects } from '../content/leaders.ts';
@@ -109,30 +111,6 @@ export function leaderAttackMultiplier(state: GameState, actor: number | null, b
   if (actor === null || !state.expansion) return base;
   const player = state.players[actor], ledger = state.expansion.leaders.players[actor];
   return player.leaderId === 'lance' && ledger.activeUntilRound >= state.round ? Math.floor(base * 1150 / 1000) : base;
-}
-export function leaderVisionBonus(state: GameState, playerId: number, cityId: number): number {
-  const ledger = state.expansion?.leaders.players[playerId];
-  const id = state.players[playerId].leaderId;
-  if (!ledger) return 0;
-  if (id === 'jenny') return Number(ledger.activeUntilRound >= state.round) + Number(ledger.uniqueCityIds.includes(cityId));
-  return id === 'jasmine' ? Number(ledger.activeUntilRound >= state.round) : 0;
-}
-export function leaderCityYield(state: GameState, cityId: number): { food: number; production: number; gold: number; research: number } {
-  const city = state.cities[cityId], owner = city.ownerId;
-  const none = { food: 0, production: 0, gold: 0, research: 0 };
-  if (owner === null || !state.expansion?.leaders.players[owner]?.uniqueCityIds.includes(cityId)) return none;
-  switch (state.players[owner].leaderId) {
-    case 'oak': return { ...none, research: 2 };
-    case 'lance': return { ...none, production: 2 };
-    case 'jenny': return { ...none, gold: 2 };
-    case 'joy': return { ...none, food: 2 };
-    case 'brock': return { ...none, production: 2 };
-    case 'misty': return { ...none, food: 2 };
-    case 'steven': return { ...none, research: 2 };
-    case 'jasmine': return { ...none, gold: 2 };
-    case 'giovanni': return { ...none, gold: 2 };
-    default: return none;
-  }
 }
 export function observeLeaders(state: GameState, playerId: number): LeaderSystemsView {
   return clonePlain(state.expansion!.leaders.players[playerId]);

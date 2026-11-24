@@ -2,7 +2,7 @@ import { cityDistrictEffects } from './districts.ts';
 import { faithBond, faithKeepsCity } from './faith-legends.ts';
 import { rareBerryBond } from './rare-berries.ts';
 import { hexDistance } from './hex.ts';
-import { workRadius } from './city.ts';
+import { workRadius } from './city-query.ts';
 import { isMapUnit } from './model.ts';
 import type { CityState, EventPayload, GameState } from './model.ts';
 

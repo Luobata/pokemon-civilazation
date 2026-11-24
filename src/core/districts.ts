@@ -8,8 +8,8 @@ import type { BiomeId } from '../content/rules.ts';
 import { hexDistance, hexToIndex, indexToHex, neighbors } from './hex.ts';
 import type { GridSize } from './hex.ts';
 import type { CityState, GameState, PlayerView, ProductionOrder } from './model.ts';
-import { territoryOwners } from './vision.ts';
-import { workRadius } from './city.ts';
+import { territoryOwners } from './vision-query.ts';
+import { workRadius } from './city-query.ts';
 
 export type District = { cityId: number; kind: DistrictId; tileIndex: number; builtAtRound: number };
 export type DistrictState = { tiles: Record<number, District> };

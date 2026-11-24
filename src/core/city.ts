@@ -1,10 +1,6 @@
 import { OPENING_RULES } from '../content/opening.ts';
 import { cityNetworkYield } from './city-network.ts';
-import { legendCityYield } from './legends.ts';
-import { legendCost } from '../content/legend-wonders.ts';
-import { DISTRICTS } from '../content/districts.ts';
-import { cityProjectCost } from '../content/pace-v27.ts';
-import type { CityProjectId } from '../content/pace-v27.ts';
+import { legendCityYield } from './legend-effects.ts';
 import { cityDistrictEffects, districtOccupiedTiles } from './districts.ts';
 import { faithCityYield } from './faith-legends.ts';
 import { rareBerryCityFood } from './rare-berries.ts';
@@ -14,34 +10,16 @@ import { applyFeatureYield, freshWater, workableFeature } from './terrain.ts';
 import { applyLandmarkYield } from './landmarks.ts';
 import { TERRAIN_RULES_V24 } from '../content/terrain.ts';
 import { playerPolicyEffects } from './policies.ts';
-import { worldCityYield } from './world-systems.ts';
-import { leaderCityYield } from './leader-systems.ts';
+import { worldCityYield } from './world-model.ts';
+import { leaderCityYield } from './state-queries.ts';
 import { GAME_CONTENT, contentFor } from '../content/units.ts';
 import { leaderEffects } from '../content/leaders.ts';
 import type { Content } from '../content/units.ts';
 import type { Yield } from '../content/economy.ts';
 import { hexDistance, hexToIndex, indexToHex } from './hex.ts';
-import type { Hex } from './hex.ts';
-import type { CityState, GameState, PlayerState, ProductionItem } from './model.ts';
-
-export function createCity(id: number, ownerId: number, position: Hex, headquarters = false, content: Content = GAME_CONTENT): CityState {
-  return { id, ownerId, position: { ...position }, hp: content.balance.city.baseHp, population: headquarters ? 2 : 1,
-    food: headquarters ? 10 : 0, buildingIds: headquarters ? ['headquarters'] : [],
-    queue: [], pendingDeployments: [], workedTileIds: [], lockedTileIds: [], capturedAtRound: null };
-}
-export const workRadius = (city: CityState) => 2 + Math.floor(city.population / 4);
-export const growthThreshold = (city: CityState) => 20 + 10 * city.population;
-export const maxCityHp = (city: CityState, content: Content = GAME_CONTENT) => content.balance.city.baseHp + content.balance.city.buildingHp * city.buildingIds.filter(id => id !== 'headquarters').length;
-export function cityCounterAttack(player: PlayerState | undefined, content: Content = GAME_CONTENT): number {
-  if (!player) return 0;
-  return (player.starterId === 'squirtle' ? content.balance.city.squirtleCounterAttack : content.balance.city.counterAttack)
-    + leaderEffects(player.leaderId).cityCounterAttack;
-}
-export function tileYield(biome: keyof Content['biomes'], player: PlayerState, content: Content = GAME_CONTENT): Yield {
-  const result = { ...content.biomes[biome] };
-  if ((biome === 'snow' || biome === 'volcano') && player.research.unlockedIds.includes('meteorology')) result.research += content.balance.effects.meteorologyResearch;
-  return result;
-}
+import type { CityState, GameState, PlayerState } from './model.ts';
+import { cityCounterAttack, createCity, growthThreshold, maxCityHp, productionCost, tileYield, workRadius } from './city-query.ts';
+export { cityCounterAttack, createCity, growthThreshold, maxCityHp, productionCost, tileYield, workRadius };
 /** Biome yield, terrain features (deep water, hills, rivers) and any completed improvement. */
 export function workedTileYield(state: GameState, index: number, player: PlayerState, content: Content = GAME_CONTENT): Yield {
   const result = applyLandmarkYield(state.map, index, applyFeatureYield(state.map, index, tileYield(state.map.tiles[index], player, content))), bonus = tileImprovementYield(state, index, player);
@@ -153,15 +131,4 @@ export function cityYield(state: GameState, city: CityState, content: Content = 
   const district = cityDistrictEffects(state, city.id);
   for (const key of ['food', 'production', 'gold', 'research'] as const) result[key] += district[key];
   return result;
-}
-/** `projectsDone` (v27 ③): the civilization's completions per city project, which raise a project's cost. */
-export function productionCost(item: ProductionItem, content: Content = GAME_CONTENT, trainingDiscountPercent = 0, settlerDiscountPercent = 0,
-  projectsDone: Partial<Record<CityProjectId, number>> = {}): number {
-  if (item.kind === 'project') return cityProjectCost(content, item.defId, projectsDone[item.defId] ?? 0);
-  if (item.kind === 'district') return DISTRICTS[item.defId].cost;
-  if (item.kind === 'legend') return legendCost(item.defId);
-  if (item.kind === 'building') return content.buildings[item.defId].cost!;
-  if (item.kind === 'logistics' && settlerDiscountPercent) return Math.max(1, Math.ceil(content.units[item.defId].trainCost * (100 - settlerDiscountPercent) / 100));
-  const base = content.units[item.defId].trainCost;
-  return item.kind === 'pokemon' && trainingDiscountPercent ? Math.max(1, Math.ceil(base * (100 - trainingDiscountPercent) / 100)) : base;
 }

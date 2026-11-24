@@ -2,7 +2,7 @@ import { contentFor } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
 import type { BiomeId } from '../content/rules.ts';
 import type { SpeciesId } from '../content/species.ts';
-import { deepWaterFor, habitatOverlaysFor, residentsFor, spawnWeightsFor, speciesGeneration, wanderersFor } from '../content/roster.ts';
+import { spawnWeightsFor, speciesGeneration, wanderersFor } from '../content/roster.ts';
 import { regionGeneration } from './roster.ts';
 import { hexDistance, hexToIndex, indexToHex, neighbors } from './hex.ts';
 import { isMapUnit } from './model.ts';
@@ -10,19 +10,18 @@ import type { EventPayload, GameState } from './model.ts';
 import { randomBelow } from './rng.ts';
 import { canEnterTile } from './movement.ts';
 import { createMapUnit } from './unit.ts';
-import { workRadius } from './city.ts';
+import { workRadius } from './city-query.ts';
 import { resolveAttack } from './combat.ts';
-import { isRivalUnit } from './rivals.ts';
+import { isRaidUnit, isRivalUnit } from './state-queries.ts';
 import { stateProtectedCivilian } from './stacking.ts';
-import { isRaidUnit } from './raids.ts';
-import { isDeep, isHill, isLandmarkTile, isPeak, isRiver } from './terrain.ts';
+import { isLandmarkTile, isPeak } from './terrain.ts';
 import { exhaustedWildRests } from './wild-encounters.ts';
 import { startleCivilian } from './opening-safety.ts';
-import type { FeatureMap } from './terrain.ts';
-import { adjacentLandmarks } from './landmarks.ts';
-import { LANDMARK_RULES_V24, NIGHT_SPAWN_MULTIPLIER_V24 } from '../content/terrain.ts';
+import { tileHabitatWeights } from './wild-habitat.ts';
+import { NIGHT_SPAWN_MULTIPLIER_V24 } from '../content/terrain.ts';
 import { isNight } from '../content/era-abilities.ts';
 import type { Hex } from './hex.ts';
+export { tileHabitatWeights };
 
 function roulette<T extends string>(state: GameState, entries: [T, number][]): T {
   entries.sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
@@ -68,27 +67,6 @@ export function habitatWeights(state: GameState, tileIndex: number, content: Con
   if (isNight(state.round)) for (const id of Object.keys(weights) as SpeciesId[]) {
     const species = content.species[id];
     if (species && [species.typeId, species.secondaryTypeId].some(type => type === 'dark' || type === 'ghost')) weights[id] = weights[id]! * NIGHT_SPAWN_MULTIPLIER_V24;
-  }
-  return weights;
-}
-/** The time-independent part of a tile's habitat (biome table, feature overlays, deep water, landmark residents); `map` may be a view map. */
-export function tileHabitatWeights(map: FeatureMap, tileIndex: number, content: Content): Partial<Record<SpeciesId, number>> {
-  const biome = map.tiles[tileIndex];
-  if (biome === null || biome === undefined) return {};
-  const weights: Partial<Record<SpeciesId, number>> = { ...spawnWeightsFor(content, biome) };
-  const add = (extra: Partial<Record<SpeciesId, number>>) => { for (const [id, value] of Object.entries(extra) as [SpeciesId, number][]) weights[id] = (weights[id] ?? 0) + value; };
-  // v25: the overlays, deep water and residents come from the regional tables (the v24 tables otherwise).
-  const overlays = habitatOverlaysFor(content), deep = deepWaterFor(content);
-  if (isHill(map, tileIndex)) add(overlays.hill);
-  if (isRiver(map, tileIndex)) add(overlays.river);
-  const around = neighbors(indexToHex(tileIndex, map), map).map(hex => hexToIndex(hex, map)).filter((index): index is number => index !== null);
-  if (biome === 'mountain' && around.some(index => isPeak(map, index))) add(overlays.peakside);
-  if (isDeep(map, tileIndex)) {
-    for (const id of deep.remove) delete weights[id];
-    for (const [id, factor] of Object.entries(deep.multiply) as [SpeciesId, number][]) if (weights[id]) weights[id] = weights[id]! * factor;
-  }
-  for (const id of adjacentLandmarks(map, tileIndex)) for (const resident of residentsFor(content, id)) {
-    weights[resident] = (weights[resident] ?? LANDMARK_RULES_V24.residentBaseWeight) * LANDMARK_RULES_V24.residentMultiplier;
   }
   return weights;
 }

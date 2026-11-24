@@ -24,12 +24,11 @@ import { captureProbability, dualEffectiveness } from './combat-math.ts';
 import { randomBelow } from './rng.ts';
 import { promotionCityMultiplier, promotionStrikeMultiplier } from './promotions.ts';
 import { registerSpecies } from './unit.ts';
-import { visibleTiles } from './vision.ts';
+import { visibleTiles } from './vision-query.ts';
 import { researchCaptureBonus } from './research-tasks.ts';
 import { cityCounterTerrain, cityStrikeTerrain, isEmbarked, unitStrikeTerrain } from './terrain.ts';
-import { isRivalUnit, rivalSpirit } from './rivals.ts';
+import { isRaidUnit, isRivalUnit, rivalSpirit } from './state-queries.ts';
 import { stateProtectedCivilian } from './stacking.ts';
-import { isRaidUnit } from './raids.ts';
 import { maxRaidHit } from './max-raids.ts';
 import { encounterCaptureChance, exhaustAfterStrike, firstBallUsed, isExhausted, protectedRecovery, useFirstBall } from './wild-encounters.ts';
 

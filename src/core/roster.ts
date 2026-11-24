@@ -6,7 +6,7 @@ import { speciesGeneration } from '../content/roster.ts';
 import type { BiomeId } from '../content/rules.ts';
 import type { EvolutionOption } from '../content/species.ts';
 import type { Content, SpeciesId } from '../content/units.ts';
-import { generationOf } from './era-abilities.ts';
+import { generationOf } from './state-queries.ts';
 import { hexDistance, hexToIndex, indexToHex } from './hex.ts';
 import type { GameState } from './model.ts';
 

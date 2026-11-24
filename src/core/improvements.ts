@@ -9,10 +9,10 @@ import type { Yield } from '../content/economy.ts';
 import type { BerryId, StoneId } from '../content/world-systems.ts';
 import { hexDistance, hexToIndex, indexToHex } from './hex.ts';
 import type { Hex, MapShape } from './hex.ts';
-import { workRadius } from './city.ts';
+import { workRadius } from './city-query.ts';
 import { isMapUnit } from './model.ts';
 import type { CityState, EventPayload, GameState, MapUnit, PlayerState, PlayerView } from './model.ts';
-import { visibleTiles } from './vision.ts';
+import { visibleTiles } from './vision-query.ts';
 import { playerPolicyEffects } from './policies.ts';
 
 /** `damaged` / `damagedAtRound` / `crew` / `repairedAtRound` are written only in gameplay v23. */

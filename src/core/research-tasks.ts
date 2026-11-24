@@ -15,9 +15,9 @@ import { hexToIndex } from './hex.ts';
 import type { Hex } from './hex.ts';
 import { isMapUnit } from './model.ts';
 import type { EventPayload, GameState, PlayerView } from './model.ts';
-import { visibleTiles } from './vision.ts';
+import { visibleTiles } from './vision-query.ts';
 import type { FeatureMap } from './terrain.ts';
-import { tileHabitatWeights } from './wild.ts';
+import { tileHabitatWeights } from './wild-habitat.ts';
 
 export type ResearchCard = { tasks: number; knockouts: number };
 /** Per player, per species: completed tasks (bit i = RESEARCH_TASK_IDS[i]) and knockouts counted so far. */

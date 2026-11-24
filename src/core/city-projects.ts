@@ -15,7 +15,7 @@ import { CITY_PROJECT_IDS, cityProjectCost, economyTuning } from '../content/pac
 import type { CityProjectId } from '../content/pace-v27.ts';
 import type { Content, SpeciesId } from '../content/units.ts';
 import type { DistrictId } from '../content/districts.ts';
-import { currentSeason } from './contest-seasons.ts';
+import { currentSeason } from './state-queries.ts';
 import { hexDistance, hexToIndex, neighbors } from './hex.ts';
 import type { Hex } from './hex.ts';
 import { isMapUnit } from './model.ts';

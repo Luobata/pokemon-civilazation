@@ -2,13 +2,13 @@ import { ERA_ABILITIES, ERA_ABILITY_RULES, WEATHERS, isNight } from '../content/
 import type { EraAbilityId, WeatherId } from '../content/era-abilities.ts';
 import { TYPE_ESSENCE } from '../content/essences.ts';
 import type { EssenceId } from '../content/essences.ts';
-import { eraState } from '../content/eras.ts';
-import type { EraProgression } from '../content/eras.ts';
 import type { TypeId } from '../content/species.ts';
 import type { Content, UnitIdentity } from '../content/units.ts';
 import { hexDistance } from './hex.ts';
 import type { Hex, MapShape } from './hex.ts';
-import { workRadius } from './city.ts';
+import { workRadius } from './city-query.ts';
+import { generationOf } from './state-queries.ts';
+export { generationOf };
 import { isMapUnit } from './model.ts';
 import type { EventPayload, GameState, MapUnit, PlayerView } from './model.ts';
 
@@ -35,11 +35,6 @@ export function isEraAbilityAction(action: { type: unknown }): action is EraAbil
 const blank = (): EraAbilityPlayer => ({ weatherReadyAtRound: 1, zReadyAtRound: 1, dynamaxReadyAtRound: 1, megaUnitId: null, teraUnitId: null });
 export function initializeEraAbilities(state: GameState): void {
   if (usesEraAbilities(state)) state.expansion!.eraAbilities = { players: Object.fromEntries(state.turnOrder.map(id => [id, blank()])), fields: [], units: {} };
-}
-/** Pokémon generation reached by a player (1 = Red/Green/Blue/Yellow). */
-export function generationOf(player: { research: { unlockedIds: readonly string[] } }, mode: EraProgression | undefined): number {
-  const era = eraState(player, mode);
-  return era ? Number(era.current.id.replace('generation-', '')) : 1;
 }
 export function unlockedAbilities(generation: number): EraAbilityId[] {
   return (Object.keys(ERA_ABILITIES) as EraAbilityId[]).filter(id => ERA_ABILITIES[id].generation <= generation);

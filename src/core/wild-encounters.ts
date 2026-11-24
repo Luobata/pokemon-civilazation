@@ -12,8 +12,7 @@ import { openingTuning } from '../content/pace-v27.ts';
 import type { SpeciesId } from '../content/species.ts';
 import type { Content } from '../content/units.ts';
 import type { GameState, MapUnit, PlayerView, UnitState } from './model.ts';
-import { isRivalUnit } from './rivals.ts';
-import { isRaidUnit } from './raids.ts';
+import { isRaidUnit, isRivalUnit } from './state-queries.ts';
 
 /** `encountered`: species each civilization has exhausted (the first-encounter reward); `firstBall`: civilizations that used the first ball. */
 export type WildEncounterState = { encountered: Record<number, SpeciesId[]>; firstBall: Record<number, true> };

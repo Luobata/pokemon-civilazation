@@ -1,5 +1,5 @@
 import { clonePlain } from './clone.ts';
-import { legendEffects, mergeEffects, viewLegendEffects } from './legends.ts';
+import { legendEffects, mergeEffects, viewLegendEffects } from './legend-effects.ts';
 import type { LegendView } from './legends.ts';
 import { CHARTER_IDS, CHARTERS, GOVERNMENT_IDS, GOVERNMENT_SWAP_GOLD, GOVERNMENTS, LEADER_GOVERNMENT_AFFINITY, LEADER_POLICY_AFFINITY, POLICIES, POLICY_IDS, POLICY_SWAP_GOLD } from '../content/policies.ts';
 import type { CharterId, GovernmentId, PolicyEffects, PolicyId, SlotKind } from '../content/policies.ts';

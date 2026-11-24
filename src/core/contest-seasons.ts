@@ -11,7 +11,8 @@ import { stableSeed } from '../content/stable-seed.ts';
 import { hexDistance } from './hex.ts';
 import { isMapUnit } from './model.ts';
 import type { EventPayload, GameState, PlayerView } from './model.ts';
-import { taughtMoveType } from './gold-sinks.ts';
+import { currentSeason, seasonRounds, taughtMoveType } from './state-queries.ts';
+export { currentSeason, seasonRounds };
 import { contestEntryCityIds, resolveCircuitPrizes, seasonScoreBonus } from './contest-circuit.ts';
 import type { ContestCircuitEvent } from './contest-circuit.ts';
 
@@ -39,17 +40,6 @@ export type ContestSeasonEvent =
   | ContestCircuitEvent;
 export const isContestSeasonAction = (action: { type: unknown }): action is ContestSeasonAction => action.type === 'EnterContest';
 
-/** Season rounds of a game (45, 60 … within the round limit). */
-export function seasonRounds(content: Content, roundLimit: number): number[] {
-  const tuning = lateTuning(content), rounds: number[] = [];
-  for (let round = tuning.seasonFirstRound; round <= roundLimit; round += tuning.seasonInterval) rounds.push(round);
-  return rounds;
-}
-/** The season judged at or after `round` (index and round), null after the last one. */
-export function currentSeason(content: Content, round: number, roundLimit: number): { index: number; round: number } | null {
-  const rounds = seasonRounds(content, roundLimit), index = rounds.findIndex(item => item >= round);
-  return index < 0 ? null : { index, round: rounds[index] };
-}
 /** The category of season `index`: a rotation of the five with a per-game offset. */
 export const seasonCategory = (seed: number, index: number): ContestCategory => CONTEST_CATEGORIES[(stableSeed(seed, 'contest-category') + index) % CONTEST_CATEGORIES.length];
 /** Entry score of a Pokémon (without the tiebreak): the same numbers the panel and the AI show. */

@@ -22,6 +22,8 @@ import { randomBelow } from './rng.ts';
 import { initialMaxLedger, knowsDen, maxWaveRange, observeMaxRaid, raidCatchChance, raidCatchSpecies, raidContribution, raidSharers, resolveRaidSupport } from './max-raids.ts';
 import type { MaxRaidEvent, MaxRaidLedger, MaxRaidView } from './max-raids.ts';
 import { eventsTuning } from '../content/pace-v27.ts';
+import { isRaidUnit } from './state-queries.ts';
+export { isRaidUnit };
 
 /** `max`: v27 ⑤ Max raid ledger (shields, phase, shields broken, support healing, den Dynamax); absent before v27. */
 export type RaidBoss = { unitId: number; tileIndex: number; endsAtRound: number; damage: Record<number, number>; speciesId: SpeciesId; maxHp: number; index: number; max?: MaxRaidLedger };
@@ -38,7 +40,6 @@ export type RaidEvent =
   | { type: 'RaidEnded'; speciesId: SpeciesId; damage: Record<number, number>; contribution?: Record<number, number>; gold?: Record<number, number> }
   | MaxRaidEvent;
 
-export const isRaidUnit = (state: Pick<GameState, 'expansion'>, unitId: number) => state.expansion?.raids?.active?.unitId === unitId;
 export const viewIsRaidUnit = (view: Pick<PlayerView, 'expansion'>, unitId: number) => view.expansion?.raids?.active?.unitId === unitId;
 export function initializeRaids(state: GameState, _content?: Content): void {
   void _content;
