@@ -46,6 +46,8 @@ export type DeveloperStepResult = StepResult;
 export type PlayerCommandResult = { ok: true } | { ok: false; reason: string };
 export interface PlayerSession {
   getView(): PlayerView;
+  /** Read-only cached view for high-frequency callers (hover tooltips, animation frames); never mutate. */
+  peekView?(): PlayerView;
   readonly presentationQueue: readonly VisibleEvent[];
   issue(action: Command['action']): PlayerCommandResult;
   submit(command: Command): PlayerCommandResult;
@@ -69,16 +71,20 @@ export class GameSession {
   }
   /** @deprecated Developer/test access only. Production UI must use getView or asPlayerSession. */
   getState(): DeveloperGameState { return JSON.parse(JSON.stringify(this.state)) as GameState; }
-  getView(): PlayerView {
+  /** Cached player view detached from authority state; callers must not mutate it. */
+  peekView(): PlayerView {
     if (this.observedState !== this.state || !this.cachedView) {
       this.cachedView = observe(this.state, this.playerId, this.content);
       this.observedState = this.state;
     }
-    return JSON.parse(JSON.stringify(this.cachedView)) as PlayerView;
+    return this.cachedView;
+  }
+  getView(): PlayerView {
+    return structuredClone(this.peekView());
   }
   /** Explicit developer omniscient view; never pass this to AI. */
   getDebugView(): PlayerView {
-    const view = this.getView();
+    const view = this.peekView();
     const state = this.getState();
     const allTiles = state.map.tiles.map((_, i) => i);
     return { ...view, map: state.map, visibleTileIds: state.map.tiles.map((_, i) => i),
@@ -137,6 +143,7 @@ export class GameSession {
     const project = (result: StepResult): PlayerCommandResult => result.ok ? { ok: true } : { ok: false, reason: result.reason };
     return {
       getView: () => this.getView(),
+      peekView: () => this.peekView(),
       get presentationQueue() { return getPresentation(); },
       issue: action => project(this.issue(action)), submit: command => project(this.submit(command)),
       skipAnimations: () => this.skipAnimations(),

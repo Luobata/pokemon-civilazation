@@ -42,8 +42,13 @@ async function decode(text: string): Promise<Piece> {
   const windows = [...text.matchAll(/data-win="([-\d.]+) ([-\d.]+)"/g)].map(match => [Number(match[1]), Number(match[2])] as const);
   const image = new Image();
   image.decoding = 'async';
-  image.src = URL.createObjectURL(new Blob([text], { type: 'image/svg+xml' }));
-  await image.decode();
+  const url = URL.createObjectURL(new Blob([text], { type: 'image/svg+xml' }));
+  try {
+    image.src = url;
+    await image.decode();
+  } finally {
+    URL.revokeObjectURL(url);
+  }
   return { image, x, y, w, h, windows };
 }
 /** The text with its root CSS variables replaced (roof and owner colours). */

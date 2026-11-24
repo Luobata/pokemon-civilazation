@@ -50,7 +50,7 @@ import type { ActionMode, PendingTarget } from './unit-panel.ts';
 import type { AiPersonality, CitySummary, Command, GameSetup } from '../core/model.ts';
 import { GameSession } from '../app/session.ts';
 import type { PlayerSession } from '../app/session.ts';
-import { EXPANSION_CONTENT, unitDefinition, contentForView, techOf, regionalDexDraw, REGIONAL_CONTENT, DEPTH_CONTENT } from '../content/units.ts';
+import { unitDefinition, contentForView, techOf, regionalDexDraw, REGIONAL_CONTENT, DEPTH_CONTENT } from '../content/units.ts';
 import { dexSummaryMarkup } from './regional-dex-panel.ts';
 import type { StarterId } from '../content/units.ts';
 import type { BallId } from '../content/economy.ts';
@@ -149,6 +149,7 @@ function frameMetrics(): FrameMetrics {
     p95: sorted[Math.max(0, Math.ceil(sorted.length * .95) - 1)] ?? 0, max: sorted.at(-1) ?? 0 };
 }
 export let session: PlayerSession;
+const currentView = (): PlayerView => session.peekView ? session.peekView() : session.getView();
 let driver: GameSession;
 export const developerAdapter = {
   getState: () => driver.getState(),
@@ -157,7 +158,7 @@ export const developerAdapter = {
   save: () => driver.save(),
   getFrameMetrics: () => ({ ...frameMetrics() }),
   /** ui-25d: the tile index the map would pick at a canvas point (CSS px), with the active projection. */
-  pickTile: (x: number, y: number) => pickIndex({ x, y }, session.getView()),
+  pickTile: (x: number, y: number) => pickIndex({ x, y }, currentView()),
   renderMode: () => renderer.mode,
   /** Last map frame's layer-cache stats and shake offset, and the recently presented events (animated or skipped). */
   getPresentation: () => ({ render: lastRenderStats && { ...lastRenderStats, shake: { ...lastRenderStats.shake } }, events: presentationLog.map(item => ({ ...item })),
@@ -280,7 +281,7 @@ function battleSpec(payload: BattlePayload, view: PlayerView, key: string, finis
 
 /** The visual track for one presentation event, or null for events without an animation. */
 function presentationTrack(payload: VisibleEvent['payload']): Track | null {
-  const view = session.getView();
+  const view = currentView();
   // V7: someone else's action entirely outside the viewport costs no playing time (its toast and log entry remain).
   if (!ownAction(payload, view) && eventTiles(payload, view).length && !onScreen(eventTiles(payload, view), view)) {
     notice = summary(payload) || notice;
@@ -321,7 +322,7 @@ function preEvolution(content: Content, to: SpeciesId): SpeciesId | null {
   return (Object.keys(content.species) as SpeciesId[]).find(id => isEvolutionEdge(content, id, to)) ?? null;
 }
 const evolvedFrom = (payload: Extract<VisibleEvent['payload'], { type: 'Evolved' | 'WorldStoneEvolution' }>) => payload.type === 'WorldStoneEvolution' ? payload.fromSpeciesId
-  : speciesChanges.get(payload.unitId)?.from ?? preEvolution(contentForView(session.getView()), payload.speciesId);
+  : speciesChanges.get(payload.unitId)?.from ?? preEvolution(contentForView(currentView()), payload.speciesId);
 /** The original-style evolution on the unit: flash, alternating silhouettes, reveal with sparkles and (own units) the fanfare. */
 function evolutionMoment(payload: Extract<VisibleEvent['payload'], { type: 'Evolved' | 'WorldStoneEvolution' }>, view: PlayerView, key: string, finish: () => void): Track {
   const to = payload.type === 'Evolved' ? payload.speciesId : payload.intoSpeciesId, from = evolvedFrom(payload);
@@ -364,7 +365,7 @@ function wonderTrack(payload: Extract<VisibleEvent['payload'], { type: 'LegendWo
 function summary(payload: VisibleEvent['payload']) {
   switch (payload.type) {
     // N10: the notice names who hit whom (the activity log's labels).
-    case 'BattleResolved': { const view = session.getView(), sides = battleSides(payload, view), own = (label: string) => label.replace(`文明 ${view.playerId + 1} 的 `, '你的');
+    case 'BattleResolved': { const view = currentView(), sides = battleSides(payload, view), own = (label: string) => label.replace(`文明 ${view.playerId + 1} 的 `, '你的');
       return `${own(sides.attacker)} 攻击 ${own(sides.target)}：造成 ${payload.damage} 伤害${payload.counterDamage ? `，反击 ${payload.counterDamage}` : ''}${payload.knockedDownUnitIds.length ? '，有单位被击倒/回城休养' : ''}。`; }
     case 'Captured': return payload.success ? `捕捉成功（${payload.probability}%）。` : `捕捉失败（${payload.probability}%），目标激怒。`;
     case 'Evolved': case 'WorldStoneEvolution': { const to = payload.type === 'Evolved' ? payload.speciesId : payload.intoSpeciesId, from = evolvedFrom(payload);
@@ -401,7 +402,7 @@ function activityText(payload: VisibleEvent['payload']) {
   switch (payload.type) {
     case 'TurnChanged': return `文明 ${payload.activePlayerId + 1} 开始行动`;
     case 'Moved': return `${payload.unit.ownerId === null ? '野生' : `文明 ${payload.unit.ownerId + 1}`}单位移动`;
-    case 'BattleResolved': return battleActivityText(payload, session.getView());
+    case 'BattleResolved': return battleActivityText(payload, currentView());
     case 'Captured': return `文明 ${payload.playerId + 1} 捕捉${payload.success ? '成功' : '失败'}`;
     case 'Evolved': return `文明 ${payload.playerId + 1} 进化为${speciesDisplay(payload.speciesId).name}`;
     case 'DiplomacyChanged': return `文明 ${payload.relation.a + 1}/${payload.relation.b + 1}：${payload.relation.status === 'war' ? '战争' : '和平'}${payload.relation.proposal ? '，停战待回应' : ''}`;
@@ -422,17 +423,17 @@ function activityText(payload: VisibleEvent['payload']) {
     case 'CityDefected': return `城市 ${payload.cityId} 羁绊耗尽，脱离文明 ${payload.playerId + 1} 成为中立营地`;
     case 'GymBuilt': return `城市 ${payload.cityId} 建成${ESSENCES[payload.essence].name}道馆`;
     case 'CharterAdopted': return `文明 ${payload.playerId + 1} 确立规章「${CHARTERS[payload.charterId].name}」`;
-    case 'UnitPromoted': { const unit = session.getView().units.find(item => item.id === payload.unitId); return `${unit && unit.kind === 'pokemon' ? EXPANSION_CONTENT.species[unit.speciesId].name : '宝可梦'}晋升：获得特性「${PROMOTION_TRAITS[payload.trait].name}」（第 ${payload.rank} 次）`; }
-    case 'LegendClueFound': return payload.playerId === session.getView().playerId ? `发现传说线索：${legendTitle(payload.legendId)}（剧情第一章，打开「传说」查看）` : '';
-    case 'LegendWonderCompleted': return payload.playerId === session.getView().playerId ? `★ 建成传说奇观：${legendTitle(payload.legendId)}` : `文明 ${payload.playerId + 1} 建成了传说奇观：${legendTitle(payload.legendId)}`;
-    case 'LegendWonderLost': return payload.playerId === session.getView().playerId ? `${legendTitle(payload.legendId)} 已被他人建成，城市 ${payload.cityId} 的工程作废，退还 ${payload.refund} 金${payload.trail ? `，传说踪迹 ${payload.trail} 生产留给下一座传说` : ''}` : '';
-    case 'CityProjectCompleted': return payload.playerId === session.getView().playerId ? `城市 ${payload.cityId} 完成计划「${CITY_PROJECT_INFO[payload.projectId].name}」（第 ${payload.nth} 次）：${cityProjectResultText(payload, contentForView(session.getView()))}` : '';
-    case 'EraAgeBegan': return payload.playerId === session.getView().playerId ? `进入${payload.heroic ? '英雄时代' : ERA_AGES[payload.age].name}（上个世代 ${payload.previousScore} 分 / ${payload.previousRounds} 轮）${payload.dedicationPicks ? `，选择 ${payload.dedicationPicks} 张时代献礼` : ''}` : '';
+    case 'UnitPromoted': { const view = currentView(), unit = view.units.find(item => item.id === payload.unitId); return `${unit && unit.kind === 'pokemon' ? (contentForView(view).species[unit.speciesId]?.name ?? '宝可梦') : '宝可梦'}晋升：获得特性「${PROMOTION_TRAITS[payload.trait].name}」（第 ${payload.rank} 次）`; }
+    case 'LegendClueFound': return payload.playerId === currentView().playerId ? `发现传说线索：${legendTitle(payload.legendId)}（剧情第一章，打开「传说」查看）` : '';
+    case 'LegendWonderCompleted': return payload.playerId === currentView().playerId ? `★ 建成传说奇观：${legendTitle(payload.legendId)}` : `文明 ${payload.playerId + 1} 建成了传说奇观：${legendTitle(payload.legendId)}`;
+    case 'LegendWonderLost': return payload.playerId === currentView().playerId ? `${legendTitle(payload.legendId)} 已被他人建成，城市 ${payload.cityId} 的工程作废，退还 ${payload.refund} 金${payload.trail ? `，传说踪迹 ${payload.trail} 生产留给下一座传说` : ''}` : '';
+    case 'CityProjectCompleted': return payload.playerId === currentView().playerId ? `城市 ${payload.cityId} 完成计划「${CITY_PROJECT_INFO[payload.projectId].name}」（第 ${payload.nth} 次）：${cityProjectResultText(payload, contentForView(currentView()))}` : '';
+    case 'EraAgeBegan': return payload.playerId === currentView().playerId ? `进入${payload.heroic ? '英雄时代' : ERA_AGES[payload.age].name}（上个世代 ${payload.previousScore} 分 / ${payload.previousRounds} 轮）${payload.dedicationPicks ? `，选择 ${payload.dedicationPicks} 张时代献礼` : ''}` : '';
     case 'DedicationChosen': return `时代献礼：${payload.dedicationIds.map(id => DEDICATIONS[id].name).join('、')}`;
     case 'GovernmentChanged': return `采用体制「${GOVERNMENTS[payload.governmentId].name}」${payload.goldCost ? `（${payload.goldCost} 金）` : ''}${payload.droppedPolicies.length ? `，取下方针：${payload.droppedPolicies.map(id => POLICIES[id].name).join('、')}` : ''}`;
     case 'PoliciesChanged': return `方针更新：${payload.policyIds.map(id => POLICIES[id].name).join('、') || '无'}${payload.goldCost ? `（${payload.goldCost} 金）` : ''}`;
-    case 'ChampionshipResolved': return leagueActivityText(session.getView(), payload.season);
-    case 'DiscoveryMade': return `★ 图鉴发现「${discoveryText(payload.techId, Boolean(contentForView(session.getView()).opening)).name}」：${techOf(contentForView(session.getView()), payload.techId).name} +${payload.bonus}`;
+    case 'ChampionshipResolved': return leagueActivityText(currentView(), payload.season);
+    case 'DiscoveryMade': return `★ 图鉴发现「${discoveryText(payload.techId, Boolean(contentForView(currentView()).opening)).name}」：${techOf(contentForView(currentView()), payload.techId).name} +${payload.bonus}`;
     default: return '';
   }
 }
@@ -461,7 +462,7 @@ let endingPresented = false;
 /** Music follows the situation (A3 / A5): menu and opening, peace (drums forward when troops gather), war in layers, victory or defeat. */
 function syncMusic() {
   if (!session) return;
-  const view = session.getView();
+  const view = currentView();
   audio.setMood(musicMood(view, currentScreen() === 'menu', endingPresented || !busy()));
   audio.setIntensity(warIntensity.level(view));
 }
@@ -514,27 +515,27 @@ export function soundsFor(payload: VisibleEvent['payload'], view: PlayerView, an
   }
 }
 function recordActivity(payload: VisibleEvent['payload'], animated = false) {
-  for (const sound of soundsFor(payload, session.getView(), animated)) audio.play(sound);
+  for (const sound of soundsFor(payload, currentView(), animated)) audio.play(sound);
   if (payload.type === 'GameEnded') endingPresented = true;
   if (payload.type === 'ChampionshipResolved') showLatestLeagueSeason();
   if (MUSIC_EVENTS.has(payload.type)) {
-    const view = session.getView();
+    const view = currentView();
     warIntensity.observe(payload, view, () => payload.type === 'BattleResolved' && battleInvolvesViewer(payload, view),
       id => knownOwnCityIds.has(id) || knownCityOwners.get(id) === view.playerId);
     syncMusic();
   }
   // V10: an animated reveal opens the story card when its pillar ends (or on skip).
-  if (payload.type === 'LegendWonderCompleted' && payload.playerId === session.getView().playerId && !animated) legendArrivals.push(payload.legendId);
+  if (payload.type === 'LegendWonderCompleted' && payload.playerId === currentView().playerId && !animated) legendArrivals.push(payload.legendId);
   // depth-v26 §2.5: keep the replay of an own challenge; a guardian / Elite Four card that is still open offers it.
-  const replayKey = recordChallengeResult(session.getView(), payload);
+  const replayKey = recordChallengeResult(currentView(), payload);
   if (payload.type === 'GuardianChallenged' || payload.type === 'EliteFourChallenged') {
-    if (payload.playerId === session.getView().playerId) challengeCardResult(session.getView(), { key: replayKey, victory: payload.victory,
+    if (payload.playerId === currentView().playerId) challengeCardResult(currentView(), { key: replayKey, victory: payload.victory,
       text: payload.type === 'GuardianChallenged' ? payload.victory ? '击败了守卫！' : '挑战失败' : payload.victory ? '战胜了四天王与冠军！' : `止步第 ${payload.reached + 1} 场` });
   }
-  rail.push(toastFor(payload, session.getView(), { ownCityIds: knownOwnCityIds, unitName: id => knownUnitLabels.get(id)?.replace(/^(野生 |文明 \d+ 的 )/, '') }));
+  rail.push(toastFor(payload, currentView(), { ownCityIds: knownOwnCityIds, unitName: id => knownUnitLabels.get(id)?.replace(/^(野生 |文明 \d+ 的 )/, '') }));
   const text = activityText(payload);
   if (!text || activityLog[0]?.text === text) return;
-  activityLog.unshift({ text, round: session.getView().round, routine: payload.type === 'TurnChanged' || payload.type === 'Moved' });
+  activityLog.unshift({ text, round: currentView().round, routine: payload.type === 'TurnChanged' || payload.type === 'Moved' });
   activityLog.splice(40);
 }
 // ---------- v26 §7.1 go-to orders (client waypoints, waypoints.ts) and §7.3 suggested city sites (city-sites.ts) ----------
@@ -595,7 +596,7 @@ function updateSitePins(view: PlayerView) {
 }
 /** Sets (or, on the unit's own tile, clears) a go-to order and makes this round's first step at once. */
 function setGoTo(unitId: number, index: number, site = false) {
-  const view = session.getView();
+  const view = currentView();
   if (busy() || view.outcome || hasPendingPeace(view)) return;
   const unit = view.units.find(item => item.id === unitId && item.ownerId === view.playerId);
   if (!unit) return;
@@ -614,7 +615,7 @@ function setGoTo(unitId: number, index: number, site = false) {
   if (arrivedUnitId === unitId) arrivedUnitId = null;
   runGoTo(new Set(), [unitId]);
   // N5: worded after this round's first step, from the same plan the unit bar shows (a stop or an arrival reports itself).
-  if (goToOrders.has(unitId)) notice = `已设路标${site ? '（推荐城址）' : ''}：${goToEta(session.getView(), unitId)}，每回合开始时自动前进。`;
+  if (goToOrders.has(unitId)) notice = `已设路标${site ? '（推荐城址）' : ''}：${goToEta(currentView(), unitId)}，每回合开始时自动前进。`;
   controls(); requestFrame();
 }
 /**
@@ -622,7 +623,7 @@ function setGoTo(unitId: number, index: number, site = false) {
  * stopped. Runs at the start of the viewer's turn (after EndTurn returns) and when an order is set.
  */
 function runGoTo(attacked: ReadonlySet<number>, only?: readonly number[]) {
-  const view = session.getView();
+  const view = currentView();
   if (view.outcome || view.activePlayerId !== view.playerId || !goToOrders.size) return;
   const { moves, stops } = goToOrders.plan(view, attacked, only);
   const moved: number[] = [];
@@ -630,12 +631,12 @@ function runGoTo(attacked: ReadonlySet<number>, only?: readonly number[]) {
     if (session.issue({ type: 'Move', unitId: move.unitId, to: move.to }).ok) moved.push(move.unitId);
     else { const found = goToOrders.get(move.unitId)?.found ?? false; goToOrders.cancel(move.unitId); stops.push({ unitId: move.unitId, reason: 'blocked', found }); }
   }
-  stops.push(...goToOrders.afterMoves(session.getView(), moved));
+  stops.push(...goToOrders.afterMoves(currentView(), moved));
   reportGoToStops(stops);
 }
 /** A settler that arrived with no moves left: at the start of the next turn it is selected with 建城 highlighted. */
 function remindArrived() {
-  const view = session.getView(), unit = view.units.find(item => item.id === arrivedUnitId && item.ownerId === view.playerId);
+  const view = currentView(), unit = view.units.find(item => item.id === arrivedUnitId && item.ownerId === view.playerId);
   if (!unit) { arrivedUnitId = null; return; }
   if (!unit.actionLeft || goToOrders.has(unit.id)) return;
   selectUnit(unit.id, false); deferredFocus = unit.position;
@@ -643,7 +644,7 @@ function remindArrived() {
 }
 function reportGoToStops(stops: readonly GoToStop[]) {
   if (!stops.length) return;
-  const view = session.getView(), CONTENT = contentForView(view);
+  const view = currentView(), CONTENT = contentForView(view);
   const texts = stops.map(stop => {
     const unit = view.units.find(item => item.id === stop.unitId);
     const text = stopText(stop, unit ? unitDefinition(unit, CONTENT).name : knownUnitLabels.get(stop.unitId)?.replace(/^(野生 |文明 \d+ 的 )/, '') ?? '单位');
@@ -662,7 +663,7 @@ function reportGoToStops(stops: readonly GoToStop[]) {
 
 function controls() {
   panelsBusy = busy();
-  const view = session.getView();
+  const view = currentView();
   const CONTENT = contentForView(view);
   const ended = view.outcome !== null, pendingPeace = hasPendingPeace(view);
   rivalMemory.observe(view);
@@ -720,8 +721,8 @@ function controls() {
   renderVictoryPanel(view);
   // depth-v26 §2.5: a guardian / Elite Four challenge from the world panel first opens its preview card (matchups, then 挑战).
   // Gameplay v26 relay battles: the lineup picker (order, relay matchup grid, estimate) is that preview, so its command goes straight through.
-  renderExpansionPanel(view, selected, selectedCity, action => isPreviewedChallenge(action) && !contentForView(session.getView()).teamBattles
-    ? openChallengeCard(session.getView(), action, issue, watchReplay) : issue(action),
+  renderExpansionPanel(view, selected, selectedCity, action => isPreviewedChallenge(action) && !contentForView(currentView()).teamBattles
+    ? openChallengeCard(currentView(), action, issue, watchReplay) : issue(action),
     busy() || ended || pendingPeace);
   document.querySelector<HTMLElement>('#selection-empty')!.hidden = selected !== null || selectedCity !== null || neutralCity !== null || inspectedTile !== null;
   renderTilePanel(view, inspectedTile, { onSelectUnit: id => selectUnit(id, false), selectedUnitId: selected, disabled: busy() || ended || pendingPeace,
@@ -752,7 +753,7 @@ function controls() {
       found: () => { if (selected !== null) issue({ type: 'FoundCity', unitId: selected }); },
       improve: (tileIndex, kind) => { if (selected !== null) issue({ type: 'ImproveTile', unitId: selected, tileIndex, kind }); },
       order: issue,
-      skip: () => { if (selected !== null) reviewedUnits.add(session.getView().round, selected); cycleIdle('unit'); },
+      skip: () => { if (selected !== null) reviewedUnits.add(currentView().round, selected); cycleIdle('unit'); },
       explain: text => { notice = text; controls(); },
       goTo: () => { const choosing = !goToMode; resetAction(); goToMode = choosing; notice = ''; controls(); requestFrame(); },
       cancelGoTo: () => { if (selected !== null && goToOrders.cancel(selected)) { notice = '路标已取消。'; if (arrivedUnitId === selected) arrivedUnitId = null; } controls(); requestFrame(); },
@@ -808,7 +809,7 @@ function controls() {
 
 /** Selects the next (or previous) idle city or unit after the current selection, cycling. */
 function cycleIdle(kind: 'city' | 'unit', step: 1 | -1 = 1) {
-  const view = session.getView();
+  const view = currentView();
   if (kind === 'city') {
     selectCity(cycleId(idleCityIds(view), selectedCity, step));
     const economy = document.querySelector<HTMLElement>('#economy');
@@ -843,7 +844,7 @@ function onEndTurn(force: boolean) {
     return;
   }
   if (step.kind !== 'unit') { const panel = document.querySelector<HTMLElement>(step.panel); if (panel) revealPanel(panel); return; }
-  const view = session.getView();
+  const view = currentView();
   reviewedUnits.add(view.round, step.unitId);
   selectUnit(step.unitId);
   notice = step.remaining > 1 ? `待命单位（还有 ${step.remaining - 1} 个）：下达命令，或再点一次按钮看下一个。` : '最后一个待命单位：下达命令，或再点一次按钮进入下一回合。';
@@ -851,7 +852,7 @@ function onEndTurn(force: boolean) {
 }
 /** Playtest 2026-11b O3: the conference registration (the lineup picker in v26, else the World page's conference card). */
 function openConference() {
-  const view = session.getView();
+  const view = currentView();
   markConferenceReviewed(view);
   if (contentForView(view).teamBattles) { closeScreen(); openLineupPicker(view, { kind: 'championship', key: '' }, issue); }
   else { openScreen('world'); const card = document.querySelector<HTMLDetailsElement>('details[data-system="s27-championship"]'); if (card) { card.open = true; card.scrollIntoView({ block: 'nearest' }); } }
@@ -859,14 +860,14 @@ function openConference() {
 }
 /** Playtest 2026-11b: the research queue starts its next tech (start of turn, or when the queue changes with nothing being researched). */
 function startQueuedResearch() {
-  const started = runResearchQueue(session.getView(), action => session.issue(action));
-  if (started) rail.push({ id: ++goToToastSerial, tone: 'research', icon: '⚗', title: `研究队列：开始研究「${techOf(contentForView(session.getView()), started).name}」`,
+  const started = runResearchQueue(currentView(), action => session.issue(action));
+  if (started) rail.push({ id: ++goToToastSerial, tone: 'research', icon: '⚗', title: `研究队列：开始研究「${techOf(contentForView(currentView()), started).name}」`,
     detail: researchQueue.list().length ? `队列里还有 ${researchQueue.list().length} 项。` : '队列已空。', target: { kind: 'screen', screen: 'research' }, persistent: false, key: 'research-queue' });
   return started;
 }
 /** U6: the top-bar ball stock opens the capital's 物资采购 tab. */
 function openBallShop() {
-  const view = session.getView(), city = view.economy.cities.find(item => item.id === view.economy.player.headquartersCityId) ?? view.economy.cities[0];
+  const view = currentView(), city = view.economy.cities.find(item => item.id === view.economy.player.headquartersCityId) ?? view.economy.cities[0];
   if (!city) return;
   closeScreen(); selectCity(city.id);
   const economy = document.querySelector<HTMLElement>('#economy');
@@ -874,7 +875,7 @@ function openBallShop() {
   document.querySelector<HTMLButtonElement>('#economy [data-city-section="supplies"]')?.click();
 }
 function issue(action: Command['action'], successNotice?: string) {
-  const view = session.getView();
+  const view = currentView();
   if (busy() || view.outcome) return;
   if (action.type !== 'RespondPeace' && hasPendingPeace(view)) { notice = '请先接受或拒绝停战提议。'; controls(); return; }
   rememberChallenge(view, action);
@@ -906,7 +907,7 @@ function issue(action: Command['action'], successNotice?: string) {
     if (action.type === 'Attack' || action.type === 'Capture' || action.type === 'Move' || action.type === 'EndTurn') resetAction();
     if (action.type === 'SetProductionQueue' && action.orders.some(order => order.item.kind === 'district')) districtPlacement = null;
     if (action.type === 'FoundCity') {
-      selected = null; selectedCity = session.getView().economy.cities.at(-1)!.id; resetAction();
+      selected = null; selectedCity = currentView().economy.cities.at(-1)!.id; resetAction();
       notice = `城市 ${selectedCity} 已建立。现在可以建造建筑或训练新的单位。`;
     }
     advanceToNextUnit(action);
@@ -915,7 +916,7 @@ function issue(action: Command['action'], successNotice?: string) {
 }
 /** v16 (Civilization-style): when the selected unit has used up its turn, select the nearest unit still waiting for orders. */
 function advanceToNextUnit(action: Command['action']) {
-  const view = session.getView();
+  const view = currentView();
   if (!usesMovementPoints(view) || selected === null || !('unitId' in action) || action.unitId !== selected || action.type === 'PromoteUnit') return;
   const current = view.units.find(unit => unit.id === selected);
   if (current?.actionLeft) return;
@@ -955,7 +956,7 @@ function confirmAction() {
 function confirmDistrictPlacement() {
   const placement = districtPlacement;
   if (!placement || placement.tileIndex === null) return;
-  const view = session.getView(), city = view.economy.cities.find(item => item.id === placement.cityId);
+  const view = currentView(), city = view.economy.cities.find(item => item.id === placement.cityId);
   if (!city) { cancelDistrictPlacement(); return; }
   const site = previewDistrict(view, placement.cityId, placement.kind, placement.tileIndex);
   if (site.reason !== null || city.queue.length >= 5) {
@@ -976,7 +977,7 @@ function requestedGameplayVersion(): GameplayVersion {
 let goalsCollapsed = false;
 document.querySelector<HTMLElement>('#opening-goals')?.addEventListener('click', event => {
   if (!(event.target as HTMLElement).closest('.goals-toggle')) return;
-  goalsCollapsed = !goalsCollapsed; renderGoals(session.getView());
+  goalsCollapsed = !goalsCollapsed; renderGoals(currentView());
 });
 function renderGoals(view: PlayerView) {
   const root = document.querySelector<HTMLElement>('#opening-goals')!, opening = view.expansion?.opening;
@@ -1001,7 +1002,7 @@ function renderLegends(view: PlayerView) {
     for (const id of open) root.querySelector(`[data-legend="${id}"] details`)?.setAttribute('open', '');
     for (const button of root.querySelectorAll<HTMLButtonElement>('[data-legend-site]')) button.addEventListener('click', () => {
       const index = Number(button.dataset.legendSite);
-      closeScreen(); focusHex(indexToHex(index, session.getView().map)); inspectedTile = index; selected = null; selectedCity = null; controls(); requestFrame();
+      closeScreen(); focusHex(indexToHex(index, currentView().map)); inspectedTile = index; selected = null; selectedCity = null; controls(); requestFrame();
     });
   }
   const arrival = document.querySelector<HTMLElement>('#legend-arrival-root')!;
@@ -1015,7 +1016,7 @@ function renderLegends(view: PlayerView) {
   }
 }
 function evolveSelected(intoSpeciesId?: SpeciesId) {
-  const view = session.getView(), unit = view.units.find(unit => unit.id === selected && unit.kind === 'pokemon');
+  const view = currentView(), unit = view.units.find(unit => unit.id === selected && unit.kind === 'pokemon');
   const CONTENT = contentForView(view);
   const evolution = unit?.kind === 'pokemon' ? CONTENT.species[unit.speciesId].evolution : null;
   if (unit && (intoSpeciesId ?? evolution)) issue({ type: 'Evolve', unitId: unit.id, intoSpeciesId: intoSpeciesId ?? evolution!.speciesId });
@@ -1050,18 +1051,18 @@ function frame(now: number) {
     const payload = event.payload, battle = payload.type === 'BattleResolved' ? payload : null;
     const recorded = battle?.knockdowns?.find(record => !record.counter && record.source.id === battle.attackerId && record.target.kind !== 'city')?.effectiveness;
     presentationLog.push({ type: payload.type, animated: track !== null,
-      ...(battle ? { effectiveness: battleLook(battle, session.getView(), knownUnits, knownCityOwners).effectiveness, ...(recorded !== undefined ? { recorded } : {}) } : {}) });
+      ...(battle ? { effectiveness: battleLook(battle, currentView(), knownUnits, knownCityOwners).effectiveness, ...(recorded !== undefined ? { recorded } : {}) } : {}) });
     if (presentationLog.length > 80) presentationLog.shift();
   }
   // depth-v26 §4.2: other players' evolutions on visible units, after the queue; off screen they cost no time (V7).
   if (!timeline.busy && presentationIndex >= queue.length && foreignEvolutions.length) {
-    const next = foreignEvolutions.shift()!, current = session.getView(), unit = current.units.find(item => item.id === next.unitId);
+    const next = foreignEvolutions.shift()!, current = currentView(), unit = current.units.find(item => item.id === next.unitId);
     const shown = Boolean(unit && unit.kind === 'pokemon' && unit.speciesId === next.to && onScreen([unit.position], current));
     if (shown) timeline.add(evolutionTrack({ key: `ForeignEvolution:${trackSerial++}`, unit: unit!, from: next.from, to: next.to, position: unit!.position, motion: !reducedMotion() }), now);
     presentationLog.push({ type: 'ForeignEvolution', animated: shown });
     if (presentationLog.length > 80) presentationLog.shift();
   }
-  const view = session.getView();
+  const view = currentView();
   // V11: night and weather changes cross-fade (not with animation off or reduced motion: they switch at once).
   const fades = ambient.update(view);
   if (animate.checked && !reducedMotion()) for (const track of fades) timeline.add(track, now);
@@ -1124,7 +1125,7 @@ function watchReplay(key: string) {
   else { notice = '这场对战的回放已不可用（读档或刷新后只保留联盟大会的回放）。'; controls(); }
 }
 function skip() { finishPresentations(); controls(); requestFrame(); }
-function fit() { camera = fitCamera(session.getView().map, canvas.clientWidth, canvas.clientHeight); requestFrame(); }
+function fit() { camera = fitCamera(currentView().map, canvas.clientWidth, canvas.clientHeight); requestFrame(); }
 function startDistrictPlacement(cityId: number, kind: DistrictId) {
   selected = null; selectedCity = cityId; neutralCity = null; resetAction();
   districtPlacement = { cityId, kind, tileIndex: null }; notice = '';
@@ -1143,7 +1144,7 @@ function clearSelection() {
 let deferredFocus: Hex | null = null;
 function focusHex(position: { q: number; r: number }) {
   deferredFocus = null;
-  keyboardIndex = hexToIndex(position, session.getView().map);
+  keyboardIndex = hexToIndex(position, currentView().map);
   camera.zoom = Math.max(camera.zoom, 1.5);
   // ui-25d: centre on the lifted top face (the lift is 0 on the flat map).
   const point = hexToWorld(position);
@@ -1156,7 +1157,7 @@ function focusHex(position: { q: number; r: number }) {
  * nearest the current view — inspects it and pulses a chevron there for 1.5 s.
  */
 function locateTile(index: number) {
-  const view = session.getView(), position = indexToHex(index, view.map);
+  const view = currentView(), position = indexToHex(index, view.map);
   const centre = toWorld({ x: canvas.clientWidth / 2, y: canvas.clientHeight / 2 }, camera), point = hexToWorld(position);
   point.y -= renderer.lift(position);
   if (view.map.wrap) point.x += Math.round((centre.x - point.x) / mapSpan(view.map)) * mapSpan(view.map);
@@ -1184,7 +1185,7 @@ document.addEventListener('click', event => {
   closeScreen(); selectUnit(order.unitId); setGoTo(order.unitId, order.tileIndex);
 });
 function selectUnit(id: number | null, focus = true) {
-  const unit = session.getView().units.find(unit => unit.id === id && unit.ownerId === session.getView().playerId);
+  const unit = currentView().units.find(unit => unit.id === id && unit.ownerId === currentView().playerId);
   selected = unit?.id ?? null; selectedCity = null; neutralCity = null; inspectedTile = null;
   resetAction(); notice = '';
   if (unit) audio.play('select');
@@ -1192,14 +1193,14 @@ function selectUnit(id: number | null, focus = true) {
   controls(); requestFrame();
 }
 function selectCity(id: number | null, focus = true) {
-  const city = session.getView().economy.cities.find(city => city.id === id);
+  const city = currentView().economy.cities.find(city => city.id === id);
   selectedCity = city?.id ?? null; selected = null; neutralCity = null; inspectedTile = null;
   resetAction(); notice = '';
   if (city && focus) focusHex(city.position);
   controls(); requestFrame();
 }
 function transitionBlocked() {
-  const view = session.getView();
+  const view = currentView();
   if (view.outcome || !hasPendingPeace(view)) return false;
   notice = '请先接受或拒绝停战提议，再切换对局。'; controls(); return true;
 }
@@ -1239,7 +1240,7 @@ function newGame() {
   try {
     driver = new GameSession(pendingSetup());
     session = driver.asPlayerSession();
-    timeline.clear(); presenting.clear(); presentationIndex = 0; selected = null; selectedCity = session.getView().economy.player.headquartersCityId; neutralCity = null; inspectedTile = null; keyboardIndex = null; activityLog.length = 0; knownUnitLabels.clear(); knownUnits.clear(); knownCityOwners.clear(); deferredFocus = null;
+    timeline.clear(); presenting.clear(); presentationIndex = 0; selected = null; selectedCity = currentView().economy.player.headquartersCityId; neutralCity = null; inspectedTile = null; keyboardIndex = null; activityLog.length = 0; knownUnitLabels.clear(); knownUnits.clear(); knownCityOwners.clear(); deferredFocus = null;
     rail.clear(); countdownRound = -1; reviewedUnits.clear(); knownOwnCityIds.clear(); resetPresentationState();
     frameDurations.length = 0;
     resetAction(); notice = ''; sequence.value = '0';
@@ -1259,7 +1260,7 @@ function newGame() {
 }
 function activateIndex(index: number | null, confirmSelection = false) {
   if (busy()) return;
-  const view = session.getView();
+  const view = currentView();
   keyboardIndex = index;
   if (index === null) { clearSelection(); return; }
   if (districtPlacement) {
@@ -1328,7 +1329,7 @@ function activateIndex(index: number | null, confirmSelection = false) {
 /** Click ripple on the map; skipped when animation is off or the player prefers reduced motion. */
 function tapFeedback(index: number, tone: 'ok' | 'error' = 'ok') {
   if (!animate.checked || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  timeline.add(tapTrack(indexToHex(index, session.getView().map), tone), performance.now());
+  timeline.add(tapTrack(indexToHex(index, currentView().map), tone), performance.now());
 }
 function localPoint(event: { clientX: number; clientY: number }): Point {
   const rect = canvas.getBoundingClientRect();
@@ -1346,7 +1347,7 @@ let tooltipKey: string | null = null;
 function hideTooltip() { tooltip.hidden = true; tooltipKey = null; }
 function updateTooltip(event: PointerEvent) {
   if (event.pointerType !== 'mouse' || drag?.moved || !session) { hideTooltip(); return; }
-  const point = localPoint(event), view = session.getView();
+  const point = localPoint(event), view = currentView();
   const index = pickIndex(point, view);
   if (index === null) { hideTooltip(); return; }
   if (`${index}:${selected}:${goToMode}` !== tooltipKey) {
@@ -1363,11 +1364,11 @@ canvas.addEventListener('pointerleave', hideTooltip);
 canvas.addEventListener('pointermove', event => {
   updateTooltip(event);
   if (!drag && goToMode) {
-    const index = pickIndex(localPoint(event), session.getView());
+    const index = pickIndex(localPoint(event), currentView());
     if (index !== goToHover) { goToHover = index; requestFrame(); }
   }
   if (!drag && districtPlacement) {
-    const index = pickIndex(localPoint(event), session.getView());
+    const index = pickIndex(localPoint(event), currentView());
     if (index !== null && index !== districtPlacement.tileIndex) { districtPlacement.tileIndex = index; controls(); requestFrame(); }
   }
   if (!drag) return;
@@ -1383,7 +1384,7 @@ canvas.addEventListener('pointercancel', () => { drag = null; });
 canvas.addEventListener('pointerup', event => {
   const click = drag && !drag.moved; drag = null; tooltipKey = null;
   if (!click || busy()) return;
-  activateIndex(pickIndex(localPoint(event), session.getView()));
+  activateIndex(pickIndex(localPoint(event), currentView()));
 });
 canvas.addEventListener('wheel', event => {
   event.preventDefault(); deferredFocus = null; zoomAt(camera, localPoint(event), Math.exp(-event.deltaY * .001)); requestFrame();
@@ -1391,7 +1392,7 @@ canvas.addEventListener('wheel', event => {
 canvas.addEventListener('contextmenu', event => {
   event.preventDefault();
   if (busy() || selected === null) return;
-  const view = session.getView(), index = pickIndex(localPoint(event), view);
+  const view = currentView(), index = pickIndex(localPoint(event), view);
   // The pointer may be over a copy across the v22 seam: commands always carry the canonical tile.
   if (index === null) return;
   if (reachablePaths(view, selected)[index]) issue({ type: 'Move', unitId: selected, to: indexToHex(index, view.map) });
@@ -1400,7 +1401,7 @@ canvas.addEventListener('contextmenu', event => {
 });
 canvas.addEventListener('keydown', event => {
   if (busy()) return;
-  const view = session.getView();
+  const view = currentView();
   const selectedUnit = view.units.find(unit => unit.id === selected);
   const current = keyboardIndex ?? (selectedUnit ? hexToIndex(selectedUnit.position, view.map) : null);
   const initialUnit = view.units.find(unit => unit.ownerId === view.playerId && unit.kind === 'pokemon')
@@ -1441,7 +1442,7 @@ renderDexSummary();
 document.querySelector('#fit')!.addEventListener('click', fit);
 document.querySelector('#export')!.addEventListener('click', () => {
   const url = URL.createObjectURL(new Blob([JSON.stringify(driver.exportLog(), null, 2)], { type: 'application/json' }));
-  const link = document.createElement('a'); link.href = url; link.download = `pokemon-${session.getView().seed}-commands.json`;
+  const link = document.createElement('a'); link.href = url; link.download = `pokemon-${currentView().seed}-commands.json`;
   link.click(); URL.revokeObjectURL(url);
 });
 document.querySelector('#replay')!.addEventListener('click', () => {
@@ -1456,11 +1457,11 @@ document.querySelector('#resume')!.addEventListener('click', () => {
 const saveKey = 'pokemon-civilization-save';
 function load(text: string) {
   if (transitionBlocked()) return;
-  driver.load(text); closeScreen(); timeline.clear(); presenting.clear(); selected = null; selectedCity = session.getView().economy.cities[0]?.id ?? null; neutralCity = null; inspectedTile = null; keyboardIndex = null; activityLog.length = 0; knownUnitLabels.clear(); knownUnits.clear(); knownCityOwners.clear(); deferredFocus = null; resetAction(); notice = '读档完成';
+  driver.load(text); closeScreen(); timeline.clear(); presenting.clear(); selected = null; selectedCity = currentView().economy.cities[0]?.id ?? null; neutralCity = null; inspectedTile = null; keyboardIndex = null; activityLog.length = 0; knownUnitLabels.clear(); knownUnits.clear(); knownCityOwners.clear(); deferredFocus = null; resetAction(); notice = '读档完成';
   rail.clear(); countdownRound = -1; reviewedUnits.clear(); knownOwnCityIds.clear(); resetPresentationState();
   frameDurations.length = 0;
   fit();
-  const focusCity = session.getView().economy.cities.find(city => city.id === selectedCity);
+  const focusCity = currentView().economy.cities.find(city => city.id === selectedCity);
   if (focusCity) { focusHex(focusCity.position); keyboardIndex = null; }
   skip();
 }
@@ -1495,12 +1496,12 @@ document.addEventListener('keydown', event => {
   if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); onEndTurn(true); return; }
   if (event.ctrlKey || event.metaKey || event.altKey) return;
   if (event.key === ',' || event.key === '.') {
-    if (!idleWithoutOrders(session.getView()).length) return;
+    if (!idleWithoutOrders(currentView()).length) return;
     event.preventDefault(); if (!busy()) cycleIdle('unit', event.key === ',' ? -1 : 1);
   }
   else if (event.key.toLowerCase() === 'c') {
     event.preventDefault();
-    selectCity(session.getView().economy.cities[0]?.id ?? null);
+    selectCity(currentView().economy.cities[0]?.id ?? null);
     document.querySelector<HTMLElement>('#city-select')?.focus();
   } else if (event.key.toLowerCase() === 'y') { event.preventDefault(); showYields.checked = !showYields.checked; requestFrame(); }
   else if (['r', 't'].includes(event.key.toLowerCase())) { event.preventDefault(); openScreen('research', '#research-topic'); }
@@ -1520,7 +1521,7 @@ new ResizeObserver(() => { if (session) requestFrame(); }).observe(canvas);
 installScreens();
 installUnitActionBar();
 // v27 ⑥: league trainer chips open their profile card on hover / focus (the bracket, the result card, the lineup picker, the world page).
-installTrainerCards(() => session ? session.getView() : null);
+installTrainerCards(() => session ? currentView() : null);
 // ---------- audio (original Web Audio music and effects; starts on the first gesture) ----------
 document.querySelector<HTMLElement>('#audio-settings-root')!.innerHTML = audioSettingsMarkup();
 // ui-25d: map projection setting in the game menu (saved in this browser; `?render=` still overrides on load).

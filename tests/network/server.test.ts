@@ -58,6 +58,24 @@ describe('authoritative local multiplayer rooms', () => {
     }
   });
 
+  test('default rooms derive content from their gameplay setup and match client contentForView', async () => {
+    const server = createNetworkServer({ persistenceDirectory: directory });
+    const created = await payload(await post(server, '/api/rooms', { seed: 12345, seats: 2 })) as unknown as RoomCreateResponse;
+    const joined = await payload(await post(server, `/api/rooms/${created.roomId}/join`, {
+      seatId: 0, joinToken: created.seats[0].joinToken,
+    })) as unknown as JoinResponse;
+    expect(joined.view.map.features).toBeDefined();
+    expect(joined.view.economy.player.research.tree).toBe(true);
+    expect(Object.keys(joined.view.economy.player.research.progressByTech).length).toBe(30);
+    const research = await post(server, `/api/rooms/${created.roomId}/commands`, {
+      expectedSeq: 0, action: { type: 'SetResearch', techId: 'seafaring' },
+    }, joined.seatToken);
+    expect(research.status).toBe(200);
+    expect(await payload(research)).toMatchObject({ ok: true, seq: 1 });
+    expect((await post(server, `/api/rooms/${created.roomId}/owner/save`, { slot: 'slot-1' }, created.ownerToken)).status).toBe(200);
+    expect((await post(server, `/api/rooms/${created.roomId}/owner/load`, { slot: 'slot-1' }, created.ownerToken)).status).toBe(200);
+  });
+
   test('explicit v10 rooms preserve their district envelope through save/export/load', async () => {
     const server = createNetworkServer({ persistenceDirectory: directory });
     const created = await payload(await post(server, '/api/rooms', { seed: 31, seats: 2, gameplayVersion: 10 })) as unknown as RoomCreateResponse;

@@ -9,7 +9,7 @@ import { canonicalSerialize } from '../src/core/snapshot.ts';
 import { replay } from '../src/app/session.ts';
 import { serializeSave } from '../src/app/save.ts';
 import type { CommandLog } from '../src/app/session.ts';
-import { EXPANSION_CONTENT } from '../src/content/units.ts';
+import { contentFor } from '../src/content/units.ts';
 import type { Content } from '../src/content/units.ts';
 import type { Command, GameSetup, GameState, PlayerView } from '../src/core/model.ts';
 import {
@@ -40,6 +40,7 @@ type Room = {
   ownerToken: string;
   ownerName: string | null;
   expansionVersion: 1;
+  content: Content;
   seats: Seat[];
   state: GameState;
   commands: Command[];
@@ -128,14 +129,14 @@ function buildSetup(request: ValidRoomCreateRequest): GameSetup {
 
 export class NetworkGameServer {
   private readonly rooms = new Map<string, Room>();
-  private readonly content: Content;
+  private readonly contentOverride: Content | null;
   private readonly now: () => number;
   private readonly persistenceDirectory: string | null;
   private readonly maxRooms: number;
   private readonly roomTtlMs: number;
 
   constructor(options: NetworkServerOptions = {}) {
-    this.content = options.content ?? EXPANSION_CONTENT;
+    this.contentOverride = options.content ?? null;
     this.now = options.now ?? Date.now;
     this.persistenceDirectory = options.persistenceDirectory ?? null;
     this.maxRooms = options.maxRooms ?? 64;
@@ -192,8 +193,10 @@ export class NetworkGameServer {
     const parsed = validateRoomCreateRequest(body);
     if (!parsed) return json({ code: 'invalid-room', reason: 'Invalid room request.' }, 400);
     if (this.rooms.size >= this.maxRooms) return json({ code: 'server-full', reason: 'Too many active rooms.' }, 503);
+    const setup = buildSetup(parsed);
+    const content = this.contentOverride ?? contentFor(setup);
     let state: GameState;
-    try { state = createGame(buildSetup(parsed), this.content); }
+    try { state = createGame(setup, content); }
     catch (error) { return json({ code: 'invalid-room', reason: error instanceof Error ? error.message : String(error) }, 400); }
     const id = randomBytes(16).toString('hex');
     const now = this.now();
@@ -202,6 +205,7 @@ export class NetworkGameServer {
       ownerToken: token(),
       ownerName: parsed.ownerName ? sanitizeName(parsed.ownerName) : null,
       expansionVersion: parsed.expansionVersion,
+      content,
       seats: Array.from({ length: parsed.seats }, (_, seatId) => ({ seatId, joinToken: token(), seatToken: null, name: null })),
       state,
       commands: [],
@@ -242,7 +246,7 @@ export class NetworkGameServer {
   private command(room: Room, request: Request, body: unknown): Response {
     const seat = this.authenticatedSeat(room, bearer(request));
     if (!seat) return json({ code: 'unauthorized', reason: 'A valid seat token is required.' }, 401);
-    const parsed = validateCommandRequest(body, this.content);
+    const parsed = validateCommandRequest(body, room.content);
     if (!parsed) return json({ ok: false, code: 'invalid-command', reason: 'Malformed command.', view: this.view(room, seat.seatId) }, 400);
     const view = this.view(room, seat.seatId);
     if (room.state.outcome) return json({ ok: false, code: 'game-ended', reason: 'The game has ended.', view }, 409);
@@ -250,7 +254,7 @@ export class NetworkGameServer {
     if (parsed.expectedSeq < room.state.commandSeq) return json({ ok: false, code: 'stale-command', reason: `Expected sequence ${room.state.commandSeq}.`, view }, 409);
     if (parsed.expectedSeq > room.state.commandSeq) return json({ ok: false, code: 'future-command', reason: `Expected sequence ${room.state.commandSeq}.`, view }, 409);
     const command: Command = { actorId: seat.seatId, expectedSeq: parsed.expectedSeq, action: parsed.action };
-    const result = step(room.state, command, this.content);
+    const result = step(room.state, command, room.content);
     if (!result.ok) return json({ ok: false, code: result.reason, reason: result.reason, view }, 409);
     room.state = result.state;
     room.commands = room.commands.slice(0, result.state.commandSeq - 1);
@@ -302,7 +306,7 @@ export class NetworkGameServer {
       version: 1,
       schemaVersion: room.state.schemaVersion,
       rulesVersion: room.state.rulesVersion,
-      contentVersion: this.content.version,
+      contentVersion: room.content.version,
       setup: JSON.parse(JSON.stringify(room.state.setup)) as GameSetup,
       commands: JSON.parse(JSON.stringify(room.commands)) as Command[],
     };
@@ -310,7 +314,7 @@ export class NetworkGameServer {
   }
 
   private view(room: Room, seatId: number): PlayerView {
-    return observe(room.state, seatId, this.content);
+    return observe(room.state, seatId, room.content);
   }
 
   private authenticatedSeat(room: Room, supplied: string | null): Seat | null {
@@ -408,12 +412,12 @@ export class NetworkGameServer {
       save = JSON.parse(await readFile(target, 'utf8')) as SaveFile;
     } catch { return json({ code: 'save-unavailable', reason: 'Save slot is missing or invalid.' }, 404); }
     const invalid = save?.formatVersion !== 1 || save.schemaVersion !== room.state.schemaVersion || save.rulesVersion !== room.state.rulesVersion
-      || save.contentVersion !== this.content.version || save.state?.setup === undefined || save.log?.commands === undefined
+      || save.contentVersion !== room.content.version || save.state?.setup === undefined || save.log?.commands === undefined
       || canonicalSerialize(save.state.setup) !== canonicalSerialize(room.state.setup)
       || !Array.isArray(save.log.commands) || save.state.commandSeq !== save.log.commands.length;
     if (invalid) return json({ code: 'save-invalid', reason: 'Save does not match this room or engine version.' }, 400);
     let replayed: GameState;
-    try { replayed = replay(save.log, undefined, undefined, this.content); }
+    try { replayed = replay(save.log, undefined, undefined, room.content); }
     catch { return json({ code: 'save-invalid', reason: 'Save command log does not replay.' }, 400); }
     if (canonicalSerialize(replayed) !== canonicalSerialize(save.state)) return json({ code: 'save-invalid', reason: 'Save state does not match its command log.' }, 400);
     room.state = replayed;
