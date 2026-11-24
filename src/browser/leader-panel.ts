@@ -4,7 +4,6 @@ import type { LeaderId } from '../content/leaders.ts';
 import { speciesDisplay } from '../content/species.ts';
 import { LEADER_DOCTRINES } from '../core/leader-doctrines.ts';
 import type { PlayerView } from '../core/model.ts';
-import '../leaders.css';
 
 export const leaderArtPath = (id: LeaderId) => `/leaders/${id}.svg`;
 

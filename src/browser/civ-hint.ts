@@ -5,7 +5,6 @@
 // chip. Data comes from src/content/civ-glossary.ts, shared with the handbook.
 import { CIV_GLOSSARY, civTermLabel, civTermSentence } from '../content/civ-glossary.ts';
 import type { CivGlossaryEntry, CivGlossaryId } from '../content/civ-glossary.ts';
-import '../civ-hint.css';
 
 const esc = (text: string) => text.replace(/[&<>"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[char]!);
 

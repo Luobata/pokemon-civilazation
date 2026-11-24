@@ -3,7 +3,7 @@
 // inversion), illustrated terrain cached as world-space chunks (chunks25d.ts with the painted painter), a parchment fog layer
 // cached like the flat map's, and painted tokens. Overlays that read well in any style (resource badges, districts, weather,
 // trade routes, go-to routes, combat and event effects, debug) reuse the Canvas 2D layer functions.
-import { drawSpeciesSprite, drawSpriteFile } from '../terrain25d.ts';
+import { drawSpeciesSprite, drawSpriteFile } from '../sprite-draw.ts';
 import { contentForView } from '../../../content/units.ts';
 import type { TypeId } from '../../../content/species.ts';
 import { hexToIndex } from '../../../core/hex.ts';
@@ -15,8 +15,8 @@ import type { Camera, Point } from '../../camera.ts';
 import { drawPokemonSilhouette } from '../../sprites.ts';
 import { EMPTY_FRAME } from '../animation.ts';
 import type { AnimationFrame } from '../animation.ts';
-import { DISTRICT_COLORS, MAX_COLORS, PARTICLE_CAP, YIELD_MIN_RADIUS, blit, cachedLayer, drawDebug, drawEffects, drawFeatures, drawGoTo, drawTradeRoutes, drawWeather, ownerColor } from '../canvas2d.ts';
-import type { Draw, LayerCache, LayerStat, RenderStats, RendererOptions } from '../canvas2d.ts';
+import { DISTRICT_COLORS, MAX_COLORS, PARTICLE_CAP, YIELD_MIN_RADIUS, blit, cachedLayer, drawDebug, drawEffects, drawFeatures, drawGoTo, drawTradeRoutes, drawWeather, ownerColor } from '../overlays.ts';
+import type { Draw, LayerCache, LayerStat, RenderStats, RendererOptions } from '../overlays.ts';
 import { createChunkCache } from '../chunks25d.ts';
 import type { MapScene, SceneCity, SceneUnit, UnitMarkIdentity } from '../scene.ts';
 import { drawFogPainted } from './fog.ts';

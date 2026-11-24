@@ -13,7 +13,6 @@ import { EFFECT_TEXT, effectTone, multiplierText } from './battle-replay.ts';
 import type { EffectTone } from './battle-replay.ts';
 import { pokemonSpritePath } from './sprites.ts';
 import { artImage, escapeAttr, typeBadge, uiIcon } from './ui-icons.ts';
-import '../battle-viewer.css';
 import type { UiIconName } from './ui-icons.ts';
 
 /** `speed` / `attack` / `veteran`: relay fighters only (who strikes first). */

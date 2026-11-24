@@ -12,7 +12,6 @@ import { ageFor } from '../core/era-honors.ts';
 import { DEDICATION_IDS, DEDICATION_RULES, DEDICATIONS } from '../content/dedications.ts';
 import type { DedicationId } from '../content/dedications.ts';
 import type { Command } from '../core/model.ts';
-import '../leader-doctrines.css';
 import { civHint } from './civ-hint.ts';
 import { statChip, uiIcon } from './ui-icons.ts';
 import type { UiIconName } from './ui-icons.ts';

@@ -11,7 +11,6 @@ import { pokemonSpritePath } from './sprites.ts';
 import { leagueBracketMarkup } from './league-bracket.ts';
 import { leagueMatchReplay } from './battle-replay.ts';
 import type { BattleReplay } from './battle-replay.ts';
-import '../league.css';
 import { traceStrikes } from '../core/team-battle.ts';
 import { civName } from './civ-names.ts';
 import { leagueRosterMarkup, trainerChip, viewLeagueRoster, trainerDisplayName, viewLeagueTrainer, viewNemesis } from './trainer-card.ts';

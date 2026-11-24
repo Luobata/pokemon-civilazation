@@ -1,7 +1,6 @@
 // ui-painted: the visual theme. `pixel` is the original look (flat or 2.5D pixel map, chosen under 地图视角); `painted` (绘卷) is
 // the illustrated map with the ornamental HUD (docs/design/ui-painted.md). `?theme=painted` (alias `atlas`) or `?theme=pixel`
 // wins over the saved 菜单 → 画风 choice. The HUD styles live in painted.css, scoped under `html.theme-painted`.
-import '../painted.css';
 import { setIconStyle } from './ui-icons.ts';
 
 export type Theme = 'pixel' | 'painted';

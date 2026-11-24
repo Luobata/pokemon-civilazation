@@ -32,8 +32,6 @@ import { maxRaidPanelMarkup } from './max-raid-ui.ts';
 import { dexCaptureCounts, isStarterRecord } from './dex-owned.ts';
 import { regionalDexMarkup } from './regional-dex-panel.ts';
 import { bracketMarkup, worldCards, worldCardsMarkup } from './world-cards.ts';
-import '../world-ui.css';
-import '../late-game.css';
 import { installDataTips } from './ui-tip.ts';
 import { openLineupPicker } from './lineup-picker.ts';
 import { leagueRosterMarkup, trainerChip, trainerDisplayName, viewLeagueRoster, viewLeagueTrainer, viewNemesis } from './trainer-card.ts';

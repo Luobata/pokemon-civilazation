@@ -26,7 +26,6 @@ import { pokemonPortrait } from './sprites.ts';
 import { statChip, typeBadge, uiIcon } from './ui-icons.ts';
 import { gymBlockerText, gymTitle } from './gym-panel.ts';
 import { matchupGridMarkup } from './matchup-grid.ts';
-import '../lineup.css';
 import { trainerChip, trainerDisplayName, trainerPortrait, viewLeagueTrainer, viewNemesis } from './trainer-card.ts';
 import type { LeagueTrainer } from '../core/league-roster.ts';
 

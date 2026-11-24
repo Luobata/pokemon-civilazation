@@ -3,7 +3,7 @@
 // cached canvases; the faction patterns repeat the flat map's colour-blind-safe marks (stripes, dots, cross-hatch).
 import type { Point } from '../camera.ts';
 import { propScale } from './projection.ts';
-import { drawPixelArt, snappedScale } from './terrain25d.ts';
+import { drawPixelArt, snappedScale } from './sprite-draw.ts';
 
 const RT = 24;
 /** Town canvas (native pixels): room above the tile for the keep and its flag. */

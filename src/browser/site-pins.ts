@@ -2,7 +2,6 @@
 // hover / focus card listing the reasons as icon chips. A click sets a go-to order with the "found a city" intent (main.ts).
 // The pins sit in the map frame below every HUD panel (action bar, notification rail, objective card, combat card), so they
 // never cover one; they follow the camera each frame and hide off the canvas. Nothing animates (reduced motion needs nothing).
-import '../waypoints.css';
 import type { Point } from './camera.ts';
 import type { CitySite } from './city-sites.ts';
 import { escapeAttr, statChip, uiIcon } from './ui-icons.ts';

@@ -13,7 +13,6 @@ import { escapeAttr, flagImage, uiIcon } from './ui-icons.ts';
 import type { UiIconName } from './ui-icons.ts';
 import { CIV_COLORS, locateButton, selectUnitButton, worldCards } from './world-cards.ts';
 import type { WorldCardId } from './world-cards.ts';
-import '../world-ui.css';
 import { installDataTips } from './ui-tip.ts';
 import { civName } from './civ-names.ts';
 

@@ -22,7 +22,6 @@ import { BIOME_DISPLAY } from './canvas.ts';
 import { pokemonSpritePath } from './sprites.ts';
 import { BIOME_ICONS, UI_ICON_NAMES, artImage, escapeAttr, typeBadge, uiIcon } from './ui-icons.ts';
 import type { UiIconName } from './ui-icons.ts';
-import '../evolution-panel.css';
 
 type Pokemon = Extract<MapUnit, { kind: 'pokemon' }>;
 /** One condition: the icon, a short visible value, the full sentence (hover card, accessible name) and whether it holds now. */

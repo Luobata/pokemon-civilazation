@@ -14,7 +14,6 @@ import { hexDistance, hexToIndex } from '../core/hex.ts';
 import { tileCoords } from './tile-coords.ts';
 import type { MapUnit, PlayerView } from '../core/model.ts';
 import type { TileEntity } from './tile-info.ts';
-import '../playtest-2b.css';
 
 /** The warning of one visit, as the target saw it: the arrival tile, the round and the warned city. */
 export type RivalWarning = { visit: number; tileIndex: number; round: number; cityId: number; seen: boolean };

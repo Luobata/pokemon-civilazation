@@ -11,7 +11,6 @@ import { traceTurns } from '../core/team-battle.ts';
 import { FACTIONS } from './render/canvas2d.ts';
 import { pokemonSpritePath } from './sprites.ts';
 import { artImage, escapeAttr, statChip, uiIcon } from './ui-icons.ts';
-import '../league-bracket.css';
 import { trainerChip, viewLeagueTrainer } from './trainer-card.ts';
 
 type Label = ChampionshipMatch['label'];

@@ -17,7 +17,6 @@ import type { UiIconName } from './ui-icons.ts';
 import { placeCard } from './combat-preview.ts';
 import { attackSound } from './audio/sfx.ts';
 import type { SoundId } from './audio/sfx.ts';
-import '../battle-viewer.css';
 
 // ---------- timeline ----------
 

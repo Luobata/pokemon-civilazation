@@ -7,7 +7,6 @@ import type { Content } from '../content/units.ts';
 import type { PlayerView } from '../core/model.ts';
 import { habitatBiomes, hasTask, tasksDone } from '../core/research-tasks.ts';
 import type { ResearchCard, ResearchTaskEvent } from '../core/research-tasks.ts';
-import '../research-tasks.css';
 import { artImage, uiIcon } from './ui-icons.ts';
 import type { UiIconName } from './ui-icons.ts';
 import { pokemonSpritePath } from './sprites.ts';

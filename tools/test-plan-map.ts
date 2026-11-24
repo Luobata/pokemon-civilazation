@@ -44,7 +44,7 @@ export type SpecRule = { files: string[]; specs: string[]; why: string };
  * src/app, src/*.css, *.html, public) that matches no rule runs ALL specs and the plan says so: add a rule.
  */
 export const SPEC_RULES: SpecRule[] = [
-  { files: ['src/browser/main.ts', 'src/browser/screens.ts', 'src/app/**', 'index.html'], specs: ALL,
+  { files: ['src/browser/main.ts', 'src/browser/shell/**', 'src/browser/screens.ts', 'src/app/**', 'index.html'], specs: ALL,
     why: 'game page wiring: every spec loads it' },
   { files: ['src/browser/render/**', 'src/browser/canvas.ts', 'src/browser/camera.ts', 'src/browser/terrain.ts', 'src/browser/map-icons.ts',
     'src/browser/sprites.ts', 'src/browser/building-art.ts', 'src/browser/site-pins.ts', 'src/browser/city-sites.ts', 'src/browser/tile-coords.ts',
@@ -106,7 +106,7 @@ export const SPEC_RULES: SpecRule[] = [
 ];
 
 /** Changed files that also need the production-build e2e (tests/browser-prod: CSS bundle order, overlay placement). */
-export const PROD_TRIGGERS = ['src/*.css', '*.html', 'src/browser/screens.ts', 'src/browser/main.ts', 'src/browser/*-panel.ts', 'src/browser/notification-rail.ts',
+export const PROD_TRIGGERS = ['src/*.css', '*.html', 'src/browser/screens.ts', 'src/browser/main.ts', 'src/browser/shell/**', 'src/browser/*-panel.ts', 'src/browser/notification-rail.ts',
   'src/browser/unit-action-bar.ts', 'src/browser/battle-viewer.ts', 'src/browser/lineup-picker.ts', 'src/browser/late-game-ui.ts', 'src/browser/world-cards.ts'];
 
 /** Any of these changed → the whole full gate (build, lint, every vitest file, every spec, prod e2e, v27 smoke). */

@@ -7,15 +7,15 @@ import type { RenderMode } from './projection.ts';
 import { buildScene } from './scene.ts';
 import type { MapRenderInput } from './scene.ts';
 import { createCanvas2DRenderer } from './canvas2d.ts';
-import type { RenderStats, RendererOptions } from './canvas2d.ts';
+import type { RenderStats, RendererOptions } from './overlays.ts';
 import type { AnimationFrame } from './animation.ts';
 import { createPaintedRenderer } from './painted/backend.ts';
 import type { PaintedBackend } from './painted/backend.ts';
 
 export { buildScene, DEFAULT_MAP_LAYERS } from './scene.ts';
 export type { DebugOverlay, MapLayers, MapRenderInput, MapScene } from './scene.ts';
-export { FACTIONS, YIELD_MIN_RADIUS } from './canvas2d.ts';
-export type { RenderStats, RendererOptions } from './canvas2d.ts';
+export { FACTIONS, YIELD_MIN_RADIUS } from './overlays.ts';
+export type { RenderStats, RendererOptions } from './overlays.ts';
 export { EMPTY_FRAME, Timeline } from './animation.ts';
 export type { AnimationFrame, MapEffect, Track, UnitPose } from './animation.ts';
 

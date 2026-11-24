@@ -6,7 +6,6 @@ import { toastResolved } from './notifications.ts';
 import type { Toast, ToastTarget } from './notifications.ts';
 import type { PlayerView } from '../core/model.ts';
 import { uiIcon } from './ui-icons.ts';
-import '../playtest-ui.css';
 import type { UiIconName } from './ui-icons.ts';
 
 /** Pixel icon for each notification glyph (docs/design/ui-icons/README.md); unknown glyphs stay as text. */

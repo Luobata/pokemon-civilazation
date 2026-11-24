@@ -1,7 +1,6 @@
 // One floating hover card for icon-first panels: an element bound here shows its full text beside it while hovered
 // or focused. Same look as the 文明 6 hint card (src/civ-hint.css); it lives on <body> so clipped drawers cannot cut
 // it off, and it ignores the pointer so it never blocks clicks.
-import '../civ-hint.css';
 
 let card: HTMLElement | null = null;
 let anchor: HTMLElement | null = null;

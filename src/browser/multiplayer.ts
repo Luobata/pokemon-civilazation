@@ -3,11 +3,9 @@ import { bindEraPanel, renderEraPanel } from './era-panel.ts';
 import { LEADERS, LEADER_IDS, type LeaderId } from '../content/leaders.ts';
 import type { EraProgression } from '../content/eras.ts';
 import { EXPANSION_ACTION_FIELDS } from '../core/expansion-commands.ts';
-import { GAME_CONTENT as BASE_CONTENT, contentForView } from '../content/units.ts';
 import { hexToIndex, indexToHex } from '../core/hex.ts';
 import { reachablePaths } from '../core/movement.ts';
 import type { Command, PlayerView } from '../core/model.ts';
-import type { BallId } from '../content/economy.ts';
 import { FACTION_LEGEND } from './canvas.ts';
 import { RENDER_MODE_KEY, applyRenderMode, createMapRenderer, requestedRenderMode } from './render/index.ts';
 import { applyTheme, requestedTheme, storedTheme } from './theme.ts';
@@ -15,20 +13,23 @@ import { renderDiplomacyPanel, hasPendingPeace } from './diplomacy-panel.ts';
 import { renderEconomyPanel } from './economy-panel.ts';
 import { renderExpansionPanel } from './expansion-panel.ts';
 import { renderResearchPanel, resetResearchPanel } from './research-panel.ts';
-import { renderUnitPanel, type ActionMode, type PendingTarget } from './unit-panel.ts';
+import { renderUnitPanel } from './unit-panel.ts';
 import { actionTargets } from './action-targets.ts';
 import { districtSites, previewDistrict } from '../core/districts.ts';
 import { constructionNotice, districtPreviewMarkup } from './district-panel.ts';
 import type { DistrictId } from '../content/districts.ts';
-import { fitCamera, hexToWorld, mapSpan, toWorld, zoomAt } from './camera.ts';
-import type { Camera, Point } from './camera.ts';
+import { fitCamera } from './camera.ts';
 import { loadPokemonSprites } from './sprites.ts';
 import { NetworkClient, NetworkError } from '../network/client.ts';
 import type { RoomCreateResponse } from '../network/contract.ts';
+import { createUIState, reconcileSelection, resetActionState } from './shell/ui-state.ts';
+import {
+  applyCommandStateEffects, buildConfirmTargetAction, buildDistrictOrderAction,
+  buildEvolveAction, focusCameraOnHex, stepKeyboardHex,
+} from './shell/game-shell.ts';
+import { installMapPointerControls } from './shell/input.ts';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#map')!;
-// ui-25d: the same map projection setting as the single-player page (`?render=` or the saved 地图视角 choice).
-// ui-painted: the 绘卷 theme setting applies here too (`?theme=` or the saved 画风 choice).
 const theme = requestedTheme(location.search, storedTheme());
 applyTheme(theme);
 const renderMode = theme === 'painted' ? 'painted' : requestedRenderMode(location.search, (() => { try { return localStorage.getItem(RENDER_MODE_KEY); } catch { return null; } })());
@@ -44,37 +45,25 @@ const actionEditor = document.querySelector<HTMLTextAreaElement>('#action-json')
 const targetList = document.querySelector<HTMLSelectElement>('#target-list')!;
 const mapNotice = document.querySelector<HTMLElement>('#map-notice')!;
 
+const ui = createUIState();
 let client: NetworkClient | null = null;
 let view: PlayerView | null = null;
-let camera: Camera = { x: 0, y: 0, zoom: 1 };
-// World panel 定位 / 选中 buttons (depth-v26 §6.1): centre on the tile (nearest wrapped copy) or select the own unit.
+let lastMapKey = '';
+let ownerToken: string | null = null;
+let ownerRoomId: string | null = null;
+let roomCreation: RoomCreateResponse | null = null;
+let apiBaseUrl = '';
+
 document.addEventListener('click', event => {
   const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('[data-locate-tile], [data-locate-unit]') : null;
   const current = view;
   if (!button || button.disabled || !current) return;
   const unit = button.dataset.locateUnit !== undefined ? current.units.find(item => item.id === Number(button.dataset.locateUnit)) : undefined;
   const position = unit ? unit.position : indexToHex(Number(button.dataset.locateTile), current.map);
-  if (unit) selectedUnit = unit.id;
-  const canvasElement = document.querySelector<HTMLCanvasElement>('#map')!;
-  const centre = toWorld({ x: canvasElement.clientWidth / 2, y: canvasElement.clientHeight / 2 }, camera), point = hexToWorld(position);
-  point.y -= renderer.lift(position);
-  if (current.map.wrap) point.x += Math.round((centre.x - point.x) / mapSpan(current.map)) * mapSpan(current.map);
-  camera.zoom = Math.max(camera.zoom, 1.5);
-  camera.x = canvasElement.clientWidth / 2 - point.x * camera.zoom;
-  camera.y = canvasElement.clientHeight / 2 - point.y * camera.zoom;
+  if (unit) ui.selected = unit.id;
+  focusCameraOnHex(ui.camera, canvas, hex => renderer.lift(hex), position, current.map, { wrapNearest: true });
   render();
 });
-let selectedUnit: number | null = null;
-let selectedCity: number | null = null;
-let actionMode: ActionMode = null;
-let districtPlacement: { cityId: number; kind: DistrictId; tileIndex: number | null } | null = null;
-let pendingTarget: PendingTarget | null = null;
-let selectedBall: BallId = 'pokeBall';
-let lastMapKey = '';
-let ownerToken: string | null = null;
-let ownerRoomId: string | null = null;
-let roomCreation: RoomCreateResponse | null = null;
-let apiBaseUrl = '';
 
 type StoredOwnerCredentials = { ownerToken: string; apiBaseUrl: string };
 const OWNER_KEY_PREFIX = 'pokemon-multiplayer-owner:';
@@ -83,7 +72,7 @@ function ownerKey(roomId: string, baseUrl: string): string {
 }
 function saveOwnerCredentials(roomId: string, token: string, baseUrl: string): void {
   try { sessionStorage.setItem(ownerKey(roomId, baseUrl), JSON.stringify({ ownerToken: token, apiBaseUrl: baseUrl } satisfies StoredOwnerCredentials)); }
-  catch { /* A private browsing session may refuse storage; the current page still keeps its token. */ }
+  catch { /* private browsing */ }
 }
 function restoreOwnerCredentials(roomId: string, baseUrl: string): boolean {
   try {
@@ -134,8 +123,8 @@ function actionForType(type: string): Record<string, unknown> {
   const action: Record<string, unknown> = { type };
   const fields = type in BASE_ACTIONS ? BASE_ACTIONS[type] : EXPANSION_ACTION_FIELDS[type as keyof typeof EXPANSION_ACTION_FIELDS] as Record<string, unknown>;
   for (const [key, rule] of Object.entries(fields)) action[key] = defaultFor(rule);
-  if (selectedUnit !== null && 'unitId' in fields) action.unitId = selectedUnit;
-  if (selectedCity !== null && 'cityId' in fields) action.cityId = selectedCity;
+  if (ui.selected !== null && 'unitId' in fields) action.unitId = ui.selected;
+  if (ui.selectedCity !== null && 'cityId' in fields) action.cityId = ui.selectedCity;
   return action;
 }
 function setAction(type: string): void {
@@ -171,11 +160,12 @@ function renderTargets(): void {
   targetList.innerHTML = '';
   const ownUnits = currentView.units.filter(unit => unit.ownerId === currentView.playerId);
   const others = currentView.units.filter(unit => unit.ownerId !== currentView.playerId);
-  for (const unit of ownUnits) targetList.append(new Option(`己方单位 ${unit.id}`, `unit:${unit.id}`, false, unit.id === selectedUnit));
-  for (const city of currentView.economy.cities) targetList.append(new Option(`己方城市 ${city.id}`, `city:${city.id}`, false, city.id === selectedCity));
+  for (const unit of ownUnits) targetList.append(new Option(`己方单位 ${unit.id}`, `unit:${unit.id}`, false, unit.id === ui.selected));
+  for (const city of currentView.economy.cities) targetList.append(new Option(`己方城市 ${city.id}`, `city:${city.id}`, false, city.id === ui.selectedCity));
   for (const unit of others) targetList.append(new Option(`可见单位 ${unit.id}${unit.ownerId === null ? ' · 野生' : ` · 文明${unit.ownerId + 1}`}`, `unit:${unit.id}`));
   for (const city of currentView.cities) if (city.ownerId !== currentView.playerId) targetList.append(new Option(`可见城市 ${city.id}`, `city:${city.id}`));
 }
+
 function render(): void {
   const currentView = view, currentClient = client;
   if (!currentView || !currentClient) {
@@ -183,17 +173,14 @@ function render(): void {
     hud.textContent = '—';
     selectionInfo.textContent = '';
     mapNotice.textContent = '未连接。';
-    selectedUnit = null; selectedCity = null; resetAction();
+    ui.selected = null; ui.selectedCity = null; resetActionState(ui);
     targetList.innerHTML = '';
     for (const selector of ['#era-panel', '#unit-panel', '#economy', '#diplomacy', '#expansion-panel']) document.querySelector<HTMLElement>(selector)!.innerHTML = '';
     resetResearchPanel();
     updateOwnerControls();
     return;
   }
-  if (selectedUnit !== null && !currentView.units.some(unit => unit.id === selectedUnit && unit.ownerId === currentView.playerId)) {
-    selectedUnit = null; resetAction();
-  }
-  if (selectedCity === null || !currentView.economy.cities.some(city => city.id === selectedCity)) selectedCity = currentView.economy.cities[0]?.id ?? null;
+  reconcileSelection(ui, currentView, true);
   const active = currentView.activePlayerId === currentView.playerId;
   const pendingPeace = hasPendingPeace(currentView);
   const ended = currentView.outcome !== null;
@@ -203,8 +190,8 @@ function render(): void {
   renderTargets();
   renderInvites();
   updateOwnerControls();
-  const unit = currentView.units.find(candidate => candidate.id === selectedUnit && candidate.ownerId === currentView.playerId);
-  const city = currentView.economy.cities.find(candidate => candidate.id === selectedCity);
+  const unit = currentView.units.find(candidate => candidate.id === ui.selected && candidate.ownerId === currentView.playerId);
+  const city = currentView.economy.cities.find(candidate => candidate.id === ui.selectedCity);
   selectionInfo.textContent = unit ? `己方单位 #${unit.id} · ${unit.kind === 'pokemon' ? unit.speciesId : '开拓队'} · HP ${unit.hp} · 行动 ${unit.actionLeft}`
     : city ? `己方城市 #${city.id} · 人口 ${city.population} · HP ${city.hp}`
     : '点击地图选择己方单位或城市；常规操作面板会随选择更新。';
@@ -212,90 +199,73 @@ function render(): void {
   document.querySelector<HTMLButtonElement>('#send-action')!.disabled = disabled;
   const key = `${currentView.map.width}x${currentView.map.height}:${currentClient.roomId}`;
   if (key !== lastMapKey) {
-    camera = fitCamera(currentView.map, canvas.clientWidth, canvas.clientHeight);
+    Object.assign(ui.camera, fitCamera(currentView.map, canvas.clientWidth, canvas.clientHeight));
     lastMapKey = key;
   }
-  const placementSite = districtPlacement && districtPlacement.tileIndex !== null
-    ? previewDistrict(currentView, districtPlacement.cityId, districtPlacement.kind, districtPlacement.tileIndex) : null;
-  renderUnitPanel(currentView, selectedUnit, actionMode, pendingTarget, selectedBall, disabled, {
-    mode: mode => { actionMode = mode; pendingTarget = null; render(); },
+  const placementSite = ui.districtPlacement && ui.districtPlacement.tileIndex !== null
+    ? previewDistrict(currentView, ui.districtPlacement.cityId, ui.districtPlacement.kind, ui.districtPlacement.tileIndex) : null;
+  renderUnitPanel(currentView, ui.selected, ui.actionMode, ui.pendingTarget, ui.selectedBall, disabled, {
+    mode: mode => { ui.actionMode = mode; ui.pendingTarget = null; render(); },
     confirm: confirmAction,
-    cancel: () => resetAction(),
+    cancel: () => { resetActionState(ui); render(); },
     evolve: evolveSelected,
-    ball: ballId => { selectedBall = ballId; pendingTarget = null; render(); },
-    found: () => { if (selectedUnit !== null) void send({ type: 'FoundCity', unitId: selectedUnit }); },
+    ball: ballId => { ui.selectedBall = ballId; ui.pendingTarget = null; render(); },
+    found: () => { if (ui.selected !== null) void send({ type: 'FoundCity', unitId: ui.selected }); },
   });
   if (placementSite) {
     document.querySelector<HTMLElement>('#unit-panel')!.innerHTML = districtPreviewMarkup(currentView, placementSite, disabled);
     document.querySelector<HTMLButtonElement>('#confirm-district')?.addEventListener('click', confirmDistrictPlacement);
     document.querySelector<HTMLButtonElement>('#cancel-district')?.addEventListener('click', cancelDistrictPlacement);
   }
-  renderEconomyPanel(currentView, selectedCity, issue, disabled, startDistrictPlacement);
+  renderEconomyPanel(currentView, ui.selectedCity, issue, disabled, startDistrictPlacement);
   renderResearchPanel(currentView, issue, disabled);
   renderDiplomacyPanel(currentView, !active || ended, issue);
   const eraPanel = document.querySelector<HTMLElement>('#era-panel')!;
   eraPanel.innerHTML = renderEraPanel(currentView);
   bindEraPanel(eraPanel, currentView, issue, disabled);
-  renderExpansionPanel(currentView, selectedUnit, selectedCity, issue, disabled);
-  const paths = unit && actionMode === 'move' ? reachablePaths(currentView, unit.id) : {};
-  const targets = selectedUnit === null ? [] : actionTargets(currentView, selectedUnit, actionMode, selectedBall)
+  renderExpansionPanel(currentView, ui.selected, ui.selectedCity, issue, disabled);
+  const paths = unit && ui.actionMode === 'move' ? reachablePaths(currentView, unit.id) : {};
+  const targets = ui.selected === null ? [] : actionTargets(currentView, ui.selected, ui.actionMode, ui.selectedBall)
     .map(target => hexToIndex(target.position, currentView.map)).filter((index): index is number => index !== null);
-  renderer.render({ view: currentView, camera, selected: selectedUnit, selectedCity, reachable: Object.keys(paths).map(Number),
-    actionMode, actionTargets: targets, pendingTargetIndex: pendingTarget?.index,
-    districtPlacement: districtPlacement ? { sites: districtSites(currentView, districtPlacement.cityId, districtPlacement.kind), selectedTileIndex: districtPlacement.tileIndex } : undefined });
-  mapNotice.textContent = districtPlacement ? '设施区选址：点击格子预览，再确认入队。Esc 取消。' : actionMode === 'move' ? '移动模式：点击高亮格移动。'
-    : actionMode === 'attack' ? '攻击模式：选择红色目标，再确认攻击。'
-    : actionMode === 'capture' ? '捕捉模式：选择野生宝可梦，再确认捕捉。'
+  renderer.render({
+    view: currentView, camera: ui.camera, selected: ui.selected, selectedCity: ui.selectedCity, reachable: Object.keys(paths).map(Number),
+    actionMode: ui.actionMode, actionTargets: targets, pendingTargetIndex: ui.pendingTarget?.index,
+    districtPlacement: ui.districtPlacement ? { sites: districtSites(currentView, ui.districtPlacement.cityId, ui.districtPlacement.kind), selectedTileIndex: ui.districtPlacement.tileIndex } : undefined,
+  });
+  mapNotice.textContent = ui.districtPlacement ? '设施区选址：点击格子预览，再确认入队。Esc 取消。' : ui.actionMode === 'move' ? '移动模式：点击高亮格移动。'
+    : ui.actionMode === 'attack' ? '攻击模式：选择红色目标，再确认攻击。'
+    : ui.actionMode === 'capture' ? '捕捉模式：选择野生宝可梦，再确认捕捉。'
     : '拖动平移；滚轮缩放；点击选择。';
 }
+
 function startDistrictPlacement(cityId: number, kind: DistrictId): void {
-  selectedUnit = null; selectedCity = cityId; resetAction();
-  districtPlacement = { cityId, kind, tileIndex: null };
+  ui.selected = null; ui.selectedCity = cityId; resetActionState(ui);
+  ui.districtPlacement = { cityId, kind, tileIndex: null };
   canvas.scrollIntoView({ behavior: 'smooth', block: 'start' });
   say('选择设施区地块；确认后才会加入队列。'); render();
 }
-function cancelDistrictPlacement(): void {
-  districtPlacement = null; render();
-}
-function resetAction(): void {
-  actionMode = null; pendingTarget = null; districtPlacement = null;
-}
+function cancelDistrictPlacement(): void { ui.districtPlacement = null; render(); }
 function confirmAction(): void {
-  if (selectedUnit === null || pendingTarget === null) return;
-  if (actionMode === 'attack') void send({ type: 'Attack', unitId: selectedUnit, target: { kind: pendingTarget.kind, id: pendingTarget.id } });
-  else if (actionMode === 'capture') void send({ type: 'Capture', unitId: selectedUnit, targetUnitId: pendingTarget.id, ballId: selectedBall });
+  const action = buildConfirmTargetAction(ui);
+  if (action) void send(action);
 }
 function confirmDistrictPlacement(): void {
-  const placement = districtPlacement, currentView = view;
-  if (!placement || placement.tileIndex === null || !currentView) return;
-  const city = currentView.economy.cities.find(item => item.id === placement.cityId);
-  if (!city) { cancelDistrictPlacement(); return; }
-  const site = previewDistrict(currentView, placement.cityId, placement.kind, placement.tileIndex);
-  if (site.reason !== null || city.queue.length >= 5) {
-    say(city.queue.length >= 5 ? '生产队列已满 5 项，请先完成或取消订单。' : '目标格已不可建造，请重新选择。', true);
-    render(); return;
+  const currentView = view;
+  if (!currentView) return;
+  const result = buildDistrictOrderAction(currentView, ui.districtPlacement);
+  if (!result) return;
+  if (!result.ok) {
+    if (result.dropPlacement) { cancelDistrictPlacement(); return; }
+    say(result.reason, true); render(); return;
   }
-  void send({ type: 'SetProductionQueue', cityId: city.id, orders: [
-    ...city.queue.map(order => ({ orderId: order.id, item: order.item })),
-    { item: { kind: 'district', defId: placement.kind, tileIndex: placement.tileIndex! } },
-  ] });
+  void send(result.action);
 }
 function evolveSelected(intoSpeciesId?: SpeciesId): void {
-  const currentView = view;
-  const unit = currentView?.units.find(candidate => candidate.id === selectedUnit
-    && candidate.ownerId === currentView.playerId && candidate.kind === 'pokemon');
-  const content = currentView ? contentForView(currentView) : BASE_CONTENT;
-  const evolution = unit?.kind === 'pokemon' ? content.species[unit.speciesId].evolution : null;
-  if (!currentView || !unit || !(intoSpeciesId ?? evolution)) {
-    say('当前单位没有可用的常规进化。', true);
-    return;
-  }
-  issue({ type: 'Evolve', unitId: unit.id, intoSpeciesId: intoSpeciesId ?? evolution!.speciesId });
+  const action = buildEvolveAction(view, ui.selected, intoSpeciesId);
+  if (!action) { say('当前单位没有可用的常规进化。', true); return; }
+  issue(action);
 }
-
-function issue(action: Command['action']): void {
-  void send(action);
-}
+function issue(action: Command['action']): void { void send(action); }
 
 async function refresh(showErrors = false): Promise<void> {
   if (!client) return;
@@ -311,33 +281,16 @@ async function refresh(showErrors = false): Promise<void> {
     if (showErrors) say(error instanceof Error ? error.message : String(error), true);
   }
 }
+
 async function send(action: Command['action']): Promise<void> {
   if (!client || !view) return;
-  if (view.outcome) {
-    say('对局已结束。', true);
-    render();
-    return;
-  }
-  if (view.activePlayerId !== view.playerId) {
-    say(`等待文明 ${view.activePlayerId + 1} 行动。`, true);
-    render();
-    return;
-  }
-  if (action.type !== 'RespondPeace' && hasPendingPeace(view)) {
-    say('请先接受或拒绝停战提议。', true);
-    render();
-    return;
-  }
+  if (view.outcome) { say('对局已结束。', true); render(); return; }
+  if (view.activePlayerId !== view.playerId) { say(`等待文明 ${view.activePlayerId + 1} 行动。`, true); render(); return; }
+  if (action.type !== 'RespondPeace' && hasPendingPeace(view)) { say('请先接受或拒绝停战提议。', true); render(); return; }
   try {
     const result = await client.sendCommand(action, view.commandSeq);
     view = result.view;
-    if (action.type === 'Move' || action.type === 'Attack' || action.type === 'Capture' || action.type === 'EndTurn') resetAction();
-    if (action.type === 'SetProductionQueue' && action.orders.some(order => order.item.kind === 'district')) districtPlacement = null;
-    if (action.type === 'FoundCity') {
-      selectedUnit = null;
-      selectedCity = result.view.economy.cities.at(-1)?.id ?? selectedCity;
-      resetAction();
-    }
+    applyCommandStateEffects(ui, action, result.view);
     say(`命令已接受；服务器序列 ${result.seq}。`);
     render();
   } catch (error) {
@@ -348,7 +301,7 @@ async function send(action: Command['action']): Promise<void> {
 
 async function connect(baseUrl: string, roomId: string, seatId: number, token: string, tokenKind: 'invite' | 'seat' | 'unknown' = 'unknown'): Promise<void> {
   if (client?.roomId !== roomId) {
-    selectedUnit = null; selectedCity = null; resetAction(); lastMapKey = '';
+    ui.selected = null; ui.selectedCity = null; resetActionState(ui); lastMapKey = '';
   }
   const candidate = new NetworkClient({ baseUrl, roomId, seatId, seatToken: token });
   let state: Awaited<ReturnType<NetworkClient['getState']>>;
@@ -358,7 +311,6 @@ async function connect(baseUrl: string, roomId: string, seatId: number, token: s
     say('已使用邀请令牌入座；新座位令牌已写入链接。');
   } else {
     try {
-      // New links carry kind=seat. Old links retain the safe fallback below.
       state = await candidate.getState();
       say('已使用座位令牌恢复连接。');
     } catch (error) {
@@ -371,7 +323,7 @@ async function connect(baseUrl: string, roomId: string, seatId: number, token: s
   apiBaseUrl = baseUrl;
   restoreOwnerCredentials(roomId, baseUrl);
   client = candidate; view = state.view;
-  if (selectedUnit === null && selectedCity === null) selectedUnit = state.view.units.find(unit => unit.ownerId === state.view.playerId)?.id ?? null;
+  if (ui.selected === null && ui.selectedCity === null) ui.selected = state.view.units.find(unit => unit.ownerId === state.view.playerId)?.id ?? null;
   render();
   await refresh();
   void syncOwnerRoom();
@@ -385,9 +337,7 @@ async function syncOwnerRoom(): Promise<void> {
     const room = await owner.getRoom();
     roomCreation = { ...(roomCreation ?? { roomId: room.roomId, ownerToken: ownerToken!, expansionVersion: 1 }), roomId: room.roomId, seats: room.seats };
     renderInvites();
-  } catch {
-    // Owner controls are optional for seated play; state refresh will surface connection failures.
-  }
+  } catch { /* optional owner controls */ }
 }
 function renderRoomLeaderOptions(): void {
   const current = [...document.querySelectorAll<HTMLSelectElement>('[data-seat-leader]')].map(select => select.value);
@@ -434,13 +384,13 @@ document.querySelector<HTMLButtonElement>('#join-room')!.addEventListener('click
 actionSelect.addEventListener('change', () => setAction(actionSelect.value));
 targetList.addEventListener('change', () => {
   const [kind, id] = targetList.value.split(':');
-  if (kind === 'unit') { selectedUnit = Number(id); selectedCity = null; }
-  else { selectedCity = Number(id); selectedUnit = null; }
+  if (kind === 'unit') { ui.selected = Number(id); ui.selectedCity = null; }
+  else { ui.selectedCity = Number(id); ui.selected = null; }
   setAction(actionSelect.value); render();
 });
 document.querySelector<HTMLButtonElement>('#move-mode')!.addEventListener('click', () => {
-  actionMode = actionMode === 'move' ? null : 'move';
-  setAction(actionMode === 'move' ? 'Move' : actionSelect.value);
+  ui.actionMode = ui.actionMode === 'move' ? null : 'move';
+  setAction(ui.actionMode === 'move' ? 'Move' : actionSelect.value);
   render();
 });
 document.querySelector<HTMLButtonElement>('#end-turn')!.addEventListener('click', () => void send({ type: 'EndTurn' }));
@@ -450,8 +400,7 @@ document.querySelector<HTMLButtonElement>('#send-action')!.addEventListener('cli
 });
 document.querySelector<HTMLButtonElement>('#refresh')!.addEventListener('click', () => void refresh(true));
 document.querySelector<HTMLButtonElement>('#fit-map')!.addEventListener('click', () => {
-  const currentView = view;
-  if (currentView) { camera = fitCamera(currentView.map, canvas.clientWidth, canvas.clientHeight); render(); }
+  if (view) { Object.assign(ui.camera, fitCamera(view.map, canvas.clientWidth, canvas.clientHeight)); render(); }
 });
 function ownerClient(): NetworkClient | null {
   if (!ownerRoomId || !ownerToken || !apiBaseUrl) return null;
@@ -488,93 +437,64 @@ document.querySelector<HTMLButtonElement>('#export-room')!.addEventListener('cli
     say('已导出 owner-only 存档。');
   } catch (error) { say(error instanceof Error ? error.message : String(error), true); }
 });
-function localPoint(event: PointerEvent | WheelEvent): Point {
-  const rect = canvas.getBoundingClientRect();
-  return { x: event.clientX - rect.left, y: event.clientY - rect.top };
-}
-let drag: { start: Point; last: Point; moved: boolean } | null = null;
-canvas.addEventListener('pointerdown', event => {
-  if (event.button !== 0) return;
-  drag = { start: localPoint(event), last: localPoint(event), moved: false };
-  canvas.setPointerCapture(event.pointerId);
-});
-canvas.addEventListener('pointermove', event => {
-  if (!drag && districtPlacement && view) {
-    const index = hexToIndex(renderer.pick(localPoint(event), camera), view.map);
-    if (index !== null && index !== districtPlacement.tileIndex) { districtPlacement.tileIndex = index; render(); }
-  }
-  if (!drag) return;
-  const point = localPoint(event);
-  if (Math.hypot(point.x - drag.start.x, point.y - drag.start.y) > 4) drag.moved = true;
-  if (drag.moved) { camera.x += point.x - drag.last.x; camera.y += point.y - drag.last.y; render(); }
-  drag.last = point;
-});
-canvas.addEventListener('pointerup', event => {
-  const click = drag && !drag.moved;
-  drag = null;
-  const currentView = view;
-  if (!click || !currentView) return;
-  const index = hexToIndex(renderer.pick(localPoint(event), camera), currentView.map);
-  if (index === null) return;
-  if (districtPlacement) { districtPlacement.tileIndex = index; render(); return; }
-  const construction = constructionNotice(currentView, index);
-  if (construction) { say(construction); render(); return; }
-  if (actionMode === 'move' && selectedUnit !== null) {
-    if (!reachablePaths(currentView, selectedUnit)[index]) {
-      say('该格不在当前单位移动范围内。', true);
-      render();
+
+installMapPointerControls({
+  canvas, camera: ui.camera,
+  getView: () => view,
+  pickIndex: (point, current) => hexToIndex(renderer.pick(point, ui.camera), current.map),
+  onPan: render,
+  onZoom: render,
+  onHover: (_event, _point, index, dragging) => {
+    if (!dragging && ui.districtPlacement && index !== null && index !== ui.districtPlacement.tileIndex) {
+      ui.districtPlacement.tileIndex = index; render();
+    }
+  },
+  onClick: index => {
+    const currentView = view;
+    if (index === null || !currentView) return;
+    if (ui.districtPlacement) { ui.districtPlacement.tileIndex = index; render(); return; }
+    const construction = constructionNotice(currentView, index);
+    if (construction) { say(construction); render(); return; }
+    if (ui.actionMode === 'move' && ui.selected !== null) {
+      if (!reachablePaths(currentView, ui.selected)[index]) { say('该格不在当前单位移动范围内。', true); render(); return; }
+      void send({ type: 'Move', unitId: ui.selected, to: indexToHex(index, currentView.map) });
+      ui.actionMode = null;
       return;
     }
-    void send({ type: 'Move', unitId: selectedUnit, to: indexToHex(index, currentView.map) });
-    actionMode = null;
-    return;
-  }
-  if (actionMode && selectedUnit !== null) {
-    const target = actionTargets(currentView, selectedUnit, actionMode, selectedBall)
-      .find(candidate => hexToIndex(candidate.position, currentView.map) === index);
-    if (!target) {
-      pendingTarget = null;
-      say(actionMode === 'attack' ? '攻击目标必须是可见且可攻击的敌方单位或非己方城市。' : '捕捉目标必须是当前球种可捕捉的相邻野生宝可梦。', true);
-      render();
-      return;
+    if (ui.actionMode && ui.selected !== null) {
+      const target = actionTargets(currentView, ui.selected, ui.actionMode, ui.selectedBall)
+        .find(candidate => hexToIndex(candidate.position, currentView.map) === index);
+      if (!target) {
+        ui.pendingTarget = null;
+        say(ui.actionMode === 'attack' ? '攻击目标必须是可见且可攻击的敌方单位或非己方城市。' : '捕捉目标必须是当前球种可捕捉的相邻野生宝可梦。', true);
+        render(); return;
+      }
+      ui.pendingTarget = { kind: target.kind, id: target.id, index };
+      say(ui.actionMode === 'attack' ? '已选择攻击目标；请在单位面板确认。' : '已选择捕捉目标；请在单位面板确认。');
+      render(); return;
     }
-    pendingTarget = { kind: target.kind, id: target.id, index };
-    say(actionMode === 'attack' ? '已选择攻击目标；请在单位面板确认。' : '已选择捕捉目标；请在单位面板确认。');
-    render();
-    return;
-  }
-  const unit = currentView.units.find(candidate => candidate.ownerId === currentView.playerId && hexToIndex(candidate.position, currentView.map) === index);
-  const city = currentView.economy.cities.find(candidate => hexToIndex(candidate.position, currentView.map) === index);
-  selectedUnit = unit?.id ?? null; selectedCity = city?.id ?? null;
-  setAction(actionSelect.value); render();
+    const unit = currentView.units.find(candidate => candidate.ownerId === currentView.playerId && hexToIndex(candidate.position, currentView.map) === index);
+    const city = currentView.economy.cities.find(candidate => hexToIndex(candidate.position, currentView.map) === index);
+    ui.selected = unit?.id ?? null; ui.selectedCity = city?.id ?? null;
+    setAction(actionSelect.value); render();
+  },
 });
+
 window.addEventListener('keydown', event => {
-  if (districtPlacement && view) {
-    const city = view.economy.cities.find(item => item.id === districtPlacement!.cityId);
-    const fallback = districtPlacement.tileIndex ?? (city ? hexToIndex(city.position, view.map) : null);
+  if (ui.districtPlacement && view) {
+    const city = view.economy.cities.find(item => item.id === ui.districtPlacement!.cityId);
+    const fallback = ui.districtPlacement.tileIndex ?? (city ? hexToIndex(city.position, view.map) : null);
     if (fallback === null) return;
-    const hex = indexToHex(fallback, view.map), directions: Record<string, { q: number; r: number }> = {
-      ArrowLeft: { q: hex.q - 1, r: hex.r }, ArrowRight: { q: hex.q + 1, r: hex.r },
-      ArrowUp: { q: hex.q, r: hex.r - 1 }, ArrowDown: { q: hex.q, r: hex.r + 1 },
-    };
-    if (directions[event.key]) {
-      event.preventDefault(); districtPlacement.tileIndex = hexToIndex(directions[event.key], view.map) ?? fallback; render(); return;
-    }
-    if (event.key === 'Enter') { event.preventDefault(); districtPlacement.tileIndex = fallback; confirmDistrictPlacement(); return; }
+    const stepped = stepKeyboardHex(fallback, event.key, view.map);
+    if (stepped !== null) { event.preventDefault(); ui.districtPlacement.tileIndex = stepped; render(); return; }
+    if (event.key === 'Enter') { event.preventDefault(); ui.districtPlacement.tileIndex = fallback; confirmDistrictPlacement(); return; }
     if (event.key === 'Escape') { event.preventDefault(); cancelDistrictPlacement(); return; }
   }
-  if (event.key === 'Escape' && actionMode !== null) {
-    resetAction();
-    say('已取消当前地图操作。');
-    render();
+  if (event.key === 'Escape' && ui.actionMode !== null) {
+    resetActionState(ui); say('已取消当前地图操作。'); render();
   }
 });
 
-canvas.addEventListener('wheel', event => {
-  event.preventDefault();
-  zoomAt(camera, localPoint(event), Math.exp(-event.deltaY * .001));
-  render();
-}, { passive: false });
 new ResizeObserver(() => render()).observe(canvas);
 const factionLegend = document.querySelector<HTMLUListElement>('#faction-legend')!;
 for (const faction of FACTION_LEGEND) factionLegend.append(Object.assign(document.createElement('li'), { textContent: faction.label }));
@@ -582,6 +502,7 @@ setAction('EndTurn');
 render();
 updateOwnerControls();
 loadPokemonSprites(() => render());
+
 let connectingHash: string | null = null;
 function connectFromHash(): void {
   const hash = location.hash.replace(/^#/, '');
@@ -596,9 +517,7 @@ function connectFromHash(): void {
   const tokenKind = kindParam === 'invite' || kindParam === 'seat' ? kindParam : 'unknown';
   void connect(api, room, Number(seat), token, tokenKind)
     .catch(error => say(error instanceof Error ? error.message : String(error), true))
-    .finally(() => {
-      if (connectingHash === hash) connectingHash = null;
-    });
+    .finally(() => { if (connectingHash === hash) connectingHash = null; });
 }
 window.addEventListener('hashchange', connectFromHash);
 connectFromHash();

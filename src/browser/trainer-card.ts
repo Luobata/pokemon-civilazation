@@ -10,7 +10,6 @@ import { TYPE_NAMES } from '../content/type-names.ts';
 import { contentForView } from '../content/units.ts';
 import { pokemonSpritePath } from './sprites.ts';
 import { artImage, escapeAttr, statChip, typeBadge, uiIcon } from './ui-icons.ts';
-import '../trainer-card.css';
 
 export const trainerArtPath = (trainer: Pick<LeagueTrainer, 'id'>): string => `/trainers/${trainer.id}.svg`;
 const history = (view: PlayerView): readonly ChampionshipSeason[] => view.expansion?.civilization?.championship.history ?? [];

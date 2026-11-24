@@ -2,7 +2,6 @@ import { contentForView } from '../content/units.ts';
 import type { Command, PlayerView } from '../core/model.ts';
 import { renderTechTree } from './tech-tree-panel.ts';
 import { researchQueue } from './client-plans.ts';
-import '../ui-icons.css';
 
 let rendered = '';
 export function resetResearchPanel(): void {
