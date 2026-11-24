@@ -62,15 +62,46 @@ export function compareWorkTiles(state: GameState, city: CityState, a: number, b
 }
 export function workCandidates(state: GameState, city: CityState, content: Content = contentFor(state.setup)): number[] {
   if (city.ownerId === null) return [];
-  const occupied = new Set(Object.values(state.cities).flatMap(other => [
-    hexToIndex(other.position, state.map)!, ...(other.id === city.id ? [] : other.workedTileIds),
-  ]));
+  const occupied = new Set<number>();
+  for (const other of Object.values(state.cities)) {
+    occupied.add(hexToIndex(other.position, state.map)!);
+    if (other.id !== city.id) for (const id of other.workedTileIds) occupied.add(id);
+  }
   for (const index of districtOccupiedTiles(state)) occupied.add(index);
-  const weather = state.players[city.ownerId].research.unlockedIds.includes('meteorology');
-  return state.map.tiles.flatMap((biome, index) => !occupied.has(index)
-    && hexDistance(city.position, indexToHex(index, state.map), state.map) <= workRadius(city)
-    && (weather || (biome !== 'snow' && biome !== 'volcano')) && workableFeature(state.map, index) ? [index] : [])
-    .sort((a, b) => compareWorkTiles(state, city, a, b, content));
+  const player = state.players[city.ownerId];
+  const weather = player.research.unlockedIds.includes('meteorology');
+  const map = state.map, width = map.width, height = map.height, wrap = Boolean(map.wrap);
+  const radius = workRadius(city), pos = city.position;
+  const deposits = state.expansion?.rareBerries?.deposits;
+  const entries: { index: number; rare: number; food: number; production: number; gold: number; research: number }[] = [];
+  const consider = (index: number) => {
+    if (occupied.has(index)) return;
+    const biome = map.tiles[index];
+    if (!weather && (biome === 'snow' || biome === 'volcano')) return;
+    if (!workableFeature(map, index)) return;
+    const y = workedTileYield(state, index, player, content);
+    entries.push({ index, rare: deposits && deposits[index] ? 1 : 0, food: y.food, production: y.production, gold: y.gold, research: y.research });
+  };
+  if (width > radius * 2) {
+    const rMin = Math.max(0, pos.r - radius), rMax = Math.min(height - 1, pos.r + radius);
+    for (let r = rMin; r <= rMax; r++) {
+      const dr = r - pos.r;
+      const dqMin = Math.max(-radius, -dr - radius), dqMax = Math.min(radius, -dr + radius);
+      const halfRow = Math.floor(r / 2), rowBase = r * width;
+      for (let dq = dqMin; dq <= dqMax; dq++) {
+        let col = pos.q + dq + halfRow;
+        if (wrap) col = ((col % width) + width) % width;
+        else if (col < 0 || col >= width) continue;
+        consider(rowBase + col);
+      }
+    }
+  } else {
+    for (let index = 0; index < map.tiles.length; index++) {
+      if (hexDistance(pos, indexToHex(index, map), map) <= radius) consider(index);
+    }
+  }
+  entries.sort((a, b) => (deposits ? b.rare - a.rare : 0) || b.food - a.food || b.production - a.production || b.gold - a.gold || b.research - a.research || a.index - b.index);
+  return entries.map(entry => entry.index);
 }
 export function cleanWork(state: GameState, city: CityState, content: Content = contentFor(state.setup)): void {
   const eligible = new Set(workCandidates(state, city, content));

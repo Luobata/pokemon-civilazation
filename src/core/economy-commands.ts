@@ -1,3 +1,4 @@
+import { clonePlain } from './clone.ts';
 import { workableFeature } from './terrain.ts';
 import { gymBlocksCity } from './gym-circuit.ts';
 import { classTrainingBlocker, stateBadges } from './unit-classes.ts';
@@ -116,7 +117,7 @@ export function applyEconomyAction(state: GameState, actor: number, action: Econ
       ? { id: state.nextEntityId++, progress: order.item.kind === 'legend' ? takeLegendTrail(state, city.id) : 0, item: { ...order.item } }
       : city.queue.find(existing => existing.id === order.orderId)!);
     releaseDistrictWorkers(state, city.id);
-    return [{ type: 'ProductionQueueChanged', playerId: actor, cityId: city.id, orders: JSON.parse(JSON.stringify(city.queue)) }];
+    return [{ type: 'ProductionQueueChanged', playerId: actor, cityId: city.id, orders: clonePlain(city.queue) }];
   }
   if (action.type === 'AssignWork') {
     city.workedTileIds = [...action.workedTileIds].sort((a, b) => a - b);

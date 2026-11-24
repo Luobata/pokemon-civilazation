@@ -1,3 +1,4 @@
+import { clonePlain } from './clone.ts';
 import { contentFor } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
 import type { CombatEvent, GameState, Score, GameOutcome } from './model.ts';
@@ -24,7 +25,7 @@ export function finishGame(state: GameState, kind: GameOutcome['kind'], winners?
   const ranking = Object.keys(state.players).map(Number).map(id => scorePlayer(state, id, content)).sort((a, b) => compareScores(a, b) || a.playerId - b.playerId);
   const alive = ranking.filter(score => !state.players[score.playerId].eliminated);
   state.outcome = { kind, winners: winners ?? alive.filter(score => compareScores(score, alive[0]) === 0).map(score => score.playerId), ranking, round: state.round };
-  return [{ type: 'GameEnded', outcome: JSON.parse(JSON.stringify(state.outcome)) }];
+  return [{ type: 'GameEnded', outcome: clonePlain(state.outcome) }];
 }
 // Called only after HQ ownership transfer, inside step's unpublished transaction.
 export function eliminateCivilization(state: GameState, playerId: number, content: Content = contentFor(state.setup)): CombatEvent[] {

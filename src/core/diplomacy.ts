@@ -1,3 +1,4 @@
+import { clonePlain } from './clone.ts';
 import type { Diplomacy, DiplomacyAction, DiplomacyEvent, GameState } from './model.ts';
 
 export function relationFor(relations: readonly Diplomacy[], a: number, b: number): Diplomacy | undefined {
@@ -12,7 +13,7 @@ export function validateDiplomacyAction(state: GameState, actor: number, action:
       : pair.proposal?.recipientId === actor && pair.proposal.proposerId === action.targetPlayerId && typeof action.accept === 'boolean';
   return valid ? null : 'diplomacy-unavailable';
 }
-const changed = (relation: Diplomacy): DiplomacyEvent => ({ type: 'DiplomacyChanged', relation: JSON.parse(JSON.stringify(relation)) });
+const changed = (relation: Diplomacy): DiplomacyEvent => ({ type: 'DiplomacyChanged', relation: clonePlain(relation) });
 function respond(state: GameState, pair: Diplomacy, accept: boolean): void {
   if (accept) {
     pair.status = 'peace'; pair.changedAtRound = state.round;

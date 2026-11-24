@@ -1,3 +1,4 @@
+import { clonePlain } from './clone.ts';
 // Gameplay v24 B (docs/design/world-v24.md §3): neutral gym circuit — placement, ChallengeGym / ChallengeEliteFour, badges, view.
 // Placement and battles use stableSeed only (never state.rng), so the rest of the world is the same as without the circuit.
 import { ELITE_FOUR, GYM_LEADERS, GYM_LEADER_ORDER, GYM_RULES_V24, GYM_TYPES, HOME_GYMS } from '../content/gym-circuit.ts';
@@ -303,7 +304,7 @@ export function observeGymCircuit(state: GameState, playerId: number): GymCircui
   const explored = new Set(state.knowledge[playerId]?.exploredTileIds ?? []);
   const own = circuit.challengedAt[playerId] ?? {};
   return {
-    gyms: circuit.gyms.filter(gym => explored.has(gym.tileIndex)).map(gym => JSON.parse(JSON.stringify(gym)) as GymSite),
+    gyms: circuit.gyms.filter(gym => explored.has(gym.tileIndex)).map(clonePlain),
     badges: Object.fromEntries(Object.entries(circuit.badges).map(([id, list]) => [id, [...list]])),
     eliteFour: Object.fromEntries(Object.entries(circuit.eliteFour).map(([id, record]) => [id, { won: record.won }])),
     readyAt: Object.fromEntries(Object.entries(own).map(([gymId, round]) => [gymId, round + RULES.cooldownRounds])),

@@ -1,3 +1,4 @@
+import { clonePlain } from './clone.ts';
 // Gameplay v24 D (docs/design/world-v24.md §5): per-species research cards (seen, knock out 2, capture, see an evolution, special condition).
 // Kept in its own ledger, apart from the Pokédex victory records (world.players[].pokedex), so the Pokédex victory never counts them.
 // Progress is private: each player's card only records what that player did or saw; events go to that player alone.
@@ -205,5 +206,5 @@ export function viewResearchCaptureBonus(view: Pick<PlayerView, 'expansion'>, sp
 /** Only the viewer's own book. */
 export function observeResearchTasks(state: GameState, playerId: number): ResearchTaskView | undefined {
   const ledger = state.expansion?.researchTasks;
-  return ledger ? JSON.parse(JSON.stringify(ledger[playerId] ?? {})) as ResearchTaskView : undefined;
+  return ledger ? clonePlain(ledger[playerId] ?? {}) as ResearchTaskView : undefined;
 }

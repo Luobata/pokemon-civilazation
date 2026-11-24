@@ -1,3 +1,4 @@
+import { clonePlain } from './clone.ts';
 import { BUILDER_RULES } from '../content/roles.ts';
 import { completeLegendWonder } from './legends.ts';
 import { cityDistrictEffects } from './districts.ts';
@@ -46,7 +47,7 @@ function deploy(state: GameState, city: CityState, pending: PendingDeployment, c
     + (onTechTree(state.players[city.ownerId]) && treeGateOpen(state.players[city.ownerId], 'builderCharge') ? TREE_RULES.builderExtraCharges : 0);
   registerSpecies(state.players[city.ownerId], state.units[id]);
   events.push({ type: 'UnitTrained', playerId: city.ownerId, cityId: city.id, orderId: pending.sourceOrderId,
-    unit: JSON.parse(JSON.stringify(state.units[id])) });
+    unit: clonePlain(state.units[id]) });
   return true;
 }
 // Only the implemented M2 stages. The snapshot fixes their shared input (D30).

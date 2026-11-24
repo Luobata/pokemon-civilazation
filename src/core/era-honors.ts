@@ -1,3 +1,4 @@
+import { clonePlain } from './clone.ts';
 // Gameplay v12: era score and golden / dark ages (Civilization 6 eras). Points come only from events
 // already produced by other systems; the age of a new era is decided by the previous era's average.
 import { ERA_AGES, ERA_HONOR_RULES, ERA_HONOR_RULES_V22, ERA_MILESTONES } from '../content/era-honors.ts';
@@ -168,6 +169,6 @@ export function observeEraHonors(state: GameState, playerId: number): EraHonorVi
   const record = state.expansion?.eraHonors?.players[playerId];
   if (!record) return undefined;
   const lines = ageLines(state);
-  return { ...(JSON.parse(JSON.stringify(record)) as EraHonorPlayerState), goldenRatePermille: lines.goldenRatePermille,
+  return { ...clonePlain(record), goldenRatePermille: lines.goldenRatePermille,
     darkRatePermille: lines.darkRatePermille, minimumRounds: ERA_HONOR_RULES.minimumRounds };
 }

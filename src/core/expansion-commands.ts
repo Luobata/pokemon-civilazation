@@ -1,3 +1,4 @@
+import { clonePlain } from './clone.ts';
 import type { ExpansionAction } from './expansion-model.ts';
 import { GAME_CONTENT } from '../content/units.ts';
 import type { Content } from '../content/units.ts';
@@ -77,5 +78,5 @@ export function parseExpansionAction(input: unknown, content: Content = GAME_CON
     if (!valid) throw new Error(`Invalid expansion action field: ${key}`);
     output[key] = item;
   }
-  return JSON.parse(JSON.stringify(output)) as ExpansionAction;
+  return clonePlain(output) as ExpansionAction;
 }

@@ -102,7 +102,13 @@ function withEvolutions(species: SpeciesDefinition, evolutions: readonly RosterE
   };
 }
 
-const clonePlain = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+function clonePlain<T>(value: T): T {
+  if (value === null || typeof value !== 'object') return value;
+  if (Array.isArray(value)) return value.map(item => item === undefined ? null : clonePlain(item)) as unknown as T;
+  const copy: Record<string, unknown> = {}, source = value as Record<string, unknown>;
+  for (const key in source) if (Object.hasOwn(source, key) && source[key] !== undefined) copy[key] = clonePlain(source[key]);
+  return copy as T;
+}
 
 // Build the unified 115-species strength-combat table once.
 const preBatchSpecies = (() => {

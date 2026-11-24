@@ -1,3 +1,4 @@
+import { clonePlain } from '../core/clone.ts';
 import { gameVersions } from '../core/versions.ts';
 import { RULE_QUERIES } from '../ai/query.ts';
 import { rememberCityRejection } from '../ai/memory.ts';
@@ -29,7 +30,7 @@ export function replay(log: CommandLog, through = log.commands.length, checkpoin
       || checkpoint.commandSeq < 0 || checkpoint.commandSeq > through) throw new Error('Checkpoint does not match this log.');
     const source = replay(log, checkpoint.commandSeq, undefined, content);
     if (canonicalSerialize(source) !== canonicalSerialize(checkpoint)) throw new Error('Checkpoint does not match this log prefix.');
-    state = JSON.parse(JSON.stringify(checkpoint)) as GameState;
+    state = clonePlain(checkpoint);
   }
   for (const command of log.commands.slice(state.commandSeq, through)) {
     const result = step(state, command, content);
@@ -70,7 +71,7 @@ export class GameSession {
     this.endComputerTurns();
   }
   /** @deprecated Developer/test access only. Production UI must use getView or asPlayerSession. */
-  getState(): DeveloperGameState { return JSON.parse(JSON.stringify(this.state)) as GameState; }
+  getState(): DeveloperGameState { return clonePlain(this.state); }
   /** Cached player view detached from authority state; callers must not mutate it. */
   peekView(): PlayerView {
     if (this.observedState !== this.state || !this.cachedView) {
@@ -97,9 +98,9 @@ export class GameSession {
       } };
   }
   exportLog(): CommandLog {
-    return { version: 1, ...gameVersions(), contentVersion: this.content.version, setup: this.getState().setup,
-      commands: JSON.parse(JSON.stringify(this.commands)) as Command[],
-      aiRejectedCitySites: JSON.parse(JSON.stringify(this.aiRejectedCitySites)) as RejectedCitySite[] };
+    return { version: 1, ...gameVersions(), contentVersion: this.content.version, setup: clonePlain(this.state.setup),
+      commands: clonePlain(this.commands),
+      aiRejectedCitySites: clonePlain(this.aiRejectedCitySites) };
   }
   /** Developer-compatible result; asPlayerSession strips full authority state. */
   issue(action: Command['action']): DeveloperStepResult {
@@ -109,17 +110,17 @@ export class GameSession {
   submit(command: Command): DeveloperStepResult {
     const result = this.apply(command);
     if (result.ok) this.endComputerTurns();
-    return result.ok ? { ...result, state: JSON.parse(JSON.stringify(result.state)) as GameState } : result;
+    return result.ok ? { ...result, state: clonePlain(result.state) } : result;
   }
   private apply(command: Command): StepResult {
     const before = this.state;
     const result = step(before, command, this.content);
-    if (!result.ok) this.lastRejected = { command: JSON.parse(JSON.stringify(command)) as Command, reason: result.reason };
+    if (!result.ok) this.lastRejected = { command: clonePlain(command), reason: result.reason };
     else {
       if (before.commandSeq < this.commands.length) this.aiRejectedCitySites = this.aiRejectedCitySites.filter(site => site.seq < before.commandSeq);
       this.state = result.state;
       this.commands = this.commands.slice(0, before.commandSeq);
-      this.commands.push(JSON.parse(JSON.stringify(command)) as Command);
+      this.commands.push(clonePlain(command));
       this.presentationQueue.push(...projectEvents(before, this.state, result.events, this.playerId, this.content));
     }
     return result;
@@ -139,7 +140,7 @@ export class GameSession {
     }
   }
   asPlayerSession(): PlayerSession {
-    const getPresentation = () => JSON.parse(JSON.stringify(this.presentationQueue)) as VisibleEvent[];
+    const getPresentation = () => clonePlain(this.presentationQueue);
     const project = (result: StepResult): PlayerCommandResult => result.ok ? { ok: true } : { ok: false, reason: result.reason };
     return {
       getView: () => this.getView(),

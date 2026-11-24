@@ -1,3 +1,4 @@
+import { clonePlain } from './clone.ts';
 import { isEmbarked } from './terrain.ts';
 import { districtOccupiedTiles } from './districts.ts';
 import { leaderEffects } from '../content/leaders.ts';
@@ -238,7 +239,7 @@ export function observeImprovements(state: GameState, playerId: number, visible:
     const indices = [...new Set([...Object.keys(improvements.tiles), ...Object.keys(remembered)].map(Number))].sort((a, b) => a - b);
     return { projects, tiles: indices.flatMap(index => {
       const value = live(index) ? improvements.tiles[index] : remembered[index]?.improvement;
-      return value ? [{ ...JSON.parse(JSON.stringify(value)) as TileImprovement, tileIndex: index, position: indexToHex(index, state.map) }] : [];
+      return value ? [{ ...clonePlain(value), tileIndex: index, position: indexToHex(index, state.map) }] : [];
     }) };
   }
   return {

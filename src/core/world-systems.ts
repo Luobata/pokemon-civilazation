@@ -1,3 +1,4 @@
+import { clonePlain } from './clone.ts';
 import { regionalPokedexTarget, victoryTargets } from '../content/opening.ts';
 import { isRivalUnit } from './rivals.ts';
 import { isRegionalSpecies, nestPriorityFor, speciesGeneration, stoneEvolutionsFor } from '../content/roster.ts';
@@ -140,7 +141,7 @@ const WORLD = () => WORLD_CONTENT.world;
 function definitionsFor(content: Content | WorldSystemContent): WorldDefinitions {
   return 'world' in content ? content.world : WORLD_CONTENT.world;
 }
-const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+const clone = clonePlain;
 const documented = (record: PokedexRecord): boolean => record.observed && (record.battled || record.captured);
 
 function requireWorld(state: GameState): WorldState {
@@ -323,13 +324,8 @@ export function worldVisionSources(state: GameState, playerId: number): Array<{ 
 }
 
 function effectiveVisibleTiles(state: GameState, playerId: number, content: Content): Set<number> {
-  const visible = new Set(visibleTiles(state, playerId, content));
-  for (const source of worldVisionSources(state, playerId)) {
-    for (let index = 0; index < state.map.tiles.length; index++) {
-      if (hexDistance(source.position, indexToHex(index, state.map), state.map) <= source.radius) visible.add(index);
-    }
-  }
-  return visible;
+  // `visibleTiles` already includes `worldVisionSources(state, playerId)`.
+  return visibleTiles(state, playerId, content);
 }
 
 function visibleSite(state: GameState, playerId: number, tileIndex: number, content: Content): boolean {
@@ -467,10 +463,13 @@ export function applyWorldAction(state: GameState, actorId: number, action: Worl
   unit.xp = 0;
   registerSpecies(state.players[actorId], unit);
   const record = playerState.pokedex[action.intoSpeciesId];
-  record.observed = true;
-  record.captured = true;
-  record.firstObservedRound ??= state.round;
-  record.firstCaptureRound ??= state.round;
+  playerState.pokedex[action.intoSpeciesId] = {
+    ...record,
+    observed: true,
+    captured: true,
+    firstObservedRound: record.firstObservedRound ?? state.round,
+    firstCaptureRound: record.firstCaptureRound ?? state.round,
+  };
   return [{
     type: 'WorldStoneEvolution', playerId: actorId, unitId: unit.id,
     fromSpeciesId, intoSpeciesId: action.intoSpeciesId, stoneId: action.stoneId,
@@ -606,18 +605,28 @@ export function resolveWorldRound(state: GameState, content: Content = WORLD_CON
 
 function markRecord(next: GameState, playerId: number, speciesId: SpeciesId,
   mode: 'observed' | 'battled' | 'captured', events: EventPayload[]): void {
-  const record = next.expansion?.world.players[playerId]?.pokedex[speciesId];
-  if (!record) return;
-  const before = { observed: record.observed, battled: record.battled, captured: record.captured };
-  if (mode === 'observed' || mode === 'battled' || mode === 'captured') record.observed = true;
-  if (mode !== 'observed') record[mode] = true;
-  if (mode === 'observed') record.firstObservedRound ??= next.round;
-  else if (mode === 'battled') record.firstBattleRound ??= next.round;
-  else record.firstCaptureRound ??= next.round;
-  if (before.observed !== record.observed || before.battled !== record.battled || before.captured !== record.captured) {
+  const pokedex = next.expansion?.world.players[playerId]?.pokedex;
+  const record = pokedex?.[speciesId];
+  if (!pokedex || !record) return;
+  const observed = true;
+  const battled = mode === 'battled' ? true : record.battled;
+  const captured = mode === 'captured' ? true : record.captured;
+  const firstObservedRound = mode === 'observed' ? (record.firstObservedRound ?? next.round) : record.firstObservedRound;
+  const firstBattleRound = mode === 'battled' ? (record.firstBattleRound ?? next.round) : record.firstBattleRound;
+  const firstCaptureRound = mode === 'captured' ? (record.firstCaptureRound ?? next.round) : record.firstCaptureRound;
+  if (record.observed === observed && record.battled === battled && record.captured === captured
+    && record.firstObservedRound === firstObservedRound && record.firstBattleRound === firstBattleRound && record.firstCaptureRound === firstCaptureRound) {
+    return;
+  }
+  const changed = record.observed !== observed || record.battled !== battled || record.captured !== captured;
+  pokedex[speciesId] = {
+    speciesId: record.speciesId, observed, battled, captured,
+    firstObservedRound, firstBattleRound, firstCaptureRound,
+  };
+  if (changed) {
     events.push({
       type: 'WorldPokedexUpdated', playerId, speciesId,
-      observed: record.observed, battled: record.battled, captured: record.captured,
+      observed, battled, captured,
     });
   }
 }
@@ -716,24 +725,24 @@ export function observeWorld(state: GameState, playerId: number, visibleTileIds:
   const visible = [...visibleTileIds].sort((a, b) => a - b);
   return {
     version: 'world-v1',
-    nests: Object.values(world.nests).filter(site => visible.includes(site.tileIndex)).sort((a, b) => a.id - b.id).map(site => ({
+    nests: Object.values(world.nests).filter(site => visibleTileIds.has(site.tileIndex)).sort((a, b) => a.id - b.id).map(site => ({
       ...clone(site),
       activeUnitIds: site.activeUnitIds.filter(unitId => {
         const unit = state.units[unitId];
         const tileIndex = unit && isMapUnit(unit) ? hexToIndex(unit.position, state.map) : null;
-        return tileIndex !== null && visible.includes(tileIndex);
+        return tileIndex !== null && visibleTileIds.has(tileIndex);
       }),
     })),
-    overlords: Object.values(world.overlords).filter(site => visible.includes(site.tileIndex)).sort((a, b) => a.id - b.id)
+    overlords: Object.values(world.overlords).filter(site => visibleTileIds.has(site.tileIndex)).sort((a, b) => a.id - b.id)
       .map(site => ({
         id: site.id, tileIndex: site.tileIndex, position: clone(site.position), speciesId: site.speciesId,
         bond: site.bondByPlayer[playerId] ?? 0, lastOfferRound: site.lastOfferRoundByPlayer[playerId] ?? null,
       })),
-    resources: Object.values(world.resources).filter(site => visible.includes(site.tileIndex)).sort((a, b) => a.tileIndex - b.tileIndex).map(clone),
+    resources: Object.values(world.resources).filter(site => visibleTileIds.has(site.tileIndex)).sort((a, b) => a.tileIndex - b.tileIndex).map(clone),
     rampagingUnitIds: world.rampagingUnitIds.filter(unitId => {
       const unit = state.units[unitId];
       const index = unit && isMapUnit(unit) ? hexToIndex(unit.position, state.map) : null;
-      return index !== null && visible.includes(index);
+      return index !== null && visibleTileIds.has(index);
     }),
     player: world.players[playerId] ? clone(world.players[playerId]) : null,
     victory: clone(world.victory),

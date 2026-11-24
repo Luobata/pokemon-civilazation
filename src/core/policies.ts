@@ -1,3 +1,4 @@
+import { clonePlain } from './clone.ts';
 import { legendEffects, mergeEffects, viewLegendEffects } from './legends.ts';
 import type { LegendView } from './legends.ts';
 import { CHARTER_IDS, CHARTERS, GOVERNMENT_IDS, GOVERNMENT_SWAP_GOLD, GOVERNMENTS, LEADER_GOVERNMENT_AFFINITY, LEADER_POLICY_AFFINITY, POLICIES, POLICY_IDS, POLICY_SWAP_GOLD } from '../content/policies.ts';
@@ -175,7 +176,7 @@ export function resolvePolicyRound(state: GameState): EventPayload[] {
 export function observePolicies(state: GameState, playerId: number): PolicyView | undefined {
   const ledger = state.expansion?.policies?.[playerId];
   if (!ledger) return undefined;
-  return { ...(JSON.parse(JSON.stringify(ledger)) as PolicyPlayerState), slots: slotCounts(ledger.adopted, ledger.government ?? null), unlockedPolicies: unlockedPolicies(ledger.adopted),
+  return { ...clonePlain(ledger), slots: slotCounts(ledger.adopted, ledger.government ?? null), unlockedPolicies: unlockedPolicies(ledger.adopted),
     perRound: leaguePointsPerRound(state, playerId), swapCost: swapCost(ledger),
     ...(ledger.government !== undefined ? { availableGovernments: availableGovernments(ledger.adopted), governmentSwapCost: governmentSwapCost(ledger) } : {}) };
 }

@@ -1,3 +1,4 @@
+import { cloneStateForStep } from './clone.ts';
 import { applyExpansionAction, recordExpansion, resolveExpansionRound, validateExpansionAction } from './expansion.ts';
 import { isExpansionAction } from './expansion-commands.ts';
 import { applyDiplomacyAction, expirePeaceProposals, validateDiplomacyAction } from './diplomacy.ts';
@@ -13,12 +14,41 @@ import type { Content } from '../content/units.ts';
 import { hexToIndex } from './hex.ts';
 import { canEnterTile, harborTiles, movementBudget, pathCost, reachablePaths, usesMovementPoints, waterAccess } from './movement.ts';
 import { inZoc, usesTactics, zocTiles } from './tactics.ts';
-import { observe, refreshKnowledge, visibleTiles } from './vision.ts';
+import { observeForMove, refreshKnowledge, visibleTiles } from './vision.ts';
 import { isEmbarked } from './terrain.ts';
 import { tileShareAllowed, trimToStop } from './stacking.ts';
 import type { Command, EventPayload, GameState, StepResult } from './model.ts';
 
 const EMBARKED_BLOCKED = new Set(['ImproveTile', 'RepairImprovement', 'PillageImprovement', 'HarvestResource', 'ClearNest']);
+/**
+ * Actions guaranteed not to change vision sources, territory radii, unit positions/identities,
+ * city ownership/positions, districts, improvements, or item balls.
+ * When `state.knowledge` is already stamped for `state.round`, `step()` shares `state.knowledge`
+ * and skips the redundant full-map `refreshKnowledge()` pass.
+ */
+const KNOWLEDGE_INVARIANT_ACTIONS = new Set<string>([
+  'SetResearch', 'SetProductionQueue', 'AssignWork', 'BuyBall', 'SetCharter',
+  'DeclareWar', 'MakePeace', 'RespondPeace',
+  'ProposeAlliance', 'RespondAlliance', 'DissolveAlliance', 'BetrayAlliance', 'ProposeTrade', 'RespondTrade',
+  'MakeOffering', 'SummonPhantom', 'RegisterChampionshipTeam',
+  'BuildContestHall', 'HoldContest', 'EnterContest', 'GiftBerry',
+  'FoundFaith', 'SpreadFaith', 'PromoteUnit',
+  'RushProduction', 'SpecialTraining', 'TeachMove', 'RaidDynamax',
+]);
+
+function knowledgeCurrentForRound(state: GameState): boolean {
+  let checked = false;
+  for (const playerId of state.turnOrder) {
+    const player = state.players[playerId];
+    if (!player || player.eliminated) continue;
+    const hq = state.cities[player.headquartersCityId];
+    if (!hq || hq.ownerId !== playerId) return false;
+    if (state.knowledge[playerId]?.lastKnownCities[hq.id]?.lastSeenRound !== state.round) return false;
+    checked = true;
+  }
+  return checked;
+}
+
 export function step(state: GameState, command: Command, content: Content = contentFor(state.setup)): StepResult {
   if (state.outcome) return { ok: false, reason: 'game-ended' };
   if (command.actorId !== state.activePlayerId) return { ok: false, reason: 'not-your-turn' };
@@ -32,7 +62,7 @@ export function step(state: GameState, command: Command, content: Content = cont
     if (!unit || unit.ownerId !== command.actorId || !isMapUnit(unit)) return { ok: false, reason: 'unit-unavailable' };
     if (!unit.actionLeft) return { ok: false, reason: 'no-action' };
     const target = hexToIndex(action.to, state.map);
-    const planned = target === null ? undefined : reachablePaths(observe(state, command.actorId, content), unit.id, content)[target];
+    const planned = target === null ? undefined : reachablePaths(observeForMove(state, command.actorId, content), unit.id, content)[target];
     if (!planned) return { ok: false, reason: 'unreachable' };
     path = [planned[0]];
     const access = waterAccess(state.players[command.actorId], content), harbors = harborTiles(state.map, Object.values(state.cities), command.actorId, content);
@@ -70,8 +100,11 @@ export function step(state: GameState, command: Command, content: Content = cont
   }
 
   // Validate first, execute on a copy, publish only the complete transaction.
-  const next = JSON.parse(JSON.stringify(state)) as GameState;
-  let knowledgeRefreshed = false;
+  const isIntermediateEndTurn = action.type === 'EndTurn' && (state.turnOrder.indexOf(state.activePlayerId) + 1) % state.turnOrder.length !== 0;
+  const skipKnowledge = (isIntermediateEndTurn || KNOWLEDGE_INVARIANT_ACTIONS.has(action.type)) && knowledgeCurrentForRound(state);
+  const next = cloneStateForStep(state, { shareKnowledge: skipKnowledge });
+  let knowledgeRefreshed = skipKnowledge;
+  let expansionRecorded = false;
   if (action.type === 'Move' && path) {
     const moving = next.units[action.unitId];
     if (!isMapUnit(moving)) throw new Error('Expected deployed unit');
@@ -79,7 +112,7 @@ export function step(state: GameState, command: Command, content: Content = cont
     if (usesMovementPoints(state)) {
       // v16: pay the entered tiles; the unit keeps acting while points remain, unless it stopped in a hostile zone of control.
       // The zone of control is judged from the new position, so an enemy revealed on arrival still stops the unit.
-      const view = observe(next, command.actorId, content);
+      const view = observeForMove(next, command.actorId, content);
       const budget = movementBudget(view, moving, content);
       const spent = (moving.movesSpent ?? 0) + pathCost(moving, state.map, path, content,
         { budget, spent: moving.movesSpent ?? 0, harbors: harborTiles(state.map, Object.values(state.cities), command.actorId, content) });
@@ -101,6 +134,7 @@ export function step(state: GameState, command: Command, content: Content = cont
       refreshKnowledge(next, content); // Stage 7 precedes the round-limit score.
       knowledgeRefreshed = true;
       events.push(...recordExpansion(state, next, command, events, content));
+      expansionRecorded = true;
       if (!next.outcome && next.round >= (next.setup.roundLimit ?? 100)) events.push(...finishGame(next, 'score', undefined, content));
       else if (!next.outcome) next.round++;
       for (const unit of Object.values(next.units)) { unit.actionLeft = !next.outcome && isMapUnit(unit) ? 1 : 0; delete unit.movesSpent; }
@@ -122,6 +156,6 @@ export function step(state: GameState, command: Command, content: Content = cont
     }
   }
   if (!knowledgeRefreshed) refreshKnowledge(next, content);
-  if (action.type !== 'EndTurn' || !knowledgeRefreshed) events.push(...recordExpansion(state, next, command, events, content));
+  if (!expansionRecorded) events.push(...recordExpansion(state, next, command, events, content));
   return { ok: true, state: next, events: events.map((payload, index) => ({ seq: next.commandSeq, index, payload })) };
 }

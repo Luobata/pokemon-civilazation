@@ -1,3 +1,4 @@
+import { clonePlain } from './clone.ts';
 import { leaderUnitFor, stoneEvolutionsFor } from '../content/roster.ts';
 import { doctrineEffects } from './leader-doctrines.ts';
 import type { LeaderId } from '../content/leaders.ts';
@@ -134,7 +135,7 @@ export function leaderCityYield(state: GameState, cityId: number): { food: numbe
   }
 }
 export function observeLeaders(state: GameState, playerId: number): LeaderSystemsView {
-  return JSON.parse(JSON.stringify(state.expansion!.leaders.players[playerId]));
+  return clonePlain(state.expansion!.leaders.players[playerId]);
 }
 /** Uses only projected information; each leader follows its own spending priority. */
 export function planLeaderAction(view: PlayerView,

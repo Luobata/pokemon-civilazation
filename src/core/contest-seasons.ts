@@ -1,3 +1,4 @@
+import { clonePlain } from './clone.ts';
 // Gameplay v26 D (docs/design/depth-v26.md §5.2, option 5A): contest seasons — from round 45 every 15 rounds a contest with a public
 // category (a rotation fixed by `stableSeed`, announced 5 rounds before), EnterContest with one Pokémon in or next to an own city with a
 // contest hall (one per civilization per season, spends its action), judged at the end of the season round. Score = 20 × matching types
@@ -125,7 +126,7 @@ export function observeContestSeasons(state: GameState, playerId: number, conten
   return { nextRound: season?.round ?? null, season: season ? season.index + 1 : 0, announceRound,
     category: season && state.round >= announceRound! ? seasonCategory(state.setup.seed, season.index) : null,
     ribbons: { ...ledger.ribbons }, ownEntry: ledger.entries[playerId] ? { ...ledger.entries[playerId] } : null,
-    entrants: Object.keys(ledger.entries).map(Number).sort((a, b) => a - b), last: ledger.last ? JSON.parse(JSON.stringify(ledger.last)) as ContestSeasonResult : null };
+    entrants: Object.keys(ledger.entries).map(Number).sort((a, b) => a - b), last: ledger.last ? clonePlain(ledger.last) : null };
 }
 /** View mirror of the authority's checks (null = the unit may enter now). */
 export function viewContestEntryBlocker(view: PlayerView, unitId: number, content: Content): string | null {

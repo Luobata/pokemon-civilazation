@@ -7,7 +7,7 @@ import { viewRepairs } from '../core/pillage.ts';
 import { workRadius } from '../core/city.ts';
 import { hexDistance, hexToIndex, indexToHex, neighbors } from '../core/hex.ts';
 import type { Hex } from '../core/hex.ts';
-import { isBoarding, nearestTravel, travelDistance } from './travel.ts';
+import { forwardTravelField, isBoarding, nearestTravel, travelDistance, travelDistanceFromField } from './travel.ts';
 import type { CityState, Command, MapUnit, PlayerView } from '../core/model.ts';
 
 type Suggestion = { action: Command['action']; benefit: number };
@@ -50,17 +50,23 @@ function damagedOwn(view: PlayerView): number[] {
     return distance > 0 && distance <= workRadius(city);
   })).map(tile => tile.tileIndex);
 }
+const targetCache = new WeakMap<PlayerView, { tileIndex: number; kind: ImprovementId }[]>();
 /** Worked, unimproved own tiles and the improvement that fits each. */
 function targets(view: PlayerView): { tileIndex: number; kind: ImprovementId }[] {
+  const cached = targetCache.get(view);
+  if (cached) return cached;
   const improvements = view.expansion?.improvements;
   if (!improvements) return [];
-  if (usesImprovementsV23(view)) return targetsV23(view);
-  const done = new Set(improvements.tiles.map(tile => tile.tileIndex));
-  return view.economy.cities.flatMap(city => city.workedTileIds).filter(index => !done.has(index)).flatMap(tileIndex => {
-    const biome = view.map.tiles[tileIndex];
-    const kind = [...IMPROVEMENT_IDS].sort((a, b) => value(b, view) - value(a, view)).find(id => biome && IMPROVEMENTS[id].biomes.includes(biome as never));
-    return kind ? [{ tileIndex, kind }] : [];
-  }).sort((a, b) => a.tileIndex - b.tileIndex);
+  const result = usesImprovementsV23(view) ? targetsV23(view) : (() => {
+    const done = new Set(improvements.tiles.map(tile => tile.tileIndex));
+    return view.economy.cities.flatMap(city => city.workedTileIds).filter(index => !done.has(index)).flatMap(tileIndex => {
+      const biome = view.map.tiles[tileIndex];
+      const kind = [...IMPROVEMENT_IDS].sort((a, b) => value(b, view) - value(a, view)).find(id => biome && IMPROVEMENTS[id].biomes.includes(biome as never));
+      return kind ? [{ tileIndex, kind }] : [];
+    }).sort((a, b) => a.tileIndex - b.tileIndex);
+  })();
+  targetCache.set(view, result);
+  return result;
 }
 /**
  * v23: worked unimproved tiles get the best researched improvement for the city's needs; every resource tile in own
@@ -70,15 +76,18 @@ function targetsV23(view: PlayerView): { tileIndex: number; kind: ImprovementId 
   const improvements = view.expansion!.improvements!, unlocked = view.economy.player.research.unlockedIds;
   const done = new Set([...improvements.tiles.map(tile => tile.tileIndex), ...(view.expansion?.districts?.tiles.map(tile => tile.tileIndex) ?? []),
     ...(view.expansion?.districts?.projects.map(tile => tile.tileIndex) ?? []), ...(view.expansion?.districts?.constructionSites?.filter(site => site.category === 'district').map(site => site.tileIndex) ?? [])]);
-  const resourceAt = resourceLookup(view.expansion?.world.resources ?? [], (view.expansion?.rareBerries?.deposits ?? []).map(item => item.tileIndex));
+  const worldResources = view.expansion?.world.resources ?? [];
+  const rareDeposits = (view.expansion?.rareBerries?.deposits ?? []).map(item => item.tileIndex);
+  const resourceAt = resourceLookup(worldResources, rareDeposits);
+  const resourceIndices = [...new Set([...worldResources.map(item => item.tileIndex), ...rareDeposits])].sort((a, b) => a - b);
   const researched = (kind: ImprovementId) => !IMPROVEMENTS[kind].requiredTech || unlocked.includes(IMPROVEMENTS[kind].requiredTech!);
   const centres = new Set(view.cities.map(city => `${city.position.q},${city.position.r}`));
   const out = new Map<number, ImprovementId>();
   for (const city of [...view.economy.cities].sort((a, b) => a.id - b.id)) {
     const foodFirst = hungry(city), radius = workRadius(city);
-    const resources = view.map.tiles.flatMap((_, index) => {
+    const resources = resourceIndices.filter(index => {
       const position = indexToHex(index, view.map), distance = hexDistance(city.position, position, view.map);
-      return distance > 0 && distance <= radius && resourceAt(index) && !centres.has(`${position.q},${position.r}`) ? [index] : [];
+      return distance > 0 && distance <= radius && resourceAt(index) && !centres.has(`${position.q},${position.r}`);
     });
     for (const tileIndex of [...city.workedTileIds, ...resources]) {
       if (done.has(tileIndex) || out.has(tileIndex)) continue;
@@ -111,7 +120,9 @@ export function improvementSuggestions(view: PlayerView, unit: MapUnit, content:
   if (out.length || !destinations.length) return out;
   // v24 A2: distances on the builder's travel field (straight hex distance before v24); unreachable goals are skipped.
   const far = (from: Hex, target: Hex) => travelDistance(view, unit, from, target);
-  const nearest = [...destinations].sort((a, b) => far(unit.position, indexToHex(a.tileIndex, view.map)) - far(unit.position, indexToHex(b.tileIndex, view.map)) || a.tileIndex - b.tileIndex)[0];
+  const forward = forwardTravelField(view, unit, unit.position, content);
+  const nearest = [...destinations].sort((a, b) => travelDistanceFromField(forward, view, unit.position, a.tileIndex)
+    - travelDistanceFromField(forward, view, unit.position, b.tileIndex) || a.tileIndex - b.tileIndex)[0];
   const ocean = view.map.tiles[nearest.tileIndex] === 'ocean', offset = ocean ? 1 : 0;
   const goal = indexToHex(nearest.tileIndex, view.map);
   // A sea tile is improved from the shore: aim at its land neighbours on v24 maps (the builder does not board for it).

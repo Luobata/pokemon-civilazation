@@ -1,3 +1,4 @@
+import { clonePlain } from './clone.ts';
 import { isMapUnit } from './model.ts';
 import { gameVersions } from './versions.ts';
 import { isEraProgression, isGameplayVersion, LATEST_GAMEPLAY_VERSION } from '../content/eras.ts';
@@ -36,7 +37,7 @@ export function createGame(rawSetup: GameSetup, content?: Content): GameState {
     throw new Error('dexSeed must be a non-negative integer.');
   }
   const setup: GameSetup = {
-    ...JSON.parse(JSON.stringify(rawSetup)) as GameSetup,
+    ...clonePlain(rawSetup),
     expansionVersion: 1,
     eraProgression: rawSetup.eraProgression ?? 'simple-v1',
     gameplayVersion: LATEST_GAMEPLAY_VERSION,

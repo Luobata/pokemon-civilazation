@@ -29,14 +29,14 @@ export function moverOf(view: PlayerView, unit: UnitIdentity, content: Content =
   return { kind: 'land', access: waterAccess(view.economy.player, content) };
 }
 
-type FieldCache = { adjacency: number[][]; fields: Map<string, Int32Array> };
+type FieldCache = { adjacency: number[][]; fields: Map<string, Int32Array>; forwardFields: Map<string, Int32Array> };
 const caches = new WeakMap<PlayerView, FieldCache>();
 function cacheOf(view: PlayerView): FieldCache {
   let cache = caches.get(view);
   if (!cache) {
     const adjacency = view.map.tiles.map((_, index) => neighbors(indexToHex(index, view.map), view.map)
       .map(hex => hexToIndex(hex, view.map)).filter((next): next is number => next !== null));
-    cache = { adjacency, fields: new Map() };
+    cache = { adjacency, fields: new Map(), forwardFields: new Map() };
     caches.set(view, cache);
   }
   return cache;
@@ -55,6 +55,43 @@ function stepCost(view: PlayerView, mover: Mover, from: number, to: number, cont
   }
   if (mover.kind !== 'flying' && !water && biome === 'volcano' && !unitDefinition(sample, content).terrain.includes('volcano')) return INF;
   return content.moveCosts[biome] + featureMoveExtra(map, from, to, sample, content);
+}
+/** Forward shortest-path field from a single `origin` tile (exact dual of `travelDistance(view, unit, origin, target)` for every target). */
+export function forwardTravelField(view: PlayerView, unit: UnitIdentity, origin: Hex, content: Content = contentForView(view)): Int32Array | null {
+  if (!view.map.features) return null;
+  const start = hexToIndex(origin, view.map);
+  if (start === null) return null;
+  const mover = moverOf(view, unit, content);
+  const cache = cacheOf(view);
+  const volcano = mover.kind !== 'flying' && unitDefinition(unit, content).terrain.includes('volcano');
+  const key = `${mover.kind}:${mover.access}:${volcano ? 'v' : ''}:${start}`;
+  const cached = cache.forwardFields.get(key);
+  if (cached) return cached;
+  const n = view.map.tiles.length, dist = new Int32Array(n).fill(INF);
+  const buckets: number[][] = [[]];
+  dist[start] = 0;
+  buckets[0].push(start);
+  for (let d = 0; d < buckets.length; d++) {
+    const bucket = buckets[d];
+    if (!bucket) continue;
+    for (let k = 0; k < bucket.length; k++) {
+      const from = bucket[k];
+      if (dist[from] !== d) continue;
+      for (const to of cache.adjacency[from]) {
+        const cost = stepCost(view, mover, from, to, content, unit);
+        if (cost >= INF) continue;
+        const next = d + cost;
+        if (next < dist[to]) { dist[to] = next; (buckets[next] ??= []).push(to); }
+      }
+    }
+  }
+  cache.forwardFields.set(key, dist);
+  return dist;
+}
+export function travelDistanceFromField(field: Int32Array | null, view: PlayerView, from: Hex, targetIndex: number): number {
+  if (!field) return hexDistance(from, indexToHex(targetIndex, view.map), view.map);
+  const value = field[targetIndex];
+  return value >= INF ? Infinity : value;
 }
 /** The travel field towards `targets` for this unit's kind of mover (cached per view). */
 export function travelField(view: PlayerView, unit: UnitIdentity, targets: readonly Hex[], content: Content = contentForView(view)): Int32Array {

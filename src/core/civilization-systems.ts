@@ -1,3 +1,4 @@
+import { clonePlain } from './clone.ts';
 import { leagueRosterEntrants, settleLeagueNemeses } from './league-roster.ts';
 import type { LeagueTrainerEvent } from './league-roster.ts';
 import { worldSiteAllowed } from './terrain.ts';
@@ -389,7 +390,7 @@ export function simulateBattle(home: BattleCombatant[], away: BattleCombatant[],
     const source = fighter.side === 'home' ? home.find(candidate => candidate.id === fighter.id) : away.find(candidate => candidate.id === fighter.id);
     if (source) source.hp = fighter.hp;
   }
-  return { seed, rounds: JSON.parse(JSON.stringify(rounds)) as BattleRound[], winnerSide };
+  return { seed, rounds: clonePlain(rounds), winnerSide };
 }
 function battleRosterFromState(state: CivilizationHost, unitIds: readonly number[], side: BattleCombatant['side'], prefix: string, content: CivilizationContent): BattleCombatant[] {
   return unitIds.map((unitId, index) => combatantFromUnit(state.units[unitId]!, `${prefix}-${index}`, side, content));
@@ -891,7 +892,7 @@ function finishChampionship(state: CivilizationHost, content: CivilizationConten
   const final = championshipMatch('final', finalist1, finalist2);
   const champion = entrants.find(entrant => entrant.entrantId === final.winnerEntrantId)!;
   const season: ChampionshipSeason = {
-    season: championship.nextSeason, round: state.round, entrants: JSON.parse(JSON.stringify(entrants)) as ChampionshipEntrant[],
+    season: championship.nextSeason, round: state.round, entrants: clonePlain(entrants),
     matches: [preliminary1, preliminary2, semifinal1, semifinal2, final],
     championEntrantId: champion.entrantId, championPlayerId: champion.playerId,
   };
@@ -912,7 +913,7 @@ function finishChampionship(state: CivilizationHost, content: CivilizationConten
   championship.registrations = {};
   championship.nextSeason++;
   championship.nextRound += championship.intervalRounds;
-  events.push({ type: 'ChampionshipResolved', public: true, playerId: champion.playerId, season: JSON.parse(JSON.stringify(season)) as ChampionshipSeason });
+  events.push({ type: 'ChampionshipResolved', public: true, playerId: champion.playerId, season: clonePlain(season) });
 }
 
 export function resolveCivilizationRound(state: CivilizationHost, content: CivilizationContent = CIVILIZATION_CONTENT): EventPayload[] {
@@ -978,7 +979,7 @@ export function checkCivilizationVictory(state: CivilizationHost, content: Civil
 export function observeCivilization(state: CivilizationHost, playerId: number, visibleTileIds: Set<number>, content: CivilizationContent = CIVILIZATION_CONTENT): CivilizationView {
   const civilizationState = civilization(state);
   if (!civilizationState) throw new Error('civilization-uninitialized');
-  const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+  const clone = clonePlain;
   const visible = (position: Hex) => visibleTileIds.has(hexToIndex(position, state.map)!);
   const defaultPlayer: CivilizationPlayerState = {
     offeringPoints: 0, lifetimeOfferings: 0, offeredThisRoundByCity: {}, nextPhantomCost: content.phantoms.firstSummonCost,
@@ -1002,7 +1003,7 @@ export function observeCivilization(state: CivilizationHost, playerId: number, v
       nextRound: civilizationState.championship.nextRound,
       intervalRounds: civilizationState.championship.intervalRounds,
       registration: clone(civilizationState.championship.registrations[playerId] ?? null),
-      history: clone(civilizationState.championship.history),
+      history: [...civilizationState.championship.history],
       titlesByPlayer: clone(civilizationState.championship.titlesByPlayer),
       victory: clone(civilizationState.championship.victory),
       registrationCount: Object.keys(civilizationState.championship.registrations).length,
